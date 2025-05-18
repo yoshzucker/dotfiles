@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+# Ensure grep handles Unicode characters properly
+export LC_ALL=en_US.UTF-8
+
+echo "Running Japanese character check..."
+
+# Default search directory
+TARGET_DIR=${1:-.}
+
+# Search all text files (ignore binaries) for Japanese characters
+MATCHES=$(find "$TARGET_DIR" -type f \
+  -exec grep -I -n -H -E '[一-龯ぁ-んァ-ヶ]' {} +)
+
+if [ -n "$MATCHES" ]; then
+  echo "⚠️ WARNING: Japanese text found in the following files:"
+  echo "$MATCHES"
+  exit 0  # Exit with 0 to indicate a warning, not an error
+else
+  echo "✅ No Japanese text found. All clear."
+  exit 0
+fi

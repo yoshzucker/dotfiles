@@ -1,0 +1,5 @@
+javascript:location.href=
+'org-protocol://capture://b/'
++encodeURIComponent(location.href)
++'/'+encodeURIComponent(document.title)
++'/'+encodeURIComponent(window.getSelection())

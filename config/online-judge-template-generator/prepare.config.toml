@@ -1,0 +1,3 @@
+contest_directory = "~/Documents/works/{service_name}/contest/{contest_id}/{problem_id}"
+
+[templates]

@@ -1,0 +1,54 @@
+# wsltty config
+#
+# Place this file as follows:
+# 1. If wsltty was installed via Scoop:
+#    %HOME%/scoop/persist/wsltty/config/config
+# 2. If wsltty was installed via the installer:
+#    %APPDATA%/mintty/config
+
+# Looks
+Transparency=4
+CursorType=block
+CursorBlinks=no
+
+# Text
+Font=HackGen Console NF
+FontHeight=12
+
+BoldAsFont=yes
+BoldAsColour=no
+
+Locale=ja_JP
+Charset=UTF-8
+
+# Keys
+ClipShortcuts=yes
+WindowShortcuts=no
+AltFnShortcuts=no
+ZoomShortcuts=no
+
+
+# Mouse
+
+
+# Selection
+
+
+# Window
+Columns=81
+Rows=39
+
+Scrollbar=none
+ScrollMod=off
+
+Language=ja
+
+# Terminal
+Term=xterm-256color
+AllowBlinking=no
+
+BellType=0
+
+# wsltty config ends here
+ComposeKey=off
+SwitchShortcuts=no

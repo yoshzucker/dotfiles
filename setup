@@ -1,0 +1,627 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+IFS=$'\n\t'
+
+################################################################################
+# Help / usage
+################################################################################
+usage() {
+  cat <<EOF
+Usage:
+  $0 install           # Install required packages (initial setup)
+  $0 update            # Update installed packages
+  $0 link              # Symlink dotfiles into appropriate locations
+  $0 configure         # Configure environment (run after install)
+  $0 list independent  # List unnecessary packages
+  $0 list dependent    # List dependent packages
+  -h, --help           # Show this help message
+
+Note:
+  - On first setup, run:
+      1. $0 install
+      2. $0 configure
+      3. $0 link
+  - On later updates, normally just run:
+      $0 update
+
+EOF
+  exit 1
+}
+
+################################################################################
+# Option parsing
+################################################################################
+while getopts hn-: opt; do
+  case $opt in
+    h) usage ;;
+    -)
+      case "$OPTARG" in
+        help) usage ;;
+        *) echo "Unknown option --$OPTARG"; usage ;;
+      esac
+      ;;
+    \?) echo "Invalid option: -$OPTARG" >&2; usage ;;
+  esac
+done
+shift $((OPTIND - 1))
+
+################################################################################
+# Initialize mode flags
+################################################################################
+install=0
+update=0
+link=0
+configure=0
+independent=0
+dependent=0
+
+main_mode="${1:-}"
+sub_mode="${2:-}"
+
+case "$main_mode" in
+  link)
+    link=1
+    ;;
+  install)
+    install=1
+    ;;
+  update)
+    update=1
+    ;;
+  configure)
+    configure=1
+    ;;
+  list)
+    case "$sub_mode" in
+      independent) independent=1 ;;
+      dependent) dependent=1 ;;
+      *) independent=1 ;;
+    esac
+    ;;
+  *) usage ;;
+esac
+
+################################################################################
+# Environment check
+################################################################################
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$script_dir/config/lib/p00_core_env.sh"
+
+printf "Detected environment: os=%s, distribution=%s, platform=%s\n" "$os" "$distribution" "$platform"
+
+################################################################################
+# Main entry
+################################################################################
+main() {
+  if [ "$link" -eq 1 ] || [ "$install" -eq 1 ]; then
+    copy_dotfiles
+    setup_links
+  fi
+
+  if [ "$install" -eq 1 ]; then
+    install_apt_packages
+    install_brew
+    install_brew_packages
+    install_r_packages
+    install_rgpipe
+  fi
+
+  if [ "$update" -eq 1 ]; then
+    update_apt_packages
+    update_brew
+    update_brew_packages
+    update_r_packages
+  fi
+
+  if [ "$configure" -eq 1 ]; then
+    configure_login_shell
+    configure_fzf_keybinding
+    configure_terminfo
+    configure_dircolors
+    configure_org_protocol
+    configure_git
+    show_post_config_instructions
+  fi
+
+  if [ "$install" -eq 1 ] || [ "$update" -eq 1 ] || [ "$configure" -eq 1 ]; then
+    show_restart_notice
+  fi
+
+  if [ "$independent" -eq 1 ]; then
+    show_brew_independent_packages
+  elif [ "$dependent" -eq 1 ]; then
+    show_brew_dependent_packages
+  fi
+}
+
+################################################################################
+# Functions
+################################################################################
+print_line() {
+  local left="$1"
+  local right="$2"
+  local fill_char="${3:-.}"
+
+  local cols
+  cols=$(tput cols 2>/dev/null || echo 80)
+
+  local left_len=${#left}
+  local right_len=${#right}
+  local total_len=$(( left_len + right_len ))
+
+  local lines=$(( (total_len + cols - 1) / cols ))
+  [ "$lines" -lt 1 ] && lines=1
+
+  local fill_len=$(( lines * cols - total_len ))
+
+  local filler=""
+  while [ ${#filler} -lt "$fill_len" ]; do
+    filler="${filler}${fill_char}"
+  done
+
+  printf "%s%s%s\n" "$left" "$filler" "$right"
+}
+
+# Link all contents (including dotfiles) from a directory into a target directory
+# This function handles hidden files, filters out ".", ".." and .DS_Store, and creates symlinks one by one.
+ln_contents() {
+  local src_dir="$1"
+  local dest_dir="$2"
+
+  mkdir -p "$dest_dir"
+
+  # Enable nullglob and dotglob locally
+  local old_nullglob=$(shopt -p nullglob)
+  local old_dotglob=$(shopt -p dotglob)
+  shopt -s nullglob dotglob
+
+  for src in "$src_dir"/*; do
+    local name="$(basename "$src")"
+
+    # Skip special entries and system files
+    case "$name" in .|..|.DS_Store) continue ;; esac
+
+    local dest="$dest_dir/$name"
+
+    # skip circular and self-ref
+    if [ -L "$src" ] && [ "$(realpath "$src" 2>/dev/null)" = "$dest_dir" ]; then
+      echo "⛔ Skipping circular link: $src → $dest_dir"
+      continue
+    fi
+    if [[ -e "$dest" && "$(realpath "$src" 2>/dev/null)" == "$(realpath "$dest" 2>/dev/null)" ]]; then
+      echo "⛔ Skipping self-referential link: $dest"
+      continue
+    fi
+
+    if [ -d "$src" ] && [ ! -L "$src" ]; then
+      if [ -d "$dest" ] && [ ! -L "$dest" ]; then
+        ln_contents "$src" "$dest"
+      elif [ -L "$dest" ]; then
+        echo "🔁 Replacing symlink directory: $dest"
+        rm "$dest"
+        ln -s "$src" "$dest"
+        echo "✅ Linked: $dest → $src"
+      elif [ -e "$dest" ]; then
+        echo "⚠️  Conflict: $dest already exists and is not a directory. Skipping."
+      else
+        ln -s "$src" "$dest"
+        echo "✅ Linked: $dest → $src"
+      fi
+    else
+      if [ -L "$dest" ]; then
+        echo "🔁 Replacing symlink: $dest"
+        rm "$dest"
+        ln -s "$src" "$dest"
+        echo "✅ Linked: $dest → $src"
+      elif [ -e "$dest" ]; then
+        echo "⚠️  Conflict: $dest already exists. Skipping."
+      else
+        ln -s "$src" "$dest"
+        echo "✅ Linked: $dest → $src"
+      fi
+    fi
+  done
+
+  # Restore previous shell options
+  eval "$old_nullglob"
+  eval "$old_dotglob"
+}
+
+copy_dotfiles() {
+  dotfiles="$HOME/dotfiles"
+  parentdir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+  left_message="Forcibly copying dotfiles from $parentdir to $dotfiles"
+  print_line "$left_message" "Started."
+
+  if [ "$parentdir" = "$dotfiles" ]; then
+    right_message="Already in \$HOME/dotfiles, skipping copy."
+  else
+    rm -rf "$dotfiles"
+    mkdir -p "$dotfiles"
+    cp -R "$parentdir"/. "$dotfiles"
+    right_message="Finished."
+  fi
+
+  print_line "$left_message" "$right_message"
+}
+
+setup_links() {
+  left_message="Linking dotfiles"
+  print_line "$left_message" "Started."
+
+  ln_contents "$HOME/dotfiles/home" "$HOME"
+  ln_contents "$HOME/dotfiles/config" "$HOME/.config"
+  ln_contents "$HOME/dotfiles/local" "$HOME/.local"
+  ln_contents "$HOME/dotfiles/emacs.d" "$HOME/.emacs.d"
+
+  print_line "$left_message" "Finished."
+}
+
+install_apt_packages() {
+  if [[ "$distribution" != "ubuntu" && "$distribution" != "debian" ]]; then
+    return
+  fi
+
+  left_message="Installing APT packages"
+  print_line "$left_message" "Started."
+
+  packages=(
+    zsh
+    curl            # for brew
+    build-essential # for brew
+    procps          # for brew
+    git             # for brew
+    x11-apps
+    language-pack-ja
+    fonts-noto-cjk
+    locales
+    libcurl4-openssl-dev
+    libssl-dev
+    libxml2-dev
+  )
+  sudo apt update
+  sudo DEBIAN_FRONTEND=noninteractive apt install -y "${packages[@]}"
+  sudo apt autoremove -y
+
+  print_line "$left_message" "Finished."
+}
+
+update_apt_packages() {
+  if [[ "$distribution" != "ubuntu" && "$distribution" != "debian" ]]; then
+    return
+  fi
+
+  left_message="Updating APT packages"
+  print_line "$left_message" "Started."
+
+  sudo apt update && sudo apt upgrade -y
+  sudo apt autoremove -y
+
+  print_line "$left_message" "Finished."
+}
+
+install_brew() {
+  if command -v brew >/dev/null; then
+    return
+  fi
+  
+  left_message="Installing Homebrew"
+  print_line "$left_message" "Started."
+
+  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  
+  if [[ "$os" == "darwin" ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null)"
+  elif [[ "$os" == "linux" ]]; then
+    test -d ~/.linuxbrew && eval "$(~/.linuxbrew/bin/brew shellenv)"
+    test -d /home/linuxbrew/.linuxbrew && eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+    umask 002
+  fi
+  
+  print_line "$left_message" "Finished."
+}
+
+update_brew() {
+  if ! command -v brew >/dev/null; then
+    return
+  fi
+
+  left_message="Updating Homebrew"
+  print_line "$left_message" "Started."
+
+  brew update
+
+  print_line "$left_message" "Finished."
+}
+
+install_brew_packages() {
+  if ! command -v brew >/dev/null; then
+    return
+  fi
+
+  left_message="Installing brew packages"
+  print_line "$left_message" "Started."
+
+  export HOMEBREW_NO_AUTO_UPDATE=1
+  brew update
+  
+  packages=(
+    coreutils
+    diffutils
+    findutils
+    tmux
+    gcc
+    poppler       # for emacs pdf-tools
+    fzf
+    ripgrep
+    cmigemo
+    gnupg
+    aspell
+    git
+    gitleaks
+    global
+    sbcl
+    r
+    python
+  )
+  if [[ "$os" == "darwin" ]]; then
+    packages+=(
+      karabiner-elements
+      battery
+    )
+    
+    brew tap beeftornado/rmtree
+    brew tap d12frosted/emacs-plus
+    brew install emacs-plus --with-imagemagick
+    rm -rf /Applications/Emacs.app
+    cp -a "$(brew --prefix)/opt/emacs-plus/Emacs.app" /Applications
+  else
+    packages+=(
+      emacs
+    )
+  fi
+  brew install "${packages[@]}"
+  
+  if [[ "$os" == "darwin" ]]; then
+    casks=(
+      iterm2
+      font-hackgen
+    )
+    brew install --cask "${casks[@]}" || true
+  fi
+  
+  brew cleanup
+  unset HOMEBREW_NO_AUTO_UPDATE
+
+  print_line "$left_message" "Finished."
+}
+
+update_brew_packages() {
+  if ! command -v brew >/dev/null; then
+    return
+  fi
+
+  left_message="Updating Homebrew"
+  print_line "$left_message" "Started."
+
+  brew update
+  brew upgrade
+  brew cleanup
+
+  print_line "$left_message" "Finished."
+}
+
+install_r_packages() {
+  if ! command -v R >/dev/null; then
+    return
+  fi
+
+  left_message="Installing or updating R packages"
+  print_line "$left_message" "Started."
+  
+  if [[ "$os" == "darwin" ]]; then
+    chmod u+w "$(brew --prefix)/Cellar/r/"*/lib/R/doc/html/packages.html 2>/dev/null || true
+  fi
+  
+  if [[ "$os" == "linux" ]]; then
+    options="repos='https://cran.rstudio.com', INSTALL_opts=c('--no-lock')"
+  else
+    options="repos='https://cran.rstudio.com'"
+  fi
+  
+  packages="c('tidyverse', 'IRkernel')"
+  Rscript -e "install.packages($packages[! $packages %in% installed.packages()[, 'Package']], $options)" || true
+
+  if command -v jupyter >/dev/null; then
+    Rscript -e "IRkernel::installspec()" || true
+  fi
+  
+  print_line "$left_message" "Finished."
+}
+
+update_r_packages() {
+  if ! command -v R >/dev/null; then
+    return
+  fi
+
+  left_message="Updating installed R packages"
+  print_line "$left_message" "Started."
+
+  Rscript -e "update.packages(ask = FALSE)" || true
+
+  print_line "$left_message" "Finished."
+}
+
+install_rgpipe() {
+  if command -v rgpipe; then
+    return
+  fi
+
+  left_message="Installing rgpipe"
+  print_line "$left_message" "Started."
+
+  local rgpipe_path="$HOME/.local/bin/rgpipe"
+  local url="https://raw.githubusercontent.com/ColonelBuendia/rgpipe/master/rgpipe"
+
+  mkdir -p "$HOME/.local/bin"
+  curl -fsSL "$url" -o "$rgpipe_path"
+  chmod u+x "$rgpipe_path"
+
+  print_line "$left_message" "Finished."
+}
+
+configure_login_shell() {
+  read -rp 'Change login shell? [zsh/bash/n] ' change_sh
+
+  left_message="Changing shell"
+  print_line "$left_message" "Started."
+
+  case "${change_sh,,}" in
+    z*)
+      shell_path="$(command -v zsh)"
+      ;;
+    b*)
+      shell_path="$(command -v bash)"
+      ;;
+    *)
+      print_line "$left_message" "No shell change performed."
+      return
+      ;;
+  esac
+
+  # Add shell path to /etc/shells if missing
+  if ! grep -qxF "$shell_path" /etc/shells; then
+    echo "$shell_path" | sudo tee -a /etc/shells > /dev/null
+  fi
+
+  # Try to change login shell
+  if chsh -s "$shell_path"; then
+    print_line "$left_message" "Finished change to $(basename "$shell_path")"
+  else
+    print_line "$left_message" "Failed to change shell"
+  fi
+}
+
+configure_fzf_keybinding() {
+  if ! command -v fzf >/dev/null; then
+    return
+  fi
+
+  read -rp "Install fzf keybindings and completions? [Y/n] " setup_fzf
+
+  left_message="Installing fzf keybindings"
+  print_line "$left_message" "Started."
+
+  case "$setup_fzf" in
+    [Yy]* | "" )
+      "$(brew --prefix)/opt/fzf/install" --key-bindings --completion --no-update-rc
+      right_message="Finished."
+      ;;
+    *)
+      right_message="Skipped."
+      ;;
+  esac
+
+  print_line "$left_message" "$right_message"
+}
+
+configure_terminfo() {
+  read -rp "Setup terminfo-24bit for emacs? [Y/n] " configure_terminfo
+
+  left_message="Setting up terminfo-24bit"
+  print_line "$left_message" "Started."
+
+  case "$configure_terminfo" in
+    [Yy]* | "" )
+      tic -x -o ~/.terminfo "$HOME/dotfiles/config/term-color/terminfo-24bit.src" || true
+      right_message="Finished."
+      ;;
+    *)
+      right_message="Skipped."
+      ;;
+  esac
+
+  print_line "$left_message" "$right_message"
+
+  if [ "$right_message" = "Finished." ]; then
+    echo 'Add this to your .zshrc: alias emacs="TERM=xterm-24bits emacs"'
+  fi
+}
+
+configure_org_protocol() {
+  read -rp "Setup Chrome integration for org-protocol? [Y/n] " setup_org
+
+  left_message="Setting up org-protocol"
+  print_line "$left_message" "Started."
+
+  case "$setup_org" in
+    [Yy]* | "" )
+      if [ "$os" = "darwin" ]; then
+        defaults write com.google.Chrome ExternalProtocolDialogShowAlwaysOpenCheckbox -bool true
+        right_message="Disabled protocol dialog in Chrome (macOS)."
+      else
+        right_message="org-protocol setup not required on this OS."
+      fi
+      ;;
+    *)
+      right_message="Skipped."
+      ;;
+  esac
+
+  print_line "$left_message" "$right_message"
+}
+
+configure_git() {
+  left_len="Configuring Git settings..."
+  print_line "$left_message" "Started."
+
+  git config --global core.editor "emacsclient"
+  git config --global init.defaultBranch "main"
+  git config --global --add alias.graph 'log --pretty=format:"%C(yellow)%h%Creset %Cgreen%ar%Creset %Cblue%<(8,trunc)%an%Creset %C(auto)%d%Creset %s" --graph'
+
+  print_line "$left_message" "Finished."
+}
+
+show_post_config_instructions() {
+  if [ "$platform" = "wsl2" ]; then
+    echo "[manual steps] Please do the following manually:"
+    echo "- In wsltty settings, enable 24-bit color manually."
+    echo "- Copy:"
+    echo "    \$HOME/dotfiles/os/windows/wsl-xlaunch/.wsltty_config"
+    echo "  to:"
+    echo "    %AppData%/wsltty/config"
+    echo
+  fi
+}
+
+show_restart_notice() {
+  echo
+  echo "Finish '$main_mode'. To apply all changes, run:"
+  echo "  exec \$SHELL -l"
+  echo
+}
+
+show_brew_independent_packages() {
+  echo "Show independent packages installed with brew"
+  for package in $(brew list); do
+    if [ "$(brew uses --installed "$package" | wc -l)" -eq 0 ]; then
+      echo "$package"
+    fi
+  done
+  echo 'To uninstall, use: brew rmtree <package>'
+}
+
+show_brew_dependent_packages() {
+  echo "Show dependent packages installed with brew"
+  echo "This [ package ] is a component of the following packages:"
+  for package in $(brew list); do
+    echo "[ $package ]"
+    brew uses --installed "$package"
+  done
+  echo 'To uninstall, use: brew rmtree <package>'
+}
+
+main "$@"

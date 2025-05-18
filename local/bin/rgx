@@ -1,0 +1,2 @@
+#!/usr/bin/env sh
+exec rg --pre-glob '*.{pdf,docx,xlsx,html}' --pre rgpipe "$@"

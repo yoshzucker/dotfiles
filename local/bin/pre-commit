@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# leakseek + gitleaks + check-japanese pre-commit checker
+
+set -e
+
+show_help() {
+  cat <<EOF
+Usage:
+  pre-commit [--help]
+
+Run leakseek, gitleaks, and Japanese character check before committing.
+
+🪝 How to install as a Git pre-commit hook:
+
+1. Save this script to:
+     ~/.local/bin/pre-commit
+
+2. Make sure it's executable:
+     chmod +x ~/.local/bin/pre-commit
+
+3. For each Git repository where you want to enable this check, run:
+     ln -sf ~/.local/bin/pre-commit .git/hooks/pre-commit
+
+💡 You can also test it manually from anywhere inside the repo:
+     pre-commit
+
+🚨 What this script does:
+- Runs 'leakseek' from the repo root
+- Runs 'gitleaks detect' from the repo root
+- Checks for Japanese characters in source files
+- If any check fails, the commit is aborted
+- If all checks pass, the commit proceeds
+
+EOF
+}
+
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+  show_help
+  exit 0
+fi
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+cd "$REPO_ROOT"
+
+echo "🔒 Running leakseek..."
+if ! leakseek; then
+  echo "❌ leakseek failed. Commit aborted."
+  exit 1
+fi
+
+echo "🔒 Running gitleaks..."
+if ! gitleaks detect --no-banner --redact --source .; then
+  echo "❌ gitleaks found potential leaks. Commit aborted."
+  exit 1
+fi
+
+echo "🈲 Running Japanese character check..."
+if ! check-japanese "$REPO_ROOT"; then
+  echo "⚠️ Japanese character check warning."
+  # no exit, just warning
+fi
+
+echo "✅ All checks passed."

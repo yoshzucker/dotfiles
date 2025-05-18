@@ -1,0 +1,38 @@
+{
+    "description": "Escape then Eisuu (add japanese_eisuu to escape)",
+    "manipulators": [
+        {
+            "from": {
+                "key_code": "escape"
+            },
+            "to": [
+                {
+                    "key_code": "escape"
+                },
+                {
+                    "key_code": "japanese_eisuu"
+                }
+            ],
+            "type": "basic"
+        },
+        {
+            "from": {
+                "key_code": "close_bracket",
+                "modifiers": {
+                    "mandatory": [
+                        "left_control"
+                    ]
+                }
+            },
+            "to": [
+                {
+                    "key_code": "escape"
+                },
+                {
+                    "key_code": "japanese_eisuu"
+                }
+            ],
+            "type": "basic"
+        }
+    ]
+}

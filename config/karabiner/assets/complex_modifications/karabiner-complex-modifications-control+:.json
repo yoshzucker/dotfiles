@@ -1,0 +1,27 @@
+{
+    "description": "control+: (change left_control+: to left_command+:)",
+    "manipulators": [
+        {
+            "from": {
+                "key_code": "quote",
+                "modifiers": {
+                    "mandatory": [
+                        "left_control"
+                    ],
+                    "optional": [
+                        "any"
+                    ]
+                }
+            },
+            "to": [
+                {
+                    "key_code": "quote",
+                    "modifiers": [
+                        "left_command"
+                    ]
+                }
+            ],
+            "type": "basic"
+        }
+    ]
+}

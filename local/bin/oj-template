@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+
+# Check if oj-template exists in PATH
+if ! command -v oj-template >/dev/null 2>&1; then
+  echo "oj-template not found." >&2
+  exit 127
+fi
+
+# Execute oj-template with a fixed config path
+exec oj-template --config-path "$HOME/.config/online-judge-tools/prepare.config.toml" "$@"

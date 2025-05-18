@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+IFS=$'\n\t'
+
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}"
+KEYWORDS_FILE="$CONFIG_DIR/.leakseek.conf"
+
+usage() {
+  cat <<EOF
+Usage:
+  leakseek [--help|--template]
+
+Options:
+  --help        Show this help message
+  --template    Create a sample keyword file at $KEYWORDS_FILE
+
+Description:
+  Scans the current directory for keywords listed in the config file.
+  You can edit the keyword file to include any sensitive words or patterns to check before pushing.
+
+EOF
+  exit 0
+}
+
+# Don't put real credentials like passw●rd or tok3n here.
+generate_template() {
+  mkdir -p "$CONFIG_DIR"
+  cat <<'TEMPLATE' > "$KEYWORDS_FILE"
+# leakseek keyword file
+# Add one keyword per line.
+# Lines starting with '#' are ignored.
+# Matching is case-insensitive.
+# (A)ccount / (U)ser IDs
+
+# (P)assword
+
+# (T)oken / (S)ecret
+
+# (I)nternal Network / (H)osts
+
+# (E)mail / (D)omains
+
+# (C)ompany Names
+
+# (W)arn-only (optional patterns)
+:warn (t)oken
+
+TEMPLATE
+  echo "✅ Template created at: $KEYWORDS_FILE"
+  echo "📌 Don't forget to add it to your .gitignore:"
+  echo "    echo '${KEYWORDS_FILE#$HOME/}' >> .gitignore"
+  exit 0
+}
+
+if [[ "${1:-}" == "--help" ]]; then
+  usage
+fi
+
+if [[ "${1:-}" == "--template" ]]; then
+  generate_template
+fi
+
+if [ ! -f "$KEYWORDS_FILE" ]; then
+  echo "⚠️  Keyword file not found at $KEYWORDS_FILE"
+  echo "💡 Run 'leakseek --template' to generate one."
+  exit 1
+fi
+
+echo "🔍 Scanning for sensitive keywords listed in $KEYWORDS_FILE"
+
+found=0
+
+mandatory_keywords=()
+warn_keywords=()
+
+# Split keywords
+while IFS= read -r line || [ -n "$line" ]; do
+  [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
+  if [[ "$line" == :warn* ]]; then
+    warn_keywords+=("${line#:warn }")
+  else
+    mandatory_keywords+=("$line")
+  fi
+done < "$KEYWORDS_FILE"
+
+# Scan for warn-only keywords
+for keyword in "${warn_keywords[@]}"; do
+  if grep -rni --color=always -i "$keyword" .; then
+    echo "⚠️  Warn-only match: $keyword"
+  fi
+done
+
+# Scan for blocking keywords
+for keyword in "${mandatory_keywords[@]}"; do
+  if grep -rni --color=always -i "$keyword" .; then
+    echo "❌ Blocked match: $keyword"
+    found=1
+  fi
+done
+
+if [ "$found" -eq 0 ]; then
+  echo "✅ No matching keywords found."
+else
+  echo "❗ Review matches before pushing."
+fi
+
+exit "$found"
