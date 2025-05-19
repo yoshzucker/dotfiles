@@ -25,13 +25,9 @@
                (shell-command-to-string "brew --prefix cmigemo"))))))
     ('windows-nt
      (setq migemo-coding-system 'cp932-unix
-           migemo-dictionary "~/bin/cmigemo/dict/cp932/migemo-dict"
-	       migemo-directory "~/bin/cmigemo")))
-  
-  (when (eq system-type 'windows-nt)
-    (setq migemo-pattern-alist-length 100
-          migemo-use-pattern-alist t
-          migemo-use-frequent-pattern-alist t))
+           migemo-dictionary (expand-file-name
+                              "~/.local/bin/cmigemo/dict/cp932/migemo-dict")
+	       migemo-directory (expand-file-name "~/.local/bin/cmigemo"))))
   
   (with-eval-after-load 'evil-search
     (setq evil-regexp-search nil)

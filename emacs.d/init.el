@@ -5,9 +5,6 @@
 
 ;;; Code:
 
-;; Disable background watchers. Only check for changes at startup and when loading packages.
-(setq straight-check-for-modifications '(find-at-startup find-when-checking))
-
 ;; Bootstrap straight.el
 (defvar bootstrap-version)
 (let ((bootstrap-file (expand-file-name "straight/repos/straight.el/bootstrap.el"

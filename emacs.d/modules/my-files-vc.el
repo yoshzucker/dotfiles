@@ -6,22 +6,6 @@
 
 ;;; Code:
 
-(use-package git-commit
-  :straight nil
-  :if (eq system-type 'windows-nt)
-  :config
-  (my/add-hook
-   (:hook after-init-hook
-          :func (lambda ()
-                  (add-to-list 'process-coding-system-alist
-                               '("git" utf-8 . cp932))))
-   (:hook git-commit-mode-hook
-          :func (lambda ()
-                  (set-buffer-file-coding-system 'utf-8)))))
-
-(use-package git-timemachine
-  :defer t)
-
 (use-package magit
   :after evil
   :defer t
@@ -32,7 +16,20 @@
          :key
          "g:" #'execute-extended-command
          "gf" #'find-file-at-point
-         "gs" #'consult-buffer)))
+         "gs" #'consult-buffer))
+
+  (when (eq system-type 'windows-nt)
+    (my/add-hook
+     (:hook after-init-hook
+            :func (lambda ()
+                    (add-to-list 'process-coding-system-alist
+                                 '("git" utf-8 . cp932))))
+     (:hook git-commit-mode-hook
+            :func (lambda ()
+                    (set-buffer-file-coding-system 'utf-8))))))
+
+(use-package git-timemachine
+  :defer t)
 
 (use-package projectile
   :diminish (projectile-mode " pjt")

@@ -57,5 +57,8 @@
                                (assq-delete-all 'default face-remapping-alist))
                    (my/random-insert-art)))))))
 
+(when (eq system-type 'windows-nt)
+  (advice-add 'my/random-insert-art :after (lambda () (evil-normal-state))))
+
 (provide 'my-ui-splash)
 ;;; my-ui-splash.el ends here

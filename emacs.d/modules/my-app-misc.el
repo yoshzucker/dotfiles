@@ -6,6 +6,7 @@
 ;;; Code:
 
 (use-package obsidian
+  :if (eq system-type 'darwin)
   :init
   (setq obsidian-directory
         (expand-file-name "~/Library/Mobile Documents/iCloud~md~obsidian/Documents/complexvault/"))
