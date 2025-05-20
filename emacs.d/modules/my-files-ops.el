@@ -24,10 +24,10 @@
   (my/define-key
    (:map dired-mode-map
          :key
-         "V" #'dired-view-marked-files
-         "RET" #'dired-find-marked-files
-         "C-c C-o" #'dired-open-file-externally
-         "C-c C-d" #'dired-open-dir-externally))
+         "V" #'my/dired-view-marked-files
+         "RET" #'my/dired-find-marked-files
+         "C-c C-o" #'my/dired-open-file-with-system
+         "C-c C-d" #'my/dired-open-dir-with-system))
 
   ;; Evil integration
   (dolist (key '("n" "N" "g" "G"))
@@ -72,6 +72,20 @@
       '("open" . (lambda (path)
                    (replace-regexp-in-string "/" "\\" path t t))))))
   
+  ;; Apply FUNC to marked files in Dired (or to file at point if none marked)
+  (defun my/dired-mapc-marked-files (func &optional arg)
+    "Open marked files using MODE ('find-file or 'view-file)."
+    (let ((files (dired-get-marked-files nil arg)))
+      (mapc func files)))
+  
+  (defun my/dired-find-marked-files (&optional arg)
+    (interactive "P")
+    (my/dired-mapc-marked-files #'find-file arg))
+  
+  (defun my/dired-view-marked-files (&optional arg)
+    (interactive "P")
+    (my/dired-mapc-marked-files #'view-file arg))
+
   ;; Start process depending on system
   (defun my/start-process (name buffer program &rest program-args)
     (pcase system-type
