@@ -94,13 +94,16 @@
 
   (setq org-directory org-complexbrain-directory)
   (setq org-default-notes-file (concat org-directory "inbox.org"))
-  (setq org-agenda-files `(,org-default-notes-file)) 
+  (setq org-agenda-files
+        (if (file-exists-p org-default-notes-file)
+            (list org-default-notes-file)
+          nil)) 
   
   (defvar org-project-file (concat org-directory "project.org"))
   (defvar org-journal-file (concat org-directory "journal.org"))
   (defvar org-memex-file (concat org-directory "memex.org"))
 
-  (defun find-org-recursive (&rest dirs)
+  (defun my/find-org-recursive (&rest dirs)
     "Recursively find all .org files in DIRS."
     (seq-mapcat (lambda (dir)
                   (directory-files-recursively dir "\\.org\\'"))
@@ -108,20 +111,22 @@
   
   (defun my/find-todo-files (dir)
     (let ((abs (expand-file-name dir)))
-      (with-temp-buffer
-        (apply #'call-process
-               "rg" nil t nil
-               (append
-                '("--type-add" "org:*.org"
-                  "-torg"
-                  "-l"
-                  "--no-heading" "--no-config" "--max-columns" "300"
-                  "^*+ NEXT|ONGO|WAIT")
-                (list abs)))
-        (split-string (buffer-string) "\n" t))))
+      (if (executable-find "rg")
+          (with-temp-buffer
+            (apply #'call-process
+                   "rg" nil t nil
+                   (append
+                    '("--type-add" "org:*.org"
+                      "-torg"
+                      "-l"
+                      "--no-heading" "--no-config" "--max-columns" "300"
+                      "^*+ NEXT|ONGO|WAIT")
+                    (list abs)))
+            (split-string (buffer-string) "\n" t))
+        ;; fallback if rg is not available
+        (my/find-org-recursive abs))))
 
-  (when (and (executable-find "rg")
-             (file-directory-p org-complexbrain-directory))
+  (when (file-directory-p org-complexbrain-directory)
     (setq org-agenda-files
           (cl-union org-agenda-files
                     (my/find-todo-files org-complexbrain-directory)
