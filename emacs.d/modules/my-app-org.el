@@ -75,7 +75,12 @@
         org-M-RET-may-split-line '((default . nil))
         org-indirect-buffer-display 'current-window
         org-blank-before-new-entry '((heading . auto)
-                                     (plain-list-item . auto)))
+                                     (plain-list-item . auto))
+        org-todo-keyword-faces '(("ONGO" . org-ongo)
+                                 ("WAIT" . org-wait)
+                                 ("DONE" . org-done)
+                                 ("DELEG" . org-done)
+                                 ("CANCEL" . org-done)))
 
   (defun my/org-return-in-evil-normal (orig-fn &rest args)
     "Prevent newline when pressing RET in evil normal state."
@@ -515,13 +520,12 @@
   (when (eq system-type 'windows-nt)
     (defun org-clipboard ()
       (interactive)
-      (let* ((script-name "save-clipboard-image.ps1")
-             (script-path (executable-find script-name)))
-        (if script-path
+      (let ((script (locate-file "save-clipboard-image" exec-path '(".ps1"))))
+        (if script
             (let ((org-download-screenshot-method
-                   (format "powershell %s %%s" script-path)))
+                   (format "powershell %s %%s" script)))
               (org-download-screenshot))
-          (user-error "Cannot find %s in PATH" script-name))))))
+          (user-error "Cannot find %s in PATH" script))))))
 
 (use-package sxiv
   :if (eq system-type 'gnu/linux)
@@ -557,15 +561,13 @@
   :straight nil
   :after evil
   :config
+  (dolist (key '("z" "g" "/" "n" "N" ":"))
+    (define-key org-agenda-mode-map (kbd key)
+                (lookup-key evil-motion-state-map (kbd key))))
+    
   (my/define-key
    (:map org-agenda-mode-map
          :key
-         "z" (lookup-key evil-normal-state-map "z")
-         "g" (lookup-key evil-motion-state-map "g")
-         "/" (lookup-key evil-motion-state-map "/")
-         "n" (lookup-key evil-motion-state-map "n")
-         "N" (lookup-key evil-motion-state-map "N")
-         ":" (lookup-key evil-motion-state-map ":")
          "s" #'org-agenda-schedule
          "Z" #'org-resolve-clocks
          "h" #'left-char

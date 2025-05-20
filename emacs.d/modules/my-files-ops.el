@@ -31,9 +31,10 @@
 
   ;; Evil integration
   (dolist (key '("n" "N" "g" "G"))
-    (define-key dired-mode-map key (lookup-key evil-motion-state-map key)))
+    (define-key dired-mode-map (kbd key)
+                (lookup-key evil-motion-state-map (kbd key))))
   (my/define-key
-   (:map dired-mode-map :state normal :key "gf" #'find-file))
+   (:map dired-mode-map :state motion :key "gf" #'find-file))
   
   ;; Hooks
   (my/add-hook

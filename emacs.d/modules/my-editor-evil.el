@@ -35,7 +35,7 @@
          :key
          (my/c-: "M-:") #'execute-extended-command
          "C-w" #'evil-window-map)
-   (:map evil-normal-state-map
+   (:map evil-motion-state-map
          :key
          "g:" #'execute-extended-command
          "gf" #'find-file-at-point

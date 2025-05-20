@@ -301,15 +301,13 @@
      (org-level-1 :weight 'unspecified)
      (org-level-2 :weight 'unspecified)
      (org-level-3 :weight 'unspecified)
-     (org-agenda-dimmed-todo-face
-      ;; Make the TODO face inverse-video to correct the background color in columns.
-      :inverse-video 'unspecified
-      :foreground (lambda () (face-attribute 'org-headline-done :foreground))
-      :background (lambda () (face-attribute 'org-headline-done :background)))
+     (org-headline-done :foreground 'unspecified)
+     (org-agenda-dimmed-todo-face :inverse-video 'unspecified
+                                  :foreground my/fgdim :background my/background)
      (org-todo :weight 'unspecified :inverse-video t 
                :foreground my/red :background my/background)
      (org-ongo :weight 'unspecified :inverse-video t
-               :foreground my/yellow :background my/background)
+               :foreground my/brightyellow :background my/background)
      (org-wait :weight 'unspecified :inverse-video t
                :foreground (lambda () (face-attribute 'org-agenda-dimmed-todo-face :foreground))
                :background (lambda () (face-attribute 'org-agenda-dimmed-todo-face :background)))

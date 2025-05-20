@@ -12,7 +12,7 @@
   :config
   (my/define-key
    (:map magit-mode-map
-         :state normal
+         :state motion
          :key
          "g:" #'execute-extended-command
          "gf" #'find-file-at-point
