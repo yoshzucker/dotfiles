@@ -205,8 +205,7 @@
   
   (advice-add 'org-time-stamp :around #'my/org-time-stamp-in-evil-insert)
   
-
-  ;; 
+  ;; Log
   (setq org-todo-keywords
         '((sequence "NEXT(n!)" "ONGO(o!)" "|" "DONE(d)" "CANCEL(c)")
           (sequence "WAIT(w@)" "|" "DELEG(e@)")))
@@ -226,7 +225,7 @@
   
   (advice-add 'org-add-log-setup :before #'my/org-add-log-setup-into-drawer)
 
-  ;; cookie
+  ;; Cookie
   (setq org-provide-todo-statistics t
         org-hierarchical-todo-statistics t
         org-track-ordered-property-with-tag t)
@@ -311,10 +310,11 @@
         (when (org-up-heading-safe)
           (when (member (org-entry-get nil "TODO") '("NEXT"))
             (org-todo "ONGO"))))))
-  
+
   (defun my/org-clock-in-if-ongo ()
     "Clock in if the current task is ONGO and not already clocked in."
     (when (and (equal org-state "ONGO")
+               (equal (point) (point-at-bol)) ;; only for direct clock-in
                (not (equal org-clock-current-task (org-entry-get (point) "ITEM"))))
       (org-clock-in)))
   
@@ -1080,16 +1080,17 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
   (advice-add 'deft-parse-title :override #'my/deft-parse-title)
 
   (setq deft-strip-summary-regexp
-        (concat (replace-regexp-in-string "\\\\)" "" deft-strip-summary-regexp)
-                "\\|^#.*$"
-                "\\|^:PROPERTIES:.*$"
-                "\\|^:ID:.*$"
-                "\\|^:ROAM_REFS:.*$"
-                "\\|^:END:.*$"
-                "\\|- tags ::.*$"
-                "\\|- source ::.*$"
-                "\\|^;; -\\*-.*-\\*-$"
-                "\\|\\(\\[\\[.*\\]\\[\\|\\]\\]\\)"))
+        (concat
+         deft-strip-summary-regexp
+         "\\|^#.*$"
+         "\\|^:PROPERTIES:.*$"
+         "\\|^:ID:.*$"
+         "\\|^:ROAM_REFS:.*$"
+         "\\|^:END:.*$"
+         "\\|- tags ::.*$"
+         "\\|- source ::.*$"
+         "\\|^;; -\\*-.*-\\*-$"
+         "\\|\\(?:\\[\\[.*\\]\\(?:\\[.*\\]\\)?\\]\\)"))
 
   ;; Evil state helpers
   (defun my/deft-evil-normal-state (&rest args)
