@@ -143,10 +143,8 @@
 (use-package embark-consult)
 
 (use-package embark
-  :init
-  (require 'embark-consult)
   :config
-  (global-set-key (kbd "C-.") #'embark-act))
+  (my/define-key (:map global-map :key "C-." #'embark-act)))
 
 (provide 'my-completion-minibuffer)
 ;;; my-completion-minibuffer.el ends here
