@@ -92,7 +92,7 @@
       (add-to-list 'completion-category-overrides entry))))
 
 (use-package consult
-  :after evil
+  :after evil vertico
   :config
   (my/define-key
    (:map global-map
@@ -122,6 +122,54 @@
                src)))
          consult-buffer-sources))
 
+  (defun my/sanitize-ascii-japanese (s)
+    "Remove unprintable characters, keeping ASCII, Latin, Japanese kana/kanji and symbols."
+    (replace-regexp-in-string
+     "[^\u0020-\u007E\u00A0-\u00FF\u3000-\u30FF\u4E00-\u9FFF\uFF00-\uFFEF]" "" s))
+  
+  (defun my/find-file-from-minibuffer ()
+    "Use current consult-buffer candidate as input to `find-file` after exiting minibuffer."
+    (interactive)
+    (let* ((raw (or (and (fboundp 'vertico--candidate)
+                         (vertico--candidate))
+                    (minibuffer-contents)))
+           (name (my/sanitize-ascii-japanese (substring-no-properties raw)))
+           (buf  (get-buffer name))
+           (file (or (and buf (buffer-file-name buf))
+                     (and buf (with-current-buffer buf
+                                (derived-mode-p 'dired-mode buf)
+                                (buffer-local-value 'default-directory buf)))
+                     (and (file-exists-p name) name))))
+      (when file
+        (let* ((dir (file-name-directory file))
+               (initial (unless (file-directory-p file)
+                          (file-name-nondirectory file)))
+               (callback (lambda ()
+                           (let ((default-directory dir)
+                                 (use-dialog-box nil))
+                             (find-file
+                              (read-file-name "Find file: " dir nil nil initial))))))
+          (run-at-time 0 nil callback)
+          (exit-minibuffer)))))
+
+  (defvar my/consult-buffer-mode-map
+    (let ((map (make-sparse-keymap)))
+      (define-key map (kbd "C-l") #'my/find-file-from-minibuffer)
+      map)
+    "Keymap active only during `consult-buffer` minibuffer.")
+  
+  (define-minor-mode my/consult-buffer-mode
+    "Minor mode for `consult-buffer` specific bindings in minibuffer."
+    :init-value nil
+    :lighter ""
+    :keymap my/consult-buffer-mode-map)
+  
+  (defun my/enable-consult-buffer-mode ()
+    (when (eq this-command #'consult-buffer)
+      (my/consult-buffer-mode 1)))
+  
+  (add-hook 'minibuffer-setup-hook #'my/enable-consult-buffer-mode)
+
   (defun my/toggle-xref-show-destination (&optional arg)
     "Toggle between `consult' and default xref UI for displaying results."
     (interactive)
@@ -144,7 +192,9 @@
 
 (use-package embark
   :config
-  (my/define-key (:map global-map :key "C-." #'embark-act)))
+  (my/define-key (:map minibuffer-local-map :key "C-." #'embark-act))
+  (setq embark-prompter #'embark-completing-read-prompter
+        embark-indicators '(embark-minimal-indicator)))
 
 (provide 'my-completion-minibuffer)
 ;;; my-completion-minibuffer.el ends here
