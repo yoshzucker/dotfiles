@@ -26,9 +26,9 @@
 ;; Apply word syntax to selected Lisp-like modes
 (dolist (table (list emacs-lisp-mode-syntax-table
                      lisp-mode-syntax-table))
-  (dolist (pair '((?- . "_")
-                  (?: . "_")
-                  (?/ . "_")))
+  (dolist (pair '((?- . "w")
+                  (?: . "w")
+                  (?/ . "w")))
     (modify-syntax-entry (car pair) (cdr pair) table)))
 
 ;; Apply word syntax to minibuffer
