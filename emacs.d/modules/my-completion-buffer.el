@@ -48,6 +48,14 @@
 
 (use-package tempel
   :config
+  (my/define-key
+   (:map tempel-map
+         :after evil
+         :state insert
+         :key
+         "TAB" #'tempel-next
+         "C-e" #'tempel-done))
+
   (defun tempel-setup-capf ()
     (setq-local completion-at-point-functions
                 (cons #'tempel-complete completion-at-point-functions)))

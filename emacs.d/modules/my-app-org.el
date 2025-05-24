@@ -1,7 +1,6 @@
 ;;; my-app-org.el --- Org-mode configuration -*- lexical-binding: t; -*-
 ;;; Commentary:
 ;; Configuration for org-mode including keybindings, clocking, and general behaviors.
-
 ;;; Code:
 
 (use-package org
