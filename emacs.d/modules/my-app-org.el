@@ -71,11 +71,13 @@
         org-indent-indentation-per-level 1
         org-hide-leading-stars nil
         org-hide-block-startup t
-        org-cycle-include-plain-lists 'integrate
-        org-M-RET-may-split-line '((default . nil))
-        org-indirect-buffer-display 'current-window
+        org-id-link-to-org-use-id t
+        org-attach-store-link-p nil
         org-blank-before-new-entry '((heading . auto)
                                      (plain-list-item . auto))
+        org-indirect-buffer-display 'current-window
+        org-cycle-include-plain-lists 'integrate
+        org-M-RET-may-split-line '((default . nil))
         org-todo-keyword-faces '(("ONGO" . org-ongo)
                                  ("WAIT" . org-wait)
                                  ("DONE" . org-done)
@@ -478,7 +480,9 @@
                          "<rg[TAB] in evil-insert-state."))
 
 (use-package org-cliplink
-  :after org)
+  :after org
+  :config
+  (my/define-key (:map org-mode-map :key "C-c p" #'org-cliplink)))
 
 (use-package org-super-links
   :straight (:host github :repo "toshism/org-super-links" :branch "develop" :files ("*.el" "out"))
@@ -503,34 +507,29 @@
         org-download-screenshot-basename (concat (make-temp-name "") ".png"))
   :config
   (my/define-key
-   (:map org-mode-map :key "C-c s" #'org-clipboard))
+   (:map org-mode-map :key "C-c s" #'my/org-download-screenshot))
   
   (setq org-download-method 'attach)
-
-  ;; Redefine image dir logic if using 'directory method
-  (when (eq org-download-method 'directory)
-    (defun my/org-download-image-dir ()
-      (concat (file-name-directory (buffer-file-name))
-              (file-name-nondirectory (buffer-file-name))
-              "-attaches/"))
-
-    (defun my/org-download-dir-change (f &rest args)
-      (let ((org-download-image-dir (my/org-download-image-dir))
-            (org-download-heading-lvl nil))
-        (apply f args)))
-
-    (advice-add 'org-download-screenshot :around #'my/org-download-dir-change))
-
-  ;; Use custom screenshot script on Windows
-  (when (eq system-type 'windows-nt)
-    (defun org-clipboard ()
-      (interactive)
-      (let ((script (locate-file "save-clipboard-image" exec-path '(".ps1"))))
-        (if script
-            (let ((org-download-screenshot-method
-                   (format "powershell %s %%s" script)))
-              (org-download-screenshot))
-          (user-error "Cannot find %s in PATH" script))))))
+  
+  (defun my/org-download-screenshot ()
+    "Cross-platform screenshot handler for Org."
+    (interactive)
+    (pcase system-type
+      ('windows-nt
+       (let ((script (locate-file "save-clipboard-image" exec-path '(".ps1"))))
+         (if script
+             (let ((org-download-screenshot-method
+                    (format "powershell %s %%s" script)))
+               (org-download-screenshot))
+           (user-error "Cannot find %s in PATH" script))))
+      ('darwin
+       (let ((org-download-screenshot-method "screencapture -i %s"))
+         (org-download-screenshot)))
+      ('gnu/linux
+       (let ((org-download-screenshot-method "flameshot gui --raw > %s"))
+         (org-download-screenshot)))
+      (_
+       (user-error "No screenshot method defined for syste: %s" system-type)))))
 
 (use-package sxiv
   :if (eq system-type 'gnu/linux)
