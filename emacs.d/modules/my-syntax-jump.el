@@ -20,7 +20,6 @@
          "C-]" #'xref-find-definitions
          "C-t" #'xref-pop-marker-stack))
   :config
-  ;; 
   (defun my/xref-backend-slime ()
     (when (bound-and-true-p slime-mode) 'slime))
   
@@ -34,17 +33,33 @@
     (when (require 'dumb-jump nil t)
       (dumb-jump-xref-activate)
       'dumb-jump))
+
+  (defun my/xref-add (backend &optional append)
+    (add-hook 'xref-backend-functions backend append t))
+
+  (my/add-hook
+   (:hook lisp-mode-hook
+          :func
+          (lambda () (my/xref-add #'my/xref-backend-slime t)))
+   (:hook c-mode-common-hook c-ts-mode c++-ts-mode
+          :func
+          (lambda () (my/xref-add #'my/xref-backend-ggtags t)))
+   (:hook python-mode-hook python-ts-mode
+          :func
+          (lambda () (my/xref-add #'my/xref-backend-eglot t)))
+   (:hook prog-mode-hook
+          :func
+          (lambda () (my/xref-add #'my/xref-backend-dumb-jump t))))
+
+  ;; (defun my/setup-xref-backends ()
+  ;;   "Set up prioritized xref backends for the current buffer."
+  ;;   (dolist (backend '(my/xref-backend-slime
+  ;;                      my/xref-backend-eglot
+  ;;                      my/xref-backend-ggtags
+  ;;                      my/xref-backend-dumb-jump))
+  ;;     (add-hook 'xref-backend-functions backend t t)))
   
-  (defun my/setup-xref-backends ()
-    "Set up prioritized xref backends for the current buffer."
-    (setq-local xref-backend-functions nil)
-    (dolist (backend '(my/xref-backend-slime
-                       my/xref-backend-eglot
-                       my/xref-backend-ggtags
-                       my/xref-backend-dumb-jump))
-      (add-hook 'xref-backend-functions backend nil t)))
-  
-  (add-hook 'prog-mode-hook #'my/setup-xref-backends)
+  ;; (add-hook 'prog-mode-hook #'my/setup-xref-backends)
 
   ;; Avoid prompts when identifier is at point
   (setq xref-prompt-for-identifier
@@ -52,7 +67,7 @@
               xref-find-definitions-other-window
               xref-find-definitions-other-frame
               xref-find-references
-	      xref-find-apropos))
+	          xref-find-apropos))
 
   (defun my/xref-find-apropos (pattern)
     "Find symbols matching PATTERN using xref and apropos."
