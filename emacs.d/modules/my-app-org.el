@@ -794,6 +794,14 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
         org-clock-convenience-clocked-agenda-re
         "^ +\\([^:]+\\)[[:space:]]*\\(\\([ \t012][0-9]\\):\\([0-5][0-9]\\)\\)\\(?:-\\(\\([ 012][0-9]\\):\\([0-5][0-9]\\)\\)\\|.*\\)?[[:space:]]+Clocked:[[:space:]]+\\(([0-9]+:[0-5][0-9])\\|(-)\\)"))
 
+(use-package org-ql
+  :after org
+  :config
+  (with-eval-after-load 'org-ql-view
+    (dolist (key '("g"))
+      (define-key org-ql-view-map (kbd key)
+                  (lookup-key evil-motion-state-map (kbd key))))))
+
 (use-package org-roam
   :after org
   :init
