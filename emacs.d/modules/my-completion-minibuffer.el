@@ -83,8 +83,7 @@
              '((file                (styles my/orderless-migemo-dot))
                (multi-category      (styles my/orderless-migemo-dot))
                (imenu               (styles my/orderless-migemo-dot))
-               (consult-location    (styles my/orderless-migemo-dot))
-               (consult-org-heading (styles my/orderless-migemo-dot))
+               (org-heading         (styles my/orderless-migemo-dot))
                (org-refile          (styles my/orderless-migemo-dot))
                (nil                 (styles my/orderless-migemo-dot))))
       (setq completion-category-overrides
@@ -101,7 +100,7 @@
    (:map evil-motion-state-map
          :key
          "gs" #'consult-buffer
-         "g[" #'consult-org-agenda
+         "g[" #'my/consult-org-headings-all
          "g]" #'consult-imenu))
 
   (consult-customize consult-buffer :preview-key '(:debounce 0.5 any))
@@ -182,7 +181,18 @@
                (if use-consult "consult minibuffer" "default buffer"))))
 
   ;; Default to consult-based xref display
-  (my/toggle-xref-show-destination 1))
+  (my/toggle-xref-show-destination 1)
+
+  (defun my/consult-org-headings-all (&optional archivep)
+    "Consult all headings under `org-directory`.
+With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_archive files."
+  (interactive "P")
+  (unless (and org-directory (file-directory-p org-directory))
+    (user-error "Please set a valid `org-directory`"))
+
+  (let* ((ext (if archivep "\\.org\\(_archive\\)?$" "\\.org$"))
+         (files (directory-files-recursively org-directory ext)))
+    (consult-org-heading nil files))))
 
 (use-package marginalia
   :config
