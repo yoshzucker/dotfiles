@@ -30,6 +30,7 @@
 ;; Add core and module directories to load path
 (add-to-list 'load-path (expand-file-name "core" user-emacs-directory))
 (add-to-list 'load-path (expand-file-name "modules" user-emacs-directory))
+(add-to-list 'custom-theme-load-path (expand-file-name "themes/" user-emacs-directory))
 
 ;; Load essential core modules
 (require 'my-core-encoding)

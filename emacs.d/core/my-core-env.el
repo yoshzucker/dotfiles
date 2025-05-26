@@ -8,6 +8,9 @@
       command-line-default-directory "~/"
       custom-file (expand-file-name "custom.el" user-emacs-directory))
 
+(when (file-exists-p custom-file)
+  (load custom-file 'noerror))
+
 ;; Load shell environment variables (for GUI Emacs) 
 (use-package exec-path-from-shell
   :if (or (memq window-system '(mac ns x)) (daemonp))

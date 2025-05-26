@@ -1,18 +1,24 @@
-;;; my-ui-theme.el --- Theme and face configuration -*- lexical-binding: t; -*-
+;;; my-ui-face.el --- Theme and face configuration -*- lexical-binding: t; -*-
 ;;; Commentary:
 ;; Handles theme selection, face definitions, and color palette setup.
 
 ;;; Code:
 
+(defgroup my/theme nil
+  "Custom theme settings."
+  :group 'appearance)
+
 (defcustom my/theme-name 'nord
   "Which theme to use."
-  :options '(solarized nord gruvbox)
-  :type 'symbol)
+  :type 'symbol
+  :options '(solarized nord my-tokyo)
+  :group 'my/theme)
 
 (defcustom my/frame-background 'dark
   "Which background to use."
+  :type 'symbol
   :options '(light dark)
-  :type 'symbol)
+  :group 'my/theme)
 
 ;; Update from environment
 (let ((term (not (display-graphic-p))))
@@ -20,35 +26,38 @@
     (my/map-env my/theme-name "theme_name")
     (my/map-env my/frame-background "theme_variant")))
 
-(setq frame-background-mode my/frame-background)
-
 (use-package nord-theme
   :defer t
   :config
-  (defconst nord-colors
-    '((nord0  "#2e3440") (nord1  "#3b4252") (nord2  "#434c5e") (nord3  "#4c566a")
-      (nord4  "#d8dee9") (nord5  "#e5e9f0") (nord6  "#eceff4") (nord7  "#8fbcbb")
-      (nord8  "#88c0d0") (nord9  "#81a1c1") (nord10 "#5e81ac") (nord11 "#bf616a")
-      (nord12 "#d08770") (nord13 "#ebcb8b") (nord14 "#a3be8c") (nord15 "#b48ead")))
-  (defvar my/nord-colors
-    `((black         . ,(cdr (assoc 'nord1 nord-colors)))
-      (red           . ,(cdr (assoc 'nord11 nord-colors)))
-      (green         . ,(cdr (assoc 'nord14 nord-colors)))
-      (yellow        . ,(cdr (assoc 'nord13 nord-colors)))
-      (blue          . ,(cdr (assoc 'nord9 nord-colors)))
-      (magenta       . ,(cdr (assoc 'nord15 nord-colors)))
-      (cyan          . ,(cdr (assoc 'nord7 nord-colors)))
-      (white         . ,(cdr (assoc 'nord5 nord-colors)))
-      (brightblack   . ,(cdr (assoc 'nord3 nord-colors)))
-      (brightred     . ,(cdr (assoc 'nord11 nord-colors)))
-      (brightgreen   . ,(cdr (assoc 'nord14 nord-colors)))
-      (brightyellow  . ,(cdr (assoc 'nord12 nord-colors)))
-      (brightblue    . ,(cdr (assoc 'nord10 nord-colors)))
-      (brightmagenta . ,(cdr (assoc 'nord15 nord-colors)))
-      (brightcyan    . ,(cdr (assoc 'nord7 nord-colors)))
-      (brightwhite   . ,(cdr (assoc 'nord6 nord-colors)))
-      (foreground    . ,(cdr (assoc 'nord4 nord-colors)))
-      (background    . ,(cdr (assoc 'nord0 nord-colors))))))
+  (defconst my/nord-colors
+    '((nord0  . "#2e3440") (nord1  . "#3b4252")
+      (nord2  . "#434c5e") (nord3  . "#4c566a")
+      (nord4  . "#d8dee9") (nord5  . "#e5e9f0")
+      (nord6  . "#eceff4") (nord7  . "#8fbcbb")
+      (nord8  . "#88c0d0") (nord9  . "#81a1c1")
+      (nord10 . "#5e81ac") (nord11 . "#bf616a")
+      (nord12 . "#d08770") (nord13 . "#ebcb8b")
+      (nord14 . "#a3be8c") (nord15 . "#b48ead")))
+
+  (defun my/nord-colors ()
+    `((black         . ,(alist-get 'nord1 my/nord-colors))
+      (red           . ,(alist-get 'nord11 my/nord-colors))
+      (green         . ,(alist-get 'nord14 my/nord-colors))
+      (yellow        . ,(alist-get 'nord13 my/nord-colors))
+      (blue          . ,(alist-get 'nord9 my/nord-colors))
+      (magenta       . ,(alist-get 'nord15 my/nord-colors))
+      (cyan          . ,(alist-get 'nord7 my/nord-colors))
+      (white         . ,(alist-get 'nord5 my/nord-colors))
+      (brightblack   . ,(alist-get 'nord3 my/nord-colors))
+      (brightred     . ,(alist-get 'nord11 my/nord-colors))
+      (brightgreen   . ,(alist-get 'nord14 my/nord-colors))
+      (brightyellow  . ,(alist-get 'nord12 my/nord-colors))
+      (brightblue    . ,(alist-get 'nord10 my/nord-colors))
+      (brightmagenta . ,(alist-get 'nord15 my/nord-colors))
+      (brightcyan    . ,(alist-get 'nord7 my/nord-colors))
+      (brightwhite   . ,(alist-get 'nord6 my/nord-colors))
+      (foreground    . ,(alist-get 'nord4 my/nord-colors))
+      (background    . ,(alist-get 'nord0 my/nord-colors)))))
 
 (use-package solarized-theme
   :straight (:host github :repo "sellout/emacs-color-theme-solarized" :branch "master" :files ("*.el" "out"))
@@ -56,134 +65,85 @@
   :init
   (setq solarized-termcolors 16)
   :config
-  (defun solarized-color (name)
+  (defun my/get-solarized-color (name)
     (nth (cond ((and (not (display-graphic-p)) (eq solarized-termcolors 16)) 4)
                ((and (not (display-graphic-p)) (eq solarized-termcolors 256)) 3)
                (solarized-degrade 3)
                (solarized-broken-srgb 2)
                (t 1))
          (assoc name solarized-colors)))
-  (defvar my/solarized-colors
-    `((black         . ,(solarized-color 'base02))
-      (red           . ,(solarized-color 'red))
-      (green         . ,(solarized-color 'green))
-      (yellow        . ,(solarized-color 'yellow))
-      (blue          . ,(solarized-color 'blue))
-      (magenta       . ,(solarized-color 'magenta))
-      (cyan          . ,(solarized-color 'cyan))
-      (white         . ,(solarized-color 'base2))
-      (brightblack   . ,(solarized-color 'base03))
-      (brightred     . ,(solarized-color 'orange))
-      (brightgreen   . ,(solarized-color 'base01))
-      (brightyellow  . ,(solarized-color 'base00))
-      (brightblue    . ,(solarized-color 'base0))
-      (brightmagenta . ,(solarized-color 'violet))
-      (brightcyan    . ,(solarized-color 'base1))
-      (brightwhite   . ,(solarized-color 'base3))
+
+  (defun my/solarized-colors ()
+    `((black         . ,(my/get-solarized-color 'base02))
+      (red           . ,(my/get-solarized-color 'red))
+      (green         . ,(my/get-solarized-color 'green))
+      (yellow        . ,(my/get-solarized-color 'yellow))
+      (blue          . ,(my/get-solarized-color 'blue))
+      (magenta       . ,(my/get-solarized-color 'magenta))
+      (cyan          . ,(my/get-solarized-color 'cyan))
+      (white         . ,(my/get-solarized-color 'base2))
+      (brightblack   . ,(my/get-solarized-color 'base03))
+      (brightred     . ,(my/get-solarized-color 'orange))
+      (brightgreen   . ,(my/get-solarized-color 'base01))
+      (brightyellow  . ,(my/get-solarized-color 'base00))
+      (brightblue    . ,(my/get-solarized-color 'base0))
+      (brightmagenta . ,(my/get-solarized-color 'violet))
+      (brightcyan    . ,(my/get-solarized-color 'base1))
+      (brightwhite   . ,(my/get-solarized-color 'base3))
       (foreground    . ,(if (eq my/frame-background 'light)
-                            (solarized-color 'base01)
-                          (solarized-color 'base2)))
+                            (my/get-solarized-color 'base01)
+                          (my/get-solarized-color 'base2)))
       (background    . ,(if (eq my/frame-background 'light)
-                            (solarized-color 'base3)
-                          (solarized-color 'base03))))))
+                            (my/get-solarized-color 'base3)
+                          (my/get-solarized-color 'base03))))))
 
-(use-package gruvbox-theme
-  :defer t
-  :config
-  (defconst gruvbox-colors
-    '((gruvbox-dark0 "#282828") (gruvbox-light0 "#fbf1c7")
-      (gruvbox-dark1 "#3c3836") (gruvbox-light1 "#ebdbb2")
-      (gruvbox-gray  "#928374")
-      (gruvbox-neutral_red "#cc241d") (gruvbox-bright_red "#fb4934")
-      (gruvbox-neutral_green "#98971a") (gruvbox-bright_green "#b8bb26")
-      (gruvbox-neutral_yellow "#d79921") (gruvbox-bright_yellow "#fabd2f")
-      (gruvbox-neutral_blue "#458588") (gruvbox-bright_blue "#83a598")
-      (gruvbox-neutral_purple "#b16286") (gruvbox-bright_purple "#d3869b")
-      (gruvbox-neutral_aqua "#689d6a") (gruvbox-bright_aqua "#8ec07c")))
-  (defvar my/gruvbox-colors
-    (if (eq my/frame-background 'light)
-        `((black         . ,(cdr (assoc 'gruvbox-light0 gruvbox-colors)))
-          (red           . ,(cdr (assoc 'gruvbox-neutral_red gruvbox-colors)))
-          (green         . ,(cdr (assoc 'gruvbox-neutral_green gruvbox-colors)))
-          (yellow        . ,(cdr (assoc 'gruvbox-neutral_yellow gruvbox-colors)))
-          (blue          . ,(cdr (assoc 'gruvbox-neutral_blue gruvbox-colors)))
-          (magenta       . ,(cdr (assoc 'gruvbox-neutral_purple gruvbox-colors)))
-          (cyan          . ,(cdr (assoc 'gruvbox-neutral_aqua gruvbox-colors)))
-          (white         . ,(cdr (assoc 'gruvbox-dark1 gruvbox-colors)))
-          (brightblack   . ,(cdr (assoc 'gruvbox-gray gruvbox-colors)))
-          (brightred     . ,(cdr (assoc 'gruvbox-neutral_red gruvbox-colors)))
-          (brightgreen   . ,(cdr (assoc 'gruvbox-neutral_green gruvbox-colors)))
-          (brightyellow  . ,(cdr (assoc 'gruvbox-neutral_yellow gruvbox-colors)))
-          (brightblue    . ,(cdr (assoc 'gruvbox-neutral_blue gruvbox-colors)))
-          (brightmagenta . ,(cdr (assoc 'gruvbox-neutral_purple gruvbox-colors)))
-          (brightcyan    . ,(cdr (assoc 'gruvbox-neutral_aqua gruvbox-colors)))
-          (brightwhite   . ,(cdr (assoc 'gruvbox-light1 gruvbox-colors)))
-          (foreground    . ,(cdr (assoc 'gruvbox-dark1 gruvbox-colors)))
-          (background    . ,(cdr (assoc 'gruvbox-light0 gruvbox-colors))))
-      `((black         . ,(cdr (assoc 'gruvbox-dark0 gruvbox-colors)))
-        (red           . ,(cdr (assoc 'gruvbox-neutral_red gruvbox-colors)))
-        (green         . ,(cdr (assoc 'gruvbox-neutral_green gruvbox-colors)))
-        (yellow        . ,(cdr (assoc 'gruvbox-neutral_yellow gruvbox-colors)))
-        (blue          . ,(cdr (assoc 'gruvbox-neutral_blue gruvbox-colors)))
-        (magenta       . ,(cdr (assoc 'gruvbox-neutral_purple gruvbox-colors)))
-        (cyan          . ,(cdr (assoc 'gruvbox-neutral_aqua gruvbox-colors)))
-        (white         . ,(cdr (assoc 'gruvbox-light1 gruvbox-colors)))
-        (brightblack   . ,(cdr (assoc 'gruvbox-gray gruvbox-colors)))
-        (brightred     . ,(cdr (assoc 'gruvbox-bright_red gruvbox-colors)))
-        (brightgreen   . ,(cdr (assoc 'gruvbox-bright_green gruvbox-colors)))
-        (brightyellow  . ,(cdr (assoc 'gruvbox-bright_yellow gruvbox-colors)))
-        (brightblue    . ,(cdr (assoc 'gruvbox-bright_blue gruvbox-colors)))
-        (brightmagenta . ,(cdr (assoc 'gruvbox-bright_purple gruvbox-colors)))
-        (brightcyan    . ,(cdr (assoc 'gruvbox-bright_aqua gruvbox-colors)))
-        (brightwhite   . ,(cdr (assoc 'gruvbox-light4 gruvbox-colors)))
-        (foreground    . ,(cdr (assoc 'gruvbox-light1 gruvbox-colors)))
-        (background    . ,(cdr (assoc 'gruvbox-dark0 gruvbox-colors)))))))
+(use-package my-tokyo-theme
+  :straight nil
+  :load-path "themes"
+  :defer t)
 
-(defcustom my/semantic-colors nil
-  "Semantic color mapping (to be set at runtime)."
-  :type '(alist :key-type symbol :value-type string))
-
-(setq my/semantic-colors
-      (pcase (list my/theme-name my/frame-background)
-        ('(nord dark)
-         '((fgdim . brightblack)
-           (bghighlight . black)
-           (primary . blue)
-           (secondary . magenta)
-           (accent . brightyellow)))
-        ('(solarized light)
-         '((fgdim . brightblack)
-           (bghighlight . black)
-           (primary . blue)
-           (secondary . magenta)
-           (accent . brightyellow)))
-        ('(solarized dark)
-         '((fgdim . brightyellow)
-           (bghighlight . brightgreen)
-           (primary . blue)
-           (secondary . magenta)
-           (accent . yellow)))
-        ('(gruvbox light)
-         '((fgdim . brightblack)
-           (bghighlight . brightwhite)
-           (primary . blue)
-           (secondary . magenta)
-           (accent . yellow)))
-        ('(gruvbox dark)
-         '((fgdim . brightwhite)
-           (bghighlight . brightblack)
-           (primary . blue)
-           (secondary . magenta)
-           (accent . yellow)))
-        (_ nil)))
+(defun my/semantic-colors ()
+  "Return semantic color mapping based on theme and background."
+  (pcase (list my/theme-name my/frame-background)
+    ('(nord dark)
+     '((fgdim . brightblack)
+       (bghighlight . black)
+       (primary . blue)
+       (secondary . magenta)
+       (accent . brightyellow)))
+    ('(solarized light)
+     '((fgdim . brightblack)
+       (bghighlight . black)
+       (primary . green)
+       (secondary . magenta)
+       (accent . brightyellow)))
+    ('(solarized dark)
+     '((fgdim . brightyellow)
+       (bghighlight . brightgreen)
+       (primary . blue)
+       (secondary . magenta)
+       (accent . yellow)))
+    ('(my-tokyo light)
+     '((fgdim . brightblack)
+       (bghighlight . brightwhite)
+       (primary . blue)
+       (secondary . magenta)
+       (accent . yellow)))
+    ('(my-tokyo dark)
+     '((fgdim . brightwhite)
+       (bghighlight . brightblack)
+       (primary . blue)
+       (secondary . magenta)
+       (accent . yellow)))
+    (_ nil)))
 
 ;; Color assignment
 (defun my/set-colors (palette)
   ;; base palette
   (dolist (entry palette)
-    (set (intern (format "my/%s" (car entry))) (cadr entry)))
+    (set (intern (format "my/%s" (car entry))) (cdr entry)))
   ;; extra aliases or literals
-  (dolist (entry my/semantic-colors)
+  (dolist (entry (my/semantic-colors))
     (let ((target (intern (format "my/%s" (car entry))))
           (value (cdr entry)))
       (set target
@@ -193,12 +153,18 @@
 
 ;; Load theme and apply color palette
 (defun my/load-theme ()
-  "Load the theme specified in `my/theme-name` and assign colors."
+  "Load the theme specified in my/theme-name and assign colors."
+  (mapc #'disable-theme custom-enabled-themes)
+  (setq frame-background-mode my/frame-background )
   (pcase my/theme-name
-    ('nord (progn (load-theme 'nord t) (my/set-colors my/nord-colors)))
-    ('solarized (progn (load-theme 'solarized t) (my/set-colors my/solarized-colors)))
-    ('gruvbox (progn (load-theme 'gruvbox t) (my/set-colors my/gruvbox-colors)))
-    (_ (message "Unknown theme: %s" my/theme-name))))
+    ('nord      (load-theme 'nord t)
+                (my/set-colors (my/nord-colors)))
+    ('solarized (load-theme 'solarized t)
+                (enable-theme 'solarized)
+                (my/set-colors (my/solarized-colors)))
+    ('my-tokyo  (load-theme 'my-tokyo t)
+                (my/set-colors (my/tokyo-colors)))
+    (_          (message "Unknown theme: %s" my/theme-name))))
 
 ;; Face rules application
 (defvar my/copy-face-rules
@@ -402,31 +368,24 @@
                     (when (assoc 'hl-line faces)
                       (hl-line-mode 1))))))))
 
-(defun my/theme-setup ()
-  (my/load-theme)
-  (my/apply-copy-face-rules)
-  (my/apply-set-face-rules)
-  (my/apply-face-remap-rules))
-
-(my/theme-setup)
-
 ;; Extra packages
-(use-package rainbow-mode)
-
 (use-package dired-rainbow
   :config
-  (dolist (rule `((src ,my/magenta ("el" "lisp" "sh" "R" "c" "h" "py" "org"))
-                  (doc ,my/blue ("docx" "docm"))
-                  (xls ,my/green ("xlsx" "xlsm"))
-                  (ppt ,my/brightyellow ("pptx" "pptm"))
-                  (pdf ,my/red ("pdf"))))
-    (eval `(dired-rainbow-define ,@rule))))
+  (defun my/set-dired-rainbow-faces ()
+    (dolist (rule `((src ,my/magenta ("el" "lisp" "sh" "R" "c" "h" "py" "org"))
+                    (doc ,my/blue ("docx" "docm"))
+                    (xls ,my/green ("xlsx" "xlsm"))
+                    (ppt ,my/brightyellow ("pptx" "pptm"))
+                    (pdf ,my/red ("pdf"))))
+      (eval `(dired-rainbow-define ,@rule)))))
 
 (use-package smartrep
   :defer t
   :config
-  ;; Highlight mode-line when smartrep is active
-  (setq smartrep-mode-line-active-bg my/brightwhite))
+  (defun my/set-smartrep-faces ()
+    (setq smartrep-mode-line-active-bg my/brightwhite)))
+
+(use-package rainbow-mode)
 
 (use-package transwin
   :after smartrep
@@ -434,5 +393,35 @@
   (smartrep-define-key global-map "C-w" '(("i" . transwin-inc)
                                           ("d" . transwin-dec))))
 
-(provide 'my-ui-theme)
-;;; my-ui-theme.el ends here
+(defun my/apply-extra-packages-faces ()
+  (when (featurep 'dired-rainbow)
+    (my/set-dired-rainbow-faces))
+  (when (featurep 'smartrep)
+    (my/set-smartrep-faces)))
+
+(defun my/setup-theme ()
+  (my/load-theme)
+  (my/apply-copy-face-rules)
+  (my/apply-set-face-rules)
+  (my/apply-face-remap-rules)
+  (my/apply-extra-packages-faces))
+
+(my/setup-theme)
+
+(defun my/toggle-theme ()
+  "Interactively select theme and background variant."
+  (interactive)
+  (let ((theme (intern (completing-read
+                        "Select theme: "
+                        (mapcar #'symbol-name (custom-available-themes))
+                        nil t) ))
+        (background (intern (completing-read
+                             "Select background: "
+                             '("light" "dark")
+                             nil t) )))
+    (customize-save-variable 'my/theme-name theme)
+    (customize-save-variable 'my/frame-background background)
+    (my/setup-theme)))
+
+(provide 'my-ui-face)
+;;; my-ui-face.el ends here
