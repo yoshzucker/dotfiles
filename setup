@@ -352,13 +352,12 @@ install_brew_packages() {
     coreutils
     diffutils
     findutils
+    cmigemo
+    ripgrep
     tmux
+    fzf
     gcc
     poppler       # for emacs pdf-tools
-    fzf
-    ripgrep
-    cmigemo
-    gnupg
     aspell
     git
     gitleaks
@@ -366,6 +365,8 @@ install_brew_packages() {
     sbcl
     r
     python
+    pyenv
+    pyenv-vitualenv
   )
   if [[ "$os" == "darwin" ]]; then
     packages+=(
