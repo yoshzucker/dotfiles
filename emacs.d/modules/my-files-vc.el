@@ -31,15 +31,5 @@
 (use-package git-timemachine
   :defer t)
 
-(use-package projectile
-  :diminish (projectile-mode " pjt")
-  :config
-  (setq projectile-find-dir-includes-top-level t
-	    projectile-switch-project-action 'projectile-find-dir
-	    projectile-mode-line-prefix " pjt")
-  (my/define-key
-   (:map evil-normal-state-map :key "gp" #'projectile-command-map))
-  (projectile-mode 1))
-
 (provide 'my-files-vc)
 ;;; my-files-vc.el ends here
