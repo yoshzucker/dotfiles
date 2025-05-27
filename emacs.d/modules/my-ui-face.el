@@ -11,7 +11,7 @@
 (defcustom my/theme-name 'nord
   "Which theme to use."
   :type 'symbol
-  :options '(solarized nord my-tokyo)
+  :options '(solarized nord my-tokyo my-rustcity)
   :group 'my/theme)
 
 (defcustom my/frame-background 'dark
@@ -102,6 +102,11 @@
   :load-path "themes"
   :defer t)
 
+(use-package my-rustcity-theme
+  :straight nil
+  :load-path "themes"
+  :defer t)
+
 (defun my/semantic-colors ()
   "Return semantic color mapping based on theme and background."
   (pcase (list my/theme-name my/frame-background)
@@ -135,7 +140,12 @@
        (primary . blue)
        (secondary . magenta)
        (accent . yellow)))
-    (_ nil)))
+    (_
+     '((fgdim . brightwhite)
+       (bghighlight . brightblack)
+       (primary . blue)
+       (secondary . magenta)
+       (accent . yellow)))))
 
 ;; Color assignment
 (defun my/set-colors (palette)
@@ -164,6 +174,8 @@
                 (my/set-colors (my/solarized-colors)))
     ('my-tokyo  (load-theme 'my-tokyo t)
                 (my/set-colors (my/tokyo-colors)))
+    ('my-rustcity  (load-theme 'my-rustcity t)
+                (my/set-colors (my/rustcity-colors)))
     (_          (message "Unknown theme: %s" my/theme-name))))
 
 ;; Face rules application

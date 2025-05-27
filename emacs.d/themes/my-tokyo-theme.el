@@ -59,7 +59,7 @@
   :group 'my/theme)
 
 (defun my/tokyo-colors ()
-  "Return ANSI 16+2 color mapping based on current variant and background."
+  "Return color mapping: 16 ANSI colors + foreground/background."
   (pcase frame-background-mode
     ('light my/tokyo-day-palette)
     ('dark
@@ -95,9 +95,9 @@
    `(default ((,class (:foreground ,foreground :background ,background))))
    `(cursor ((,class (:background ,foreground))))
    `(region ((,class (:background ,brightblack))))
+   `(fringe ((,class (:background ,background))))
    `(mode-line ((,class (:foreground ,foreground :background ,brightblack))))
    `(mode-line-inactive ((,class (:foreground ,foreground :background ,black))))
-   `(fringe ((,class (:background ,background))))
    `(minibuffer-prompt ((,class (:foreground ,blue))))
    `(font-lock-builtin-face ((,class (:foreground ,cyan))))
    `(font-lock-function-name-face ((,class (:foreground ,blue))))
