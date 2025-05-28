@@ -34,57 +34,19 @@
     (brightblack   . (230  20  35))
     (white         . (230  20  50))
     (brightwhite   . (230  20  60))
-    (foreground    . (230  20  70))
+    (foreground    . (230  20  65))
+    (red           . (350 100  65))
+    (yellow        . ( 50 100  65))
+    (green         . (110 100  65))
+    (cyan          . (190 100  65))
+    (blue          . (260 100  65))
+    (magenta       . (290 100  65))
     (brightred     . (350 100  70))
     (brightyellow  . ( 50 100  70))
     (brightgreen   . (110 100  70))
     (brightcyan    . (190 100  70))
     (brightblue    . (250 100  70))
     (brightmagenta . (290 100  70))))
-
-(defun my/hue-alpha-from-chroma (hsl)
-  "Return hue-alpha based on chroma of HSL.
-- More chroma → closer to 1 (hue should shift)
-- Less chroma → closer to 0 (keep bright-hsl hue)"
-  (cl-destructuring-bind (_h s l) hsl
-    (let* ((s (/ s 100.0))
-           (l (/ l 100.0))
-           (chroma (* s (min l (- 1 l)))))
-      (min 1.0 (max 0.0 chroma)))))
-
-(defun my/saturation-alpha-from-hue (h1 h2 near-alpha mid-alpha far-alpha)
-  "Return alpha based on hue distance between H1 and H2 (in degrees).
-- near-alpha: when hues are close (0°)
-- mid-alpha: when hues are ~90°
-- far-alpha: when hues are opposite (180°)"
-  (let* ((abs-diff (abs (- h1 h2)))
-         (hue-dist (min abs-diff (- 360 abs-diff))) ;; 0–180
-         (ratio (/ hue-dist 180.0))
-         (half 0.5))
-    (if (< ratio half)
-        (let ((x (/ ratio half)))
-          (+ (* (- 1 x) near-alpha)
-             (* x mid-alpha)))
-      (let ((x (/ (- ratio half) half)))
-        (+ (* (- 1 x) mid-alpha)
-           (* x far-alpha))))))
-
-(defun my/hue-lerp (h1 h2 alpha)
-  "Interpolate hue circularly between H1 and H2 by ALPHA (0–1)."
-  (let* ((delta (mod (- h2 h1) 360))
-         (shortest (if (> delta 180)
-                       (- delta 360) ;; negative = go backward
-                     delta)))
-    (mod (+ h1 (* alpha shortest)) 360.0)))
-
-(defun my/hsl-lerp (hsl1 hsl2 alpha-h alpha-s alpha-l)
-  "Interpolate between two HSL tuples (H S L) with ALPHA."
-  (cl-destructuring-bind (h1 s1 l1) hsl1
-    (cl-destructuring-bind (h2 s2 l2) hsl2
-      (let ((h (my/hue-lerp h1 h2 alpha-h))
-            (s (+ (* (- 1 alpha-s) s1) (* alpha-s s2)))
-            (l (+ (* (- 1 alpha-l) l1) (* alpha-l l2))))
-        (list h s l)))))
 
 (defun my/hsl-to-hex (h s l)
   "Convert HSL (0–360, 0–100, 0–100) to #RRGGBB."
@@ -105,14 +67,7 @@
   (append
    (cl-loop for (name . hsl) in my/rustcity-neon-hsl
             collect
-            `(,name . ,(apply #'my/hsl-to-hex hsl)))
-   (cl-loop for name in '(red yellow green cyan blue magenta)
-            for bright-hsl = (alist-get (intern (format "bright%s" name)) my/rustcity-neon-hsl)
-            for bg-hsl = (alist-get 'background my/rustcity-neon-hsl)
-            for alpha-h = (my/hue-alpha-from-chroma bg-hsl)
-            for alpha-s = (my/saturation-alpha-from-hue (car bright-hsl) (car bg-hsl) 0.00 0.00 0.15)
-            collect
-            `(,name . ,(apply #'my/hsl-to-hex (my/hsl-lerp bright-hsl bg-hsl alpha-h alpha-s alpha-s))))))
+            `(,name . ,(apply #'my/hsl-to-hex hsl)))))
 
 (defconst my/rustcity-downpour
   '(
