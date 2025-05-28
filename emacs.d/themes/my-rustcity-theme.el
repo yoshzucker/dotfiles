@@ -110,7 +110,7 @@
             for bright-hsl = (alist-get (intern (format "bright%s" name)) my/rustcity-neon-hsl)
             for bg-hsl = (alist-get 'background my/rustcity-neon-hsl)
             for alpha-h = (my/hue-alpha-from-chroma bg-hsl)
-            for alpha-s = (my/saturation-alpha-from-hue (car bright-hsl) (car bg-hsl) 0.00 0.00 0.20)
+            for alpha-s = (my/saturation-alpha-from-hue (car bright-hsl) (car bg-hsl) 0.00 0.00 0.15)
             collect
             `(,name . ,(apply #'my/hsl-to-hex (my/hsl-lerp bright-hsl bg-hsl alpha-h alpha-s alpha-s))))))
 
@@ -180,12 +180,21 @@
    `(font-lock-warning-face ((,class (:foreground ,brightred))))
    `(link ((,class (:foreground ,cyan :underline t))))
    `(link-visited ((,class (:foreground ,brightblue :underline t))))
+   `(minibuffer-prompt ((,class (:foreground ,blue))))
    `(cursor ((,class (:background ,foreground))))
    `(region ((,class (:background ,black))))
    `(fringe ((,class (:background ,background))))
    `(mode-line ((,class (:foreground ,foreground :background ,brightblack))))
-   `(mode-line-inactive ((,class (:foreground ,foreground :background ,black))))
-   `(minibuffer-prompt ((,class (:foreground ,blue))))))
+   `(mode-line-inactive ((,class (:foreground ,foreground :background ,brightblack))))
+   `(header-line ((,class (:foreground ,foreground :background ,brightblack))))
+   `(vertical-border ((,class (:foreground ,foreground :background ,brightblack))))
+   `(highlight ((,class (:background ,brightblack))))
+   `(shadow ((,class (:foreground ,white))))
+   `(match ((,class (:background ,yellow))))
+   `(warning ((,class (:foregorund ,yellow))))
+   `(error ((,class (:foregorund ,red))))
+   `(success ((,class (:foregorund ,green))))
+   `(tooltip ((,class (:foregorund ,foreground :background ,yellow))))))
 
 ;;;###autoload
 (when load-file-name

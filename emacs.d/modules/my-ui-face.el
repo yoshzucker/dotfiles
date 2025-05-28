@@ -146,8 +146,8 @@
        (foreground-dim-far  . white)
        (foreground-dim-near . brightwhite)
        (primary             . brightblue)
-       (secondary           . brightmagenta)
-       (accent              . brightyellow)))
+       (secondary           . magenta)
+       (accent              . yellow)))
     (_ nil)))
 
 ;; Color assignment
@@ -288,7 +288,7 @@
      (org-todo :weight 'unspecified :inverse-video t 
                :foreground my/red :background my/background)
      (org-ongo :weight 'unspecified :inverse-video t
-               :foreground my/brightyellow :background my/background)
+               :foreground my/yellow :background my/background)
      (org-wait :weight 'unspecified :inverse-video t
                :foreground (lambda () (face-attribute 'org-agenda-dimmed-todo-face :foreground))
                :background (lambda () (face-attribute 'org-agenda-dimmed-todo-face :background)))
@@ -297,7 +297,7 @@
      (org-tag :weight 'unspecified)
      (org-archived :weight 'normal
                    :foreground (lambda () (face-attribute 'org-headline-done :foreground) ))
-     (org-drawer :foreground 'unspecified :weight 'unspecified :inherit 'org-special-keyword)
+     (org-drawer :foreground 'unspecified :weight 'unspecified :inherit 'font-lock-comment-face)
      (org-column :slant 'unspecified :weight 'unspecified :foreground 'unspecified :inverse-video 'unspecified)
      (org-priority-a :foreground my/blue)
      (org-priority-b :foreground my/cyan)
