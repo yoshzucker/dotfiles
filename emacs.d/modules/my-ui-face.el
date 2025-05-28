@@ -111,41 +111,44 @@
   "Return semantic color mapping based on theme and background."
   (pcase (list my/theme-name my/frame-background)
     ('(nord dark)
-     '((fgdim . brightblack)
-       (bghighlight . black)
-       (primary . blue)
-       (secondary . magenta)
-       (accent . brightyellow)))
+     '((foreground-dim-near . brightblack)
+       (background-hl-far   . black)
+       (primary             . blue)
+       (secondary           . magenta)
+       (accent              . brightyellow)))
     ('(solarized light)
-     '((fgdim . brightblack)
-       (bghighlight . black)
-       (primary . green)
-       (secondary . magenta)
-       (accent . brightyellow)))
+     '((foreground-dim-near . brightblack)
+       (background-hl-far   . black)
+       (primary             . green)
+       (secondary           . magenta)
+       (accent              . brightyellow)))
     ('(solarized dark)
-     '((fgdim . brightyellow)
-       (bghighlight . brightgreen)
-       (primary . blue)
-       (secondary . magenta)
-       (accent . yellow)))
+     '((foreground-dim-near . brightyellow)
+       (background-hl-far   . brightgreen)
+       (primary             . blue)
+       (secondary           . magenta)
+       (accent              . yellow)))
     ('(my-tokyo light)
-     '((fgdim . brightblack)
-       (bghighlight . brightwhite)
-       (primary . blue)
-       (secondary . magenta)
-       (accent . yellow)))
+     '((foreground-dim-near . brightblack)
+       (background-hl-far   . brightwhite)
+       (primary             . blue)
+       (secondary           . magenta)
+       (accent              . yellow)))
     ('(my-tokyo dark)
-     '((fgdim . brightwhite)
-       (bghighlight . brightblack)
-       (primary . blue)
-       (secondary . magenta)
-       (accent . yellow)))
-    (_
-     '((fgdim . brightwhite)
-       (bghighlight . brightblack)
-       (primary . blue)
-       (secondary . magenta)
-       (accent . yellow)))))
+     '((foreground-dim-near . brightwhite)
+       (background-hl-far   . brightblack)
+       (primary             . blue)
+       (secondary           . magenta)
+       (accent              . yellow)))
+    ('(my-rustcity dark)
+     '((background-hl-near  . black)
+       (background-hl-far   . brightblack)
+       (foreground-dim-far  . white)
+       (foreground-dim-near . brightwhite)
+       (primary             . brightblue)
+       (secondary           . brightmagenta)
+       (accent              . brightyellow)))
+    (_ nil)))
 
 ;; Color assignment
 (defun my/set-colors (palette)
@@ -204,13 +207,13 @@
      (variable-pitch :family ,(if (eq system-type 'darwin) "HackGen" "HackGen NF"))
      (fringe :background 'unspecified)
      (border :foreground 'unspecified)
-     (vertical-border :foreground my/bghighlight)
+     (vertical-border :foreground my/background-hl-near)
      (internal-border :background 'unspecified)
      (underline :underline nil)
      (warning :weight 'unspecified)
      (mode-line :foreground my/background :background my/primary
 		        :underline 'unspecified :inverse-video nil)
-     (mode-line-inactive :foreground my/primary :background my/bghighlight
+     (mode-line-inactive :foreground my/primary :background my/background-hl-near
 			             :underline 'unspecified :inverse-video nil)
      (mode-line-buffer-id :weight 'unspecified)
      (minibuffer-prompt :weight 'unspecified :foreground my/primary)
@@ -221,11 +224,11 @@
     (tab-bar
      (tab-bar :foreground my/foreground :background my/background)
      (tab-bar-tab :foreground my/background :background my/primary :box 'unspecified)
-     (tab-bar-tab-inactive :foreground my/primary :background my/bghighlight))
+     (tab-bar-tab-inactive :foreground my/primary :background my/background-hl-near))
     (evil-snipe
-     (evil-snipe-first-match-face :background my/bghighlight))
+     (evil-snipe-first-match-face :background my/background-hl-near))
     (tooltip
-     (tooltip :foreground my/bghighlight
+     (tooltip :foreground my/background-hl-near
               :background (lambda () (face-attribute 'highlight :background))
               :inherit nil))
     (compile
@@ -241,7 +244,7 @@
      (orderless-match-face-3 :foreground my/magenta))
     (corfu
      (corfu-default :background my/background)
-     (corfu-current :foreground my/primary :background my/bghighlight)
+     (corfu-current :foreground my/primary :background my/background-hl-near)
      (corfu-bar :background my/brightyellow))
     (company
      (company-tooltip-selection :foreground my/cyan)
@@ -261,7 +264,7 @@
     (eglot
      (eglot-mode-line :weight 'unspecified))
     (ein-cell
-     (ein:cell-input-area :background my/bghighlight)
+     (ein:cell-input-area :background my/background-hl-near)
      (ein:cell-input-prompt :foreground my/background :background my/primary)
      (ein:cell-output-prompt :foreground my/background :background my/secondary))
     (eww
@@ -281,7 +284,7 @@
      (org-level-3 :weight 'unspecified)
      (org-headline-done :foreground 'unspecified)
      (org-agenda-dimmed-todo-face :inverse-video 'unspecified
-                                  :foreground my/fgdim :background my/background)
+                                  :foreground my/foreground-dim-near :background my/background)
      (org-todo :weight 'unspecified :inverse-video t 
                :foreground my/red :background my/background)
      (org-ongo :weight 'unspecified :inverse-video t
