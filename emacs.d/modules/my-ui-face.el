@@ -248,7 +248,8 @@
      (orderless-match-face-2 :weight 'unspecified :foreground my/green)
      (orderless-match-face-3 :weight 'unspecified :foreground my/red))
     (consult
-     (consult-buffer :foreground my/foreground-near))
+     (consult-buffer :foreground my/foreground-near)
+     (consult-file :foreground my/foreground-far))
     (corfu
      (corfu-default :background my/background)
      (corfu-current :foreground my/primary :background my/background-near)
