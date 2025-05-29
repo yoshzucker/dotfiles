@@ -23,51 +23,35 @@
 
 ;;; Code:
 
-(require 'cl-lib)
+(require 'hsluv)
 
 (deftheme my-rustcity
   "A theme inspired by a rusted cityscape—silent under neon rain, and hollow in a daylight downpour.")
 
 (defconst my/rustcity-neon-hsl
-  '((background    . (230  20  15))
-    (black         . (230  20  25))
-    (brightblack   . (230  20  35))
-    (white         . (230  20  50))
-    (brightwhite   . (230  20  60))
-    (foreground    . (230  20  65))
-    (red           . (350 100  65))
-    (yellow        . ( 50 100  65))
+  '((background    . (260  30  15))
+    (black         . (260  30  25))
+    (brightblack   . (260  30  35))
+    (white         . (260  30  60))
+    (brightwhite   . (260  30  70))
+    (foreground    . (260  30  65))
+    (red           . ( 10 100  65))
+    (yellow        . ( 70 100  65))
     (green         . (110 100  65))
-    (cyan          . (190 100  65))
-    (blue          . (260 100  65))
-    (magenta       . (290 100  65))
-    (brightred     . (350 100  70))
-    (brightyellow  . ( 50 100  70))
-    (brightgreen   . (110 100  70))
-    (brightcyan    . (190 100  70))
-    (brightblue    . (250 100  70))
-    (brightmagenta . (290 100  70))))
-
-(defun my/hsl-to-hex (h s l)
-  "Convert HSL (0–360, 0–100, 0–100) to #RRGGBB."
-  (let* ((h (/ h 360.0))
-         (s (/ s 100.0))
-         (l (/ l 100.0))
-         (a (* s (min l (- 1 l))))
-         (f (lambda (n)
-              (let* ((k (mod (float (+ n (* 12 h))) 12.0))
-                     (c (- l (* a (max (min (min (- k 3) (- 9 k)) 1) -1)))))
-                (round (* 255 c))))))
-    (format "#%02X%02X%02X"
-            (funcall f 0)  ; R
-            (funcall f 8)  ; G
-            (funcall f 4)))) ; B
+    (cyan          . (200 100  65))
+    (blue          . (250 100  65))
+    (magenta       . (310 100  65))
+    (brightred     . ( 30 100  65))     ; orange
+    (brightyellow  . ( 70  50  50))
+    (brightgreen   . (110  50  50))
+    (brightcyan    . (180  50  50))
+    (brightblue    . (250  50  50))
+    (brightmagenta . (270 100  65))))   ; violet
 
 (defconst my/rustcity-neon
-  (append
-   (cl-loop for (name . hsl) in my/rustcity-neon-hsl
-            collect
-            `(,name . ,(apply #'my/hsl-to-hex hsl)))))
+  (cl-loop for (name . hsl) in my/rustcity-neon-hsl
+           collect
+           `(,name . ,(hsluv-hsluv-to-hex hsl))))
 
 (defconst my/rustcity-downpour
   '(
@@ -123,33 +107,33 @@
   (custom-theme-set-faces
    'my-rustcity
    `(default ((,class (:foreground ,foreground :background ,background))))
-   `(font-lock-builtin-face ((,class (:foreground ,cyan))))
+   `(font-lock-builtin-face ((,class (:foreground ,green))))
    `(font-lock-function-name-face ((,class (:foreground ,brightblue))))
    `(font-lock-variable-name-face ((,class (:foreground ,blue))))
    `(font-lock-keyword-face ((,class (:foreground ,magenta))))
    `(font-lock-type-face ((,class (:foreground ,yellow))))
    `(font-lock-string-face ((,class (:foreground ,green))))
-   `(font-lock-doc-face ((,class (:foreground ,white))))
-   `(font-lock-comment-face ((,class (:foreground ,white :slant italic))))
+   `(font-lock-doc-face ((,class (:foreground ,brightyellow))))
+   `(font-lock-comment-face ((,class (:foreground ,brightyellow :slant italic))))
    `(font-lock-constant-face ((,class (:foreground ,cyan))))
    `(font-lock-warning-face ((,class (:foreground ,brightred))))
-   `(link ((,class (:foreground ,cyan :underline t))))
-   `(link-visited ((,class (:foreground ,brightblue :underline t))))
+   `(link ((,class (:foreground ,brightgreen :underline t))))
+   `(link-visited ((,class (:foreground ,brightmagenta :underline t))))
    `(minibuffer-prompt ((,class (:foreground ,blue))))
    `(cursor ((,class (:background ,foreground))))
    `(region ((,class (:background ,black))))
    `(fringe ((,class (:background ,background))))
+   `(vertical-border ((,class (:foreground ,foreground :background ,brightblack))))
    `(mode-line ((,class (:foreground ,foreground :background ,brightblack))))
    `(mode-line-inactive ((,class (:foreground ,foreground :background ,brightblack))))
    `(header-line ((,class (:foreground ,foreground :background ,brightblack))))
-   `(vertical-border ((,class (:foreground ,foreground :background ,brightblack))))
    `(highlight ((,class (:background ,brightblack))))
    `(shadow ((,class (:foreground ,white))))
    `(match ((,class (:background ,yellow))))
-   `(warning ((,class (:foregorund ,yellow))))
-   `(error ((,class (:foregorund ,red))))
-   `(success ((,class (:foregorund ,green))))
-   `(tooltip ((,class (:foregorund ,foreground :background ,yellow))))))
+   `(warning ((,class (:foreground ,yellow))))
+   `(error ((,class (:foreground ,red))))
+   `(success ((,class (:foreground ,green))))
+   `(tooltip ((,class (:foreground ,foreground :background ,yellow))))))
 
 ;;;###autoload
 (when load-file-name

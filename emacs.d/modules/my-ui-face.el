@@ -91,8 +91,8 @@
       (brightcyan    . ,(my/get-solarized-color 'base1))
       (brightwhite   . ,(my/get-solarized-color 'base3))
       (foreground    . ,(if (eq my/frame-background 'light)
-                            (my/get-solarized-color 'base01)
-                          (my/get-solarized-color 'base2)))
+                            (my/get-solarized-color 'base00)
+                          (my/get-solarized-color 'base0)))
       (background    . ,(if (eq my/frame-background 'light)
                             (my/get-solarized-color 'base3)
                           (my/get-solarized-color 'base03))))))
@@ -101,6 +101,8 @@
   :straight nil
   :load-path "themes"
   :defer t)
+
+(use-package hsluv)
 
 (use-package my-rustcity-theme
   :straight nil
@@ -114,40 +116,36 @@
      '((foreground-dim-near . brightblack)
        (background-hl-far   . black)
        (primary             . blue)
-       (secondary           . magenta)
-       (accent              . brightyellow)))
+       (secondary           . magenta)))
     ('(solarized light)
      '((foreground-dim-near . brightblack)
        (background-hl-far   . black)
        (primary             . green)
-       (secondary           . magenta)
-       (accent              . brightyellow)))
+       (secondary           . magenta)))
     ('(solarized dark)
-     '((foreground-dim-near . brightyellow)
+     '((background-hl-near  . black)
        (background-hl-far   . brightgreen)
+       (foreground-dim-far  . brightyellow)
+       (foreground-dim-near . brightyellow)
        (primary             . blue)
-       (secondary           . magenta)
-       (accent              . yellow)))
+       (secondary           . magenta)))
     ('(my-tokyo light)
      '((foreground-dim-near . brightblack)
        (background-hl-far   . brightwhite)
        (primary             . blue)
-       (secondary           . magenta)
-       (accent              . yellow)))
+       (secondary           . magenta)))
     ('(my-tokyo dark)
      '((foreground-dim-near . brightwhite)
        (background-hl-far   . brightblack)
        (primary             . blue)
-       (secondary           . magenta)
-       (accent              . yellow)))
+       (secondary           . magenta)))
     ('(my-rustcity dark)
      '((background-hl-near  . black)
        (background-hl-far   . brightblack)
        (foreground-dim-far  . white)
        (foreground-dim-near . brightwhite)
-       (primary             . brightblue)
-       (secondary           . magenta)
-       (accent              . yellow)))
+       (primary             . brightgreen)
+       (secondary           . blue)))
     (_ nil)))
 
 ;; Color assignment
@@ -202,14 +200,18 @@
 
 (defvar my/set-face-rules
   `((font-lock
-     (default :family ,(if (eq system-type 'darwin) "HackGen Console" "HackGen Console NF")
-              :height ,(if (eq system-type 'darwin) 150 120))
+     (default :foreground my/foreground :background my/background
+              :family ,(if (eq system-type 'darwin)
+                           "HackGen Console"
+                         "HackGen Console NF")
+              :height ,(if (eq system-type 'darwin)
+                           150
+                         120))
      (variable-pitch :family ,(if (eq system-type 'darwin) "HackGen" "HackGen NF"))
      (fringe :background 'unspecified)
      (border :foreground 'unspecified)
      (vertical-border :foreground my/background-hl-near)
      (internal-border :background 'unspecified)
-     (underline :underline nil)
      (warning :weight 'unspecified)
      (mode-line :foreground my/background :background my/primary
 		        :underline 'unspecified :inverse-video nil)
@@ -218,9 +220,10 @@
      (mode-line-buffer-id :weight 'unspecified)
      (minibuffer-prompt :weight 'unspecified :foreground my/primary)
      (cursor :background my/primary)
-     (header-line :foreground my/background :background my/primary))
-    (font-lock
-     (font-lock-builtin-face :foreground my/red))
+     (region :foreground 'unspecified :background my/background-hl-near
+             :extend 'unspecified :inverse-video 'unspecified)
+     (header-line :foreground my/background :background my/primary)
+     (highlight :background my/brightgreen :distant-foreground my/background))
     (tab-bar
      (tab-bar :foreground my/foreground :background my/background)
      (tab-bar-tab :foreground my/background :background my/primary :box 'unspecified)
@@ -237,11 +240,13 @@
      (compilation-warning :foreground my/red)
      (compilation-mode-line-fail :foreground my/red)
      (compilation-mode-line-exit :weight 'unspecified :foreground my/cyan))
+    (vertico
+     (vertico-current :background my/brightgreen))
     (orderless
-     (orderless-match-face-0 :foreground my/brightyellow)
-     (orderless-match-face-1 :foreground my/brightred)
+     (orderless-match-face-0 :foreground my/brightred)
+     (orderless-match-face-1 :foreground my/magenta)
      (orderless-match-face-2 :foreground my/green)
-     (orderless-match-face-3 :foreground my/magenta))
+     (orderless-match-face-3 :foreground my/red))
     (corfu
      (corfu-default :background my/background)
      (corfu-current :foreground my/primary :background my/background-hl-near)
@@ -304,9 +309,11 @@
      (org-mode-line-clock :foreground my/cyan)
      (org-mode-line-clock-overrun :foreground my/red :background 'unspecified)
      (org-link :foreground my/magenta)
+     (org-date :foreground my/cyan :underline 'unspecified)
      (org-scheduled :weight 'unspecified :slant 'unspecified)
      (org-scheduled-today :weight 'unspecified :slant 'unspecified)
      (org-scheduled-previously :weight 'unspecified :foreground (lambda () (face-attribute 'org-time-grid :foreground)))
+     (org-special-keyword :foreground my/brightyellow)
      (org-warning :weight 'unspecified :foreground my/red)
      (org-upcoming-deadline :weight 'unspecified)
      (org-agenda-structure :weight 'unspecified)
