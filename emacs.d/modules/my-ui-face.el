@@ -243,17 +243,16 @@
     (vertico
      (vertico-current :background my/brightgreen))
     (orderless
-     (orderless-match-face-0 :foreground my/brightred)
-     (orderless-match-face-1 :foreground my/magenta)
-     (orderless-match-face-2 :foreground my/green)
-     (orderless-match-face-3 :foreground my/red))
+     (orderless-match-face-0 :weight 'unspecified :foreground my/brightred)
+     (orderless-match-face-1 :weight 'unspecified :foreground my/magenta)
+     (orderless-match-face-2 :weight 'unspecified :foreground my/green)
+     (orderless-match-face-3 :weight 'unspecified :foreground my/red))
+    (consult
+     (consult-buffer :foreground my/foreground-dim-near))
     (corfu
      (corfu-default :background my/background)
      (corfu-current :foreground my/primary :background my/background-hl-near)
      (corfu-bar :background my/brightyellow))
-    (company
-     (company-tooltip-selection :foreground my/cyan)
-     (company-tooltip-common-selection :foreground my/secondary))
     (deadgrep
      (deadgrep-filename-face :weight 'normal :foreground my/yellow)
      (deadgrep-meta-face :foreground my/blue))
@@ -287,13 +286,14 @@
      (org-level-1 :weight 'unspecified)
      (org-level-2 :weight 'unspecified)
      (org-level-3 :weight 'unspecified)
+     (org-level-4 :weight 'unspecified :foreground my/cyan)
      (org-headline-done :foreground 'unspecified)
      (org-agenda-dimmed-todo-face :inverse-video 'unspecified
                                   :foreground my/foreground-dim-near :background my/background)
      (org-todo :weight 'unspecified :inverse-video t 
                :foreground my/red :background my/background)
      (org-ongo :weight 'unspecified :inverse-video t
-               :foreground my/yellow :background my/background)
+               :foreground my/brightred :background my/background)
      (org-wait :weight 'unspecified :inverse-video t
                :foreground (lambda () (face-attribute 'org-agenda-dimmed-todo-face :foreground))
                :background (lambda () (face-attribute 'org-agenda-dimmed-todo-face :background)))
@@ -309,11 +309,11 @@
      (org-mode-line-clock :foreground my/cyan)
      (org-mode-line-clock-overrun :foreground my/red :background 'unspecified)
      (org-link :foreground my/magenta)
-     (org-date :foreground my/cyan :underline 'unspecified)
+     (org-date :foreground my/brightyellow :underline 'unspecified)
      (org-scheduled :weight 'unspecified :slant 'unspecified)
      (org-scheduled-today :weight 'unspecified :slant 'unspecified)
      (org-scheduled-previously :weight 'unspecified :foreground (lambda () (face-attribute 'org-time-grid :foreground)))
-     (org-special-keyword :foreground my/brightyellow)
+     (org-special-keyword :inherit 'font-lock-comment-face)
      (org-warning :weight 'unspecified :foreground my/red)
      (org-upcoming-deadline :weight 'unspecified)
      (org-agenda-structure :weight 'unspecified)
