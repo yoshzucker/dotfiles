@@ -149,7 +149,7 @@
                              (find-file
                               (read-file-name "Find file: " dir nil nil initial))))))
           (run-at-time 0 nil callback)
-          (exit-minibuffer)))))
+          (abort-minibuffers)))))
 
   (defvar my/consult-buffer-mode-map
     (let ((map (make-sparse-keymap)))
