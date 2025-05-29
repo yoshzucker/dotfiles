@@ -113,39 +113,39 @@
   "Return semantic color mapping based on theme and background."
   (pcase (list my/theme-name my/frame-background)
     ('(nord dark)
-     '((foreground-dim-near . brightblack)
-       (background-hl-far   . black)
-       (primary             . blue)
-       (secondary           . magenta)))
+     '((foreground-near . brightblack)
+       (background-far  . black)
+       (primary         . blue)
+       (secondary       . magenta)))
     ('(solarized light)
-     '((foreground-dim-near . brightblack)
-       (background-hl-far   . black)
-       (primary             . green)
-       (secondary           . magenta)))
+     '((foreground-near . brightblack)
+       (background-far  . black)
+       (primary         . green)
+       (secondary       . magenta)))
     ('(solarized dark)
-     '((background-hl-near  . black)
-       (background-hl-far   . brightgreen)
-       (foreground-dim-far  . brightyellow)
-       (foreground-dim-near . brightyellow)
-       (primary             . blue)
-       (secondary           . magenta)))
+     '((background-near . black)
+       (background-far  . brightgreen)
+       (foreground-far  . brightyellow)
+       (foreground-near . brightyellow)
+       (primary         . blue)
+       (secondary       . magenta)))
     ('(my-tokyo light)
-     '((foreground-dim-near . brightblack)
-       (background-hl-far   . brightwhite)
-       (primary             . blue)
-       (secondary           . magenta)))
+     '((foreground-near . brightblack)
+       (background-far  . brightwhite)
+       (primary         . blue)
+       (secondary       . magenta)))
     ('(my-tokyo dark)
-     '((foreground-dim-near . brightwhite)
-       (background-hl-far   . brightblack)
-       (primary             . blue)
-       (secondary           . magenta)))
-    ('(my-rustcity dark)
-     '((background-hl-near  . black)
-       (background-hl-far   . brightblack)
-       (foreground-dim-far  . white)
-       (foreground-dim-near . brightwhite)
-       (primary             . brightgreen)
-       (secondary           . blue)))
+     '((foreground-near . brightwhite)
+       (background-far  . brightblack)
+       (primary         . blue)
+       (secondary       . magenta)))
+    (`(my-rustcity ,_)
+     '((background-near . black)
+       (background-far  . brightblack)
+       (foreground-far  . white)
+       (foreground-near . brightwhite)
+       (primary         . brightgreen)
+       (secondary       . blue)))
     (_ nil)))
 
 ;; Color assignment
@@ -210,28 +210,28 @@
      (variable-pitch :family ,(if (eq system-type 'darwin) "HackGen" "HackGen NF"))
      (fringe :background 'unspecified)
      (border :foreground 'unspecified)
-     (vertical-border :foreground my/background-hl-near)
+     (vertical-border :foreground my/background-near)
      (internal-border :background 'unspecified)
      (warning :weight 'unspecified)
      (mode-line :foreground my/background :background my/primary
 		        :underline 'unspecified :inverse-video nil)
-     (mode-line-inactive :foreground my/primary :background my/background-hl-near
+     (mode-line-inactive :foreground my/primary :background my/background-near
 			             :underline 'unspecified :inverse-video nil)
      (mode-line-buffer-id :weight 'unspecified)
      (minibuffer-prompt :weight 'unspecified :foreground my/primary)
      (cursor :background my/primary)
-     (region :foreground 'unspecified :background my/background-hl-near
+     (region :foreground 'unspecified :background my/background-near
              :extend 'unspecified :inverse-video 'unspecified)
      (header-line :foreground my/background :background my/primary)
      (highlight :background my/brightgreen :distant-foreground my/background))
     (tab-bar
      (tab-bar :foreground my/foreground :background my/background)
      (tab-bar-tab :foreground my/background :background my/primary :box 'unspecified)
-     (tab-bar-tab-inactive :foreground my/primary :background my/background-hl-near))
+     (tab-bar-tab-inactive :foreground my/primary :background my/background-near))
     (evil-snipe
-     (evil-snipe-first-match-face :background my/background-hl-near))
+     (evil-snipe-first-match-face :background my/background-near))
     (tooltip
-     (tooltip :foreground my/background-hl-near
+     (tooltip :foreground my/background-near
               :background (lambda () (face-attribute 'highlight :background))
               :inherit nil))
     (compile
@@ -248,10 +248,10 @@
      (orderless-match-face-2 :weight 'unspecified :foreground my/green)
      (orderless-match-face-3 :weight 'unspecified :foreground my/red))
     (consult
-     (consult-buffer :foreground my/foreground-dim-near))
+     (consult-buffer :foreground my/foreground-near))
     (corfu
      (corfu-default :background my/background)
-     (corfu-current :foreground my/primary :background my/background-hl-near)
+     (corfu-current :foreground my/primary :background my/background-near)
      (corfu-bar :background my/brightyellow))
     (deadgrep
      (deadgrep-filename-face :weight 'normal :foreground my/yellow)
@@ -268,7 +268,7 @@
     (eglot
      (eglot-mode-line :weight 'unspecified))
     (ein-cell
-     (ein:cell-input-area :background my/background-hl-near)
+     (ein:cell-input-area :background my/background-near)
      (ein:cell-input-prompt :foreground my/background :background my/primary)
      (ein:cell-output-prompt :foreground my/background :background my/secondary))
     (eww
@@ -289,7 +289,7 @@
      (org-level-4 :weight 'unspecified :foreground my/cyan)
      (org-headline-done :foreground 'unspecified)
      (org-agenda-dimmed-todo-face :inverse-video 'unspecified
-                                  :foreground my/foreground-dim-near :background my/background)
+                                  :foreground my/foreground-near :background my/background)
      (org-todo :weight 'unspecified :inverse-video t 
                :foreground my/red :background my/background)
      (org-ongo :weight 'unspecified :inverse-video t
