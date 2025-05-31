@@ -5,7 +5,7 @@
 ;; Version: 0.1
 ;; Package-Requires: ((emacs "24.1"))
 ;; Keywords: faces, themes, rustcity, neon, rain
-;; Homepage: https://github.com/yourname/yourrepo
+;; Homepage: https://github.com/yoshzucker/dotfiles
 ;; License: MIT
 
 ;;; Commentary:
@@ -55,18 +55,18 @@
     (white         . (260  30  35))
     (brightwhite   . (260  30  25))
     (foreground    . (260  30  15))
-    (red           . (  0 100  65))
-    (yellow        . ( 70 100  65))
-    (green         . (110 100  65))
-    (cyan          . (200 100  65))
-    (blue          . (250 100  65))
-    (magenta       . (310 100  65))
-    (brightred     . ( 30 100  65))     ; orange
+    (red           . (  0 100  35))
+    (yellow        . ( 70 100  35))
+    (green         . (110 100  35))
+    (cyan          . (200 100  35))
+    (blue          . (250 100  35))
+    (magenta       . (310 100  35))
+    (brightred     . ( 30 100  35))     ; orange
     (brightyellow  . ( 70  50  50))
     (brightgreen   . (110  50  50))
     (brightcyan    . (180  50  50))
     (brightblue    . (250  50  50))
-    (brightmagenta . (270 100  65))))   ; violet
+    (brightmagenta . (270 100  35))))   ; violet
 
 (defconst my/rustcity-neon
   (cl-loop for (name . hsl) in my/rustcity-neon-hsl
@@ -114,14 +114,14 @@
   (custom-theme-set-faces
    'my-rustcity
    `(default ((,class (:foreground ,foreground :background ,background))))
-   `(font-lock-builtin-face ((,class (:foreground ,green))))
-   `(font-lock-function-name-face ((,class (:foreground ,red))))
-   `(font-lock-variable-name-face ((,class (:foreground ,blue))))
-   `(font-lock-keyword-face ((,class (:foreground ,magenta))))
-   `(font-lock-type-face ((,class (:foreground ,cyan))))
-   `(font-lock-string-face ((,class (:foreground ,green))))
-   `(font-lock-doc-face ((,class (:foreground ,white))))
    `(font-lock-comment-face ((,class (:foreground ,white :slant italic))))
+   `(font-lock-string-face ((,class (:foreground ,yellow))))
+   `(font-lock-doc-face ((,class (:foreground ,white))))
+   `(font-lock-keyword-face ((,class (:foreground ,magenta))))
+   `(font-lock-builtin-face ((,class (:foreground ,green))))
+   `(font-lock-variable-name-face ((,class (:foreground ,blue))))
+   `(font-lock-function-name-face ((,class (:foreground ,red))))
+   `(font-lock-type-face ((,class (:foreground ,cyan))))
    `(font-lock-constant-face ((,class (:foreground ,brightmagenta))))
    `(font-lock-warning-face ((,class (:foreground ,brightred))))
    `(link ((,class (:foreground ,brightgreen :underline t))))

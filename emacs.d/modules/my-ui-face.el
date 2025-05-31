@@ -182,13 +182,14 @@
 ;; Face rules application
 (defvar my/copy-face-rules
   '((org
-     (org-todo . org-ongo)
-     (org-todo . org-wait)
-     (org-priority . org-priority-a)
-     (org-priority . org-priority-b)
-     (org-mode-line-clock . org-mode-line-clock-underrun))
+     (org-todo           . my/org-ongo)
+     (org-todo           . my/org-wait)
+     (org-priority       . my/org-priority-a)
+     (org-priority       . my/org-priority-b)
+     (mode-line          . my/mode-line-under)
+     (mode-line          . my/mode-line-over))
     (calendar
-     (calendar-weekday-header . calendar-iso-week-header))))
+     (calendar-weekday-header . my/calendar-iso-week-header))))
 
 (defun my/apply-copy-face-rules ()
   (dolist (group my/copy-face-rules)
@@ -216,7 +217,7 @@
      (mode-line :foreground my/background :background my/primary
 		        :underline 'unspecified :inverse-video nil)
      (mode-line-inactive :foreground my/primary :background my/background-near
-			             :underline 'unspecified :inverse-video nil)
+                         :underline 'unspecified :inverse-video nil)
      (mode-line-buffer-id :weight 'unspecified)
      (minibuffer-prompt :weight 'unspecified :foreground my/primary)
      (cursor :background my/primary)
@@ -274,6 +275,8 @@
      (ein:cell-output-prompt :foreground my/background :background my/secondary))
     (eww
      (eww-valid-certificate :weight 'unspecified :foreground my/green))
+    (dired
+     (dired-directory :inherit 'font-lock-type-face))
     (dired-subtree
      (dired-subtree-depth-1-face :background 'unspecified)
      (dired-subtree-depth-2-face :background 'unspecified)
@@ -283,19 +286,25 @@
      (dired-subtree-depth-6-face :background 'unspecified))
     (bookmark
      (bookmark-face :foreground my/blue :background 'unspecified))
+    (outline
+     (outline-1 :inherit 'font-lock-type-face)
+     (outline-2 :inherit 'font-lock-variable-name-face)
+     (outline-3 :inherit 'font-lock-constant-face)
+     (outline-4 :inherit 'font-lock-builtin-face)
+     (outline-5 :inherit 'font-lock-function-name-face)
+     (outline-6 :inherit 'font-lock-string-face)
+     (outline-7 :inherit 'font-lock-warning-face)
+     (outline-8 :inherit 'font-lock-keyword-face)
+     )
     (org
-     (org-level-1 :weight 'unspecified)
-     (org-level-2 :weight 'unspecified)
-     (org-level-3 :weight 'unspecified)
-     (org-level-4 :weight 'unspecified :foreground my/cyan)
      (org-headline-done :foreground 'unspecified)
      (org-agenda-dimmed-todo-face :inverse-video 'unspecified
                                   :foreground my/foreground-near :background my/background)
      (org-todo :weight 'unspecified :inverse-video t 
                :foreground my/red :background my/background)
-     (org-ongo :weight 'unspecified :inverse-video t
+     (my/org-ongo :weight 'unspecified :inverse-video t
                :foreground my/brightred :background my/background)
-     (org-wait :weight 'unspecified :inverse-video t
+     (my/org-wait :weight 'unspecified :inverse-video t
                :foreground (lambda () (face-attribute 'org-agenda-dimmed-todo-face :foreground))
                :background (lambda () (face-attribute 'org-agenda-dimmed-todo-face :background)))
      (org-done :weight 'unspecified :inverse-video t)
@@ -305,10 +314,10 @@
                    :foreground (lambda () (face-attribute 'org-headline-done :foreground) ))
      (org-drawer :foreground 'unspecified :weight 'unspecified :inherit 'font-lock-comment-face)
      (org-column :slant 'unspecified :weight 'unspecified :foreground 'unspecified :inverse-video 'unspecified)
-     (org-priority-a :foreground my/blue)
-     (org-priority-b :foreground my/cyan)
-     (org-mode-line-clock :foreground my/cyan)
-     (org-mode-line-clock-overrun :foreground my/red :background 'unspecified)
+     (my/org-priority-a :foreground my/blue)
+     (my/org-priority-b :foreground my/cyan)
+     (my/mode-line-under :foreground my/background :background my/cyan)
+     (my/mode-line-over :foreground my/background :background my/red)
      (org-link :foreground my/magenta)
      (org-date :foreground my/brightyellow :underline 'unspecified)
      (org-scheduled :weight 'unspecified :slant 'unspecified)
@@ -343,7 +352,7 @@
     (calendar
      (calendar-today :foreground my/secondary :underline 'unspecified)
      (calendar-weekend-header :foreground my/secondary)
-     (calendar-iso-week-header :inherit 'font-lock-function-name-face))))
+     (my/calendar-iso-week-header :inherit 'font-lock-function-name-face))))
 
 (defun my/apply-set-face-rules ()
   "Apply all face settings declared in `my/set-face-rules`."
@@ -391,14 +400,20 @@
                     (when (assoc 'hl-line faces)
                       (hl-line-mode 1))))))))
 
+(defun my/apply-face-remap-minibuffer ()
+  (defun my/minibuffer-face-setup ()
+    (face-remap-add-relative 'default :foreground my/foreground-near))
+  (unless (memq #'my/minibuffer-face-setup minibuffer-setup-hook)
+    (add-hook 'minibuffer-setup-hook #'my/minibuffer-face-setup)))
+
 ;; Extra packages
 (use-package dired-rainbow
   :config
   (defun my/set-dired-rainbow-faces ()
-    (dolist (rule `((src ,my/magenta ("el" "lisp" "sh" "R" "c" "h" "py" "org"))
+    (dolist (rule `((src ,my/brightmagenta ("el" "lisp" "sh" "R" "c" "h" "py" "org"))
                     (doc ,my/blue ("docx" "docm"))
                     (xls ,my/green ("xlsx" "xlsm"))
-                    (ppt ,my/brightyellow ("pptx" "pptm"))
+                    (ppt ,my/brightred ("pptx" "pptm"))
                     (pdf ,my/red ("pdf"))))
       (eval `(dired-rainbow-define ,@rule)))))
 
@@ -416,7 +431,7 @@
   (smartrep-define-key global-map "C-w" '(("i" . transwin-inc)
                                           ("d" . transwin-dec))))
 
-(defun my/apply-extra-packages-faces ()
+(defun my/apply-face-extra-packages ()
   (when (featurep 'dired-rainbow)
     (my/set-dired-rainbow-faces))
   (when (featurep 'smartrep)
@@ -427,7 +442,8 @@
   (my/apply-copy-face-rules)
   (my/apply-set-face-rules)
   (my/apply-face-remap-rules)
-  (my/apply-extra-packages-faces))
+  (my/apply-face-remap-minibuffer)
+  (my/apply-face-extra-packages))
 
 (my/setup-theme)
 

@@ -77,8 +77,8 @@
         org-indirect-buffer-display 'current-window
         org-cycle-include-plain-lists 'integrate
         org-M-RET-may-split-line '((default . nil))
-        org-todo-keyword-faces '(("ONGO" . org-ongo)
-                                 ("WAIT" . org-wait)
+        org-todo-keyword-faces '(("ONGO" . my/org-ongo)
+                                 ("WAIT" . my/org-wait)
                                  ("DONE" . org-done)
                                  ("DELEG" . org-done)
                                  ("CANCEL" . org-done)))
@@ -169,32 +169,7 @@
         org-sparse-tree-open-archived-trees nil
         org-columns-skip-archived-trees t)
   
-  (defun my/org-inherited-no-file-tags ()
-    "Remove file-level tags from inherited tag list."
-    (let ((tags (org-entry-get nil "ALLTAGS" 'selective))
-          (ltags (org-entry-get nil "TAGS")))
-      (mapc (lambda (tag)
-              (setq tags
-                    (replace-regexp-in-string (concat tag ":") "" tags)))
-            (append org-file-tags (when ltags (split-string ltags ":" t))))
-      (unless (string= ":" tags) tags)))
-  
-  (defun my/org-archive-subtree-low-level (f &rest args)
-    "Archive to outline node instead of flat list."
-    (let ((tags (my/org-inherited-no-file-tags))
-          (org-archive-location
-           (if (> (org-outline-level) 1)
-               (concat (car (split-string org-archive-location "::"))
-                       "::* " (car (org-get-outline-path)))
-             org-archive-location)))
-      (apply f args)
-      (with-current-buffer (find-file-noselect (org-extract-archive-file))
-        (save-excursion
-          (while (org-up-heading-safe))
-          (org-set-tags-to tags)))))
-  
-  (advice-add 'org-archive-subtree :around #'my/org-archive-subtree-low-level)
-
+  ;; Timestamp
   (defun my/org-time-stamp-in-evil-insert (orig-fn &rest args)
     "Insert org timestamp with proper evil state handling."
     (if (memq evil-state '(motion normal visual))
@@ -231,7 +206,7 @@
         org-hierarchical-todo-statistics t
         org-track-ordered-property-with-tag t)
 
-  ;; Tag settings
+  ;; Tag 
   (setq org-tag-persistent-alist
         '((:startgroup . nil) ("responsible" . ?r) ("support" . ?s) ("observe" . ?o) (:endgroup . nil)
           ("first" . ?f) ("dash" . ?d) ("ignore" . ?i)
@@ -247,7 +222,33 @@
         org-agenda-show-inherited-tags t
         org-tags-sort-function #'string<)
   
-  ;; Property settings
+  (defun my/org-inherited-no-file-tags ()
+    "Remove file-level tags from inherited tag list."
+    (let ((tags (org-entry-get nil "ALLTAGS" 'selective))
+          (ltags (org-entry-get nil "TAGS")))
+      (mapc (lambda (tag)
+              (setq tags
+                    (replace-regexp-in-string (concat tag ":") "" tags)))
+            (append org-file-tags (when ltags (split-string ltags ":" t))))
+      (unless (string= ":" tags) tags)))
+  
+  (defun my/org-archive-subtree-low-level (f &rest args)
+    "Archive to outline node instead of flat list."
+    (let ((tags (my/org-inherited-no-file-tags))
+          (org-archive-location
+           (if (> (org-outline-level) 1)
+               (concat (car (split-string org-archive-location "::"))
+                       "::* " (car (org-get-outline-path)))
+             org-archive-location)))
+      (apply f args)
+      (with-current-buffer (find-file-noselect (org-extract-archive-file))
+        (save-excursion
+          (while (org-up-heading-safe))
+          (org-set-tags-to tags)))))
+  
+  (advice-add 'org-archive-subtree :around #'my/org-archive-subtree-low-level)
+
+  ;; Property 
   (setq org-global-properties
         '(("EFFORT_ALL"       . "0:00 0:02 0:05 0:10 0:15 0:30 0:45 1:00 1:30 2:00")
           ("STYLE_ALL"        . "habit")
@@ -255,11 +256,11 @@
   
   (setq org-use-property-inheritance nil)
 
-  ;; column
+  ;; Column
   (setq org-columns-default-format
         " %1TODO %35ITEM %5CATEGORY %8ALLTAGS %1PRIORITY %5EFFORT{:} %5CLOCKSUM_T{:}")
 
-  ;; Clock settings
+  ;; Clock 
   (setq org-clock-out-when-done t
         org-clock-in-switch-to-state (lambda (state) (if state "ONGO"))
         org-clock-out-switch-to-state nil
@@ -281,29 +282,23 @@
         '(:scope agenda :maxlevel 5 :lang "en" :block thisweek :step day)
         org-duration-format '((special . h:mm))) ;; Avoid incorrect sort: 1d 0:10 < 0:20
   
-  (defun my/org-show-notification-message (msg)
-    (message "%s" msg))
-  (setq org-show-notification-handler #'my/org-show-notification-message)
+  ;; Clock in mode-line or tab-bar 
+  (defun my/org-clock-colorize (string)
+    "Color clock string based on overrun status."
+    (let ((face (if org-clock-task-overrun
+                    'my/mode-line-over
+                  'my/mode-line-under)))
+      (propertize string 'face face)))
   
-  (defun my/org-clock-get-clock-string ()
-    "Custom mode-line clock string showing [done/effort](heading)."
-    (let ((clocked-time (org-clock-get-clocked-time)))
-      (if org-clock-effort
-          (let* ((effort-in-minutes (org-duration-to-minutes org-clock-effort))
-                 (work-done-str (propertize (org-duration-from-minutes clocked-time)
-                                            'face (if (and org-clock-task-overrun
-                                                           (not org-clock-task-overrun-text))
-                                                      'org-mode-line-clock-overrun
-                                                    'org-mode-line-clock)))
-                 (effort-str (org-duration-from-minutes effort-in-minutes)))
-            (format "[%s/%s](%s)" work-done-str effort-str org-clock-heading))
-        (format "[%s](%s)"
-                (org-duration-from-minutes clocked-time)
-                org-clock-heading))))
+  (advice-add 'org-clock-get-clock-string :filter-return #'my/org-clock-colorize)
   
-  (advice-add 'org-clock-get-clock-string :override #'my/org-clock-get-clock-string)
+  (with-eval-after-load 'tab-bar
+    (setq tab-bar-format
+          (append tab-bar-format
+                  '(tab-bar-format-align-right
+                    tab-bar-format-global))))
 
-  ;; Clock behavior
+  ;; State and Clock
   (defun my/org-parent-ongo-if-needed ()
     "If the current task is ONGO/WAIT/DONE/DELEG, update parent TODO to ONGO if it's NEXT."
     (when (member org-state '("ONGO" "WAIT" "DONE" "DELEG"))
@@ -337,17 +332,6 @@
       (apply f select start-time)))
   (advice-add 'org-clock-in :around #'my/org-clock-in-continuously-reverse-by-prefix)
   
-  ;; Clock mode-line color
-  (defun my/org-clock-mode-line-color (&rest _)
-    (set-face-attribute
-     'org-mode-line-clock nil
-     :foreground (face-attribute
-                  (if org-clock-task-overrun
-                      'org-mode-line-clock-overrun
-                    'org-mode-line-clock-underrun)
-                  :foreground)))
-  (advice-add 'org-clock-update-mode-line :after #'my/org-clock-mode-line-color)
-  
   ;; Clock heading
   (defun my/org-clock-heading-get ()
     (org-entry-get org-clock-marker "ITEM"))
@@ -361,6 +345,12 @@
                     (replace-regexp-in-string
                      "\\[\\[.*?\\]\\[\\(.*?\\)\\]\\]" "\\1" text)
                   "???")))))
+  
+  ;; Notification
+  (defun my/org-show-notification-message (msg)
+    (message "%s" msg))
+
+  (setq org-show-notification-handler #'my/org-show-notification-message)
   
   ;; Capture support with Evil
   (defun my/org-capture-evil-setup ()
@@ -409,7 +399,7 @@
            "* ONGO %?\n Note taken on %U \\\\\ng>"
            :clock-in t :clock-resume t)))
   
-  ;; org-babel
+  ;; Babel
   (org-babel-do-load-languages
    'org-babel-load-languages
    '((R . t)))
@@ -424,10 +414,10 @@
           (cons '(:session . "*R*")
                 (assq-delete-all :session org-babel-default-header-args:R))))
   
-  ;; ox, export
+  ;; Export
   (setq org-export-preserve-breaks nil)
 
-
+  ;; Shorten
   (defun my/org-shorten-string (s maxlength)
     "Shorten S to MAXLENGTH using string-width (multi-byte safe)."
     (if (<= (string-width s) maxlength)
@@ -729,7 +719,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
                    (calendar-iso-from-absolute
                     (calendar-absolute-from-gregorian
                      (list month (- day (1- calendar-week-start-day)) year)))))
-          'font-lock-face 'calendar-iso-week-header)))
+          'font-lock-face 'my/calendar-iso-week-header)))
 
 (use-package org-super-agenda
   :after org-agenda
