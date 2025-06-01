@@ -8,10 +8,10 @@
   "Custom theme settings."
   :group 'appearance)
 
-(defcustom my/theme-name 'nord
+(defcustom my/theme-name 'my-rustcity
   "Which theme to use."
   :type 'symbol
-  :options '(solarized nord my-tokyo my-rustcity)
+  :options '(solarized nord my-tokyo my-rustcity my-radical)
   :group 'my/theme)
 
 (defcustom my/frame-background 'dark
@@ -109,6 +109,11 @@
   :load-path "themes"
   :defer t)
 
+(use-package my-radical-theme
+  :straight nil
+  :load-path "themes"
+  :defer t)
+
 (defun my/semantic-colors ()
   "Return semantic color mapping based on theme and background."
   (pcase (list my/theme-name my/frame-background)
@@ -146,6 +151,13 @@
        (foreground-near . brightwhite)
        (primary         . brightgreen)
        (secondary       . blue)))
+    (`(my-radical ,_)
+     '((background-near . black)
+       (background-far  . brightblack)
+       (foreground-far  . white)
+       (foreground-near . brightwhite)
+       (primary         . brightcyan)
+       (secondary       . blue)))
     (_ nil)))
 
 ;; Color assignment
@@ -168,16 +180,18 @@
   (mapc #'disable-theme custom-enabled-themes)
   (setq frame-background-mode my/frame-background )
   (pcase my/theme-name
-    ('nord      (load-theme 'nord t)
-                (my/set-colors (my/nord-colors)))
-    ('solarized (load-theme 'solarized t)
-                (enable-theme 'solarized)
-                (my/set-colors (my/solarized-colors)))
-    ('my-tokyo  (load-theme 'my-tokyo t)
-                (my/set-colors (my/tokyo-colors)))
-    ('my-rustcity  (load-theme 'my-rustcity t)
-                (my/set-colors (my/rustcity-colors)))
-    (_          (message "Unknown theme: %s" my/theme-name))))
+    ('nord        (load-theme 'nord t)
+                  (my/set-colors (my/nord-colors)))
+    ('solarized   (load-theme 'solarized t)
+                  (enable-theme 'solarized)
+                  (my/set-colors (my/solarized-colors)))
+    ('my-tokyo    (load-theme 'my-tokyo t)
+                  (my/set-colors (my/tokyo-colors)))
+    ('my-rustcity (load-theme 'my-rustcity t)
+                  (my/set-colors (my/rustcity-colors)))
+    ('my-radical  (load-theme 'my-radical t)
+                  (my/set-colors (my/radical-colors)))
+    (_ (message "Unknown theme: %s" my/theme-name))))
 
 ;; Face rules application
 (defvar my/copy-face-rules
@@ -199,50 +213,63 @@
         (dolist (pair face-pairs)
           (copy-face (car pair) (cdr pair)))))))
 
-(defvar my/set-face-rules
+(defcustom my/font-default
+  (if (eq system-type 'darwin)
+      "HackGen Console"
+    "HackGen Console NF")
+  "Default font family."
+  :type 'string
+  :group 'my/faces)
+
+(defcustom my/font-variable
+  (if (eq system-type 'darwin)
+      "HackGen"
+    "HackGen NF")
+  "Variable pitch font family."
+  :type 'string
+  :group 'my/faces)
+
+(defcustom my/font-height
+  (if (eq system-type 'darwin)
+      150
+    120)
+  "Default font height."
+  :type 'integer
+  :group 'my/faces)
+
+(defun my/set-face-rules ()
   `((font-lock
      (default :foreground my/foreground :background my/background
-              :family ,(if (eq system-type 'darwin)
-                           "HackGen Console"
-                         "HackGen Console NF")
-              :height ,(if (eq system-type 'darwin)
-                           150
-                         120))
-     (variable-pitch :family ,(if (eq system-type 'darwin) "HackGen" "HackGen NF"))
-     (fringe :background 'unspecified)
-     (border :foreground 'unspecified)
-     (vertical-border :foreground my/background-near)
-     (internal-border :background 'unspecified)
-     (warning :weight 'unspecified)
-     (mode-line :foreground my/background :background my/primary
-		        :underline 'unspecified :inverse-video nil)
-     (mode-line-inactive :foreground my/primary :background my/background-near
-                         :underline 'unspecified :inverse-video nil)
-     (mode-line-buffer-id :weight 'unspecified)
-     (minibuffer-prompt :weight 'unspecified :foreground my/primary)
-     (cursor :background my/primary)
-     (region :foreground 'unspecified :background my/background-near
-             :extend 'unspecified :inverse-video 'unspecified)
+              :family ,my/font-default :height ,my/font-height)
+     (variable-pitch :family ,my/font-variable)
+     (fringe :force-inherit 'unspecified)
+     (border :force-inherit 'unspecified)
+     (vertical-border :force-inherit 'unspecified :foreground my/background-near)
+     (internal-border :force-inherit 'unspecified)
+     (mode-line :force-inherit 'unspecified
+                :foreground my/background :background my/primary)
+     (mode-line-inactive :force-inherit 'unspecified
+                         :foreground my/primary :background my/background-near)
+     (mode-line-buffer-id :force-inherit 'unspecified)
      (header-line :foreground my/background :background my/primary)
-     (highlight :background my/brightgreen :distant-foreground my/background))
+     (minibuffer-prompt :force-inherit 'unspecified :foreground my/primary)
+     (cursor :background my/primary))
+    (faces
+     (show-paren-match :foreground my/background :background my/brightblue))
     (tab-bar
      (tab-bar :foreground my/foreground :background my/background)
      (tab-bar-tab :foreground my/background :background my/primary :box 'unspecified)
      (tab-bar-tab-inactive :foreground my/primary :background my/background-near))
     (evil-snipe
-     (evil-snipe-first-match-face :background my/background-near))
+     (evil-snipe-first-match-face :background my/background-far))
     (tooltip
-     (tooltip :foreground my/background-near
-              :background (lambda () (face-attribute 'highlight :background))
-              :inherit nil))
+     (tooltip :force-inherit 'highlight :foreground my/background-near))
     (compile
      (compilation-info :weight 'unspecified)
-     (compilation-line-number :foreground my/primary)
-     (compilation-warning :foreground my/red)
-     (compilation-mode-line-fail :foreground my/red)
-     (compilation-mode-line-exit :weight 'unspecified :foreground my/cyan))
+     (compilation-mode-line-fail :weight 'unspecified)
+     (compilation-mode-line-exit :weight 'unspecified))
     (vertico
-     (vertico-current :background my/brightgreen))
+     (vertico-current :force-inherit 'unspecified :background my/background-near))
     (orderless
      (orderless-match-face-0 :weight 'unspecified :foreground my/brightred)
      (orderless-match-face-1 :weight 'unspecified :foreground my/magenta)
@@ -254,19 +281,19 @@
     (corfu
      (corfu-default :background my/background)
      (corfu-current :foreground my/primary :background my/background-near)
-     (corfu-bar :background my/brightyellow))
+     (corfu-bar :background my/primary))
     (deadgrep
-     (deadgrep-filename-face :weight 'normal :foreground my/yellow)
-     (deadgrep-meta-face :foreground my/blue))
+     (deadgrep-filename-face :force-inherit 'font-lock-builtin-face))
+    (isearch
+     (isearch :foreground my/background :background my/brightyellow)
+     (lazy-highlight :foreground my/background :background my/brightcyan))
     (avy
-     (avy-background-face :foreground my/background)
-     (avy-goto-char-timer-face :foreground my/background :background my/blue)
-     (avy-lead-face :foreground my/background :background my/yellow)
-     (avy-lead-face-0 :foreground my/background :background my/brightmagenta)
-     (avy-lead-face-1 :foreground my/background :background my/blue)
-     (avy-lead-face-2 :foreground my/background :background my/red))
+     (avy-lead-face :foreground my/background :background my/blue)
+     (avy-lead-face-0 :foreground my/background :background my/brightred)
+     (avy-lead-face-1 :foreground my/background :background my/red)
+     (avy-lead-face-2 :foreground my/background :background my/magenta))
     (magit
-     (magit-section-heading :background my/background))
+     (magit-section-heading :foreground my/yellow :background my/background))
     (eglot
      (eglot-mode-line :weight 'unspecified))
     (ein-cell
@@ -276,7 +303,7 @@
     (eww
      (eww-valid-certificate :weight 'unspecified :foreground my/green))
     (dired
-     (dired-directory :inherit 'font-lock-type-face))
+     (dired-directory :force-inherit 'font-lock-type-face))
     (dired-subtree
      (dired-subtree-depth-1-face :background 'unspecified)
      (dired-subtree-depth-2-face :background 'unspecified)
@@ -285,7 +312,7 @@
      (dired-subtree-depth-5-face :background 'unspecified)
      (dired-subtree-depth-6-face :background 'unspecified))
     (bookmark
-     (bookmark-face :foreground my/blue :background 'unspecified))
+     (bookmark-face :distant-foreground my/blue :background 'unspecified))
     (outline
      (outline-1 :inherit 'font-lock-type-face)
      (outline-2 :inherit 'font-lock-variable-name-face)
@@ -294,81 +321,83 @@
      (outline-5 :inherit 'font-lock-function-name-face)
      (outline-6 :inherit 'font-lock-string-face)
      (outline-7 :inherit 'font-lock-warning-face)
-     (outline-8 :inherit 'font-lock-keyword-face)
-     )
+     (outline-8 :inherit 'font-lock-keyword-face))
     (org
      (org-headline-done :foreground 'unspecified)
-     (org-agenda-dimmed-todo-face :inverse-video 'unspecified
-                                  :foreground my/foreground-near :background my/background)
-     (org-todo :weight 'unspecified :inverse-video t 
+     (org-agenda-dimmed-todo-face :force-inherit 'font-lock-comment-face)
+     (org-todo :force-inherit 'unspecified :inverse-video t 
                :foreground my/red :background my/background)
-     (my/org-ongo :weight 'unspecified :inverse-video t
-               :foreground my/brightred :background my/background)
-     (my/org-wait :weight 'unspecified :inverse-video t
-               :foreground (lambda () (face-attribute 'org-agenda-dimmed-todo-face :foreground))
-               :background (lambda () (face-attribute 'org-agenda-dimmed-todo-face :background)))
-     (org-done :weight 'unspecified :inverse-video t)
-     (org-column :inverse-video nil)
+     (my/org-ongo :force-inherit 'unspecified :inverse-video t
+                  :foreground my/brightred :background my/background)
+     (my/org-wait :force-inherit 'font-lock-comment-face :inverse-video t)
+     (org-done :force-inherit 'unspecified :inverse-video t
+               :foreground my/green :background my/background)
+     (org-document-title :force-inherit 'font-lock-constant-face)
+     (org-column :force-inherit 'unspecified :background my/background-near)
+     (org-column-title :force-inherit 'org-column)
+     (org-table :foreground my/cyan)
      (org-tag :weight 'unspecified)
-     (org-archived :weight 'normal
-                   :foreground (lambda () (face-attribute 'org-headline-done :foreground) ))
-     (org-drawer :foreground 'unspecified :weight 'unspecified :inherit 'font-lock-comment-face)
-     (org-column :slant 'unspecified :weight 'unspecified :foreground 'unspecified :inverse-video 'unspecified)
-     (my/org-priority-a :foreground my/blue)
-     (my/org-priority-b :foreground my/cyan)
-     (my/mode-line-under :foreground my/background :background my/cyan)
-     (my/mode-line-over :foreground my/background :background my/red)
-     (org-link :foreground my/magenta)
-     (org-date :foreground my/brightyellow :underline 'unspecified)
-     (org-scheduled :weight 'unspecified :slant 'unspecified)
-     (org-scheduled-today :weight 'unspecified :slant 'unspecified)
-     (org-scheduled-previously :weight 'unspecified :foreground (lambda () (face-attribute 'org-time-grid :foreground)))
+     (org-archived :force-inherit 'org-headline-done)
+     (org-drawer :force-inherit 'font-lock-comment-face)
      (org-special-keyword :inherit 'font-lock-comment-face)
-     (org-warning :weight 'unspecified :foreground my/red)
-     (org-upcoming-deadline :weight 'unspecified)
-     (org-agenda-structure :weight 'unspecified)
+     (org-column :force-inherit 'font-lock-type-face)
+     (org-date :force-inherit 'font-lock-type-face)
      (org-time-grid :foreground my/blue)
-     (org-agenda-current-time :foreground my/brightyellow)
-     (org-agenda-date-today :weight 'unspecified :foreground my/secondary)
-     (org-agenda-date-weekend :weight 'unspecified :foreground my/secondary)
-     (org-agenda-clocking :slant 'italic :foreground 'unspecified :inherit 'unspecified))
+     (org-scheduled :force-inherit 'unspecified :foreground my/green)
+     (org-scheduled-today :force-inherit 'unspecified :foreground my/blue)
+     (org-scheduled-previously :force-inherit 'unspecified :foreground my/brightred)
+     (org-upcoming-deadline :force-inherit 'org-scheduled-previously)
+     (org-agenda-structure :foreground my/green :weight 'unspecified)
+     (org-agenda-current-time :force-inherit 'font-lock-keyword-face)
+     (org-agenda-date-today :force-inherit 'font-lock-variable-name-face)
+     (org-agenda-date-weekend :force-inherit 'font-lock-type-face)
+     (org-agenda-clocking :force-inherit 'unspecified :slant 'italic)
+     (my/mode-line-under :foreground my/background :background my/cyan)
+     (my/mode-line-over :foreground my/background :background my/red))
     (org-habit
      (org-habit-overdue-face :background my/brightmagenta))
-    (org-pomodoro
-     (org-pomodoro-mode-line :foreground my/red))
-    (org-timeline
-     (org-timeline-elapsed :foreground my/brightcyan :background my/white
-                           :inherit 'unspecified)
-     (org-timeline-block :background my/yellow)
-     (org-timeline-clocked :background my/cyan))
     (org-roam
-     (org-roam-header-line :foreground my/background))
+     (org-roam-header-line :force-inherit 'header-line))
     (org-noter
-     (org-noter-notes-exist-face :foreground my/green)
-     (org-noter-no-notes-exist-face :foreground my/brightred))
+     (org-noter-notes-exist-face :force-inherit 'unspecified :foreground my/green)
+     (org-noter-no-notes-exist-face :force-inherit 'unspecified :foreground my/brightred))
     (deft
-     (deft-header-face :weight 'unspecified :foreground my/secondary)
-     (deft-title-face :weight 'unspecified))
+     (deft-header-face :force-inherit 'font-lock-builtin-face)
+     (deft-title-face :force-inherit 'font-lock-constant-face))
     (calendar
-     (calendar-today :foreground my/secondary :underline 'unspecified)
-     (calendar-weekend-header :foreground my/secondary)
+     (calendar-today :force-inherit 'font-lock-warning-face)
+     (calendar-weekend-header :force-inherit 'font-lock-type-face)
      (my/calendar-iso-week-header :inherit 'font-lock-function-name-face))))
 
 (defun my/apply-set-face-rules ()
   "Apply all face settings declared in `my/set-face-rules`."
-  (dolist (group my/set-face-rules)
+  (dolist (group (my/set-face-rules))
     (let ((feature (car group))
           (faces (cdr group)))
       (with-eval-after-load feature
         (dolist (face-spec faces)
-          (let ((face (car face-spec))
-                (props (cdr face-spec)))
+          (let* ((face (car face-spec))
+                 (props (cdr face-spec))
+                 (force-inherit (plist-get props :force-inherit))
+                 (clean-props (cl-loop for (key val) on props by #'cddr
+                                       unless (eq key :force-inherit)
+                                       collect key
+                                       and collect val)))
+            (when force-inherit
+              (set-face-attribute face nil
+                                  :weight 'unspecified
+                                  :foreground 'unspecified
+                                  :background 'unspecified
+                                  :slant 'unspecified
+                                  :underline 'unspecified
+                                  :inverse-video 'unspecified
+                                  :inherit force-inherit))
             (apply #'set-face-attribute face nil
                    (mapcar (lambda (x)
-			     (if (functionp x)
-				 (funcall x)
-			       (eval x)))
-			   props))))))))
+			                 (if (functionp x)
+				                 (funcall x)
+			                   (eval x)))
+			               clean-props))))))))
 
 (defvar my/face-remap-rules
   '((org
@@ -399,12 +428,6 @@
                                      (seq-partition (cdr face-spec) 2))))
                     (when (assoc 'hl-line faces)
                       (hl-line-mode 1))))))))
-
-(defun my/apply-face-remap-minibuffer ()
-  (defun my/minibuffer-face-setup ()
-    (face-remap-add-relative 'default :foreground my/foreground-near))
-  (unless (memq #'my/minibuffer-face-setup minibuffer-setup-hook)
-    (add-hook 'minibuffer-setup-hook #'my/minibuffer-face-setup)))
 
 ;; Extra packages
 (use-package dired-rainbow
@@ -442,7 +465,6 @@
   (my/apply-copy-face-rules)
   (my/apply-set-face-rules)
   (my/apply-face-remap-rules)
-  (my/apply-face-remap-minibuffer)
   (my/apply-face-extra-packages))
 
 (my/setup-theme)

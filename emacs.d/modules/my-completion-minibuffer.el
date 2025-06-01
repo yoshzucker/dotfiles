@@ -85,6 +85,7 @@
                (imenu               (styles my/orderless-migemo-dot))
                (org-heading         (styles my/orderless-migemo-dot))
                (org-refile          (styles my/orderless-migemo-dot))
+               (org-roam-node       (styles my/orderless-migemo-dot))
                (nil                 (styles my/orderless-migemo-dot))))
       (setq completion-category-overrides
             (assq-delete-all (car entry) completion-category-overrides))
@@ -101,7 +102,12 @@
          :key
          "gs" #'consult-buffer
          "g[" #'my/consult-org-headings-all
-         "g]" #'consult-imenu))
+         "g]" #'consult-imenu
+         "g/" #'consult-ripgrep)
+   (:map org-mode-map
+         :state motion
+         :key
+         "g]" #'consult-org-heading))
 
   (consult-customize consult-buffer :preview-key '(:debounce 0.5 any))
 

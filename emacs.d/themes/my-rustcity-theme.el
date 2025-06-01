@@ -29,44 +29,44 @@
   "A theme inspired by a rusted cityscape—silent under neon rain, and hollow in a daylight downpour.")
 
 (defconst my/rustcity-neon-hsl
-  '((background    . (260  30  15))
-    (black         . (260  30  25))
-    (brightblack   . (260  30  35))
-    (white         . (260  30  45))
-    (brightwhite   . (260  30  55))
-    (foreground    . (260  30  65))
-    (red           . (  0 100  65))
-    (yellow        . ( 70 100  65))
-    (green         . (110 100  65))
-    (cyan          . (200 100  65))
-    (blue          . (250 100  65))
-    (magenta       . (310 100  65))
-    (brightred     . ( 30 100  65))     ; orange
-    (brightyellow  . ( 70  50  50))
-    (brightgreen   . (110  50  50))
-    (brightcyan    . (180  50  50))
-    (brightblue    . (250  50  50))
-    (brightmagenta . (270 100  65))))   ; violet
+  '((background    . (260  30  13))     ; 6 base tones
+    (black         . (260  30  23))     ; 6 base tones
+    (brightblack   . (260  30  33))     ; 6 base tones
+    (white         . (260  30  42))     ; 6 base tones
+    (brightwhite   . (260  30  52))     ; 6 base tones
+    (foreground    . (260  30  62))     ; 6 base tones
+    (red           . (355 100  62))     ; 8 neon hues
+    (yellow        . ( 70 100  62))     ; 8 neon hues
+    (green         . (110 100  62))     ; 8 neon hues
+    (cyan          . (200 100  62))     ; 8 neon hues
+    (blue          . (250 100  62))     ; 8 neon hues
+    (magenta       . (310 100  62))     ; 8 neon hues
+    (brightred     . ( 30 100  62))     ; 8 neon hues orange
+    (brightmagenta . (270 100  62))     ; 8 neon hues violet
+    (brightyellow  . (355  55  62))     ; 4 diffused hues
+    (brightgreen   . (110  55  62))     ; 4 diffused hues
+    (brightcyan    . (180  55  62))     ; 4 diffused hues
+    (brightblue    . (270  55  62))))   ; 4 diffused hues
 
 (defconst my/rustcity-downpour-hsl
-  '((background    . (260  30  65))
-    (black         . (260  30  55))
-    (brightblack   . (260  30  45))
-    (white         . (260  30  35))
-    (brightwhite   . (260  30  25))
-    (foreground    . (260  30  15))
-    (red           . (  0 100  35))
-    (yellow        . ( 70 100  35))
-    (green         . (110 100  35))
-    (cyan          . (200 100  35))
-    (blue          . (250 100  35))
-    (magenta       . (310 100  35))
-    (brightred     . ( 30 100  35))     ; orange
-    (brightyellow  . ( 70  50  50))
-    (brightgreen   . (110  50  50))
-    (brightcyan    . (180  50  50))
-    (brightblue    . (250  50  50))
-    (brightmagenta . (270 100  35))))   ; violet
+  '((background    . (260  30  87))     ; 6 base tones
+    (black         . (260  30  77))     ; 6 base tones
+    (brightblack   . (260  30  67))     ; 6 base tones
+    (white         . (260  30  58))     ; 6 base tones
+    (brightwhite   . (260  30  48))     ; 6 base tones
+    (foreground    . (260  30  38))     ; 6 base tones
+    (red           . (  0 100  38))     ; 8 neon huess
+    (yellow        . ( 70 100  38))     ; 8 neon huess
+    (green         . (110 100  38))     ; 8 neon huess
+    (cyan          . (200 100  38))     ; 8 neon huess
+    (blue          . (250 100  38))     ; 8 neon huess
+    (magenta       . (310 100  38))     ; 8 neon huess
+    (brightred     . ( 30 100  38))     ; 8 neon huess orange
+    (brightmagenta . (270 100  38))     ; 8 neon huess violet
+    (brightyellow  . ( 70  55  57))     ; 4 diffused hues
+    (brightgreen   . (110  55  57))     ; 4 diffused hues
+    (brightcyan    . (180  55  57))     ; 4 diffused hues
+    (brightblue    . (310  55  57))))   ; 4 diffused hues
 
 (defconst my/rustcity-neon
   (cl-loop for (name . hsl) in my/rustcity-neon-hsl
@@ -126,21 +126,21 @@
    `(font-lock-warning-face ((,class (:foreground ,brightred))))
    `(link ((,class (:foreground ,brightgreen :underline t))))
    `(link-visited ((,class (:foreground ,green :underline t))))
-   `(minibuffer-prompt ((,class (:foreground ,blue))))
-   `(cursor ((,class (:background ,foreground))))
-   `(region ((,class (:background ,black))))
-   `(fringe ((,class (:background ,background))))
+   `(minibuffer-prompt ((,class (:foreground ,foreground))))
+   `(cursor ((,class (:background ,background-far))))
+   `(region ((,class (:background ,background-near :extend t))))
+   `(fringe ((,class (:background ,background-far))))
    `(vertical-border ((,class (:foreground ,foreground :background ,background-far))))
    `(mode-line ((,class (:foreground ,foreground :background ,background-far))))
    `(mode-line-inactive ((,class (:foreground ,foreground :background ,background-far))))
    `(header-line ((,class (:foreground ,foreground :background ,background-far))))
-   `(highlight ((,class (:background ,background-far))))
+   `(highlight ((,class (:background ,background-near))))
    `(shadow ((,class (:foreground ,white))))
-   `(match ((,class (:background ,yellow))))
+   `(match ((,class (:foreground ,background :background ,brightgreen))))
    `(warning ((,class (:foreground ,yellow))))
    `(error ((,class (:foreground ,red))))
    `(success ((,class (:foreground ,green))))
-   `(tooltip ((,class (:foreground ,foreground :background ,yellow))))))
+   `(tooltip ((,class (:foreground ,foreground :background ,brightyellow))))))
 
 ;;;###autoload
 (when load-file-name

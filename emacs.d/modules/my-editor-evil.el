@@ -226,16 +226,16 @@
    (:map evil-normal-state-map :key "g C-n" #'iedit-mode)
    (:map evil-visual-state-map :key "C-n" #'iedit-mode)))
 
-(use-package evil-cleverparens
-  :init
-  (setq evil-cleverparens-use-additional-movement-keys nil)
-  :config
-  (my/add-hook
-   (:hook lisp-mode-hook slime-lisp-mode-hook emacs-lisp-mode-hook
-          :func #'evil-cleverparens-mode))
+;; (use-package evil-cleverparens
+;;   :init
+;;   (setq evil-cleverparens-use-additional-movement-keys nil)
+;;   :config
+;;   (my/add-hook
+;;    (:hook lisp-mode-hook slime-lisp-mode-hook emacs-lisp-mode-hook
+;;           :func #'evil-cleverparens-mode))
 
-  (when evil-move-cursor-back
-    (setq evil-move-beyond-eol t)))
+;;   (when evil-move-cursor-back
+;;     (setq evil-move-beyond-eol t)))
 
 (use-package evil-snipe
   :after evil
@@ -266,7 +266,7 @@
   :after evil
   :config
   (my/define-key
-   (:map evil-motion-state-map evil-operator-state-map
+   (:map evil-motion-state-map evil-normal-state-map evil-operator-state-map
          :key
          my/backslash #'evil-avy-goto-char-timer))
   (setq avy-timeout-seconds 0.25))
