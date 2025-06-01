@@ -342,7 +342,7 @@
      (org-special-keyword :inherit 'font-lock-comment-face)
      (org-column :force-inherit 'font-lock-type-face)
      (org-date :force-inherit 'font-lock-type-face)
-     (org-time-grid :foreground my/blue)
+     (org-time-grid :force-inherit font-lock-comment-face)
      (org-scheduled :force-inherit 'unspecified :foreground my/green)
      (org-scheduled-today :force-inherit 'unspecified :foreground my/blue)
      (org-scheduled-previously :force-inherit 'unspecified :foreground my/brightred)
