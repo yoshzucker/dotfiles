@@ -293,10 +293,11 @@
   (advice-add 'org-clock-get-clock-string :filter-return #'my/org-clock-colorize)
   
   (with-eval-after-load 'tab-bar
-    (setq tab-bar-format
-          (append tab-bar-format
-                  '(tab-bar-format-align-right
-                    tab-bar-format-global))))
+    (unless (memq 'tab-bar-format-global tab-bar-format)
+      (setq tab-bar-format
+            (append tab-bar-format
+                    '(tab-bar-format-align-right
+                      tab-bar-format-global)))))
 
   ;; State and Clock
   (defun my/org-parent-ongo-if-needed ()
@@ -623,8 +624,8 @@
         (if (and (display-graphic-p) (char-displayable-p ?←))
             "← now -------------------------------------------------"
           "now - - - - - - - - - - - - - - - - - - - - - - - - -")
-        org-agenda-log-mode-items '(closed clock state)
         org-agenda-timegrid-use-ampm nil
+        org-agenda-log-mode-items '(closed clock state)
         org-clock-report-include-clocking-task t
         org-agenda-clockreport-parameter-plist
         '(:maxlevel 5 :lang "en" :scope agenda :block today :wstart 1 :mstart 1 :tstart nil :tend nil :step nil :stepskip0 nil :fileskip0 t :tags nil :emphasize t :link t :narrow 26! :indent t :timestamp nil :level nil :tcolumns 1 :properties ("TAGS") :sort (4 . ?T) :file nil :formula "$1='(org-shorten-string $1 4)::$2='(org-shorten-string $2 5)::$5='(org-clock-time% @2$4 $4..$4);%.1f::$6='(orgtbl-ascii-draw $5 0 100 10)")
@@ -850,7 +851,8 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
         org-roam-ui-follow t
         org-roam-ui-update-on-save t
         org-roam-ui-open-on-start nil)
-  (org-roam-ui-mode 1))
+  (unless org-roam-ui-mode
+    (org-roam-ui-mode 1)))
 
 (use-package pdf-tools
   :if (display-graphic-p)
