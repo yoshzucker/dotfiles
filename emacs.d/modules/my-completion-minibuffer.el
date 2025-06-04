@@ -80,13 +80,14 @@
       (orderless-style-dispatchers '(my/orderless-dot-dispatcher)))
 
     (dolist (entry
-             '((file                (styles my/orderless-migemo-dot))
-               (multi-category      (styles my/orderless-migemo-dot))
-               (imenu               (styles my/orderless-migemo-dot))
-               (org-heading         (styles my/orderless-migemo-dot))
-               (org-refile          (styles my/orderless-migemo-dot))
-               (org-roam-node       (styles my/orderless-migemo-dot))
-               (nil                 (styles my/orderless-migemo-dot))))
+             '((file             (styles my/orderless-migemo-dot))
+               (multi-category   (styles my/orderless-migemo-dot))
+               (imenu            (styles my/orderless-migemo-dot))
+               (org-heading      (styles my/orderless-migemo-dot))
+               (org-refile       (styles my/orderless-migemo-dot))
+               (org-roam-node    (styles my/orderless-migemo-dot))
+               (consult-location (styles my/orderless-migemo-dot))
+               (nil              (styles my/orderless-migemo-dot))))
       (setq completion-category-overrides
             (assq-delete-all (car entry) completion-category-overrides))
       (add-to-list 'completion-category-overrides entry))))
