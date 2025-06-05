@@ -33,10 +33,15 @@
 
 ;; Apply word syntax to minibuffer
 (defun my/minibuffer-syntax ()
-  "Make symbols like '.' and '/' word constituents in minibuffer."
+  "In the minibuffer, make symbols like '.' part of words,
+and disable script-based word boundaries (e.g., between kanji and kana).
+This enables word operations like `forward-word` and `backward-kill-word`
+to treat sequences without breaking at script boundaries."
   (let ((table (syntax-table)))
-    (dolist (pair '((?. . "w")))
-      (modify-syntax-entry (car pair) (cdr pair) table))))
+    (dolist (pair '((?. . "w")
+                    (?\s . "w")))
+      (modify-syntax-entry (car pair) (cdr pair) table)))
+  (setq-local char-script-table (make-char-table nil)))
 
 (add-hook 'minibuffer-setup-hook #'my/minibuffer-syntax)
 
