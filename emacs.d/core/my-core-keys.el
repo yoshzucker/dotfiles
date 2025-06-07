@@ -6,7 +6,7 @@
 
 ;; remap '¥' (Yen) to '\\' (Backslash)
 (when (eq system-type 'darwin)
-  (define-key global-map [?¥] [?\\]))
+  (keyboard-translate ?¥ ?\\))
 
 ;; Heuristics to guess slash/backslash key representations
 (defcustom my/key-symbols
