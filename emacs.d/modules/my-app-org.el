@@ -208,16 +208,13 @@
 
   ;; Tag 
   (setq org-tag-persistent-alist
-        '((:startgroup . nil) ("responsible" . ?r) ("support" . ?s) ("observe" . ?o) (:endgroup . nil)
-          ("first" . ?f) ("dash" . ?d) ("ignore" . ?i)
-          (:startgroup . nil) ("@office" . ?c) ("@alone" . ?a) (:endgroup . nil)
-          (:startgroup . nil) ("write" . ?w) ("read" . ?e) ("break" . ?b)
-          ("organize" . ?g) ("comm" . ?m) ("paperwork" . ?p) ("move" . ?v) (:endgroup . nil)))
+        '((:startgroup . nil) ("self" . ?s) ("delegate" . ?d) (:endgroup . nil)
+          (:startgroup . nil) ("mark" . ?m) (:endgroup . nil)))
   
   (setq org-tags-column -76
         org-agenda-tags-column -79
         org-use-tag-inheritance t
-        org-tags-exclude-from-inheritance '("kanban")
+        org-tags-exclude-from-inheritance '("mark")
         org-agenda-use-tag-inheritance '(todo search timeline agenda)
         org-agenda-show-inherited-tags t
         org-tags-sort-function #'string<)
