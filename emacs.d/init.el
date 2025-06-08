@@ -32,6 +32,10 @@
 ;; Add core and module directories to load path
 (add-to-list 'load-path (expand-file-name "core" user-emacs-directory))
 (add-to-list 'load-path (expand-file-name "modules" user-emacs-directory))
+(let ((default-directory (expand-file-name "site-lisp/" user-emacs-directory)))
+  (normal-top-level-add-to-load-path '("."))
+  (normal-top-level-add-subdirs-to-load-path))
+
 (add-to-list 'custom-theme-load-path (expand-file-name "themes/" user-emacs-directory))
 
 ;; Load essential core modules

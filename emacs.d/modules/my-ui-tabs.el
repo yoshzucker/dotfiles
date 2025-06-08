@@ -117,6 +117,18 @@
   :config
   (setq tabspaces-include-buffers '("*GNU Emacs*" "*scratch*" "*Messages*"))
 
+  (defcustom my/tabspaces-include-prefix '("*Org Agenda" "*Org Dayflow")
+    "List of buffer name prefixes that should always be included in tabspaces.")
+  
+  (defun my/tabspaces-include-prefix (orig-fn buffer)
+    (let ((name (buffer-name buffer)))
+      (if (seq-some (lambda (prefix) (string-prefix-p prefix name))
+                    my/tabspaces-include-prefix)
+          t
+        (funcall orig-fn buffer))))
+  
+  (advice-add 'tabspaces--local-buffer-p :around #'my/tabspaces-include-prefix)
+
   (consult-customize consult--source-buffer :hidden t :default nil)
   (defvar consult--source-workspace
     (list :name     "Workspace Buffers"

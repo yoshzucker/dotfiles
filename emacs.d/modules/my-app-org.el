@@ -1136,5 +1136,22 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
         (re-search-forward str nil t)))
     (advice-add 'deft-search-forward :override #'my/deft-search-forward-migemo)))
 
+(use-package org-dayflow
+  :straight nil
+  :after org
+  :load-path "site-lisp/org-dayflow"
+  :config
+  (dolist (key '("z" "g" "/" "n" "N" ":"))
+    (define-key org-dayflow-mode-map (kbd key)
+                (lookup-key evil-motion-state-map (kbd key))))
+
+  (my/define-key
+   (:map global-map
+         :key
+         "C-c f" #'org-dayflow-display))
+
+  (with-eval-after-load 'evil
+    (evil-set-initial-state 'org-dayflow-mode 'emacs)))
+
 (provide 'my-app-org)
 ;;; my-app-org.el ends here
