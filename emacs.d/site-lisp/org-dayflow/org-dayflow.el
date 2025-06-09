@@ -554,18 +554,19 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
                  (lambda (task)
                    (let* ((title (car (car task)))
                           (marker (cdr (car task)))
-                          (date (cdr task))
-                          (parsed (and date (org-parse-time-string date)))
-                          (task-date (list (nth 4 parsed) (nth 3 parsed) (nth 5 parsed))) ;; (month day year)
-                          (offset (org-dayflow--task-position start task-date)))
-                     (when (and (>= offset 0) (< offset units))
-                       (propertize
-                        (concat (make-string (* offset slot-width) ?\s) "* " title)
-                        'org-marker marker
-                        'face (with-current-buffer (marker-buffer marker)
-                                (save-excursion
-                                  (goto-char marker)
-                                  (org-dayflow--get-heading-face)))))))
+                          (date (cdr task)))
+                     (when date
+                       (let* ((parsed (and date (org-parse-time-string date)))
+                              (task-date (list (nth 4 parsed) (nth 3 parsed) (nth 5 parsed))) ;; (month day year)
+                              (offset (org-dayflow--task-position start task-date)))
+                         (when (and (>= offset 0) (< offset units))
+                           (propertize
+                            (concat (make-string (* offset slot-width) ?\s) "* " title)
+                            'org-marker marker
+                            'face (with-current-buffer (marker-buffer marker)
+                                    (save-excursion
+                                      (goto-char marker)
+                                      (org-dayflow--get-heading-face)))))))))
                  tasks))))
     (let ((inhibit-read-only t))
       (rename-buffer (org-dayflow--buffer-name org-dayflow--current-scale) t)
