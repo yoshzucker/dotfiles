@@ -88,6 +88,10 @@
   "Face for today's date in org-dayflow."
   :group 'org-dayflow)
 
+(defface org-dayflow-bar-face
+  '((t (:strike-through t)))
+  "Face for org-dayflow bar overlays.")
+
 (defvar-local org-dayflow--current-scale nil
   "Current scale in the org-dayflow buffer.")
 
@@ -202,6 +206,27 @@ START and END are (month day year) lists."
   "Get the appropriate Org heading face based on the heading level."
   (let ((level (org-current-level)))
     (intern (format "org-level-%d" (or level 1)))))
+
+(defun org-dayflow--date-less-p (d1 d2)
+  "Return non-nil if date D1 is earlier than date D2."
+  (< (calendar-absolute-from-gregorian d1)
+     (calendar-absolute-from-gregorian d2)))
+
+(defun org-dayflow--date-min (dates)
+  "Return the earliest date in DATES."
+  (car (sort (copy-sequence dates) #'org-dayflow--date-less-p)))
+
+(defun org-dayflow--date-max (dates)
+  "Return the latest date in DATES."
+  (car (sort (copy-sequence dates)
+             (lambda (d1 d2) (not (org-dayflow--date-less-p d1 d2))))))
+
+(defun org-dayflow--org-to-gregorian (timestamp)
+  "Convert an Org TIMESTAMP string to (month day year) list.
+If TIMESTAMP is nil, return nil."
+  (when timestamp
+    (let ((parsed (org-parse-time-string timestamp)))
+      (list (nth 4 parsed) (nth 3 parsed) (nth 5 parsed)))))
 
 ;;; Helper commands
 (defun org-dayflow--buffer-name (&optional scale)
@@ -531,6 +556,46 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
              (push cat categories))))))
     (delete-dups categories)))
 
+(defun org-dayflow--insert-task-title (title marker start slot-width deadline scheduled active)
+  "Insert the task title at the position based on the chosen timestamp (priority: deadline > active > scheduled)."
+  (let* ((chosen-time (or deadline active scheduled))
+         (chosen-date (org-dayflow--org-to-gregorian chosen-time)))
+    (when chosen-date
+      (let* ((offset (max 0 (org-dayflow--task-position start chosen-date)))
+             (line (propertize
+                    (concat (make-string (* offset slot-width) ?\s) "* " title)
+                    'org-marker marker
+                    'face (with-current-buffer (marker-buffer marker)
+                            (save-excursion
+                              (goto-char marker)
+                              (org-dayflow--get-heading-face))))))
+        (insert line "\n")))))
+
+(defun org-dayflow--insert-task-bar (start slot-width units deadline scheduled active)
+  "Insert a timeline bar for the task based on scheduled, deadline, and active timestamps."
+  (let* ((scheduled-date (org-dayflow--org-to-gregorian scheduled))
+         (deadline-date (org-dayflow--org-to-gregorian deadline))
+         (start-dates (delq nil (list scheduled-date deadline-date)))
+         (end-dates (delq nil (list deadline-date)))
+         (active-date (org-dayflow--org-to-gregorian active)))
+    (when active-date
+      (setq start-dates (append start-dates (list active-date)))
+      (setq end-dates (append end-dates (list active-date))))
+    (when (and start-dates end-dates)
+      (let* ((start-date (org-dayflow--date-min start-dates))
+             (end-date (org-dayflow--date-max end-dates))
+             (start-offset (org-dayflow--task-position start start-date))
+             (end-offset (org-dayflow--task-position start end-date)))
+        (when (and (>= start-offset 0) (< start-offset units))
+          (let* ((line-start (line-beginning-position 0))
+                 (bar-start (+ line-start (* start-offset slot-width)))
+                 (duration (max 1 (- end-offset start-offset)))
+                 (bar-end (+ bar-start (* duration slot-width)))
+                 (bar-length (* duration slot-width)))
+            (let ((ov (make-overlay bar-start bar-end)))
+              (overlay-put ov 'face 'org-dayflow-bar-face)
+              (overlay-put ov 'display (make-string bar-length ?-)))))))))
+
 (defun org-dayflow--render ()
   "Render the timeline contents in the current buffer."
   (let* ((start (org-dayflow--start-date))
@@ -547,39 +612,59 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
                                    (scheduled (org-entry-get (point) "SCHEDULED"))
                                    (active (org-dayflow--earliest-active-timestamp))
                                    (chosen-time (or deadline active scheduled)))
-                              (cons (cons title marker) chosen-time)))))
-         (task-lines
-          (delq nil
-                (mapcar
-                 (lambda (task)
-                   (let* ((title (car (car task)))
-                          (marker (cdr (car task)))
-                          (date (cdr task)))
-                     (when date
-                       (let* ((parsed (and date (org-parse-time-string date)))
-                              (task-date (list (nth 4 parsed) (nth 3 parsed) (nth 5 parsed))) ;; (month day year)
-                              (offset (org-dayflow--task-position start task-date)))
-                         (when (and (>= offset 0) (< offset units))
-                           (propertize
-                            (concat (make-string (* offset slot-width) ?\s) "* " title)
-                            'org-marker marker
-                            'face (with-current-buffer (marker-buffer marker)
-                                    (save-excursion
-                                      (goto-char marker)
-                                      (org-dayflow--get-heading-face)))))))))
-                 tasks))))
+                              (list (cons title marker) scheduled deadline active))))))
     (let ((inhibit-read-only t))
       (rename-buffer (org-dayflow--buffer-name org-dayflow--current-scale) t)
       (erase-buffer)
       (insert (propertize
-               (format "query: %s" (prin1-to-string (or org-dayflow--current-query org-dayflow-initial-query)))
+               (format "query: %s"
+                       (prin1-to-string (or org-dayflow--current-query
+                                            org-dayflow-initial-query)))
                'face 'org-dayflow-query-face))
       (insert "\n\n")
       (dolist (line label-lines)
         (insert line "\n"))
       (insert "\n")
-      (dolist (line task-lines)
-        (insert line "\n"))
+      (dolist (task tasks)
+        (let* ((title (car (car task)))
+               (marker (cdr (car task)))
+               (scheduled (nth 1 task))
+               (deadline (nth 2 task))
+               (active (nth 3 task))
+               (chosen-time (or deadline active scheduled)))
+          (when chosen-time
+            (let* ((parsed (and chosen-time (org-parse-time-string chosen-time)))
+                   (task-date (list (nth 4 parsed) (nth 3 parsed) (nth 5 parsed)))
+                   (offset (org-dayflow--task-position start task-date)))
+              (when (and (>= offset 0) (< offset units))
+                (let ((line (propertize
+                             (concat (make-string (* offset slot-width) ?\s) "* " title)
+                             'org-marker marker
+                             'face (with-current-buffer (marker-buffer marker)
+                                     (save-excursion
+                                       (goto-char marker)
+                                       (org-dayflow--get-heading-face))))))
+                  (insert line "\n"))
+                (let* ((line-start (line-beginning-position 0))
+                       (scheduled-date (and scheduled (org-dayflow--org-to-gregorian scheduled)))
+                       (deadline-date (and deadline (org-dayflow--org-to-gregorian deadline)))
+                       (start-dates (delq nil (list scheduled-date deadline-date)))
+                       (end-dates (delq nil (list deadline-date)))
+                       (active-date (and active (org-dayflow--org-to-gregorian active))))
+                  (when active-date
+                    (setq start-dates (append start-dates (list active-date)))
+                    (setq end-dates (append end-dates (list active-date))))
+                  (when (and start-dates end-dates)
+                    (let* ((bar-start-date (org-dayflow--date-min start-dates))
+                           (bar-end-date (org-dayflow--date-max end-dates))
+                           (bar-start-offset (org-dayflow--task-position start bar-start-date))
+                           (bar-end-offset (org-dayflow--task-position start bar-end-date)))
+                      (when (and (>= bar-start-offset 0) (< bar-start-offset units))
+                        (let* ((bar-start (+ line-start (* bar-start-offset slot-width)))
+                               (duration (max 1 (- bar-end-offset bar-start-offset)))
+                               (bar-end (+ bar-start (* duration slot-width))))
+                          (let ((ov (make-overlay bar-start bar-end)))
+                            (overlay-put ov 'face 'org-dayflow-bar-face))))))))))))
       (goto-char (point-min)))))
 
 ;;; User commands
@@ -705,7 +790,7 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
   (message "Follow mode %s" (if org-dayflow--follow-mode "enabled" "disabled")))
 
 (defun org-dayflow-echo-info ()
-  "Echo the Org path, todo state, tags, and properties of the current item."
+  "Echo the Org path, todo state, tags, properties, and scheduling info of the current item."
   (interactive)
   (let ((marker (get-text-property (point) 'org-marker)))
     (when (and marker (marker-buffer marker))
@@ -722,14 +807,21 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
                  (tags (org-get-tags))
                  (props (org-entry-properties))
                  (effort (cdr (assoc "EFFORT" props)))
-                 (priority (org-entry-get (point) "PRIORITY")))
+                 (priority (org-entry-get (point) "PRIORITY"))
+                 (scheduled (org-entry-get (point) "SCHEDULED"))
+                 (deadline (org-entry-get (point) "DEADLINE"))
+                 (timestamp (org-entry-get (point) "TIMESTAMP")))
             (when todo
               (setq todo (propertize todo 'face (org-get-todo-face todo))))
-            (message "%s/%s%s%s%s"
+            (message "%s/%s%s%s%s%s"
                      file
                      full-path
-                     (if todo (format "  TODO:%s" todo) "")
-                     (if tags (format "  TAGS:%s" (string-join tags " ")) "")
+                     (if todo
+                         (format "  TODO:%s" todo)
+                       "")
+                     (if tags
+                         (format "  TAGS:%s" (string-join tags " "))
+                       "")
                      (if (or effort priority)
                          (format "  PROPERTIES:%s"
                                  (string-join
@@ -737,6 +829,16 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
                                         (list
                                          (when effort (format "Effort=%s" effort))
                                          (when priority (format "Priority=%s" priority))))
+                                  " | "))
+                       "")
+                     (if (or scheduled deadline timestamp)
+                         (format "  STAMP:%s"
+                                 (string-join
+                                  (delq nil
+                                        (list
+                                         (when scheduled (format "Sched=%s" scheduled))
+                                         (when deadline (format "Dead=%s" deadline))
+                                         (when timestamp (format "Act=%s" timestamp))))
                                   " | "))
                        ""))))))))
 
