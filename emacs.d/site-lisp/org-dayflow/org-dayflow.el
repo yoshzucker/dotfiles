@@ -556,14 +556,14 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
              (push cat categories))))))
     (delete-dups categories)))
 
-(defun org-dayflow--insert-title (title marker start slot-width deadline scheduled active)
+(defun org-dayflow--insert-title (title marker slot-width units start scheduled deadline active)
   "Insert the task title at the position based on the chosen timestamp (priority: deadline > active > scheduled)."
-  (let* ((chosen-time (or deadline active scheduled))
-         (chosen-date (org-dayflow--date-timestamp chosen-time)))
-    (when chosen-date
-      (let* ((offset (max 0 (org-dayflow--title-slot start chosen-date)))
-             (line (propertize
-                    (concat (make-string (* offset slot-width) ?\s) "* " title)
+  (let* ((chosen (or deadline active scheduled))
+         (title-date (org-dayflow--date-timestamp chosen))
+         (title-offset (org-dayflow--title-slot start title-date)))
+    (when (and (<= 0 title-offset) (< title-offset units))
+      (let ((line (propertize
+                    (concat (make-string (* title-offset slot-width) ?\s) "* " title)
                     'org-marker marker
                     'face (with-current-buffer (marker-buffer marker)
                             (save-excursion
@@ -571,7 +571,7 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
                               (org-dayflow--get-heading-face))))))
         (insert line "\n")))))
 
-(defun org-dayflow--insert-bar (start slot-width units deadline scheduled active)
+(defun org-dayflow--insert-bar (slot-width units start scheduled deadline active)
   "Insert a timeline bar for the task based on scheduled, deadline, and active timestamps."
   (let* ((scheduled-date (org-dayflow--date-timestamp scheduled))
          (deadline-date (org-dayflow--date-timestamp deadline))
@@ -593,8 +593,7 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
                  (bar-end (+ bar-start (* duration slot-width)))
                  (bar-length (* duration slot-width)))
             (let ((ov (make-overlay bar-start bar-end)))
-              (overlay-put ov 'face 'org-dayflow-bar-face)
-              (overlay-put ov 'display (make-string bar-length ?-)))))))))
+              (overlay-put ov 'face 'org-dayflow-bar-face))))))))
 
 (defun org-dayflow--render ()
   "Render the timeline contents in the current buffer."
@@ -606,12 +605,11 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
                   (org-agenda-files)
                   (org-dayflow--build-query org-dayflow--current-query)
                   :action (lambda ()
-                            (let* ((marker (point-marker))
-                                   (title (org-get-heading t t t t))
-                                   (deadline (org-entry-get (point) "DEADLINE"))
-                                   (scheduled (org-entry-get (point) "SCHEDULED"))
-                                   (active (org-dayflow--earliest-active-timestamp))
-                                   (chosen-time (or deadline active scheduled)))
+                            (let ((marker (point-marker))
+                                  (title (org-get-heading t t t t))
+                                  (deadline (org-entry-get (point) "DEADLINE"))
+                                  (scheduled (org-entry-get (point) "SCHEDULED"))
+                                  (active (org-dayflow--earliest-active-timestamp)))
                               (list (cons title marker) scheduled deadline active))))))
     (let ((inhibit-read-only t))
       (rename-buffer (org-dayflow--buffer-name org-dayflow--current-scale) t)
@@ -626,45 +624,9 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
         (insert line "\n"))
       (insert "\n")
       (dolist (task tasks)
-        (let* ((title (car (car task)))
-               (marker (cdr (car task)))
-               (scheduled (nth 1 task))
-               (deadline (nth 2 task))
-               (active (nth 3 task))
-               (chosen-time (or deadline active scheduled)))
-          (when chosen-time
-            (let* ((parsed (and chosen-time (org-parse-time-string chosen-time)))
-                   (task-date (list (nth 4 parsed) (nth 3 parsed) (nth 5 parsed)))
-                   (offset (org-dayflow--title-slot start task-date)))
-              (when (and (>= offset 0) (< offset units))
-                (let ((line (propertize
-                             (concat (make-string (* offset slot-width) ?\s) "* " title)
-                             'org-marker marker
-                             'face (with-current-buffer (marker-buffer marker)
-                                     (save-excursion
-                                       (goto-char marker)
-                                       (org-dayflow--get-heading-face))))))
-                  (insert line "\n"))
-                (let* ((line-start (line-beginning-position 0))
-                       (scheduled-date (and scheduled (org-dayflow--date-timestamp scheduled)))
-                       (deadline-date (and deadline (org-dayflow--date-timestamp deadline)))
-                       (start-dates (delq nil (list scheduled-date deadline-date)))
-                       (end-dates (delq nil (list deadline-date)))
-                       (active-date (and active (org-dayflow--date-timestamp active))))
-                  (when active-date
-                    (setq start-dates (append start-dates (list active-date)))
-                    (setq end-dates (append end-dates (list active-date))))
-                  (when (and start-dates end-dates)
-                    (let* ((bar-start-date (org-dayflow--date-min start-dates))
-                           (bar-end-date (org-dayflow--date-max end-dates))
-                           (bar-start-offset (org-dayflow--title-slot start bar-start-date))
-                           (bar-end-offset (org-dayflow--title-slot start bar-end-date)))
-                      (when (and (>= bar-start-offset 0) (< bar-start-offset units))
-                        (let* ((bar-start (+ line-start (* bar-start-offset slot-width)))
-                               (duration (max 1 (- bar-end-offset bar-start-offset)))
-                               (bar-end (+ bar-start (* duration slot-width))))
-                          (let ((ov (make-overlay bar-start bar-end)))
-                            (overlay-put ov 'face 'org-dayflow-bar-face))))))))))))
+        (cl-destructuring-bind ((title . marker) scheduled deadline active) task
+          (org-dayflow--insert-title title marker slot-width units start scheduled deadline active)
+          (org-dayflow--insert-bar slot-width units start scheduled deadline active)))
       (goto-char (point-min)))))
 
 ;;; User commands
