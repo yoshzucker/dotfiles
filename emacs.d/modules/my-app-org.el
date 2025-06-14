@@ -1145,7 +1145,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
   (my/define-key
    (:map global-map
          :key
-         "C-c f" #'org-dayflow-display))
+         "C-c f" #'org-dayflow))
 
   (with-eval-after-load 'evil
     (evil-set-initial-state 'org-dayflow-mode 'emacs)))

@@ -88,6 +88,10 @@
   "Face for today's date in org-dayflow."
   :group 'org-dayflow)
 
+(defface org-dayflow-selected-unit-face
+  '((t :inverse-video t))
+  "Face for selected task's unit on the timeline.")
+
 (defface org-dayflow-bar-face
   '((t (:strike-through t)))
   "Face for org-dayflow bar overlays.")
@@ -186,32 +190,16 @@ If TIMESTAMP is nil, return nil."
   "Return the number of days between the first date and each of the rest."
   (cl-reduce #'- (mapcar #'calendar-absolute-from-gregorian dates)))
 
-(defun org-dayflow--month- (end start)
+(defun org-dayflow--month- (date1 date2)
   "Return the number of whole months between START and END dates.
 START and END are (month day year) lists."
-  (+ (* (- (nth 2 end) (nth 2 start)) 12)
-     (- (nth 0 end) (nth 0 start))))
+  (+ (* (- (nth 2 date1) (nth 2 date2)) 12)
+     (- (nth 0 date1) (nth 0 date2))))
 
 ;;; Helper commands
 (defun org-dayflow--buffer-name (&optional scale)
-  "Generate buffer name based on SCALE or default."
-  (let ((scale (or scale org-dayflow-default-scale)))
-    (format "*Org Dayflow(%s)*"
-            (pcase scale
-              ('day "day")
-              ('week "week")
-              ('month "month")
-              ('year "year")
-              (_ "unknown")))))
-
-(defun org-dayflow--create-buffer ()
-  "Create and setup the *Org Dayflow* buffer."
-  (let ((buf (get-buffer-create (org-dayflow--buffer-name org-dayflow-default-scale))))
-    (with-current-buffer buf
-      (org-dayflow-mode)
-      (unless org-dayflow--current-scale
-        (org-dayflow--scale-set org-dayflow-default-scale)))
-    buf))
+  "Return Org Dayflow buffer name."
+  (format "*Org Dayflow(%s)*" (symbol-name (or scale org-dayflow-default-scale))))
 
 (defun org-dayflow--scale-set (scale)
   "Set current scale and reset offset based on default."
@@ -382,27 +370,20 @@ START and END are (month day year) lists."
 (defun org-dayflow--scale-lines (scale start units)
   "Generate label and unit lines based on SCALE."
   (pcase scale
-    ('day
-     (list (org-dayflow--day-scale-labels start units)
-           (org-dayflow--day-scale-units start units)))
-    ('week
-     (list (org-dayflow--week-scale-labels start units)
-           (org-dayflow--week-scale-units start units)))
-    ('month
-     (list (org-dayflow--month-scale-labels start units)
-           (org-dayflow--month-scale-units start units)))
-    ('year
-     (list (org-dayflow--year-scale-units start units)))
-    (_
-     (error "Unknown scale: %s" scale))))
+    ('day   (list (org-dayflow--day-scale-labels start units)
+                  (org-dayflow--day-scale-units start units)))
+    ('week  (list (org-dayflow--week-scale-labels start units)
+                  (org-dayflow--week-scale-units start units)))
+    ('month (list (org-dayflow--month-scale-labels start units)
+                  (org-dayflow--month-scale-units start units)))
+    ('year  (list (org-dayflow--year-scale-units start units)))
+    (_      (error "Unknown scale: %s" scale))))
 
 (defun org-dayflow--earliest-active-timestamp ()
   "Return the earliest active timestamp string from title and body of current Org entry."
-  (let (timestamps)
-    (let ((title (nth 4 (org-heading-components)))
-          (regexp "<\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}\\(?: [^>]+\\)?\\)>"))
-      (when (and title (string-match regexp title))
-        (push (match-string 0 title) timestamps)))
+  (let ((timestamps nil))
+    (let ((ts (org-entry-get (point) "TIMESTAMP")))
+      (when ts (push ts timestamps)))
     (let ((element (org-element-at-point)))
       (org-element-map element 'timestamp
         (lambda (el)
@@ -467,46 +448,73 @@ START and END are (month day year) lists."
         (org-show-entry)))))
 
 (defun org-dayflow--build-query (base-query &optional append-query)
-  "Return a new query by combining BASE-QUERY and APPEND-QUERY.
-If BASE-QUERY is nil, start from `org-dayflow-initial-query`.
-If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
+  "Combine BASE-QUERY with APPEND-QUERY into a well-formed query.
+
+- If BASE-QUERY is nil, use `org-dayflow-initial-query` as the base.
+- Ensures the resulting query is wrapped with a top-level `and` form.
+- If APPEND-QUERY is a list of queries, append each element.
+- If APPEND-QUERY is a single query form, wrap and append it.
+- If APPEND-QUERY is nil, return the well-formed BASE-QUERY as-is."
   (let* ((raw (or base-query org-dayflow-initial-query))
          (listed (if (and (listp raw) (listp (cadr raw)))
                      raw (list raw)))
          (wellformed (if (eq (car listed) 'and) listed (cons 'and listed))))
-    (if append-query
-        (append wellformed (list append-query))
-      wellformed)))
-
-(defun org-dayflow--read-filter-command ()
+    (cond
+     ((null append-query) wellformed)
+     ((and (listp append-query)
+           (listp (car append-query)))
+      (append wellformed append-query))
+     (t
+      (append wellformed (list append-query))))))
+     
+(defun org-dayflow--read-filter-char (type)
   "Prompt for a filter command: +, -, TAB to select filter type, \\ to clear, . to filter at point, q to quit."
-  (let ((prompt (format "Filter[%s]: [TAB]select [.]point [\\]off [q]uit"
-                        (if org-dayflow--filter-exclude "-" "+"))))
+  (let ((prompt (format "Filter[%s] %s: [TAB]select [.]point [\\]off [q]uit"
+                        (if org-dayflow--filter-exclude "-" "+") type)))
     (read-char-exclusive prompt)))
 
-(defun org-dayflow--read-filter-type ()
-  "Read filter type interactively."
-  (let* ((prompt (format "Filter[%s]: [TAB]select [t]ag to[d]o [p]roperty [c]ategory [r]egexp q[u]ery: [\\]off [q]uit"
-                         (if org-dayflow--filter-exclude "-" "+")))
-         (char (read-char-exclusive prompt)))
-    (cond
-     ((eq char ?+) 'include)
-     ((eq char ?-) 'exclude)
-     ((eq char ?t) 'tag)
-     ((eq char ?d) 'todo)
-     ((eq char ?p) 'property)
-     ((eq char ?c) 'category)
-     ((eq char ?r) 'regexp)
-     ((eq char ?u) 'query)
-     ((eq char ?\\) 'clear)
-     ((eq char ?q) 'quit)
-     ((eq char ?\t)
-      (intern (completing-read "Select filter type: "
-                               '("tag" "todo" "property" "category" "regexp" "query")
-                               nil t)))
-     (t
-      (message "Invalid key: %s" (single-key-description char))
-      (org-dayflow--read-filter-type)))))
+(defun org-dayflow--filter-by (label candidates builder &optional immediate actions)
+  "Generic filter for org-dayflow.
+LABEL is a string shown in prompt.
+CANDIDATES is a list of strings for completion.
+BUILDER is a function that takes a string and returns a query S-expression.
+ACTIONS is an alist of extra keybindings like ((?. . fn))."
+  (let (new-query)
+    (catch 'quit
+      (cl-flet ((filter-from (reader)
+                  (let ((input (funcall reader)))
+                    (unless (string-empty-p input)
+                      (setq new-query
+                            (if org-dayflow--filter-exclude
+                                `(not ,(funcall builder input))
+                              (funcall builder input))))))
+                (completing-reader ()
+                  (completing-read (format "%s: " label) candidates nil t))
+                (string-reader ()
+                  (read-string (format "%s: " label))))
+        (if immediate
+            (let ((reader (if candidates #'completing-reader #'string-reader)))
+              (filter-from reader)
+              (throw 'quit nil))
+          (while t
+            (let ((char (org-dayflow--read-filter-char label)))
+              (cond
+               ((eq char ?+) (setq org-dayflow--filter-exclude nil))
+               ((eq char ?-) (setq org-dayflow--filter-exclude t))
+               ((eq char ?\\) (org-dayflow-remove-filter) (throw 'quit nil))
+               ((eq char ?q) (throw 'quit nil))
+               ((eq char ?\t) 
+                (let ((reader (if candidates #'completing-reader #'string-reader)))
+                  (filter-from reader)
+                  (throw 'quit nil)))
+               ((assoc char actions)
+                (funcall (cdr (assoc char actions)))
+                (when new-query (throw 'quit nil)))
+               (t (message "Invalid key: %s" (single-key-description char)))))))))
+    (when new-query
+      (setq org-dayflow--current-query
+            (org-dayflow--build-query org-dayflow--current-query new-query))
+      (org-dayflow-refresh))))
 
 (defun org-dayflow--collect-todo-keywords ()
   "Return a flat list of all TODO keywords from `org-todo-keywords`, stripping parens."
@@ -528,6 +536,27 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
                (push (car prop) props)))))))
     (delete-dups props)))
 
+(defun org-dayflow--collect-property-candidates (prop)
+  "Return allowed values for PROP, considering global and buffer-local settings."
+  (let ((marker (get-text-property (point) 'org-marker)))
+    (when (and marker (marker-buffer marker))
+      (with-current-buffer (marker-buffer marker)
+        (org-with-wide-buffer
+         (goto-char (point-min))
+         (let ((allowed (org-property-get-allowed-values nil prop)))
+           (when allowed
+             (if (listp (car allowed))
+                 (mapcar #'car allowed)
+               allowed))))))))
+
+(defun org-dayflow--property-filter-builder ()
+  (lambda (prop)
+    (let* ((candidates (org-dayflow--collect-property-candidates prop))
+           (value (if candidates
+                      (completing-read (format "Value for %s: " prop) candidates nil t)
+                    (read-string (format "Value for %s: " prop)))))
+      `(property ,prop ,value))))
+
 (defun org-dayflow--collect-categories ()
   "Collect all unique categories from org-agenda-files."
   (let (categories)
@@ -548,24 +577,30 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
         (active (org-dayflow--earliest-active-timestamp)))
     `(:title ,title :marker ,marker :scheduled ,scheduled :deadline ,deadline :active ,active)))
 
-(defun org-dayflow--insert-title (task start units unit-char-width)
-  "Insert the task title at the position based on the chosen timestamp (priority: deadline > active > scheduled)."
-  (cl-destructuring-bind (&key title marker scheduled deadline active) task
+(defun org-dayflow--title-position (task start units)
+  "Return the unit offset where the task's title should appear, or nil if out of range."
+  (cl-destructuring-bind (&key scheduled deadline active &allow-other-keys) task
     (let* ((chosen (or deadline active scheduled))
-           (title-date (org-dayflow--date-timestamp chosen))
-           (title-offset (org-dayflow--title-unit start title-date)))
-      (when (and (<= 0 title-offset) (< title-offset units))
-        (let ((line (propertize
-                     (concat (make-string (* title-offset unit-char-width) ?\s) "* " title)
-                     'org-marker marker
-                     'face (with-current-buffer (marker-buffer marker)
-                             (save-excursion
-                               (goto-char marker)
-                               (org-dayflow--get-heading-face))))))
-          (insert line "\n"))))))
+           (date (org-dayflow--date-timestamp chosen))
+           (offset (org-dayflow--title-unit start date)))
+      (when (and (<= 0 offset) (< offset units))
+        offset))))
 
-(defun org-dayflow--insert-bar (task start units unit-char-width)
-  "Insert a timeline bar for the task based on scheduled, deadline, and active timestamps."
+(defun org-dayflow--insert-title (task offset unit-char-width)
+  "Insert the task title at the given unit OFFSET."
+  (cl-destructuring-bind (&key title marker &allow-other-keys) task
+    (let* ((prefix (make-string (* offset unit-char-width) ?\s))
+           (line (propertize
+                  (concat prefix "* " title)
+                  'org-marker marker
+                  'face (with-current-buffer (marker-buffer marker)
+                          (save-excursion
+                            (goto-char marker)
+                            (org-dayflow--get-heading-face))))))
+      (insert line "\n"))))
+
+(defun org-dayflow--bar-region (task start units unit-char-width)
+  "Return (START-POS . END-POS) of the bar for TASK, or nil if outside view."
   (cl-destructuring-bind (&key scheduled deadline active &allow-other-keys) task
     (let* ((scheduled-date (org-dayflow--date-timestamp scheduled))
            (deadline-date (org-dayflow--date-timestamp deadline))
@@ -577,17 +612,22 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
         (setq end-dates (append end-dates (list active-date))))
       (when (and start-dates end-dates)
         (let* ((start-date (org-dayflow--date-min start-dates))
-               (end-date (org-dayflow--date-max end-dates))
+               (end-date   (org-dayflow--date-max end-dates))
                (start-offset (org-dayflow--title-unit start start-date))
-               (end-offset (org-dayflow--title-unit start end-date)))
-          (when (and (>= start-offset 0) (< start-offset units))
+               (end-offset   (org-dayflow--title-unit start end-date))
+               (bar-start (max 0 start-offset))
+               (bar-end   (min units end-offset)))
+          (when (> bar-end bar-start)
             (let* ((line-start (line-beginning-position 0))
-                   (bar-start (+ line-start (* start-offset unit-char-width)))
-                   (duration (max 1 (- end-offset start-offset)))
-                   (bar-end (+ bar-start (* duration unit-char-width)))
-                   (bar-length (* duration unit-char-width)))
-              (let ((ov (make-overlay bar-start bar-end)))
-                (overlay-put ov 'face 'org-dayflow-bar-face)))))))))
+                   (bar-pos-start (+ line-start (* bar-start unit-char-width)))
+                   (bar-pos-end   (+ line-start (* bar-end unit-char-width))))
+              (cons bar-pos-start bar-pos-end))))))))
+
+(defun org-dayflow--draw-bar (region)
+  "Insert a timeline bar overlay for TASK if within view."
+  (when region
+    (let ((ov (make-overlay (car region) (cdr region))))
+      (overlay-put ov 'face 'org-dayflow-bar-face))))
 
 (defun org-dayflow--render ()
   "Render the timeline contents in the current buffer."
@@ -612,8 +652,11 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
         (insert line "\n"))
       (insert "\n")
       (dolist (task tasks)
-        (org-dayflow--insert-title task start units unit-char-width)
-        (org-dayflow--insert-bar task start units unit-char-width))
+        (let ((offset (org-dayflow--title-position task start units)))
+          (when offset
+            (org-dayflow--insert-title task offset unit-char-width)))
+        (let ((region (org-dayflow--bar-region task start units unit-char-width)))
+          (org-dayflow--draw-bar region)))
       (goto-char (point-min)))))
 
 ;;; User commands
@@ -765,12 +808,8 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
             (message "%s/%s%s%s%s%s"
                      file
                      full-path
-                     (if todo
-                         (format "  TODO:%s" todo)
-                       "")
-                     (if tags
-                         (format "  TAGS:%s" (string-join tags " "))
-                       "")
+                     (if todo (format "  TODO:%s" todo) "")
+                     (if tags (format "  TAGS:%s" (string-join tags " ")) "")
                      (if (or effort priority)
                          (format "  PROPERTIES:%s"
                                  (string-join
@@ -799,219 +838,65 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
           (org-dayflow--build-query org-dayflow--current-query new-query)))
   (org-dayflow-refresh))
 
-(defun org-dayflow-filter-by-tag ()
-  "Interactive filter for org-dayflow, similar to org-agenda-filter-by-tag."
-  (interactive)
-  (setq org-dayflow--filter-exclude nil)
-  (let (new-query)
-    (catch 'quit
-      (while t
-        (let ((char (org-dayflow--read-filter-command)))
-          (cond
-           ((eq char ?q)
-            (throw 'quit nil))
-           ((eq char ?\\)
-            (setq org-dayflow--current-query nil)
-            (org-dayflow-refresh)
-            (throw 'quit nil))
-           ((eq char ?-)
-            (setq org-dayflow--filter-exclude t))
-           ((eq char ?+)
-            (setq org-dayflow--filter-exclude nil))
-           ((eq char ?\t)
-            (let ((tag (completing-read "Tag: " (org-global-tags-completion-table) nil t)))
-              (when tag
-                (setq new-query
-                      (if org-dayflow--filter-exclude
-                          `(not (tags ,tag))
-                        `(tags ,tag))))
-              (throw 'quit nil)))
-           ((eq char ?.)
-            (let ((marker (get-text-property (point) 'org-marker)))
-              (if (and marker (marker-buffer marker))
-                  (with-current-buffer (marker-buffer marker)
-                    (goto-char marker)
-                    (let ((tags (org-get-tags)))
-                      (if (null tags)
-                          (message "No tags found at point.")
-                        (setq new-query
-                              (mapcar (lambda (tag)
-                                        (if org-dayflow--filter-exclude
-                                            `(not (tags ,tag))
-                                          `(tags ,tag)))
-                                      tags)))))
-                (message "No task at point.")))
-            (throw 'quit nil))
-           (t
-            (message "Invalid key: %s" (single-key-description char)))))))
-    (when new-query
-      (setq org-dayflow--current-query
-            (if (and (listp new-query)
-                     (listp (car new-query)))
-                (seq-reduce #'org-dayflow--build-query new-query org-dayflow--current-query)
-              (org-dayflow--build-query org-dayflow--current-query new-query)))
-      (org-dayflow-refresh))))
+(defun org-dayflow-filter-by-tag (&optional immediate)
+  "Filter org-dayflow by TAG. If IMMEDIATE is non-nil, enter completing-read immediately."
+  (interactive "P")
+  (org-dayflow--filter-by
+   "Tag"
+   (org-global-tags-completion-table)
+   (lambda (tag) `(tags ,tag))
+   immediate
+   `((?. . ,(lambda ()
+              (let ((marker (get-text-property (point) 'org-marker)))
+                (if (and marker (marker-buffer marker))
+                    (with-current-buffer (marker-buffer marker)
+                      (goto-char marker)
+                      (let ((tags (org-get-tags)))
+                        (if (null tags)
+                            (message "No tags found at point.")
+                          (setq new-query
+                                (mapcar (lambda (tag)
+                                          (if org-dayflow--filter-exclude
+                                              `(not (tags ,tag))
+                                            `(tags ,tag)))
+                                        tags)))))
+                  (message "No task at point."))))))))
 
-(defun org-dayflow-filter-by-todo ()
-  "Interactive filter for org-dayflow by TODO keyword, with completion."
-  (interactive)
-  (setq org-dayflow--filter-exclude nil)
-  (let (new-query)
-    (catch 'quit
-      (while t
-        (let ((char (org-dayflow--read-filter-command)))
-          (cond
-           ((eq char ?q) (throw 'quit nil))
-           ((eq char ?\\)
-            (setq org-dayflow--current-query nil)
-            (org-dayflow-refresh)
-            (throw 'quit nil))
-           ((eq char ?-)
-            (setq org-dayflow--filter-exclude t))
-           ((eq char ?+)
-            (setq org-dayflow--filter-exclude nil))
-           ((eq char ?\t)
-            (let* ((all-todos (org-dayflow--collect-todo-keywords))
-                   (todo (completing-read "TODO keyword: " all-todos nil t)))
-              (when todo
-                (setq new-query
-                      (if org-dayflow--filter-exclude
-                          `(not (todo ,todo))
-                        `(todo ,todo))))
-              (throw 'quit nil)))
-           (t
-            (message "Invalid key: %s" (single-key-description char)))))))
-    (when new-query
-      (setq org-dayflow--current-query
-            (org-dayflow--build-query org-dayflow--current-query new-query))
-      (org-dayflow-refresh))))
+(defun org-dayflow-filter-by-todo (&optional immediate)
+  "Filter org-dayflow by TODO. If IMMEDIATE is non-nil, enter completing-read immediately."
+  (interactive "P")
+  (org-dayflow--filter-by
+   "Todo"
+   all-todos
+   (lambda (kw) `(todo ,kw))
+   immediate))
 
-(defun org-dayflow-filter-by-property ()
-  "Interactive filter for org-dayflow by PROPERTY."
-  (interactive)
-  (setq org-dayflow--filter-exclude nil)
-  (let (new-query)
-    (catch 'quit
-      (while t
-        (let ((char (org-dayflow--read-filter-command)))
-          (cond
-           ((eq char ?q) (throw 'quit nil))
-           ((eq char ?\\)
-            (setq org-dayflow--current-query nil)
-            (org-dayflow-refresh)
-            (throw 'quit nil))
-           ((eq char ?-)
-            (setq org-dayflow--filter-exclude t))
-           ((eq char ?+)
-            (setq org-dayflow--filter-exclude nil))
-           ((eq char ?\t)
-            (let* ((prop (completing-read "Property name: "
-                                          (org-dayflow--collect-properties) nil t))
-                   (allowed (org-property-get-allowed-values nil prop))
-                   (candidates (if (and allowed (listp (car allowed)))
-                                   (mapcar #'car allowed)
-                                 allowed))
-                   (value (if candidates
-                              (completing-read (format "Value for %s: " prop)
-                                               candidates nil t)
-                            (read-string (format "Value for %s: " prop)))))
-              (when (and prop value)
-                (setq new-query
-                      (if org-dayflow--filter-exclude
-                          `(not (property ,prop ,value))
-                        `(property ,prop ,value))))
-              (throw 'quit nil)))
-           (t
-            (message "Invalid key: %s" (single-key-description char)))))))
-    (when new-query
-      (setq org-dayflow--current-query
-            (org-dayflow--build-query org-dayflow--current-query new-query))
-      (org-dayflow-refresh))))
+(defun org-dayflow-filter-by-property (&optional immediate)
+  "Filter org-dayflow by PROPERTY. If IMMEDIATE is non-nil, enter completing-read immediately."
+  (interactive "P")
+  (org-dayflow--filter-by
+   "Property"
+   (org-dayflow--collect-properties)
+   (org-dayflow--property-filter-builder)
+   immediate))
 
-(defun org-dayflow-filter-by-category ()
-  "Interactive filter for org-dayflow by CATEGORY."
-  (interactive)
-  (setq org-dayflow--filter-exclude nil)
-  (let (new-query)
-    (catch 'quit
-      (while t
-        (let ((char (org-dayflow--read-filter-command)))
-          (cond
-           ((eq char ?q) (throw 'quit nil))
-           ((eq char ?\\)
-            (setq org-dayflow--current-query nil)
-            (org-dayflow-refresh)
-            (throw 'quit nil))
-           ((eq char ?-)
-            (setq org-dayflow--filter-exclude t))
-           ((eq char ?+)
-            (setq org-dayflow--filter-exclude nil))
-           ((eq char ?\t)
-            (let ((category (completing-read "Category: " (org-dayflow--collect-categories) nil t)))
-              (when category
-                (setq new-query
-                      (if org-dayflow--filter-exclude
-                          `(not (category ,category))
-                        `(category ,category))))
-              (throw 'quit nil)))
-           (t
-            (message "Invalid key: %s" (single-key-description char)))))))
-    (when new-query
-      (setq org-dayflow--current-query
-            (org-dayflow--build-query org-dayflow--current-query new-query))
-      (org-dayflow-refresh))))
+(defun org-dayflow-filter-by-category (&optional immediate)
+  "Filter org-dayflow by CATEGORY. If IMMEDIATE is non-nil, enter completing-read immediately."
+  (interactive "P")
+  (org-dayflow--filter-by
+   "Category"
+   (org-dayflow--collect-categories)
+   (lambda (cat) `(category ,cat))
+   immediate))
 
-(defun org-dayflow-filter-by-regexp ()
-  "Interactive filter for org-dayflow by REGEXP."
-  (interactive)
-  (setq org-dayflow--filter-exclude nil)
-  (let (new-query)
-    (catch 'quit
-      (while t
-        (let ((char (org-dayflow--read-filter-command)))
-          (cond
-           ((eq char ?q) (throw 'quit nil))
-           ((eq char ?\\)
-            (setq org-dayflow--current-query nil)
-            (org-dayflow-refresh)
-            (throw 'quit nil))
-           ((eq char ?-)
-            (setq org-dayflow--filter-exclude t))
-           ((eq char ?+)
-            (setq org-dayflow--filter-exclude nil))
-           ((eq char ?\t)
-            (let ((regexp (read-regexp "Regexp: ")))
-              (when regexp
-                (setq new-query
-                      (if org-dayflow--filter-exclude
-                          `(not (regexp ,regexp))
-                        `(regexp ,regexp))))
-              (throw 'quit nil)))
-           (t
-            (message "Invalid key: %s" (single-key-description char)))))))
-    (when new-query
-      (setq org-dayflow--current-query
-            (org-dayflow--build-query org-dayflow--current-query new-query))
-      (org-dayflow-refresh))))
-
-(defun org-dayflow-filter-dispatch ()
-  "Dispatch to the appropriate org-dayflow filter command."
-  (interactive)
-  (catch 'quit
-    (while t
-      (let ((filter-type (org-dayflow--read-filter-type)))
-        (pcase filter-type
-          ('tag    (org-dayflow-filter-by-tag))
-          ('todo   (org-dayflow-filter-by-todo))
-          ('property (org-dayflow-filter-by-property))
-          ('category (org-dayflow-filter-by-category))
-          ('regexp (org-dayflow-filter-by-regexp))
-          ('query  (org-dayflow-filter))
-          ('include (setq org-dayflow--filter-exclude nil))
-          ('exclude (setq org-dayflow--filter-exclude t))
-          ('clear (setq org-dayflow--current-query nil)
-                  (org-dayflow-refresh))
-          ('quit (throw 'quit nil)))))))
+(defun org-dayflow-filter-by-regexp (&optional immediate)
+  "Filter org-dayflow by REGEXP. If IMMEDIATE is non-nil, enter completing-read immediately."
+  (interactive "P")
+  (org-dayflow--filter-by
+   "Regexp"
+   nil
+   (lambda (input) `(regexp ,input))
+   immediate))
 
 (defun org-dayflow-remove-filter ()
   "Reset all filters in the current Dayflow buffer."
@@ -1019,14 +904,79 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
   (setq org-dayflow--current-query nil)
   (org-dayflow-refresh))
 
-;;;###autoload
-(defun org-dayflow-display ()
-  "Display a simple timeline of scheduled Org tasks."
+(defun org-dayflow-filter-dispatch ()
+  "Interactively apply a filter to the dayflow view and exit after selection."
   (interactive)
-  (let ((buf (org-dayflow--create-buffer)))
-    (with-current-buffer buf
-      (org-dayflow--render))
+  (catch 'dispatch-quit
+    (cl-labels
+        ((read-filter ()
+           (let* ((prompt (format "Filter[%s]: [TAB]select [t]ag to[d]o [p]roperty [c]ategory [r]egexp q[u]ery: [\\]off [q]uit"
+                                  (if org-dayflow--filter-exclude "-" "+")))
+                  (char (read-char-exclusive prompt)))
+             (pcase char
+               (?+  'include)
+               (?-  'exclude)
+               (?t  'tag)
+               (?d  'todo)
+               (?p  'property)
+               (?c  'category)
+               (?r  'regexp)
+               (?u  'query)
+               (?\\ 'remove)
+               (?q  'quit)
+               (?\t (intern (completing-read
+                             "Select filter type: "
+                             '("tag" "todo" "property" "category" "regexp" "query")
+                             nil t)))
+               (_   (message "Invalid key: %s" (single-key-description char))
+                    (read-filter))))))
+      (while t
+        (pcase (read-filter)
+          ('include  (setq org-dayflow--filter-exclude nil))
+          ('exclude  (setq org-dayflow--filter-exclude t))
+          ('tag      (org-dayflow-filter-by-tag t)
+                     (throw 'dispatch-quit nil))
+          ('todo     (org-dayflow-filter-by-todo t)
+                     (throw 'dispatch-quit nil))
+          ('property (org-dayflow-filter-by-property t)
+                     (throw 'dispatch-quit nil))
+          ('category (org-dayflow-filter-by-category t)
+                     (throw 'dispatch-quit nil))
+          ('regexp   (org-dayflow-filter-by-regexp t)
+                     (throw 'dispatch-quit nil))
+          ('query    (org-dayflow-filter)
+                     (throw 'dispatch-quit nil))
+          ('remove   (org-dayflow-remove-filter)
+                     (throw 'dispatch-quit nil))
+          ('quit     (throw 'dispatch-quit nil))
+          (_         (message "Invalid key: %s" (single-key-description char))))))))
+
+(defun org-dayflow-display (&optional scale)
+  "Display Org Dayflow buffer for SCALE or default."
+  (interactive)
+  (let* ((scale (or scale org-dayflow-default-scale))
+         (bufname (org-dayflow--buffer-name scale))
+         (buf (get-buffer bufname)))
+    (unless buf
+      (setq buf (get-buffer-create bufname))
+      (with-current-buffer buf
+        (org-dayflow-mode)
+        (org-dayflow--scale-set scale)
+        (org-dayflow--render)))
     (pop-to-buffer buf)))
+
+;;;###autoload
+(defun org-dayflow ()
+  "Prompt for a view scale and display org-dayflow timeline accordingly."
+  (interactive)
+  (let ((key (read-key "org-dayflow: [f]default [d]ay [w]eek [m]onth [y]ear")))
+    (pcase key
+      (?f (org-dayflow-display))
+      (?d (org-dayflow-display 'day))
+      (?w (org-dayflow-display 'week))
+      (?m (org-dayflow-display 'month))
+      (?y (org-dayflow-display 'year))
+      (_ (message "Unknown key: %c" key)))))
 
 (define-derived-mode org-dayflow-mode special-mode "Org-Dayflow"
   "Major mode for viewing Org tasks in a dayflow timeline."
