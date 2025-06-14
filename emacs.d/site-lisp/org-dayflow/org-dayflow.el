@@ -25,7 +25,7 @@
   "Simple flowing timeline view for Org."
   :group 'org)
 
-(defcustom org-dayflow-slot-format "%02d "
+(defcustom org-dayflow-unit-format "%02d "
   "Format string used to display each unit (day/month/year) in the timeline."
   :type 'string
   :group 'org-dayflow)
@@ -134,9 +134,9 @@
   "Keymap for `org-dayflow-mode`.")
 
 ;;; Utility commands
-(defun org-dayflow--slot-width ()
-  "Return the width (in characters) of one unit slot based on `org-dayflow-slot-format`."
-  (length (format org-dayflow-slot-format 1)))
+(defun org-dayflow--unit-char-width ()
+  "Return the width (in characters) of one unit based on `org-dayflow-unit-format`."
+  (length (format org-dayflow-unit-format 1)))
 
 (defun org-dayflow--date-today ()
   "Return today's date as a (month day year) list, ignoring time."
@@ -150,44 +150,28 @@ If TIMESTAMP is nil, return nil."
     (let ((parsed (org-parse-time-string timestamp)))
       (list (nth 4 parsed) (nth 3 parsed) (nth 5 parsed)))))
 
-(defun org-dayflow--date-offset (date offset-day offset-week offset-month offset-year)
-  "Add offsets to DATE (month day year).
-OFFSET-DAY is number of days.
-OFFSET-WEEK is number of weeks.
-OFFSET-MONTH is number of months.
-OFFSET-YEAR is number of years."
-  (let* ((total-days (+ (* 7 offset-week) offset-day))
-         (abs-date (+ (calendar-absolute-from-gregorian date) total-days))
-         (intermediate-date (calendar-gregorian-from-absolute abs-date))
-         (month (+ (nth 0 intermediate-date) offset-month))
-         (year (+ (nth 2 intermediate-date) offset-year))
-         (day (nth 1 intermediate-date)))
-    (while (> month 12)
-      (setq month (- month 12))
-      (setq year (1+ year)))
-    (while (< month 1)
-      (setq month (+ month 12))
-      (setq year (1- year)))
-    (let ((days-in-month (calendar-last-day-of-month month year)))
-      (when (> day days-in-month)
-        (setq day days-in-month)))
-    (list month day year)))
+(defun org-dayflow--date+ (base &rest adds)
+  "Add all ADDS (month day year style) to BASE."
+  (calendar-gregorian-from-absolute
+   (calendar-absolute-from-gregorian
+    (cl-reduce (lambda (a b) (cl-mapcar #'+ a b))
+               adds
+               :initial-value base))))
 
 (defun org-dayflow--date-start ()
   "Return the start date considering the current offset and scale."
   (let ((today (org-dayflow--date-today))
         (x org-dayflow--current-offset))
     (pcase org-dayflow--current-scale
-      ('day   (org-dayflow--date-offset today x 0 0 0))
-      ('week  (org-dayflow--date-offset today 0 x 0 0))
-      ('month (org-dayflow--date-offset today 0 0 x 0))
-      ('year  (org-dayflow--date-offset today 0 0 0 x))
-      (_      (org-dayflow--date-offset today x 0 0 0)))))
+      ('day   (org-dayflow--date+ today (list 0 x 0)))
+      ('week  (org-dayflow--date+ today (list 0 (* x 7) 0)))
+      ('month (org-dayflow--date+ today (list x 0 0)))
+      ('year  (org-dayflow--date+ today (list 0 0 x)))
+      (_      (org-dayflow--date+ today (list 0 x 0))))))
 
-(defun org-dayflow--date< (d1 d2)
-  "Return non-nil if date D1 is earlier than date D2."
-  (< (calendar-absolute-from-gregorian d1)
-     (calendar-absolute-from-gregorian d2)))
+(defun org-dayflow--date< (&rest dates)
+  "Return non-nil if all DATES are in strictly increasing chronological order."
+  (apply #'< (mapcar (lambda (x) (calendar-absolute-from-gregorian x)) dates)))
 
 (defun org-dayflow--date-min (dates)
   "Return the earliest date in DATES."
@@ -198,12 +182,11 @@ OFFSET-YEAR is number of years."
   (car (sort (copy-sequence dates)
              (lambda (d1 d2) (not (org-dayflow--date< d1 d2))))))
 
-(defun org-dayflow--difference-days (start end)
-  "Return the number of days between START and END."
-  (- (calendar-absolute-from-gregorian end)
-     (calendar-absolute-from-gregorian start)))
+(defun org-dayflow--day- (&rest dates)
+  "Return the number of days between the first date and each of the rest."
+  (cl-reduce #'- (mapcar #'calendar-absolute-from-gregorian dates)))
 
-(defun org-dayflow--difference-months (start end)
+(defun org-dayflow--month- (end start)
   "Return the number of whole months between START and END dates.
 START and END are (month day year) lists."
   (+ (* (- (nth 2 end) (nth 2 start)) 12)
@@ -238,14 +221,14 @@ START and END are (month day year) lists."
 (defun org-dayflow--day-scale-labels (start days)
   "Generate a line of month names, shifting later months to avoid overlap."
   (let* ((start-abs (calendar-absolute-from-gregorian start))
-         (day-width (org-dayflow--slot-width))
-         (result (make-list (* days day-width) " "))
+         (unit-char-width (org-dayflow--unit-char-width))
+         (result (make-list (* days unit-char-width) " "))
          (positions '()))
-    (dotimes (i days)
-      (let* ((date (calendar-gregorian-from-absolute (+ start-abs i)))
+    (dotimes (d days)
+      (let* ((date (calendar-gregorian-from-absolute (+ start-abs d)))
              (month-name (format-time-string "%B" (encode-time 0 0 0 (nth 1 date) (nth 0 date) (nth 2 date)))))
         (unless (and positions (string= (cadr (car (last positions))) month-name))
-          (let* ((pos (* i day-width))
+          (let* ((pos (* d unit-char-width))
                  (shift 0)
                  (safe-pos pos))
             (when positions
@@ -258,18 +241,18 @@ START and END are (month day year) lists."
             (setq positions (append positions (list (list safe-pos month-name))))))))
     (let ((line ""))
       (dolist (entry positions)
-        (let* ((pos (nth 0 entry))
-               (name (nth 1 entry)))
+        (let ((pos (nth 0 entry))
+              (name (nth 1 entry)))
           (setq line (concat line
                              (make-string (- pos (length line)) ?\s)
                              (propertize name 'face 'org-dayflow-label-face)))))
-      (concat line (make-string (max 0 (- (* days day-width) (length line))) ?\s)))))
+      (concat line (make-string (max 0 (- (* days unit-char-width) (length line))) ?\s)))))
 
 (defun org-dayflow--day-scale-units (start days)
   "Generate a line of dates starting from START date for DAYS days."
   (let ((start-abs (calendar-absolute-from-gregorian start))
         (today-abs (calendar-absolute-from-gregorian (org-dayflow--date-today)))
-        (day-width (org-dayflow--slot-width))
+        (day-width (org-dayflow--unit-char-width))
         (line ""))
     (dotimes (d days (string-trim-right line))
       (let* ((date (calendar-gregorian-from-absolute (+ start-abs d)))
@@ -278,18 +261,18 @@ START and END are (month day year) lists."
                     ((= (+ start-abs d) today-abs) 'org-dayflow-today-face)
                     ((or (= dow 0) (= dow 6)) 'org-dayflow-weekend-face)
                     (t 'org-dayflow-weekday-face)))
-             (text (propertize (format org-dayflow-slot-format (nth 1 date)) 'face face)))
+             (text (propertize (format org-dayflow-unit-format (nth 1 date)) 'face face)))
         (setq line (concat line text))))))
 
 (defun org-dayflow--week-scale-labels (start weeks)
   "Generate a line of year labels for WEEK scale."
   (let* ((start-abs (calendar-absolute-from-gregorian start))
          (positions '()))
-    (dotimes (i weeks)
-      (let* ((date (calendar-gregorian-from-absolute (+ start-abs (* i 7))))
+    (dotimes (w weeks)
+      (let* ((date (calendar-gregorian-from-absolute (+ start-abs (* w 7))))
              (year (nth 2 date)))
         (unless (and positions (= (cadr (car (last positions))) year))
-          (let* ((pos (* i 3)) ;; "%02d "で3文字単位
+          (let* ((pos (* w 3)) ;; "%02d "で3文字単位
                  (shift 0)
                  (safe-pos pos))
             (when positions
@@ -314,8 +297,8 @@ START and END are (month day year) lists."
   (let ((start-abs (calendar-absolute-from-gregorian start))
         (today-abs (calendar-absolute-from-gregorian (org-dayflow--date-today)))
         (line ""))
-    (dotimes (i weeks (string-trim-right line))
-      (let* ((week-start-abs (+ start-abs (* i 7)))
+    (dotimes (w weeks (string-trim-right line))
+      (let* ((week-start-abs (+ start-abs (* w 7)))
              (date (calendar-gregorian-from-absolute week-start-abs))
              (iso (calendar-iso-from-absolute week-start-abs))
              (iso-week (car iso))
@@ -328,7 +311,7 @@ START and END are (month day year) lists."
 
 (defun org-dayflow--month-scale-labels (start months)
   "Generate a line of year labels, shifting later labels to avoid overlap, starting at arbitrary month."
-  (let* ((slot-width (org-dayflow--slot-width))
+  (let* ((unit-char-width (org-dayflow--unit-char-width))
          (year (nth 2 start))
          (month (nth 0 start))
          (positions '())
@@ -350,7 +333,7 @@ START and END are (month day year) lists."
       (when (> month 12)
         (setq month 1)
         (setq year (1+ year)))
-      (setq pos (+ pos slot-width)))
+      (setq pos (+ pos unit-char-width)))
     (setq positions (nreverse positions))
     (let ((line ""))
       (dolist (entry positions)
@@ -359,7 +342,7 @@ START and END are (month day year) lists."
           (setq line (concat line
                              (make-string (- p (length line)) ?\s)
                              (propertize name 'face 'org-dayflow-label-face)))))
-      (concat line (make-string (max 0 (- (* months slot-width) (length line))) ?\s)))))
+      (concat line (make-string (max 0 (- (* months unit-char-width) (length line))) ?\s)))))
 
 (defun org-dayflow--month-scale-units (start months)
   "Generate a line of month numbers for MONTH scale."
@@ -374,7 +357,7 @@ START and END are (month day year) lists."
                        'org-dayflow-today-face
                      'org-dayflow-units-face)))
         (setq line (concat line
-                           (propertize (format org-dayflow-slot-format month)
+                           (propertize (format org-dayflow-unit-format month)
                                        'face face))))
       (setq month (1+ month))
       (when (> month 12)
@@ -387,13 +370,13 @@ START and END are (month day year) lists."
   (let ((start-year (nth 2 start))
         (today-year (nth 2 (org-dayflow--date-today)))
         (line ""))
-    (dotimes (i years)
-      (let ((year (+ start-year i))
-            (face (if (= (+ start-year i) today-year)
+    (dotimes (y years)
+      (let ((year (+ start-year y))
+            (face (if (= (+ start-year y) today-year)
                       'org-dayflow-today-face
                     'org-dayflow-units-face)))
         (setq line (concat line
-                           (propertize (format org-dayflow-slot-format year) 'face face)))))
+                           (propertize (format org-dayflow-unit-format year) 'face face)))))
     (string-trim-right line)))
 
 (defun org-dayflow--scale-lines (scale start units)
@@ -416,8 +399,8 @@ START and END are (month day year) lists."
 (defun org-dayflow--earliest-active-timestamp ()
   "Return the earliest active timestamp string from title and body of current Org entry."
   (let (timestamps)
-    (let* ((title (nth 4 (org-heading-components)))
-           (regexp "<\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}\\(?: [^>]+\\)?\\)>"))
+    (let ((title (nth 4 (org-heading-components)))
+          (regexp "<\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}\\(?: [^>]+\\)?\\)>"))
       (when (and title (string-match regexp title))
         (push (match-string 0 title) timestamps)))
     (let ((element (org-element-at-point)))
@@ -427,14 +410,14 @@ START and END are (month day year) lists."
             (push (org-element-property :raw-value el) timestamps)))))
     (car (sort timestamps #'string<))))
 
-(defun org-dayflow--title-slot (start task-date)
+(defun org-dayflow--title-unit (start task-date)
   "Return the position (unit offset) for TASK-DATE from START depending on current scale."
   (pcase org-dayflow--current-scale
-    ('day (org-dayflow--difference-days start task-date))
-    ('week (/ (org-dayflow--difference-days start task-date) 7))
-    ('month (org-dayflow--difference-months start task-date))
+    ('day (org-dayflow--day- task-date start))
+    ('week (/ (org-dayflow--day- task-date start) 7))
+    ('month (org-dayflow--month- task-date start))
     ('year (- (nth 2 task-date) (nth 2 start)))
-    (_ (org-dayflow--difference-days start task-date))))
+    (_ (org-dayflow--day- task-date start))))
 
 (defun org-dayflow--get-heading-face ()
   "Get the appropriate Org heading face based on the heading level."
@@ -556,61 +539,66 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
              (push cat categories))))))
     (delete-dups categories)))
 
-(defun org-dayflow--insert-title (title marker slot-width units start scheduled deadline active)
-  "Insert the task title at the position based on the chosen timestamp (priority: deadline > active > scheduled)."
-  (let* ((chosen (or deadline active scheduled))
-         (title-date (org-dayflow--date-timestamp chosen))
-         (title-offset (org-dayflow--title-slot start title-date)))
-    (when (and (<= 0 title-offset) (< title-offset units))
-      (let ((line (propertize
-                    (concat (make-string (* title-offset slot-width) ?\s) "* " title)
-                    'org-marker marker
-                    'face (with-current-buffer (marker-buffer marker)
-                            (save-excursion
-                              (goto-char marker)
-                              (org-dayflow--get-heading-face))))))
-        (insert line "\n")))))
+(defun org-dayflow--extract-task ()
+  "Create a task plist from the current Org heading."
+  (let ((marker (point-marker))
+        (title (org-get-heading t t t t))
+        (deadline (org-entry-get (point) "DEADLINE"))
+        (scheduled (org-entry-get (point) "SCHEDULED"))
+        (active (org-dayflow--earliest-active-timestamp)))
+    `(:title ,title :marker ,marker :scheduled ,scheduled :deadline ,deadline :active ,active)))
 
-(defun org-dayflow--insert-bar (slot-width units start scheduled deadline active)
+(defun org-dayflow--insert-title (task start units unit-char-width)
+  "Insert the task title at the position based on the chosen timestamp (priority: deadline > active > scheduled)."
+  (cl-destructuring-bind (&key title marker scheduled deadline active) task
+    (let* ((chosen (or deadline active scheduled))
+           (title-date (org-dayflow--date-timestamp chosen))
+           (title-offset (org-dayflow--title-unit start title-date)))
+      (when (and (<= 0 title-offset) (< title-offset units))
+        (let ((line (propertize
+                     (concat (make-string (* title-offset unit-char-width) ?\s) "* " title)
+                     'org-marker marker
+                     'face (with-current-buffer (marker-buffer marker)
+                             (save-excursion
+                               (goto-char marker)
+                               (org-dayflow--get-heading-face))))))
+          (insert line "\n"))))))
+
+(defun org-dayflow--insert-bar (task start units unit-char-width)
   "Insert a timeline bar for the task based on scheduled, deadline, and active timestamps."
-  (let* ((scheduled-date (org-dayflow--date-timestamp scheduled))
-         (deadline-date (org-dayflow--date-timestamp deadline))
-         (start-dates (delq nil (list scheduled-date deadline-date)))
-         (end-dates (delq nil (list deadline-date)))
-         (active-date (org-dayflow--date-timestamp active)))
-    (when active-date
-      (setq start-dates (append start-dates (list active-date)))
-      (setq end-dates (append end-dates (list active-date))))
-    (when (and start-dates end-dates)
-      (let* ((start-date (org-dayflow--date-min start-dates))
-             (end-date (org-dayflow--date-max end-dates))
-             (start-offset (org-dayflow--title-slot start start-date))
-             (end-offset (org-dayflow--title-slot start end-date)))
-        (when (and (>= start-offset 0) (< start-offset units))
-          (let* ((line-start (line-beginning-position 0))
-                 (bar-start (+ line-start (* start-offset slot-width)))
-                 (duration (max 1 (- end-offset start-offset)))
-                 (bar-end (+ bar-start (* duration slot-width)))
-                 (bar-length (* duration slot-width)))
-            (let ((ov (make-overlay bar-start bar-end)))
-              (overlay-put ov 'face 'org-dayflow-bar-face))))))))
+  (cl-destructuring-bind (&key scheduled deadline active &allow-other-keys) task
+    (let* ((scheduled-date (org-dayflow--date-timestamp scheduled))
+           (deadline-date (org-dayflow--date-timestamp deadline))
+           (start-dates (delq nil (list scheduled-date deadline-date)))
+           (end-dates (delq nil (list deadline-date)))
+           (active-date (org-dayflow--date-timestamp active)))
+      (when active-date
+        (setq start-dates (append start-dates (list active-date)))
+        (setq end-dates (append end-dates (list active-date))))
+      (when (and start-dates end-dates)
+        (let* ((start-date (org-dayflow--date-min start-dates))
+               (end-date (org-dayflow--date-max end-dates))
+               (start-offset (org-dayflow--title-unit start start-date))
+               (end-offset (org-dayflow--title-unit start end-date)))
+          (when (and (>= start-offset 0) (< start-offset units))
+            (let* ((line-start (line-beginning-position 0))
+                   (bar-start (+ line-start (* start-offset unit-char-width)))
+                   (duration (max 1 (- end-offset start-offset)))
+                   (bar-end (+ bar-start (* duration unit-char-width)))
+                   (bar-length (* duration unit-char-width)))
+              (let ((ov (make-overlay bar-start bar-end)))
+                (overlay-put ov 'face 'org-dayflow-bar-face)))))))))
 
 (defun org-dayflow--render ()
   "Render the timeline contents in the current buffer."
   (let* ((start (org-dayflow--date-start))
          (units org-dayflow-units-length)
-         (slot-width (org-dayflow--slot-width))
+         (unit-char-width (org-dayflow--unit-char-width))
          (label-lines (org-dayflow--scale-lines org-dayflow--current-scale start units))
          (tasks (org-ql-select
                   (org-agenda-files)
                   (org-dayflow--build-query org-dayflow--current-query)
-                  :action (lambda ()
-                            (let ((marker (point-marker))
-                                  (title (org-get-heading t t t t))
-                                  (deadline (org-entry-get (point) "DEADLINE"))
-                                  (scheduled (org-entry-get (point) "SCHEDULED"))
-                                  (active (org-dayflow--earliest-active-timestamp)))
-                              (list (cons title marker) scheduled deadline active))))))
+                  :action (lambda () (org-dayflow--extract-task)))))
     (let ((inhibit-read-only t))
       (rename-buffer (org-dayflow--buffer-name org-dayflow--current-scale) t)
       (erase-buffer)
@@ -624,9 +612,8 @@ If APPEND-QUERY is nil, just return BASE-QUERY or INITIAL-QUERY."
         (insert line "\n"))
       (insert "\n")
       (dolist (task tasks)
-        (cl-destructuring-bind ((title . marker) scheduled deadline active) task
-          (org-dayflow--insert-title title marker slot-width units start scheduled deadline active)
-          (org-dayflow--insert-bar slot-width units start scheduled deadline active)))
+        (org-dayflow--insert-title task start units unit-char-width)
+        (org-dayflow--insert-bar task start units unit-char-width))
       (goto-char (point-min)))))
 
 ;;; User commands
