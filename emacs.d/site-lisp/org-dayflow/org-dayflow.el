@@ -53,7 +53,7 @@
                 :value-type integer)
   :group 'org-dayflow)
 
-(defcustom org-dayflow-initial-query '((or (scheduled) (deadline)))
+(defcustom org-dayflow-initial-query '((or (scheduled) (deadline) (regexp org-ts-regexp)))
   "Default Org-QL query for org-dayflow when no filters are applied."
   :type 'sexp
   :group 'org-dayflow)
@@ -64,6 +64,24 @@ Each entry is a cons cell of the form (LABEL . QUERY)."
   :type '(alist :key-type string :value-type sexp)
   :group 'org-dayflow
   :safe t)
+
+(defcustom org-dayflow-bar-symbols
+  '((deadline  . "#")
+    (active    . "*")
+    (scheduled . "+"))
+  "Symbols used to represent different types of tasks in the vertical bar graph."
+  :type '(alist :key-type (choice (const deadline) (const active) (const scheduled))
+                :value-type string)
+  :group 'org-dayflow)
+
+(defcustom org-dayflow-bar-faces
+  '((deadline  . org-dayflow-histogram-deadline-face)
+    (active    . org-dayflow-histogram-active-face)
+    (scheduled . org-dayflow-histogram-scheduled-face))
+  "Faces used to colorize task bars in the vertical bar graph."
+  :type '(alist :key-type (choice (const deadline) (const active) (const scheduled))
+                :value-type face)
+  :group 'org-dayflow)
 
 (defface org-dayflow-query-face
   '((t (:inherit font-lock-comment-face)))
@@ -102,6 +120,21 @@ Each entry is a cons cell of the form (LABEL . QUERY)."
 (defface org-dayflow-bar-face
   '((t (:strike-through t)))
   "Face for org-dayflow bar overlays.")
+
+(defface org-dayflow-histogram-deadline-face
+  '((t (:inherit font-lock-constant-face)))
+  "Face used for deadline markers in dayflow bar graph."
+  :group 'org-dayflow)
+
+(defface org-dayflow-histogram-active-face
+  '((t (:inherit font-lock-string-face)))
+  "Face used for active time markers in dayflow bar graph."
+  :group 'org-dayflow)
+
+(defface org-dayflow-histogram-scheduled-face
+  '((t (:inherit font-lock-variable-name-face)))
+  "Face used for scheduled task markers in dayflow bar graph."
+  :group 'org-dayflow)
 
 (defvar-local org-dayflow--current-scale nil
   "Current scale in the org-dayflow buffer.")
@@ -580,6 +613,52 @@ ACTIONS is an alist of extra keybindings like ((?. . fn))."
              (push cat categories))))))
     (delete-dups categories)))
 
+(defun org-dayflow--alist-put (alist key val)
+  "Return a new alist based on ALIST with KEY set to VAL."
+  (let ((new (assq-delete-all key alist)))
+    (cons (cons key val) new)))
+
+(defun org-dayflow--task-type (task)
+  "Return the type symbol of TASK: 'deadline, 'scheduled, or 'active."
+  (cond
+   ((plist-get task :deadline) 'deadline)
+   ((plist-get task :scheduled) 'scheduled)
+   ((plist-get task :timestamp) 'active)
+   (t 'active)))
+
+(defun org-dayflow--insert-histogram (tasks start units unit-char-width)
+  "Insert a vertical ASCII bar graph with stacked task types per day."
+  (let* ((counts (make-vector units nil)))
+    (dotimes (i units)
+      (aset counts i '((deadline . 0) (active . 0) (scheduled . 0))))
+    (dolist (task tasks)
+      (let ((offset (org-dayflow--title-position task start units))
+            (type (org-dayflow--task-type task)))
+        (when offset
+          (let* ((slot (aref counts offset))
+                 (old (alist-get type slot 0)))
+            (aset counts offset (org-dayflow--alist-put slot type (1+ old)))))))
+    (let* ((max-count (apply #'max (mapcar (lambda (slot)
+                                             (+ (alist-get 'deadline slot 0)
+                                                (alist-get 'active slot 0)
+                                                (alist-get 'scheduled slot 0)))
+                                           (append counts nil))))
+           (height (max 1 max-count)))
+      (cl-loop for row downfrom (1- height) to 0 do
+               (dotimes (col units)
+                 (let* ((slot (aref counts col))
+                        (total 0)
+                        char face)
+                   (dolist (type '(deadline active scheduled))
+                     (let ((count (alist-get type slot 0)))
+                       (setq total (+ total count))
+                       (when (and (not char) (>= total (- height row)))
+                         (setq char (alist-get type org-dayflow-bar-symbols))
+                         (setq face (alist-get type org-dayflow-bar-faces)))))
+                   (insert (propertize (or char " ") 'face face))
+                   (insert (make-string (1- unit-char-width) ? ))))
+               (insert "\n")))))
+
 (defun org-dayflow--extract-task ()
   "Create a task plist from the current Org heading."
   (let ((marker (point-marker))
@@ -662,6 +741,7 @@ ACTIONS is an alist of extra keybindings like ((?. . fn))."
       (insert "\n\n")
       (dolist (line label-lines)
         (insert line "\n"))
+      (org-dayflow--insert-histogram tasks start units unit-char-width)
       (insert "\n")
       (dolist (task tasks)
         (let ((offset (org-dayflow--title-position task start units)))
