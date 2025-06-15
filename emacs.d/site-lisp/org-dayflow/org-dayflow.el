@@ -58,6 +58,13 @@
   :type 'sexp
   :group 'org-dayflow)
 
+(defcustom org-dayflow-saved-queries nil
+  "Alist of saved org-dayflow queries.
+Each entry is a cons cell of the form (LABEL . QUERY)."
+  :type '(alist :key-type string :value-type sexp)
+  :group 'org-dayflow
+  :safe t)
+
 (defface org-dayflow-query-face
   '((t (:inherit font-lock-comment-face)))
   "Face for displaying the current query in Org Dayflow."
@@ -113,6 +120,9 @@
 
 (defvar-local org-dayflow--highlight-overlay nil
   "Overlay for highlighting the current org heading in follow mode.")
+
+(defvar org-dayflow--query-session nil
+  "List of queries built during this session (not saved persistently).")
 
 (defvar org-dayflow-mode-map
   (let ((map (make-sparse-keymap)))
@@ -514,6 +524,8 @@ ACTIONS is an alist of extra keybindings like ((?. . fn))."
     (when new-query
       (setq org-dayflow--current-query
             (org-dayflow--build-query org-dayflow--current-query new-query))
+      (unless (member org-dayflow--current-query org-dayflow--query-session)
+        (push org-dayflow--current-query org-dayflow--query-session))
       (org-dayflow-refresh))))
 
 (defun org-dayflow--collect-todo-keywords ()
@@ -835,8 +847,10 @@ ACTIONS is an alist of extra keybindings like ((?. . fn))."
   (interactive "sAdd query (lisp, e.g., (tags \"work\")): ")
   (let ((new-query (read query)))
     (setq org-dayflow--current-query
-          (org-dayflow--build-query org-dayflow--current-query new-query)))
-  (org-dayflow-refresh))
+          (org-dayflow--build-query org-dayflow--current-query new-query))
+    (unless (member org-dayflow--current-query org-dayflow--query-session)
+      (push org-dayflow--current-query org-dayflow--query-session))
+    (org-dayflow-refresh)))
 
 (defun org-dayflow-filter-by-tag (&optional immediate)
   "Filter org-dayflow by TAG. If IMMEDIATE is non-nil, enter completing-read immediately."
@@ -863,11 +877,11 @@ ACTIONS is an alist of extra keybindings like ((?. . fn))."
                   (message "No task at point."))))))))
 
 (defun org-dayflow-filter-by-todo (&optional immediate)
-  "Filter org-dayflow by TODO. If IMMEDIATE is non-nil, enter completing-read immediately."
+  "Filter org-dayflow by TODO keywords. If IMMEDIATE is non-nil, enter completing-read immediately."
   (interactive "P")
   (org-dayflow--filter-by
    "Todo"
-   all-todos
+   (org-dayflow--collect-todo-keywords)
    (lambda (kw) `(todo ,kw))
    immediate))
 
@@ -904,14 +918,68 @@ ACTIONS is an alist of extra keybindings like ((?. . fn))."
   (setq org-dayflow--current-query nil)
   (org-dayflow-refresh))
 
+(defun org-dayflow-select-query ()
+  "Select a query from saved and session history. "
+  (interactive)
+  (let* ((saved org-dayflow-saved-queries)
+         (session org-dayflow--query-session)
+         (saved-labeled
+          (mapcar (lambda (e)
+                    (let ((label (car e)))
+                      (cons (format "[saved]: %s" label) (cons 'saved e))))
+                  saved))
+         (session-labeled
+          (mapcar (lambda (q)
+                    (cons (format "[session]: %s" (prin1-to-string q)) (cons 'session q)))
+                  session))
+         (all-entries (append saved-labeled session-labeled))
+         (choice (completing-read
+                  "Select query to act on: "
+                  (mapcar #'car all-entries)
+                  nil t nil nil nil 'org-dayflow-query))
+         (entry (cdr (assoc choice all-entries)))
+         (kind (car entry))
+         (payload (cdr entry))
+         (action (read-key "Action: RET=apply  C-d=delete  C-s=save")))
+    (pcase action
+      (?\r ;; RET: Apply
+       (setq org-dayflow--current-query (if (eq kind 'saved) (cdr payload) payload))
+       (org-dayflow-refresh))
+      (?\C-s ;; C-s: Save
+       (let ((query (if (eq kind 'saved) (cdr payload) payload))
+             (label (prin1-to-string (if (eq kind 'saved) (cdr payload) payload))))
+         (unless (assoc label org-dayflow-saved-queries)
+           (add-to-list 'org-dayflow-saved-queries (cons label query))
+           (customize-save-variable 'org-dayflow-saved-queries org-dayflow-saved-queries)
+           (message "Saved query: %s" label))))
+      (?\C-d ;; C-d: Delete
+       (when (eq kind 'saved)
+         (let ((label (car payload)))
+           (setq org-dayflow-saved-queries
+                 (assoc-delete-all label org-dayflow-saved-queries))
+           (customize-save-variable 'org-dayflow-saved-queries org-dayflow-saved-queries)
+           (message "Deleted saved query: %s" label))))
+      (_ (message "Unknown action")))))
+
 (defun org-dayflow-filter-dispatch ()
   "Interactively apply a filter to the dayflow view and exit after selection."
   (interactive)
   (catch 'dispatch-quit
     (cl-labels
         ((read-filter ()
-           (let* ((prompt (format "Filter[%s]: [TAB]select [t]ag to[d]o [p]roperty [c]ategory [r]egexp q[u]ery: [\\]off [q]uit"
-                                  (if org-dayflow--filter-exclude "-" "+")))
+           (let* ((face 'font-lock-keyword-face)
+                  (prompt (concat
+                           (format "Filter[%s]: " (if org-dayflow--filter-exclude "-" "+"))
+                           (propertize "[TAB]" 'face face) " manual " "("
+                           (propertize "[t]" 'face face) "ag " "to"
+                           (propertize "[d]" 'face face) "o "
+                           (propertize "[p]" 'face face) "roperty "
+                           (propertize "[c]" 'face face) "ategory "
+                           (propertize "[r]" 'face face) "egexp): "
+                           (propertize "[b]" 'face face) "uild "
+                           (propertize "[s]" 'face face) "elect "
+                           (propertize "[\\]" 'face face) "off "
+                           (propertize "[q]" 'face face) "uit"))
                   (char (read-char-exclusive prompt)))
              (pcase char
                (?+  'include)
@@ -921,12 +989,13 @@ ACTIONS is an alist of extra keybindings like ((?. . fn))."
                (?p  'property)
                (?c  'category)
                (?r  'regexp)
-               (?u  'query)
+               (?b  'build)
+               (?s  'select)
                (?\\ 'remove)
                (?q  'quit)
                (?\t (intern (completing-read
                              "Select filter type: "
-                             '("tag" "todo" "property" "category" "regexp" "query")
+                             '("tag" "todo" "property" "category" "regexp")
                              nil t)))
                (_   (message "Invalid key: %s" (single-key-description char))
                     (read-filter))))))
@@ -944,7 +1013,9 @@ ACTIONS is an alist of extra keybindings like ((?. . fn))."
                      (throw 'dispatch-quit nil))
           ('regexp   (org-dayflow-filter-by-regexp t)
                      (throw 'dispatch-quit nil))
-          ('query    (org-dayflow-filter)
+          ('build    (org-dayflow-filter)
+                     (throw 'dispatch-quit nil))
+          ('select   (org-dayflow-select-query)
                      (throw 'dispatch-quit nil))
           ('remove   (org-dayflow-remove-filter)
                      (throw 'dispatch-quit nil))
