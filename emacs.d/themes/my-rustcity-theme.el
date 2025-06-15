@@ -41,17 +41,17 @@
     (cyan          . (200 100  62))     ; 8 neon hues
     (blue          . (250 100  62))     ; 8 neon hues
     (magenta       . (310 100  62))     ; 8 neon hues
-    (brightred     . ( 30 100  62))     ; 8 neon hues orange
-    (brightmagenta . (270 100  62))     ; 8 neon hues violet
+    (brightred     . ( 40 100  62))     ; 8 neon hues orange
+    (brightmagenta . (280 100  62))     ; 8 neon hues violet
     (brightyellow  . (355  55  62))     ; 4 diffused hues
     (brightgreen   . (110  55  62))     ; 4 diffused hues
     (brightcyan    . (180  55  62))     ; 4 diffused hues
-    (brightblue    . (270  55  62))))   ; 4 diffused hues
+    (brightblue    . (250  55  62))))   ; 4 diffused hues
 
 (defconst my/rustcity-downpour-hsl
-  '((background    . (260  30  87))     ; 6 base tones
-    (black         . (260  30  77))     ; 6 base tones
-    (brightblack   . (260  30  67))     ; 6 base tones
+  '((background    . (260  30  88))     ; 6 base tones
+    (black         . (260  30  78))     ; 6 base tones
+    (brightblack   . (260  30  68))     ; 6 base tones
     (white         . (260  30  58))     ; 6 base tones
     (brightwhite   . (260  30  48))     ; 6 base tones
     (foreground    . (260  30  38))     ; 6 base tones
@@ -117,13 +117,13 @@
    `(font-lock-comment-face ((,class (:foreground ,white :slant italic))))
    `(font-lock-string-face ((,class (:foreground ,yellow))))
    `(font-lock-doc-face ((,class (:foreground ,white))))
-   `(font-lock-keyword-face ((,class (:foreground ,magenta))))
+   `(font-lock-keyword-face ((,class (:foreground ,brightmagenta))))
    `(font-lock-builtin-face ((,class (:foreground ,green))))
    `(font-lock-variable-name-face ((,class (:foreground ,blue))))
-   `(font-lock-function-name-face ((,class (:foreground ,red))))
+   `(font-lock-function-name-face ((,class (:foreground ,magenta))))
    `(font-lock-type-face ((,class (:foreground ,cyan))))
-   `(font-lock-constant-face ((,class (:foreground ,brightmagenta))))
-   `(font-lock-warning-face ((,class (:foreground ,brightred))))
+   `(font-lock-constant-face ((,class (:foreground ,brightred))))
+   `(font-lock-warning-face ((,class (:foreground ,red))))
    `(link ((,class (:foreground ,brightgreen :underline t))))
    `(link-visited ((,class (:foreground ,green :underline t))))
    `(minibuffer-prompt ((,class (:foreground ,foreground))))
