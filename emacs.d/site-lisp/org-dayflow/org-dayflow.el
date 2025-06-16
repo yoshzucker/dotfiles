@@ -672,10 +672,11 @@ ACTIONS is an alist of extra keybindings like ((?. . fn))."
   "Return the unit offset where the task's title should appear, or nil if out of range."
   (cl-destructuring-bind (&key scheduled deadline active &allow-other-keys) task
     (let* ((chosen (or deadline active scheduled))
-           (date (org-dayflow--date-timestamp chosen))
-           (offset (org-dayflow--title-unit start date)))
-      (when (and (<= 0 offset) (< offset units))
-        offset))))
+           (date (org-dayflow--date-timestamp chosen)))
+      (when date
+        (let ((offset (org-dayflow--title-unit start date)))
+          (when (and (<= 0 offset) (< offset units))
+            offset))))))
 
 (defun org-dayflow--insert-title (task offset unit-char-width)
   "Insert the task title at the given unit OFFSET."
