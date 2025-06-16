@@ -65,7 +65,7 @@ Each entry is a cons cell of the form (LABEL . QUERY)."
   :group 'org-dayflow
   :safe t)
 
-(defcustom org-dayflow-bar-symbols
+(defcustom org-dayflow-histogram-char-alist
   '((deadline  . "#")
     (active    . "*")
     (scheduled . "+"))
@@ -74,13 +74,16 @@ Each entry is a cons cell of the form (LABEL . QUERY)."
                 :value-type string)
   :group 'org-dayflow)
 
-(defcustom org-dayflow-bar-faces
-  '((deadline  . org-dayflow-histogram-deadline-face)
-    (active    . org-dayflow-histogram-active-face)
-    (scheduled . org-dayflow-histogram-scheduled-face))
-  "Faces used to colorize task bars in the vertical bar graph."
-  :type '(alist :key-type (choice (const deadline) (const active) (const scheduled))
-                :value-type face)
+(defcustom org-dayflow-histogram-face-alist
+  '((deadline        . org-dayflow-histogram-deadline-face)
+    (active          . org-dayflow-histogram-active-face)
+    (scheduled       . org-dayflow-histogram-scheduled-face)
+    (deadline-done   . org-dayflow-histogram-deadline-done-face)
+    (active-done     . org-dayflow-histogram-active-done-face)
+    (scheduled-done  . org-dayflow-histogram-scheduled-done-face))
+  "Faces used to colorize task bars in the vertical bar graph.
+Keys ending in `-done` are used for completed tasks."
+  :type '(alist :key-type (symbol) :value-type face)
   :group 'org-dayflow)
 
 (defface org-dayflow-query-face
@@ -117,10 +120,6 @@ Each entry is a cons cell of the form (LABEL . QUERY)."
   '((t :inverse-video t))
   "Face for selected task's unit on the timeline.")
 
-(defface org-dayflow-bar-face
-  '((t (:strike-through t)))
-  "Face for org-dayflow bar overlays.")
-
 (defface org-dayflow-histogram-deadline-face
   '((t (:inherit font-lock-constant-face)))
   "Face used for deadline markers in dayflow bar graph."
@@ -134,6 +133,30 @@ Each entry is a cons cell of the form (LABEL . QUERY)."
 (defface org-dayflow-histogram-scheduled-face
   '((t (:inherit font-lock-variable-name-face)))
   "Face used for scheduled task markers in dayflow bar graph."
+  :group 'org-dayflow)
+
+(defface org-dayflow-histogram-deadline-done-face
+  '((t :distant-foreground "gray40"))
+  "Face for completed deadline tasks."
+  :group 'org-dayflow)
+
+(defface org-dayflow-histogram-active-done-face
+  '((t :distant-foreground "gray40"))
+  "Face for completed active tasks."
+  :group 'org-dayflow)
+
+(defface org-dayflow-histogram-scheduled-done-face
+  '((t :distant-foreground "gray40"))
+  "Face for completed scheduled tasks."
+  :group 'org-dayflow)
+
+(defface org-dayflow-title-bar-face
+  '((t (:strike-through t)))
+  "Face for org-dayflow bar overlays.")
+
+(defface org-dayflow-title-done-face
+  '((t :inherit font-lock-comment-face))
+  "Face for DONE or CANCELLED task titles."
   :group 'org-dayflow)
 
 (defvar-local org-dayflow--current-scale nil
@@ -639,9 +662,12 @@ ACTIONS is an alist of extra keybindings like ((?. . fn))."
                                 (cl-subseq kws (1+ sep))))))))
       (and todo (member todo done-keywords)))))
 
-(defun org-dayflow--char-to-type (char)
-  "Return task type symbol for the given CHAR used in bar."
-  (car (rassoc char org-dayflow-bar-symbols)))
+(defun org-dayflow--char-type (char &optional done)
+  "Return task type symbol for CHAR. If DONE is non-nil, return '-done' variant."
+  (let ((base (car (rassoc char org-dayflow-histogram-char-alist))))
+    (if (and base done)
+        (intern (format "%s-done" base))
+      base)))
 
 (defun org-dayflow--insert-histogram (tasks start units unit-char-width)
   "Insert a 2-column histogram per unit: left = incomplete, right = complete."
@@ -651,7 +677,7 @@ ACTIONS is an alist of extra keybindings like ((?. . fn))."
       (let* ((unit (org-dayflow--title-position task start units))
              (type (org-dayflow--task-type task))
              (done (org-dayflow--task-done-p task))
-             (char (alist-get type org-dayflow-bar-symbols)))
+             (char (alist-get type org-dayflow-histogram-char-alist)))
         (when unit
           (let ((stacks (if done complete-stacks incomplete-stacks)))
             (aset stacks unit (cons char (aref stacks unit)))))))
@@ -665,16 +691,16 @@ ACTIONS is an alist of extra keybindings like ((?. . fn))."
             (if stack
                 (let ((char (car stack)))
                   (insert (propertize char
-                                      'face (alist-get (org-dayflow--char-to-type char)
-                                                       org-dayflow-bar-faces)))
+                                      'face (alist-get (org-dayflow--char-type char nil)
+                                                       org-dayflow-histogram-face-alist)))
                   (aset incomplete-stacks unit (cdr stack)))
               (insert " ")))
           (let ((stack (aref complete-stacks unit)))
             (if stack
                 (let ((char (car stack)))
                   (insert (propertize char
-                                      'face (alist-get (org-dayflow--char-to-type char)
-                                                       org-dayflow-bar-faces)))
+                                      'face (alist-get (org-dayflow--char-type char t)
+                                                       org-dayflow-histogram-face-alist)))
                   (aset complete-stacks unit (cdr stack)))
               (insert " ")))
           (insert (make-string (- unit-char-width 2) ?\s)))
@@ -707,13 +733,16 @@ ACTIONS is an alist of extra keybindings like ((?. . fn))."
   "Insert the task title at the given unit OFFSET."
   (cl-destructuring-bind (&key title marker &allow-other-keys) task
     (let* ((prefix (make-string (* offset unit-char-width) ?\s))
+           (done (org-dayflow--task-done-p task))
            (line (propertize
                   (concat prefix "* " title)
                   'org-marker marker
-                  'face (with-current-buffer (marker-buffer marker)
-                          (save-excursion
-                            (goto-char marker)
-                            (org-dayflow--get-heading-face))))))
+                  'face (if done
+                            'org-dayflow-title-done-face
+                          (with-current-buffer (marker-buffer marker)
+                            (save-excursion
+                              (goto-char marker)
+                              (org-dayflow--get-heading-face)))))))
       (insert line "\n"))))
 
 (defun org-dayflow--bar-region (task start units unit-char-width)
@@ -744,7 +773,7 @@ ACTIONS is an alist of extra keybindings like ((?. . fn))."
   "Insert a timeline bar overlay for TASK if within view."
   (when region
     (let ((ov (make-overlay (car region) (cdr region))))
-      (overlay-put ov 'face 'org-dayflow-bar-face))))
+      (overlay-put ov 'face 'org-dayflow-title-bar-face))))
 
 (defun org-dayflow--render ()
   "Render the timeline contents in the current buffer."
