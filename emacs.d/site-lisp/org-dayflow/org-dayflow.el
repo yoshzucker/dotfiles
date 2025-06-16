@@ -626,47 +626,72 @@ ACTIONS is an alist of extra keybindings like ((?. . fn))."
    ((plist-get task :timestamp) 'active)
    (t 'active)))
 
+(defun org-dayflow--task-done-p (task)
+  "Return non-nil if TASK is marked as done (e.g., DONE, CANCEL, DELEG)."
+  (let* ((todo (plist-get task :todo)))
+    (let ((done-keywords
+           (cl-loop for (_type . kws) in org-todo-keywords
+                    append
+                    (let ((sep (cl-position "|" kws :test #'equal)))
+                      (when sep
+                        (mapcar (lambda (kw)
+                                  (car (split-string kw "(")))
+                                (cl-subseq kws (1+ sep))))))))
+      (and todo (member todo done-keywords)))))
+
+(defun org-dayflow--char-to-type (char)
+  "Return task type symbol for the given CHAR used in bar."
+  (car (rassoc char org-dayflow-bar-symbols)))
+
 (defun org-dayflow--insert-histogram (tasks start units unit-char-width)
-  "Insert a vertical ASCII bar graph with stacked task types per day."
-  (let* ((counts (make-vector units nil)))
-    (dotimes (i units)
-      (aset counts i '((deadline . 0) (active . 0) (scheduled . 0))))
+  "Insert a 2-column histogram per unit: left = incomplete, right = complete."
+  (let ((incomplete-stacks (make-vector units nil))
+        (complete-stacks (make-vector units nil)))
     (dolist (task tasks)
-      (let ((offset (org-dayflow--title-position task start units))
-            (type (org-dayflow--task-type task)))
-        (when offset
-          (let* ((slot (aref counts offset))
-                 (old (alist-get type slot 0)))
-            (aset counts offset (org-dayflow--alist-put slot type (1+ old)))))))
-    (let* ((max-count (apply #'max (mapcar (lambda (slot)
-                                             (+ (alist-get 'deadline slot 0)
-                                                (alist-get 'active slot 0)
-                                                (alist-get 'scheduled slot 0)))
-                                           (append counts nil))))
-           (height (max 1 max-count)))
-      (cl-loop for row downfrom (1- height) to 0 do
-               (dotimes (col units)
-                 (let* ((slot (aref counts col))
-                        (total 0)
-                        char face)
-                   (dolist (type '(deadline active scheduled))
-                     (let ((count (alist-get type slot 0)))
-                       (setq total (+ total count))
-                       (when (and (not char) (>= total (- height row)))
-                         (setq char (alist-get type org-dayflow-bar-symbols))
-                         (setq face (alist-get type org-dayflow-bar-faces)))))
-                   (insert (propertize (or char " ") 'face face))
-                   (insert (make-string (1- unit-char-width) ? ))))
-               (insert "\n")))))
+      (let* ((unit (org-dayflow--title-position task start units))
+             (type (org-dayflow--task-type task))
+             (done (org-dayflow--task-done-p task))
+             (char (alist-get type org-dayflow-bar-symbols)))
+        (when unit
+          (let ((stacks (if done complete-stacks incomplete-stacks)))
+            (aset stacks unit (cons char (aref stacks unit)))))))
+    (let ((height (cl-loop for i below units
+                           maximize (max 1
+                                         (length (aref incomplete-stacks i))
+                                         (length (aref complete-stacks i))))))
+      (dotimes (row height)
+        (dotimes (unit units)
+          (let ((stack (aref incomplete-stacks unit)))
+            (if stack
+                (let ((char (car stack)))
+                  (insert (propertize char
+                                      'face (alist-get (org-dayflow--char-to-type char)
+                                                       org-dayflow-bar-faces)))
+                  (aset incomplete-stacks unit (cdr stack)))
+              (insert " ")))
+          (let ((stack (aref complete-stacks unit)))
+            (if stack
+                (let ((char (car stack)))
+                  (insert (propertize char
+                                      'face (alist-get (org-dayflow--char-to-type char)
+                                                       org-dayflow-bar-faces)))
+                  (aset complete-stacks unit (cdr stack)))
+              (insert " ")))
+          (insert (make-string (- unit-char-width 2) ?\s)))
+        (insert "\n")))))
 
 (defun org-dayflow--extract-task ()
   "Create a task plist from the current Org heading."
-  (let ((marker (point-marker))
-        (title (org-get-heading t t t t))
-        (deadline (org-entry-get (point) "DEADLINE"))
-        (scheduled (org-entry-get (point) "SCHEDULED"))
-        (active (org-dayflow--earliest-active-timestamp)))
-    `(:title ,title :marker ,marker :scheduled ,scheduled :deadline ,deadline :active ,active)))
+  (save-excursion
+    (org-back-to-heading t)
+    (let ((marker (point-marker))
+          (title (org-get-heading t t t t))
+          (todo (org-no-properties (org-get-todo-state)))
+          (deadline (org-entry-get (point) "DEADLINE"))
+          (scheduled (org-entry-get (point) "SCHEDULED"))
+          (active (org-dayflow--earliest-active-timestamp)))
+      `(:title ,title :marker ,marker :todo ,todo
+               :scheduled ,scheduled :deadline ,deadline :active ,active))))
 
 (defun org-dayflow--title-position (task start units)
   "Return the unit offset where the task's title should appear, or nil if out of range."
