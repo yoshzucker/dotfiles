@@ -200,6 +200,10 @@ Keys ending in `-done` are used for completed tasks."
     (define-key map (kbd "l") #'org-dayflow-scroll-left)
     (define-key map (kbd "]") #'org-dayflow-filter-dispatch)
     (define-key map (kbd "f") #'org-dayflow-toggle-follow)
+    (define-key map (kbd "s") #'org-dayflow-schedule)
+    (define-key map (kbd "d") #'org-dayflow-deadline)
+    (define-key map (kbd "t") #'org-dayflow-todo)
+    (define-key map (kbd "e") #'org-dayflow-echo-info)
     map)
   "Keymap for `org-dayflow-mode`.")
 
@@ -635,6 +639,20 @@ ACTIONS is an alist of extra keybindings like ((?. . fn))."
            (let ((cat (org-get-category)))
              (push cat categories))))))
     (delete-dups categories)))
+
+(defun org-dayflow--act-on-task (func)
+  "Call FUNC (like `org-schedule`) on the task at point in org-dayflow buffer.
+Display MESSAGE along with the timestamp."
+  (interactive)
+  (let ((marker (get-text-property (point) 'org-marker)))
+    (unless marker (user-error "No task at point"))
+    (org-with-remote-undo (marker-buffer marker)
+      (with-current-buffer (marker-buffer marker)
+        (widen)
+        (goto-char (marker-position marker))
+        (let ((result (funcall func nil)))
+          (org-dayflow-refresh)
+          (message "%s" result))))))
 
 (defun org-dayflow--alist-put (alist key val)
   "Return a new alist based on ALIST with KEY set to VAL."
@@ -1156,6 +1174,18 @@ ACTIONS is an alist of extra keybindings like ((?. . fn))."
                      (throw 'dispatch-quit nil))
           ('quit     (throw 'dispatch-quit nil))
           (_         (message "Invalid key: %s" (single-key-description char))))))))
+
+(defun org-dayflow-schedule ()
+  (interactive)
+  (org-dayflow--act-on-task #'org-schedule))
+
+(defun org-dayflow-deadline ()
+  (interactive)
+  (org-dayflow--act-on-task #'org-deadline))
+
+(defun org-dayflow-todo ()
+  (interactive)
+  (org-dayflow--act-on-task #'org-todo))
 
 (defun org-dayflow-display (&optional scale)
   "Display Org Dayflow buffer for SCALE or default."
