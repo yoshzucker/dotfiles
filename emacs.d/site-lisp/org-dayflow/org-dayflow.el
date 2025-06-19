@@ -35,12 +35,20 @@
   :type 'integer
   :group 'org-dayflow)
 
+(defcustom org-dayflow-scales '(hour day week month year)
+  "List of available scales in order from most detailed to most general."
+  :type '(repeat (choice (const hour)
+                         (const day)
+                         (const week)
+                         (const month)
+                         (const year)))
+  :group 'org-dayflow)
+
 (defcustom org-dayflow-default-scale 'day
-  "Default scale for org-dayflow view. Can be 'day, 'month, or 'year."
-  :type '(choice (const :tag "Day" day)
-                 (const :tag "Week" week)
-                 (const :tag "Month" month)
-                 (const :tag "Year" year))
+  "Default scale for org-dayflow view."
+  :type `(choice ,@(mapcar (lambda (s)
+                             `(const :tag ,(capitalize (symbol-name s)) ,s))
+                           org-dayflow-scales))
   :group 'org-dayflow)
 
 (defcustom org-dayflow-default-offsets
@@ -832,26 +840,24 @@ Display MESSAGE along with the timestamp."
     (org-dayflow--render)))
 
 (defun org-dayflow-scale-increase ()
-  "Increase org-dayflow scale (zoom out)."
+  "Increase org-dayflow scale (zoom out) by moving to the next broader unit."
   (interactive)
-  (org-dayflow--scale-set
-   (pcase org-dayflow--current-scale
-     ('day 'week)
-     ('week 'month)
-     ('month 'year)
-     ('year 'year)))
-  (org-dayflow-refresh))
+  (let* ((scales org-dayflow-scales)
+         (current org-dayflow--current-scale)
+         (pos (cl-position current scales)))
+    (when (and pos (< (1+ pos) (length scales)))
+      (org-dayflow--scale-set (nth (1+ pos) scales))
+      (org-dayflow-refresh))))
 
 (defun org-dayflow-scale-decrease ()
-  "Decrease org-dayflow scale (zoom in)."
+  "Decrease org-dayflow scale (zoom in) by moving to the next finer unit."
   (interactive)
-  (org-dayflow--scale-set
-   (pcase org-dayflow--current-scale
-     ('year 'month)
-     ('month 'week)
-     ('week 'day)
-     ('day 'day)))
-  (org-dayflow-refresh))
+  (let* ((scales org-dayflow-scales)
+         (current org-dayflow--current-scale)
+         (pos (cl-position current scales)))
+    (when (and pos (> pos 0))
+      (org-dayflow--scale-set (nth (1- pos) scales))
+      (org-dayflow-refresh))))
 
 (defun org-dayflow-next-item (n)
   "Move to the next N-th item in the org-dayflow buffer."
