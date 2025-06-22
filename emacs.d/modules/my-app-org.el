@@ -811,6 +811,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
 
   (setq org-roam-directory (file-truename my/org-main-directory)
         org-roam-db-location (concat org-roam-directory "org-roam.db")
+        org-roam-file-exclude-regexp "/[Aa]rchive/"
         org-roam-completion-everywhere t)
 
   (org-roam-db-autosync-mode)
@@ -1062,7 +1063,11 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
         deft-default-extension "org"
         deft-ignore-file-regexp (concat "\\(?:" "^$" "\\)" "\\|.#")
         deft-recursive nil
-        deft-recursive-ignore-dir-regexp (concat "\\(?:" "\\." "\\|\\.\\." "\\)$" "\\|\\bdata$" "\\|.org-attaches$" "\\|\\bArchive$")
+        deft-recursive-ignore-dir-regexp (concat "\\(?:" "\\."
+                                                 "\\|\\.\\." "\\)$"
+                                                 "\\|\\bdata$"
+                                                 "\\|.org-attaches$"
+                                                 "\\|\\b[Aa]rchive$")
         deft-new-file-format "%Y-%m-%dT%H-%M-%S"
         deft-use-filter-string-for-filename t
         deft-use-filename-as-title nil
