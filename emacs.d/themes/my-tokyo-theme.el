@@ -56,7 +56,7 @@
   :type '(choice (const :tag "Storm" storm)
                  (const :tag "Night" night)
                  (const :tag "Moon" moon))
-  :group 'my/theme)
+  :group 'my/ui)
 
 (defun my/tokyo-colors ()
   "Return color mapping: 16 ANSI colors + foreground/background."

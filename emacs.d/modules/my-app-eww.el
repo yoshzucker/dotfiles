@@ -57,7 +57,7 @@ Each entry should be a cons cell of the form (DOMAIN . REGEXP), where:
 
 If nil, no automatic positioning will be performed."
   :type '(alist :key-type string :value-type string)
-  :group 'my/eww)
+  :group 'my/app)
 
   (defun my/eww-render-jump ()
     "Auto-jump to a specific section after rendering."

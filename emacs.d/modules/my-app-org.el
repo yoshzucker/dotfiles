@@ -1,5 +1,4 @@
-;;; my-app-org.el --- Org-mode configuration -*- lexical-binding: t; -*-
-;;; Commentary:
+;;; my-app-org.el --- Org-mode configuration -*- lexical-binding: t; -*- ;;; Commentary:
 ;; Configuration for org-mode including keybindings, clocking, and general behaviors.
 ;;; Code:
 
@@ -1023,7 +1022,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
         (file-name-as-directory (concat my/org-cite-directory "data/"))))
 
 (use-package deft
-  :after (evil org)
+  :after evil
   :config
   (my/define-key
    (:map global-map
@@ -1031,8 +1030,8 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
          "C-c d" #'deft)
    (:map deft-mode-map
          :key
-         "C-c C-c" #'deft-new-file
          "C-RET" #'deft-complete
+         "C-c C-c" #'deft-new-file
          "C-j" (lambda ()
                  (interactive)
                  (evil-next-line)
@@ -1050,6 +1049,13 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
          "o" #'my/deft-switch-file-other-window
          "gr" #'deft-refresh
          "q" #'quit-window))
+
+  (defun my/clear-button-key ()
+    (define-key button-map (kbd "TAB") nil)
+    (define-key button-map (kbd "BACKTAB") nil)
+    (define-key button-map (kbd "C-RET") nil))
+
+  (add-hook 'deft-mode-hook #'my/clear-button-key)
 
   (setq deft-directory org-complexbrain-directory
         deft-archive-directory "archive/"

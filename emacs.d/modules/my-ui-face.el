@@ -6,25 +6,25 @@
 
 (defgroup my/theme nil
   "Custom theme settings."
-  :group 'appearance)
+  :group 'my/ui)
 
 (defcustom my/theme-name 'my-rustcity
   "Which theme to use."
   :type 'symbol
   :options '(solarized nord my-tokyo my-rustcity my-radical)
-  :group 'my/theme)
+  :group 'my/ui)
 
 (defcustom my/frame-background 'dark
   "Which background to use."
   :type 'symbol
   :options '(light dark)
-  :group 'my/theme)
+  :group 'my/ui)
 
 (defcustom my/semantic-colors-override nil
   "Alist of semantic roles to override theme-based color mapping.
 Example: '((primary . brightyellow))"
   :type '(alist :key-type symbol :value-type symbol)
-  :group 'my-ui)
+  :group 'my/ui)
 
 ;; Update from environment
 (let ((term (not (display-graphic-p))))
@@ -223,7 +223,7 @@ Example: '((primary . brightyellow))"
     "HackGen Console NF")
   "Default font family."
   :type 'string
-  :group 'my/faces)
+  :group 'my/ui)
 
 (defcustom my/font-variable
   (if (eq system-type 'darwin)
@@ -231,7 +231,7 @@ Example: '((primary . brightyellow))"
     "HackGen NF")
   "Variable pitch font family."
   :type 'string
-  :group 'my/faces)
+  :group 'my/ui)
 
 (defcustom my/font-height
   (if (eq system-type 'darwin)
@@ -239,7 +239,7 @@ Example: '((primary . brightyellow))"
     120)
   "Default font height."
   :type 'integer
-  :group 'my/faces)
+  :group 'my/ui)
 
 (defun my/set-face-rules ()
   `((font-lock
