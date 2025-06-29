@@ -470,18 +470,6 @@
   :config
   (my/define-key (:map org-mode-map :key "C-c p" #'org-cliplink)))
 
-(use-package org-super-links
-  :straight (:host github :repo "toshism/org-super-links" :branch "develop" :files ("*.el" "out"))
-  :after org
-  :config
-  (my/define-key
-   (:map global-map
-         :key
-         "C-c l" #'org-super-links-store-link)
-   (:map org-mode-map
-         :key
-         "C-c C-l" #'org-super-links-insert-link)))
-
 (use-package org-attach
   :straight nil
   :after org)
