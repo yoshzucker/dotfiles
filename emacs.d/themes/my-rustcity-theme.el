@@ -28,53 +28,53 @@
 (deftheme my-rustcity
   "A theme inspired by a rusted cityscape—silent under neon rain, and hollow in a daylight downpour.")
 
-(defconst my/rustcity-neon-hsl
-  '((background    . (260  30  13))     ; 6 base tones
-    (black         . (260  30  23))     ; 6 base tones
-    (brightblack   . (260  30  33))     ; 6 base tones
-    (white         . (260  30  42))     ; 6 base tones
-    (brightwhite   . (260  30  52))     ; 6 base tones
-    (foreground    . (260  30  62))     ; 6 base tones
-    (red           . (355 100  62))     ; 8 neon hues
-    (yellow        . ( 70 100  62))     ; 8 neon hues
-    (green         . (110 100  62))     ; 8 neon hues
-    (cyan          . (200 100  62))     ; 8 neon hues
-    (blue          . (250 100  62))     ; 8 neon hues
-    (magenta       . (310 100  62))     ; 8 neon hues
-    (brightred     . ( 40 100  62))     ; 8 neon hues orange
-    (brightmagenta . (280 100  62))     ; 8 neon hues violet
-    (brightyellow  . (355  55  62))     ; 4 diffused hues
-    (brightgreen   . (110  55  62))     ; 4 diffused hues
-    (brightcyan    . (180  55  62))     ; 4 diffused hues
-    (brightblue    . (250  55  62))))   ; 4 diffused hues
-
 (defconst my/rustcity-downpour-hsl
-  '((background    . (260  30  88))     ; 6 base tones
-    (black         . (260  30  78))     ; 6 base tones
-    (brightblack   . (260  30  68))     ; 6 base tones
-    (white         . (260  30  58))     ; 6 base tones
-    (brightwhite   . (260  30  48))     ; 6 base tones
-    (foreground    . (260  30  38))     ; 6 base tones
-    (red           . (  0 100  38))     ; 8 neon huess
-    (yellow        . ( 70 100  38))     ; 8 neon huess
-    (green         . (110 100  38))     ; 8 neon huess
-    (cyan          . (200 100  38))     ; 8 neon huess
-    (blue          . (250 100  38))     ; 8 neon huess
-    (magenta       . (310 100  38))     ; 8 neon huess
-    (brightred     . ( 30 100  38))     ; 8 neon huess orange
-    (brightmagenta . (270 100  38))     ; 8 neon huess violet
-    (brightyellow  . ( 70  55  57))     ; 4 diffused hues
+  '((background    . (260  60  87))     ; 6 base tones
+    (brightwhite   . (260  60  77))     ; 6 base tones
+    (white         . (260  60  67))     ; 6 base tones
+    (brightblack   . (260  60  57))     ; 6 base tones
+    (black         . (260  60  47))     ; 6 base tones
+    (foreground    . (260  60  37))     ; 6 base tones
+    (red           . (  0 100  57))     ; 8 neon huess
+    (yellow        . ( 70 100  57))     ; 8 neon huess
+    (green         . (110 100  57))     ; 8 neon huess
+    (cyan          . (200 100  57))     ; 8 neon huess
+    (blue          . (250 100  57))     ; 8 neon huess
+    (magenta       . (310 100  57))     ; 8 neon huess
+    (brightred     . ( 30 100  57))     ; 8 neon huess orange
+    (brightmagenta . (280 100  57))     ; 8 neon huess violet
+    (brightyellow  . (  0  55  57))     ; 4 diffused hues
     (brightgreen   . (110  55  57))     ; 4 diffused hues
-    (brightcyan    . (180  55  57))     ; 4 diffused hues
-    (brightblue    . (310  55  57))))   ; 4 diffused hues
+    (brightcyan    . (250  55  57))     ; 4 diffused hues
+    (brightblue    . (280  55  57))))   ; 4 diffused hues
 
-(defconst my/rustcity-neon
-  (cl-loop for (name . hsl) in my/rustcity-neon-hsl
-           collect
-           `(,name . ,(hsluv-hsluv-to-hex hsl))))
+(defconst my/rustcity-neon-hsl
+  '((background    . (260  60  13))     ; 6 base tones
+    (black         . (260  60  23))     ; 6 base tones
+    (brightblack   . (260  60  33))     ; 6 base tones
+    (white         . (260  60  43))     ; 6 base tones
+    (brightwhite   . (260  60  53))     ; 6 base tones
+    (foreground    . (260  60  63))     ; 6 base tones
+    (red           . (  0 100  63))     ; 8 neon hues
+    (yellow        . ( 70 100  63))     ; 8 neon hues
+    (green         . (110 100  63))     ; 8 neon hues
+    (cyan          . (200 100  63))     ; 8 neon hues
+    (blue          . (250 100  63))     ; 8 neon hues
+    (magenta       . (310 100  63))     ; 8 neon hues
+    (brightred     . ( 30 100  63))     ; 8 neon hues orange
+    (brightmagenta . (280 100  63))     ; 8 neon hues violet
+    (brightyellow  . (  0  55  63))     ; 4 diffused hues
+    (brightgreen   . (110  55  63))     ; 4 diffused hues
+    (brightcyan    . (250  55  63))     ; 4 diffused hues
+    (brightblue    . (280  55  63))))   ; 4 diffused hues
 
 (defconst my/rustcity-downpour
   (cl-loop for (name . hsl) in my/rustcity-downpour-hsl
+           collect
+           `(,name . ,(hsluv-hsluv-to-hex hsl))))
+
+(defconst my/rustcity-neon
+  (cl-loop for (name . hsl) in my/rustcity-neon-hsl
            collect
            `(,name . ,(hsluv-hsluv-to-hex hsl))))
 
@@ -106,10 +106,10 @@
        (brightwhite   (alist-get 'brightwhite   colors))
 
        (lightp (eq frame-background-mode 'light))
-       (background-near (alist-get (if lightp 'white 'black) colors))
-       (background-far  (alist-get (if lightp 'brightwhite 'brightblack) colors))
-       (foreground-far  (alist-get (if lightp 'black 'white) colors))
-       (foreground-near (alist-get (if lightp 'brightblack 'brightwhite) colors)))
+       (background-near (alist-get (if lightp 'brightwhite 'black) colors))
+       (background-far  (alist-get (if lightp 'white 'brightblack) colors))
+       (foreground-far  (alist-get (if lightp 'brightblack 'white) colors))
+       (foreground-near (alist-get (if lightp 'black 'brightwhite) colors)))
 
   (custom-theme-set-faces
    'my-rustcity
