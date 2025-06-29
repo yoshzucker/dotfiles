@@ -112,11 +112,15 @@
 
   (consult-customize consult-buffer :preview-key '(:debounce 0.5 any))
 
-  (defun my/sort-recentf-by-length ()
-    "Return recentf-list sorted by path length."
+  (defun my/sort-recentf-by-directory ()
+    "Return recentf-list sorted by directory and filename."
     (sort (copy-sequence recentf-list)
           (lambda (a b)
-            (< (length a) (length b)))))
+            (let ((dir-a (file-name-directory a))
+                  (dir-b (file-name-directory b)))
+              (if (string= dir-a dir-b)
+                  (string< a b)
+                (string< dir-a dir-b))))))
   
   (setq consult-buffer-sources
         (mapcar
@@ -124,7 +128,7 @@
            (let* ((resolved (if (symbolp src) (symbol-value src) src))
                   (copied (copy-sequence resolved)))
              (if (eq resolved consult--source-recent-file)
-                 (plist-put copied :items #'my/sort-recentf-by-length)
+                 (plist-put copied :items #'my/sort-recentf-by-directory)
                src)))
          consult-buffer-sources))
 
