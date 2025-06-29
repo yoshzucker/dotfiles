@@ -1130,19 +1130,19 @@ Display MESSAGE along with the timestamp."
          (entry (cdr (assoc choice all-entries)))
          (kind (car entry))
          (payload (cdr entry))
-         (action (read-key "Action: RET=apply  C-d=delete  C-s=save")))
+         (action (read-key "Action: RET=apply  d=delete  s=save")))
     (pcase action
-      (?\r ;; RET: Apply
+      (?\r
        (setq org-dayflow--current-query (if (eq kind 'saved) (cdr payload) payload))
        (org-dayflow-refresh))
-      (?\C-s ;; C-s: Save
+      (?s
        (let ((query (if (eq kind 'saved) (cdr payload) payload))
              (label (prin1-to-string (if (eq kind 'saved) (cdr payload) payload))))
          (unless (assoc label org-dayflow-saved-queries)
            (add-to-list 'org-dayflow-saved-queries (cons label query))
            (customize-save-variable 'org-dayflow-saved-queries org-dayflow-saved-queries)
            (message "Saved query: %s" label))))
-      (?\C-d ;; C-d: Delete
+      (?d
        (when (eq kind 'saved)
          (let ((label (car payload)))
            (setq org-dayflow-saved-queries
