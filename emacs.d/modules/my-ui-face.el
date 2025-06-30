@@ -8,10 +8,10 @@
   "Custom theme settings."
   :group 'my/ui)
 
-(defcustom my/theme-name 'my-rustcity
+(defcustom my/theme-name 'rustcity
   "Which theme to use."
   :type 'symbol
-  :options '(solarized nord my-tokyo my-rustcity my-radical)
+  :options '(solarized nord my-tokyo rustcity)
   :group 'my/ui)
 
 (defcustom my/frame-background 'dark
@@ -110,12 +110,7 @@ Example: '((primary . brightyellow))"
 
 (use-package hsluv)
 
-(use-package my-rustcity-theme
-  :straight nil
-  :load-path "themes"
-  :defer t)
-
-(use-package my-radical-theme
+(use-package rustcity-theme
   :straight nil
   :load-path "themes"
   :defer t)
@@ -151,14 +146,14 @@ Example: '((primary . brightyellow))"
               (background-far  . brightblack)
               (primary         . blue)
               (secondary       . magenta)))
-           ('(my-rustcity light)
+           ('(rustcity light)
             '((background-near . brightwhite)
               (background-far  . white)
               (foreground-far  . brightblack)
               (foreground-near . black)
               (primary         . brightcyan)
               (secondary       . blue)))
-           ('(my-rustcity dark)
+           ('(rustcity dark)
             '((background-near . black)
               (background-far  . brightblack)
               (foreground-far  . white)
@@ -191,17 +186,15 @@ Example: '((primary . brightyellow))"
   (mapc #'disable-theme custom-enabled-themes)
   (setq frame-background-mode my/frame-background )
   (pcase my/theme-name
-    ('nord        (load-theme 'nord t)
-                  (my/set-colors (my/nord-colors)))
-    ('solarized   (load-theme 'solarized t)
-                  (enable-theme 'solarized)
-                  (my/set-colors (my/solarized-colors)))
-    ('my-tokyo    (load-theme 'my-tokyo t)
-                  (my/set-colors (my/tokyo-colors)))
-    ('my-rustcity (load-theme 'my-rustcity t)
-                  (my/set-colors (my/rustcity-colors)))
-    ('my-radical  (load-theme 'my-radical t)
-                  (my/set-colors (my/radical-colors)))
+    ('nord      (load-theme 'nord t)
+                (my/set-colors (my/nord-colors)))
+    ('solarized (load-theme 'solarized t)
+                (enable-theme 'solarized)
+                (my/set-colors (my/solarized-colors)))
+    ('my-tokyo  (load-theme 'my-tokyo t)
+                (my/set-colors (my/tokyo-colors)))
+    ('rustcity  (load-theme 'rustcity t)
+                (my/set-colors (rustcity-colors)))
     (_ (message "Unknown theme: %s" my/theme-name))))
 
 ;; Face rules application
