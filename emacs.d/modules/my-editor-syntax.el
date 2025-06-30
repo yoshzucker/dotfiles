@@ -39,7 +39,9 @@ This enables word operations like `forward-word` and `backward-kill-word`
 to treat sequences without breaking at script boundaries."
   (let ((table (copy-syntax-table (syntax-table))))
     (dolist (pair '((?. . "w")
-                    (?\s . "w")))
+                    (?\s . "w")
+                    (?\( . "w")
+                    (?\) . "w")))
       (modify-syntax-entry (car pair) (cdr pair) table))
     (set-syntax-table table))
   (setq-local char-script-table (make-char-table nil)))
