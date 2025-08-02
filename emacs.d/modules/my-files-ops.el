@@ -187,7 +187,14 @@
   :after (evil dired)
   :init
   (my/define-key
-   (:map dired-mode-map :state normal :key "TAB" #'dired-subtree-cycle)))
+   (:map dired-mode-map :state normal :key "TAB" #'dired-subtree-cycle))
+  :config
+  (my/define-key
+   (:map dired-mode-map
+         :state normal
+         :key
+         "gh" #'my/find-file-at-start-point
+         "gH" #'dired-subtree-up)))
 
 (use-package dired-filter
   :after (dired evil)
