@@ -35,10 +35,9 @@
   :type 'integer
   :group 'org-dayflow)
 
-(defcustom org-dayflow-scales '(hour day week month year)
+(defcustom org-dayflow-scales '(day week month year)
   "List of available scales in order from most detailed to most general."
-  :type '(repeat (choice (const hour)
-                         (const day)
+  :type '(repeat (choice (const day)
                          (const week)
                          (const month)
                          (const year)))
@@ -52,22 +51,16 @@
   :group 'org-dayflow)
 
 (defcustom org-dayflow-default-offsets
-  '((hour . -3)
-    (day . -7)
+  '((day . -7)
     (week . -3)
     (month . -1)
     (year . -10))
   "Default offsets from today for each scale in org-dayflow view."
-  :type '(alist :key-type (choice (const hour) (const day) (const week) (const month) (const year))
+  :type '(alist :key-type (choice (const day)
+                                  (const week)
+                                  (const month)
+                                  (const year))
                 :value-type integer)
-  :group 'org-dayflow)
-
-(defcustom org-dayflow-hour-label-ranges
-  '((6  . "morning")
-    (12 . "afternoon")
-    (17 . "evening"))
-  "Alist mapping start hour to label for hour scale."
-  :type '(alist :key-type integer :value-type string)
   :group 'org-dayflow)
 
 (defcustom org-dayflow-initial-query '((or (scheduled) (deadline) (regexp org-ts-regexp)))
@@ -292,28 +285,6 @@ START and END are (month day year) lists."
   "Set current scale and reset offset based on default."
   (setq org-dayflow--current-scale scale)
   (setq org-dayflow--current-offset (or (alist-get scale org-dayflow-default-offsets) 0)))
-
-(defun org-dayflow--hour-scale-labels (_start hours)
-  "Generate a label line for hour-scale, like 'morning   afternoon   evening'."
-  (let* ((unit-char-width (org-dayflow--unit-char-width))
-         (line (make-string (* hours unit-char-width) ?\s)))
-    (dolist (entry org-dayflow-hour-label-ranges)
-      (let* ((start (car entry))
-             (label (cdr entry))
-             (pos (* start unit-char-width)))
-        (when (< pos (length line))
-          (let ((label-str (propertize label 'face 'org-dayflow-label-face)))
-            (setq line (concat (substring line 0 pos)
-                               label-str
-                               (substring line (+ pos (length label-str)))))))))
-    line))
-
-(defun org-dayflow--hour-scale-units (_start hours)
-  "Generate a line of hour units like '00 01 02 ...'."
-  (let ((line ""))
-    (dotimes (h hours (string-trim-right line))
-      (let ((text (propertize (format org-dayflow-unit-format h) 'face 'org-dayflow-weekday-face)))
-        (setq line (concat line text))))))
 
 (defun org-dayflow--day-scale-labels (start days)
   "Generate a line of month names, shifting later months to avoid overlap."
