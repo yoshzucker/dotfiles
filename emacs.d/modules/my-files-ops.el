@@ -101,8 +101,9 @@
 	(message "Path %s does not exist" path))
        (t
 	(let ((program (car my/open-program-alist))
-              (arg-fn (cdr my/open-program-alist)))
-          (my/start-process program nil program (funcall arg-fn path)))))))
+          (arg-fn (cdr my/open-program-alist))
+          (truepath (file-truename path)))
+          (my/start-process program nil program (funcall arg-fn truepath)))))))
   
   (defun my/dired-open-file-with-system ()
     "Open file at point in dired with the system's default application."
