@@ -119,8 +119,8 @@
             (let ((dir-a (file-name-directory a))
                   (dir-b (file-name-directory b)))
               (if (string= dir-a dir-b)
-                  (string< a b)
-                (string< dir-a dir-b))))))
+                  (string> a b)
+                (string> dir-a dir-b))))))
   
   (setq consult-buffer-sources
         (mapcar
