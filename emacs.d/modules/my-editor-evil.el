@@ -39,6 +39,7 @@
          :key
          "g:" #'execute-extended-command
          "gf" #'find-file-at-point
+         "gh" #'my/find-file-at-start-point
          "zd" #'narrow-to-defun
          "zn" #'narrow-to-region
          "zw" #'widen)
@@ -135,7 +136,18 @@
                               (cdr pair)))
                       all)))
         (consult--read (mapcar #'car candidates)
-                       :require-match t)))))
+                       :require-match t))))
+
+  (defcustom my/start-point-directory "~/"
+    "Directory used as the starting point for `my/find-file-at-start-point`."
+    :type 'directory
+    :group 'my-config)
+  
+  (defun my/find-file-at-start-point ()
+    "Start `find-file` from `my/start-point-directory`."
+    (interactive)
+    (let ((default-directory (expand-file-name my/start-point-directory)))
+      (call-interactively #'find-file))))
 
 (use-package winner
   :after evil

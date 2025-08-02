@@ -34,7 +34,11 @@
     (define-key dired-mode-map (kbd key)
                 (lookup-key evil-motion-state-map (kbd key))))
   (my/define-key
-   (:map dired-mode-map :state normal :key "gf" #'find-file-at-point))
+   (:map dired-mode-map
+         :state normal
+         :key
+         "gf" #'find-file-at-point
+         "gh" #'my/find-file-at-start-point))
   
   ;; Hooks
   (my/add-hook
