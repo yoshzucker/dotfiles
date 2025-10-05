@@ -1016,7 +1016,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
   (my/define-key
    (:map global-map
          :key
-         "C-c d" #'deft)
+         "C-c n d" #'deft)
    (:map deft-mode-map
          :key
          "C-RET" #'deft-complete

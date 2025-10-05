@@ -29,6 +29,15 @@
          "C-c C-o" #'my/dired-open-file-with-system
          "C-c C-d" #'my/dired-open-dir-with-system))
 
+  (my/define-key
+   (:map dired-mode-map
+         :after evil-collection
+         :key "<mouse-2>" #'dired-find-file)
+   (:map dired-mode-map
+         :state normal
+         :after evil-collection
+         :key "<mouse-2>" #'dired-find-file))
+
   ;; Evil integration
   (dolist (key '("n" "N" "g" "G"))
     (define-key dired-mode-map (kbd key)
@@ -210,6 +219,18 @@
   :config
   (my/define-key
    (:map global-map :key "C-x C-b" #'ibuffer)))
+
+(use-package treemacs
+  :config
+  (my/define-key
+   (:map global-map :key "C-c n t" #'treemacs)
+   (:map treemacs-mode-map
+         :key
+         "<mouse-1>" #'treemacs-RET-action))
+
+  (setq treemacs-no-png-images t
+        treemacs-show-hidden-files t
+        treemacs-width 20))
 
 (provide 'my-files-ops)
 ;;; my-files-ops.el ends here

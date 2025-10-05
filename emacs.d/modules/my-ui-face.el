@@ -315,6 +315,8 @@ Example: '((primary . brightyellow))"
      (dired-subtree-depth-4-face :background 'unspecified)
      (dired-subtree-depth-5-face :background 'unspecified)
      (dired-subtree-depth-6-face :background 'unspecified))
+    (treemacs
+     (treemacs-root-face :height 'unspecified))
     (bookmark
      (bookmark-face :distant-foreground my/blue :background 'unspecified))
     (outline

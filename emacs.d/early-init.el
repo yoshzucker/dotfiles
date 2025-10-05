@@ -6,5 +6,7 @@
 ;;; Code:
 
 (setq package-enable-at-startup nil)
+(setq straight-built-in-pseudo-packages
+      '(project xref jsonrpc flymake external-completion eglot))
 
 ;;; early-init.el ends here

@@ -35,6 +35,10 @@
          :key
          (my/c-: "M-:") #'execute-extended-command
          "C-w" #'evil-window-map)
+   (:map evil-normal-state-map
+         :key
+         "C-e" #'my/pixel-scroll-line-down
+         "C-y" #'my/pixel-scroll-line-up)
    (:map evil-motion-state-map
          :key
          "g:" #'execute-extended-command
@@ -69,6 +73,25 @@
 
   (my/evil-swap-key evil-motion-state-map "j" "gj")
   (my/evil-swap-key evil-motion-state-map "k" "gk")
+
+  (defun my/line-px ()
+    "Get line height."
+    ;; Basic line height = character cell height + line spacing
+    (+ (frame-char-height) (or line-spacing 0)))
+  
+  (defun my/pixel-scroll-line-down (&optional count)
+    "Pixel-precise version of Evil's line scroll (downwards), supporting COUNT."
+    (interactive "p")
+    (let* ((n (max 1 (or count 1)))
+           (px (* n (my/line-px))))
+      (pixel-scroll-precision-scroll-down px)))
+
+  (defun my/pixel-scroll-line-up (&optional count)
+    "Pixel-precise version of Evil's line scroll (upwards), supporting COUNT."
+    (interactive "p")
+    (let* ((n (max 1 (or count 1)))
+           (px (* n (my/line-px))))
+      (pixel-scroll-precision-scroll-up px)))
 
   (evil-define-command my/evil-vim-quit (&optional force)
     "Quit buffer/window like Vim. Use FORCE for :q! or :wq!."
