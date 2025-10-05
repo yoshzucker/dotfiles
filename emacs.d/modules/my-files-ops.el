@@ -226,11 +226,24 @@
    (:map global-map :key "C-c n t" #'treemacs)
    (:map treemacs-mode-map
          :key
-         "<mouse-1>" #'treemacs-RET-action))
+         "<mouse-1>" #'treemacs-single-click-expand-action))
 
   (setq treemacs-no-png-images t
         treemacs-show-hidden-files t
-        treemacs-width 20))
+        treemacs-width 20
+        treemacs-wide-toggle-width 40)
+
+  (treemacs-follow-mode t)
+  (treemacs-filewatch-mode t)
+  (treemacs-fringe-indicator-mode 'always))
+
+(use-package treemacs-evil
+  :after treemacs evil)
+
+(use-package treemacs-tab-bar
+  :after treemacs
+  :config
+  (treemacs-set-scope-type 'Tabs))
 
 (provide 'my-files-ops)
 ;;; my-files-ops.el ends here
