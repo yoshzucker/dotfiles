@@ -15,7 +15,7 @@ CursorBlinks=no
 Font=HackGen Console NF
 FontHeight=12
 
-BoldAsFont=yes
+BoldAsFont=no
 BoldAsColour=no
 
 Locale=ja_JP
@@ -36,7 +36,7 @@ ZoomShortcuts=no
 
 # Window
 Columns=81
-Rows=39
+Rows=25
 
 Scrollbar=none
 ScrollMod=off

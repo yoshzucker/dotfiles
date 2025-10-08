@@ -26,8 +26,8 @@
     ('windows-nt
      (setq migemo-coding-system 'cp932-unix
            migemo-dictionary (expand-file-name
-                              "~/.local/bin/cmigemo/dict/cp932/migemo-dict")
-	       migemo-directory (expand-file-name "~/.local/bin/cmigemo"))))
+                              "~/.local/share/cmigemo/dict/cp932/migemo-dict")
+	       migemo-directory (expand-file-name "~/.local/share/cmigemo"))))
   
   (with-eval-after-load 'evil-search
     (setq evil-regexp-search nil)
