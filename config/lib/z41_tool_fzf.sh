@@ -60,4 +60,31 @@ elif command -v rg >/dev/null 2>&1; then
   export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
 fi
 
+fcd() {
+  local dir
+  dir=$(fd --type d --hidden --exclude .git | fzf --preview 'ls -1 --color=always {} | head -20') || return
+  cd "$dir" || return
+}
+
+fmv() {
+  local -a src
+  local dest
+
+  src=("${(@0)$(find . -mindepth 1 \( -type f -o -type d \) -print0 \
+        | fzf --read0 --print0 --multi \
+               --preview 'ls -lh --color=always {} 2>/dev/null || echo dir' \
+               --height 40%)}") || return
+
+  dest=$(find . -type d \
+        | fzf --prompt="Move to > " \
+              --preview 'ls -1 --color=always {} | head -20' \
+              --height 40%) || return
+
+  print -r -- "\nMoving:"
+  printf '  %s\n' "${src[@]}"
+  print -r -- "→ $dest\n"
+
+  mv -iv -- "${src[@]}" "$dest"
+}
+
 # --- end of z41_tool_fzf.sh ----------------------------------------------

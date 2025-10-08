@@ -17,6 +17,7 @@ FontHeight=12
 
 BoldAsFont=no
 BoldAsColour=no
+DimAsFont=no
 
 Locale=ja_JP
 Charset=UTF-8
@@ -35,8 +36,10 @@ ZoomShortcuts=no
 
 
 # Window
-Columns=81
+Columns=80
 Rows=25
+X=1815
+Y=990
 
 Scrollbar=none
 ScrollMod=off
