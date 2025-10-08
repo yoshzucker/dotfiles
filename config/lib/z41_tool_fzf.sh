@@ -39,17 +39,20 @@ unset -f __fzf_try_source
 unset __FZF_SOURCED __FZF_BASES
 
 if command -v fzf >/dev/null 2>&1; then
-  export FZF_DEFAULT_OPTS=" \
-  --no-bold \
-  --smart-case \
-  --color=bg+:${THEME_BG_HIGHLIGHT}, \
-  --color=fg+:${THEME_PRIMARY} \
-  --color=hl:${THEME_SECONDARY},hl+:${THEME_SECONDARY} \
-  --color=info:${THEME_PRIMARY},prompt:${THEME_PRIMARY} \
-  --color=pointer:${THEME_PRIMARY} \
-  --color=marker:${THEME_PRIMARY},spinner:${THEME_PRIMARY} \
-  --color=header:${THEME_PRIMARY} \
-  "
+  __fzf_opts_new=$(cat <<EOF
+--no-bold
+--smart-case
+--color=bg+:${THEME_BG_HIGHLIGHT}
+--color=fg+:${THEME_PRIMARY}
+--color=hl:${THEME_SECONDARY},hl+:${THEME_SECONDARY}
+--color=info:${THEME_PRIMARY},prompt:${THEME_PRIMARY}
+--color=pointer:${THEME_PRIMARY}
+--color=marker:${THEME_PRIMARY},spinner:${THEME_PRIMARY}
+--color=header:${THEME_PRIMARY}
+EOF
+)
+  export FZF_DEFAULT_OPTS="${FZF_DEFAULT_OPTS:+$FZF_DEFAULT_OPTS$'\n'}${__fzf_opts_new}"
+  unset __fzf_opts_new
 fi
 
 if command -v fd >/dev/null 2>&1; then
@@ -60,30 +63,56 @@ elif command -v rg >/dev/null 2>&1; then
   export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
 fi
 
+export FZF_CTRL_T_OPTS=$'--height 50%\n--preview "ls -lh --color=always {} 2>/dev/null || tree -L 1 -C {} 2>/dev/null"'
+
+typeset -ga FZF_FD_EXCLUDES=(
+  --exclude .git
+  --exclude .cache
+  --exclude .DS_Store
+  --exclude .Trash
+  --exclude .local/share/Trash
+  --exclude node_modules
+  --exclude .venv
+  --exclude __pycache__
+  --exclude AppData
+  --exclude '$Recycle.Bin'
+  --exclude 'System Volume Information'
+)
+
+command -v fd >/dev/null 2>&1 || return 0
 fcd() {
+  local start_dir="${1:-.}"
   local dir
-  dir=$(fd --type d --hidden --exclude .git | fzf --preview 'ls -1 --color=always {} | head -20') || return
-  cd "$dir" || return
+  dir=$(fd -t d --hidden --follow \
+        "${FZF_FD_EXCLUDES[@]}" '' "$start_dir" \
+          | fzf --select-1 --exit-0 \
+                --preview 'ls -1 --color=always {} | head -20' \
+                --height 40% --bind 'esc:cancel') || return
+  cd -- "$dir" || return
 }
 
 fmv() {
   local -a src
   local dest
+  local start_dir="${1:-.}"
 
-  src=("${(@0)$(find . -mindepth 1 \( -type f -o -type d \) -print0 \
-        | fzf --read0 --print0 --multi \
-               --preview 'ls -lh --color=always {} 2>/dev/null || echo dir' \
-               --height 40%)}") || return
+  src=("${(@0)$(fd -t f -t d --hidden --follow "${FZF_FD_EXCLUDES[@]}" \
+                                      --print0 '' "$start_dir" \
+      | fzf --read0 --print0 --multi --select-1 --exit-0 \
+            --preview 'ls -lh --color=always {} 2>/dev/null || echo dir' \
+            --height 40% --bind 'esc:cancel')}") || return
 
-  dest=$(find . -type d \
-        | fzf --prompt="Move to > " \
-              --preview 'ls -1 --color=always {} | head -20' \
-              --height 40%) || return
+  dest=$(fd -t d --hidden --follow "${FZF_FD_EXCLUDES[@]}" '' "$start_dir" \
+           | fzf --prompt="Move to > " \
+                 --select-1 --exit-0 \
+                 --preview 'ls -1 --color=always {} | head -20' \
+                 --height 40% --bind 'esc:cancel') || return
 
   print -r -- "\nMoving:"
   printf '  %s\n' "${src[@]}"
   print -r -- "→ $dest\n"
 
+  src=("${(@)src:#$dest}")
   mv -iv -- "${src[@]}" "$dest"
 }
 
