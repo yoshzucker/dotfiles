@@ -54,12 +54,15 @@
    (:hook dired-mode-hook
           :func 
           #'dired-hide-details-mode
+          #'dired-omit-mode
           #'my/dired-buffer-append-slash))
 
   (defun my/dired-buffer-append-slash ()
     "Append a slash to the dired buffer name for easier identification."
     (when (eq major-mode 'dired-mode)
       (rename-buffer (concat (buffer-name) "/") t)))
+
+  (setq dired-clean-up-buffers-too t)
 
   ;; Sort .. and . at top
   (defun my/dired-keep-dot-top ()
@@ -155,6 +158,15 @@
 
   (defun dired-dnd-handle-file-move (uri action)
     (dired-dnd-handle-file uri 'move))
+  
+  ;; Omit
+  (when (eq system-type 'windows-nt)
+    (setq dired-omit-files
+          (rx (or (seq bol "desktop.ini")
+                  (seq bol "My Documents")
+                  (seq bol "My Music")
+                  (seq bol "My Pictures")
+                  (seq bol "My Videos")))))
 
   ;; Rename (R) uses visible dired as default target unless given C-u
   (advice-add 'dired-do-rename :override #'my/dired-do-rename)
