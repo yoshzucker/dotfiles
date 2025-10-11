@@ -32,4 +32,16 @@ if command -v brew >/dev/null 2>&1; then
     PATH="$BREW_PREFIX/opt/findutils/libexec/gnubin:$PATH"
 fi
 
+# Automatically add Scoop shims directory if running on Windows/MSYS2
+if [ -n "$USERPROFILE" ]; then
+  _scoop_root="$(echo "$USERPROFILE" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\L\1|')/scoop"
+  _scoop_shims="$_scoop_root/shims"
+
+  if [ -d "$_scoop_shims" ]; then
+    export PATH="$_scoop_shims:$PATH"
+  fi
+
+  unset _scoop_root _scoop_shims
+fi
+
 # --- end of p03_core_path.sh ---------------------------------------------

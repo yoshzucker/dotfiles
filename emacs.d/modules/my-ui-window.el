@@ -56,7 +56,7 @@
   my/allocate-window-mode
   (lambda () (my/allocate-window-mode 1)))
 
-(my/allocate-window-global-mode 1)
+(my/allocate-window-global-mode -1)
 
 (defun my/toggle-window-split-direction ()
   "Toggle window split between horizontal and vertical when exactly two windows are open."
