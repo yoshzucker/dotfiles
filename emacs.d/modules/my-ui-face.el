@@ -259,7 +259,7 @@ Example: '((primary . brightyellow))"
      (minibuffer-prompt :force-inherit 'unspecified :foreground my/primary)
      (cursor :background my/primary))
     (faces
-     (show-paren-match :foreground my/background :background my/brightblue))
+     (show-paren-match :background my/background-near :weight 'bold))
     (tab-bar
      (tab-bar :foreground my/foreground :background my/background)
      (tab-bar-tab :foreground my/background :background my/primary :box 'unspecified)

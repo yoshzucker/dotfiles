@@ -67,6 +67,21 @@
       (tsx-mode    . tsx-ts-mode)
       (yaml-mode   . yaml-ts-mode)))
 
+  ;; Add gcc
+  (when (eq system-type 'windows-nt)
+    (let ((gcc-dir (expand-file-name "~/scoop/apps/gcc/current/bin/")))
+      (when (file-exists-p (expand-file-name "gcc.exe" gcc-dir))
+        (add-to-list 'exec-path gcc-dir)
+        (setenv "PATH" (concat gcc-dir ";" (getenv "PATH")))))
+
+    ;; kill treesit remaps for these modes (Emacs 30.2)
+    (dolist (src '(bash c cpp javascript python))
+      (setq treesit-language-source-alist
+            (assq-delete-all src treesit-language-source-alist)))
+    (dolist (src '(sh-mode c-mode c++-mode js-mode python-mode))
+      (setq major-mode-remap-alist
+            (assq-delete-all src major-mode-remap-alist))))
+
   ;; Install grammars if not already available
   (dolist (lang (mapcar #'car treesit-language-source-alist))
     (unless (treesit-language-available-p lang)
