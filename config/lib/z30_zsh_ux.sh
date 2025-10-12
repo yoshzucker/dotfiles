@@ -21,6 +21,7 @@ setopt interactive_comments  # allow # comments in interactive shell
 
 # ----- completion -----
 autoload -Uz compinit && compinit
+zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
 
 # ----- prompt -----
 PROMPT="%{%F{${THEME_SECONDARY}}%}%n@%m %# %{%f%}"
@@ -47,6 +48,5 @@ bindkey '^h' backward-word
 bindkey '^l' forward-word
 bindkey '^f' backward-char
 bindkey '^b' forward-char
-
 
 # --- end of z30_zsh_ux.sh ------------------------------------------------
