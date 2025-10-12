@@ -39,14 +39,15 @@ wp() {
   print -r -- "$wpath"
 }
 
-if command -v cmd.exe >/dev/null 2>&1 && [[ "${DISTRIBUTION:-}" == "msys2" ]]; then
+if command -v powershell.exe >/dev/null 2>&1 && [[ "${DISTRIBUTION:-}" == "msys2" ]]; then
   open() {
     local p; p="$(wp "${1:-.}")"
     if [[ -z "$p" ]]; then
       print -u2 -- "open: not found or inaccessible: ${1:-.}"
       return 1
     fi
-    cmd.exe /C start "" "$p" >/dev/null 2>&1
+
+    powershell.exe -NoProfile -Command "Start-Process $p"
   }
 fi
 

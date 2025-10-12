@@ -19,8 +19,11 @@ setopt auto_pushd            # cd dir1 -> dir2 -> pushd stack
 setopt auto_cd               # typing a dir name = cd
 setopt interactive_comments  # allow # comments in interactive shell
 
+# ----- compinit -----
+autoload -Uz compinit
+compinit -C -d ~/.zcompdump-$HOST # rebuild -> compinit -u -d ~/.zcompdump-$HOST
+
 # ----- completion -----
-autoload -Uz compinit && compinit
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
 
 # ----- prompt -----
