@@ -2,7 +2,7 @@
 # Detect OS, distribution, platform, and terminal type.
 # Sets environment variables:
 #   - os:           darwin | linux
-#   - distribution: darwin | ubuntu | debian | ...
+#   - distribution: darwin | ubuntu | debian | msys2 | ...
 #   - platform:     native | wsl1 | wsl2
 #   - term_type:    ansi | iterm
 
