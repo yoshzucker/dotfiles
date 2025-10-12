@@ -46,6 +46,12 @@
         '(read-only t cursor-intangible t face minibuffer-prompt))
   (add-hook 'minibuffer-setup-hook #'cursor-intangible-mode)
   
+  ;; When opening a minibuffer, move cursor to end of input."
+  (defun my/cursor-to-eol ()
+    (when (minibufferp)
+      (end-of-line)))
+  (add-hook 'minibuffer-setup-hook #'my/cursor-to-eol)
+
   ;; Enable recursive minibuffers
   (setq enable-recursive-minibuffers t))
 
@@ -203,7 +209,17 @@ With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_arc
 
   (let* ((ext (if archivep "\\.org\\(_archive\\)?$" "\\.org$"))
          (files (directory-files-recursively org-directory ext)))
-    (consult-org-heading nil files))))
+    (consult-org-heading nil files)))
+
+  (when (eq system-type 'windows-nt)
+    (dolist (pat '("desktop.ini"
+                   "NTUSER"
+                   "Thumbs.db"
+                   "My Documents"
+                   "My Music"
+                   "My Pictures"
+                   "My Videos"))
+      (add-to-list 'completion-ignored-extensions pat))))
 
 (use-package marginalia
   :config

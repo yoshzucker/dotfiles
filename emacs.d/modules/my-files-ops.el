@@ -54,7 +54,6 @@
    (:hook dired-mode-hook
           :func 
           #'dired-hide-details-mode
-          #'dired-omit-mode
           #'my/dired-buffer-append-slash))
 
   (defun my/dired-buffer-append-slash ()
@@ -163,10 +162,14 @@
   (when (eq system-type 'windows-nt)
     (setq dired-omit-files
           (rx (or (seq bol "desktop.ini")
+                  (seq bol "NTUSER" (* any) eol)
+                  (seq bol "Thumbs.db")
                   (seq bol "My Documents")
                   (seq bol "My Music")
                   (seq bol "My Pictures")
-                  (seq bol "My Videos")))))
+                  (seq bol "My Videos"))))
+
+    (my/add-hook (:hook dired-mode-hook :func #'dired-omit-mode)))
 
   ;; Rename (R) uses visible dired as default target unless given C-u
   (advice-add 'dired-do-rename :override #'my/dired-do-rename)
