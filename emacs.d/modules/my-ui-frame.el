@@ -4,35 +4,55 @@
 
 ;;; Code:
 
+(defgroup my/frame nil
+  "Custom frame configuration."
+  :group 'appearance
+  :prefix "my/frame-")
+
+(defcustom my/frame-size-list
+  '((81 . 36)
+    (163 . 36))
+  "List of (WIDTH . HEIGHT) frame sizes to cycle through.
+Each element is a cons cell (WIDTH . HEIGHT)."
+  :type '(repeat (cons (integer :tag "Width")
+                       (integer :tag "Height")))
+  :group 'my/frame)
+
+(defcustom my/frame-default-alist
+  '((top . 100) (left . 400)
+    (left-fringe . nil) (right-fringe . nil)
+    (menu-bar-lines . nil) (tool-bar-lines . nil)
+    (vertical-scroll-bars . nil)
+    (alpha . (0.96 0.96))
+    (ns-transparent-titlebar . t)
+    (ns-appearance . dark))
+  "Default frame parameters applied to new frames.
+Used by `my/frame-apply-default-alist`."
+  :type '(alist :key-type symbol :value-type sexp)
+  :group 'my/frame)
+
+(defcustom my/frame-base-side 'center
+  "Which side to base when adjusting frame position after resizing.
+Used by `my/frame-cycle-size`."
+  :type '(choice (const left) (const center) (const right))
+  :group 'my/frame)
+
+(defvar my/frame-current-size-index 0
+  "Current index in `my/frame-size-list`.")
+
 (defun my/frame-apply-default-alist ()
-  "Set default frame appearance for new frames."
-  (setq default-frame-alist
-        '((top . 100) (left . 400) (width . 81) (height . 38)
-          (left-fringe . nil) (right-fringe . nil)
-          (menu-bar-lines . nil) (tool-bar-lines . nil)
-          (vertical-scroll-bars . nil)
-          (alpha . (0.96 0.96))
-          (ns-transparent-titlebar . t)
-          (ns-appearance . dark))))
+  "Apply `my/frame-default-alist` to `default-frame-alist`."
+  (let ((size (car my/frame-size-list)))
+    (setq default-frame-alist
+          (append (list (cons 'width (car size))
+                        (cons 'height (cdr size)))
+                  my/frame-default-alist))))
 
 (defun my/frame-set-title ()
   "Set the frame title and disable menu and tool bars."
   (setq frame-title-format "Emacs %f")
   (menu-bar-mode -1)
   (tool-bar-mode -1))
-
-(defvar my/frame-size-list
-  '((81 . 38)
-    (163 . 38))
-  "List of (width . height) frame sizes to cycle through.")
-
-(defvar my/frame-current-size-index 0
-  "Current index in `my/frame-size-list`.")
-
-(defcustom my/frame-base-side 'center
-  "Which side to base when adjusting frame position after resizing.
-Used by `my/frame-cycle-size`."
-  :type '(choice (const left) (const center) (const right)))
 
 (defun my/cycle-frame-size ()
   "Cycle to the next frame size and reposition the frame accordingly."

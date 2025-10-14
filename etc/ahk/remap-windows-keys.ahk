@@ -29,13 +29,15 @@ sc070::Run("C:\Windows\System32\IME\IMEJP\IMJPDCT.exe")
 +WheelUp::Send("{WheelLeft}")
 +WheelDown::Send("{WheelRight}")
 
-;; --- Cursor movement (Ctrl + Shift + hjkl) -------------------
-^+h::Send("{Left}")
-^+j::Send("{Down}")
-^+k::Send("{Up}")
-^+l::Send("{Right}")
-
-;; --- Window operation (Alt + Ctrl + w = Alt+F4) --------------
+;; --- Cursor movement -----------------------------------------
+#HotIf !WinActive("ahk_exe emacs.exe") && !WinActive("ahk_exe mintty.exe")
+^h::Send("{Left}")
+^j::Send("{Down}")
+^k::Send("{Up}")
+^l::Send("{Right}")
+#HotIf
+ 
+;; --- Window operation ----------------------------------------
 ^!w::Send("!{F4}")
 
 ;; --- Emacs Evil mode ESC handling (ESC or Ctrl-[) ------------

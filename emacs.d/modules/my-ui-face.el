@@ -235,7 +235,7 @@ Example: '((primary . brightyellow))"
 
 (defcustom my/font-height
   (if (eq system-type 'darwin)
-      150
+      140
     120)
   "Default font height."
   :type 'integer
