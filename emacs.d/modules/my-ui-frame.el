@@ -33,7 +33,7 @@ Used by `my/frame-apply-default-alist`."
 
 (defcustom my/frame-base-side 'center
   "Which side to base when adjusting frame position after resizing.
-Used by `my/frame-cycle-size`."
+Used by `my/cycle-frame-size`."
   :type '(choice (const left) (const center) (const right))
   :group 'my/frame)
 
