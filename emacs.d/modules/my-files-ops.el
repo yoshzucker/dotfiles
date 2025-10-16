@@ -248,8 +248,8 @@
         treemacs-width 20
         treemacs-wide-toggle-width 40)
 
-  (treemacs-follow-mode t)
-  (treemacs-filewatch-mode t)
+  (treemacs-follow-mode -1)
+  (treemacs-filewatch-mode -1)
   (treemacs-fringe-indicator-mode 'always))
 
 (use-package treemacs-evil
