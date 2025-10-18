@@ -66,7 +66,8 @@ Used by `my/cycle-frame-size`."
        :after evil
        :key
        "e" #'my/cycle-frame-size
-       "m" #'toggle-frame-maximized))
+       "m" #'toggle-frame-maximized
+       "RET" #'iconify-frame))
 
 (defun my/frame-next-size ()
   "Advance to the next frame size and return it."

@@ -31,10 +31,10 @@ sc070::Run("C:\Windows\System32\IME\IMEJP\IMJPDCT.exe")
  
 ;; --- Cursor movement -----------------------------------------
 #HotIf !WinActive("ahk_exe emacs.exe") && !WinActive("ahk_exe mintty.exe")
-^h::Send("{Left}")
+;; ^h::Send("{Left}")
 ^j::Send("{Down}")
 ^k::Send("{Up}")
-^l::Send("{Right}")
+;; ^l::Send("{Right}")
 #HotIf
  
 ;; --- Window operation ----------------------------------------
@@ -52,6 +52,21 @@ ESC::Send("{ESC}{vk1Dsc07B}")
 #HotIf
  
 ;; --- Quake ---------------------------------------------------
+^Space:: {
+  win := "ahk_exe emacs.exe"
+ 
+  if WinExist(win) {
+    if WinActive(win) {
+      WinSetBottom(win)
+    } else {
+      WinRestore(win)
+      WinActivate(win)
+    }
+  } else {
+    Run("runemacs.exe")
+  }
+}
+
 #@:: {
   win := "ahk_exe emacs.exe"
  
