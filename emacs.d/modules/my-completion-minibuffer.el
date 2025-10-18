@@ -82,8 +82,9 @@
 
     (orderless-define-completion-style my/orderless-migemo-dot
       (orderless-matching-styles
-       '(orderless-literal orderless-regexp my/orderless-migemo-matcher))
-      (orderless-style-dispatchers '(my/orderless-dot-dispatcher)))
+       '(orderless-regexp my/orderless-migemo-matcher))
+      (orderless-style-dispatchers
+       '(my/orderless-dot-dispatcher)))
 
     (dolist (entry
              '((file             (styles my/orderless-migemo-dot))
@@ -118,26 +119,7 @@
 
   (consult-customize consult-buffer :preview-key '(:debounce 0.5 any))
 
-  (defun my/sort-recentf-by-directory ()
-    "Return recentf-list sorted by directory and filename."
-    (sort (copy-sequence recentf-list)
-          (lambda (a b)
-            (let ((dir-a (file-name-directory a))
-                  (dir-b (file-name-directory b)))
-              (if (string= dir-a dir-b)
-                  (string> a b)
-                (string> dir-a dir-b))))))
-  
-  (setq consult-buffer-sources
-        (mapcar
-         (lambda (src)
-           (let* ((resolved (if (symbolp src) (symbol-value src) src))
-                  (copied (copy-sequence resolved)))
-             (if (eq resolved consult--source-recent-file)
-                 (plist-put copied :items #'my/sort-recentf-by-directory)
-               src)))
-         consult-buffer-sources))
-
+  ;; Switch to file-file from consult-buffer
   (defun my/sanitize-ascii-japanese (s)
     "Remove unprintable characters, keeping ASCII, Latin, Japanese kana/kanji and symbols."
     (replace-regexp-in-string
@@ -186,6 +168,34 @@
   
   (add-hook 'minibuffer-setup-hook #'my/enable-consult-buffer-mode)
 
+  ;; Sorting recentf
+  (defun my/sort-recentf-by-directory ()
+    "Return recentf-list sorted by directory and filename."
+    (sort (copy-sequence recentf-list)
+          (lambda (a b)
+            (let ((a-dir? (file-directory-p a))
+                  (b-dir? (file-directory-p b))
+                  (dir-a (file-name-directory a))
+                  (dir-b (file-name-directory b)))
+              (cond
+               ((and a-dir? (not b-dir?)) t)
+               ((and b-dir? (not a-dir?)) nil)
+               ((string= dir-a dir-b)
+                (string< (file-name-nondirectory a)
+                         (file-name-nondirectory b)))
+               (t (string< dir-a dir-b)))))))
+
+  (setq consult-buffer-sources
+        (mapcar
+         (lambda (src)
+           (let* ((resolved (if (symbolp src) (symbol-value src) src))
+                  (copied (copy-sequence resolved)))
+             (if (eq resolved consult--source-recent-file)
+                 (plist-put copied :items #'my/sort-recentf-by-directory)
+               src)))
+         consult-buffer-sources))
+
+  ;; Xref
   (defun my/toggle-xref-show-destination (&optional arg)
     "Toggle between `consult' and default xref UI for displaying results."
     (interactive)
@@ -200,25 +210,27 @@
   ;; Default to consult-based xref display
   (my/toggle-xref-show-destination 1)
 
+  ;; Org
   (defun my/consult-org-headings-all (&optional archivep)
     "Consult all headings under `org-directory`.
 With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_archive files."
-  (interactive "P")
-  (unless (and org-directory (file-directory-p org-directory))
-    (user-error "Please set a valid `org-directory`"))
+    (interactive "P")
+    (unless (and org-directory (file-directory-p org-directory))
+      (user-error "Please set a valid `org-directory`"))
 
-  (let* ((ext (if archivep "\\.org\\(_archive\\)?$" "\\.org$"))
-         (files (directory-files-recursively org-directory ext)))
-    (consult-org-heading nil files)))
+    (let* ((ext (if archivep "\\.org\\(_archive\\)?$" "\\.org$"))
+           (files (directory-files-recursively org-directory ext)))
+      (consult-org-heading nil files)))
 
+  ;; Omit completion candidates
   (when (eq system-type 'windows-nt)
     (dolist (pat '("desktop.ini"
-                   "NTUSER"
+                   "NTUSER.DAT"
                    "Thumbs.db"
-                   "My Documents"
-                   "My Music"
-                   "My Pictures"
-                   "My Videos"))
+                   "My Documents/"
+                   "My Music/"
+                   "My Pictures/"
+                   "My Videos/"))
       (add-to-list 'completion-ignored-extensions pat))))
 
 (use-package marginalia
