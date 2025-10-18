@@ -111,6 +111,7 @@
          "gs" #'consult-buffer
          "g[" #'my/consult-org-headings-all
          "g]" #'consult-imenu
+         "g." #'consult-fd
          "g/" #'consult-ripgrep)
    (:map org-mode-map
          :state motion
