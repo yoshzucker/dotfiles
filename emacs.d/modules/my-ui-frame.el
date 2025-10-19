@@ -3,6 +3,7 @@
 ;; This module defines frame appearance, title, and dynamic resizing behavior.
 
 ;;; Code:
+(require 'cl-lib)
 
 (defgroup my/frame nil
   "Custom frame configuration."
@@ -37,6 +38,11 @@ Used by `my/cycle-frame-size`."
   :type '(choice (const left) (const center) (const right))
   :group 'my/frame)
 
+(defcustom my/frame-sidebar-width 21
+  "Columns to grow/shrink the frame when opening/closing sidecars."
+  :type 'integer
+  :group 'my/frame)
+
 (defvar my/frame-current-size-index 0
   "Current index in `my/frame-size-list`.")
 
@@ -54,27 +60,24 @@ Used by `my/cycle-frame-size`."
   (menu-bar-mode -1)
   (tool-bar-mode -1))
 
-(defun my/cycle-frame-size ()
-  "Cycle to the next frame size and reposition the frame accordingly."
-  (interactive)
-  (let* ((next-size (my/frame-next-size))
+(defun my/cycle-frame-size (&optional index)
+  "Cycle to the next frame size, or jump to INDEX if given.
+INDEX is 1-based (1 = first entry in `my/frame-size-list`)."
+  (interactive
+   (list (when current-prefix-arg
+           (prefix-numeric-value current-prefix-arg))))
+  (let* ((next-size
+          (cond
+           (index
+            (setq my/frame-current-size-index (1- index))
+            (nth my/frame-current-size-index my/frame-size-list))
+           (t
+            (setq my/frame-current-size-index
+                  (mod (1+ my/frame-current-size-index)
+                       (length my/frame-size-list)))
+            (nth my/frame-current-size-index my/frame-size-list))))
          (new-pos (my/frame-new-position next-size)))
     (my/frame-apply-size-and-position next-size new-pos)))
-
-(my/define-key
- (:map evil-window-map
-       :after evil
-       :key
-       "e" #'my/cycle-frame-size
-       "m" #'toggle-frame-maximized
-       "RET" #'iconify-frame))
-
-(defun my/frame-next-size ()
-  "Advance to the next frame size and return it."
-  (setq my/frame-current-size-index
-        (mod (1+ my/frame-current-size-index)
-             (length my/frame-size-list)))
-  (nth my/frame-current-size-index my/frame-size-list))
 
 (defun my/frame-new-position (next-size)
   "Calculate the new position for NEXT-SIZE to keep it aligned with `my/frame-base-side`."
@@ -108,6 +111,35 @@ Used by `my/cycle-frame-size`."
   (my/frame-set-title))
 
 (my/frame-setup)
+
+(my/define-key
+ (:map evil-window-map
+       :after evil
+       :key
+       "e" #'my/cycle-frame-size
+       "m" #'toggle-frame-maximized
+       "RET" #'iconify-frame))
+
+(defun my/frame-sidebar-adjust (delta)
+  "Adjust current frame width by DELTA columns, keeping base side alignment."
+  (let* ((fw (frame-width))
+         (fh (frame-height))
+         (next (cons (+ fw delta) fh))
+         (pos  (my/frame-new-position next)))
+    (my/frame-apply-size-and-position next pos)))
+
+(defun my/sidebar--tags ()
+  (or (frame-parameter nil 'my/sidecar-tags) '()))
+
+(defun my/sidebar--mark (tag)
+  (set-frame-parameter nil 'my/sidecar-tags (cons tag (my/sidebar--tags))))
+
+(defun my/sidebar--unmark (tag)
+  (set-frame-parameter nil 'my/sidecar-tags
+                       (cl-remove tag (my/sidebar--tags) :test #'eq)))
+
+(defun my/sidebar--marked-p (tag)
+  (cl-member tag (my/sidebar--tags) :test #'eq))
 
 (provide 'my-ui-frame)
 ;;; my-ui-frame.el ends here

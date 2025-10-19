@@ -255,7 +255,8 @@ Example: '((primary . brightyellow))"
      (mode-line-inactive :force-inherit 'unspecified
                          :foreground my/primary :background my/background-near)
      (mode-line-buffer-id :force-inherit 'unspecified)
-     (header-line :foreground my/background :background my/primary)
+     (header-line :foreground my/primary :background my/background-far
+                  :weight 'unspecified)
      (minibuffer-prompt :force-inherit 'unspecified :foreground my/primary)
      (cursor :background my/primary))
     (faces

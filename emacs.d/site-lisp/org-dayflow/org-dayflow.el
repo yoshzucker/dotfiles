@@ -96,6 +96,13 @@ Keys ending in `-done` are used for completed tasks."
   :type '(alist :key-type (symbol) :value-type face)
   :group 'org-dayflow)
 
+(defcustom org-dayflow-high-density nil
+  "If non-nil, render with less vertical padding:
+- no blank line after the query line
+- no blank line between histogram and titles."
+  :type 'boolean
+  :group 'org-dayflow)
+
 (defface org-dayflow-query-face
   '((t (:inherit font-lock-comment-face)))
   "Face for displaying the current query in Org Dayflow."
@@ -821,11 +828,11 @@ Display MESSAGE along with the timestamp."
                        (prin1-to-string (or org-dayflow--current-query
                                             org-dayflow-initial-query)))
                'face 'org-dayflow-query-face))
-      (insert "\n\n")
+      (insert (if org-dayflow-high-density "\n" "\n\n"))
       (dolist (line label-lines)
         (insert line "\n"))
       (org-dayflow--insert-histogram tasks start units unit-char-width)
-      (insert "\n")
+      (unless org-dayflow-high-density (insert "\n"))
       (dolist (task tasks)
         (let ((offset (org-dayflow--title-position task start units)))
           (when offset

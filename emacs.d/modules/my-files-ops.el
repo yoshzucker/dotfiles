@@ -238,19 +238,45 @@
 (use-package treemacs
   :config
   (my/define-key
-   (:map global-map :key "C-c n t" #'treemacs)
+   (:map global-map :key "C-c n t" #'my/toggle-treemacs-sidebar)
    (:map treemacs-mode-map
          :key
          "<mouse-1>" #'treemacs-single-click-expand-action))
 
   (setq treemacs-no-png-images t
         treemacs-show-hidden-files t
+        treemacs-position 'right
         treemacs-width 20
         treemacs-wide-toggle-width 40)
 
   (treemacs-follow-mode -1)
   (treemacs-filewatch-mode -1)
-  (treemacs-fringe-indicator-mode 'always))
+  (treemacs-fringe-indicator-mode 'always)
+
+  (defun my/treemacs-sidebar-open ()
+    (interactive)
+    (unless (my/sidebar--marked-p 'treemacs)
+      (my/frame-sidebar-adjust my/frame-sidebar-width)
+      (my/sidebar--mark 'treemacs))
+    (when (require 'treemacs nil 'noerror)
+      (unless (eq (treemacs-current-visibility) 'visible)
+        (treemacs))))
+  
+  (defun my/treemacs-sidebar-close ()
+    (interactive)
+    (when (fboundp 'treemacs)
+      (when (eq (treemacs-current-visibility) 'visible)
+        (treemacs))) ; トグルで消す
+    (when (my/sidebar--marked-p 'treemacs)
+      (my/frame-sidebar-adjust (- my/frame-sidebar-width))
+      (my/sidebar--unmark 'treemacs)))
+  
+  (defun my/toggle-treemacs-sidebar ()
+    (interactive)
+    (if (and (fboundp 'treemacs)
+             (eq (treemacs-current-visibility) 'visible))
+        (my/treemacs-sidebar-close)
+      (my/treemacs-sidebar-open))))
 
 (use-package treemacs-evil
   :after treemacs evil)

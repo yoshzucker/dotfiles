@@ -4,6 +4,7 @@
 ;; Provides commands for tab creation, navigation, and buffer opening in new tabs.
 
 ;;; Code:
+(require 'cl-lib)
 
 (use-package tab-bar
   :after evil
@@ -110,7 +111,24 @@
   (evil-ex-define-cmd "tabN[ext]" #'my/evil-tab-previous)
   (evil-ex-define-cmd "tabfir[st]" #'my/evil-tab-first)
   (evil-ex-define-cmd "tabl[ast]" #'my/evil-tab-last)
-  (evil-ex-define-cmd "q[uit]" #'my/evil-quit))
+  (evil-ex-define-cmd "q[uit]" #'my/evil-quit)
+
+  (defun my/tab-close (name)
+    "Close the tab named NAME if it exists (buffers are preserved)."
+    (cl-loop for tab in (tab-bar-tabs)
+             for idx from 1
+             when (string= (alist-get 'name tab) name)
+             do (tab-bar-close-tab idx) and return t
+             finally return nil))
+
+  (defun my/tab-switch-or-create (name)
+    (let* ((tabs (tab-bar-tabs))
+           (found (cl-loop for tab in tabs
+                           when (string= (alist-get 'name tab) name)
+                           return tab)))
+      (if found (tab-bar-switch-to-tab name)
+        (tab-bar-new-tab)
+        (tab-bar-rename-tab name)))))
 
 (use-package tabspaces
   :after consult
