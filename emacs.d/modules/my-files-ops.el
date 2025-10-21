@@ -255,9 +255,6 @@
 
   (defun my/treemacs-sidebar-open ()
     (interactive)
-    (unless (my/sidebar--marked-p 'treemacs)
-      (my/frame-sidebar-adjust my/frame-sidebar-width)
-      (my/sidebar--mark 'treemacs))
     (when (require 'treemacs nil 'noerror)
       (unless (eq (treemacs-current-visibility) 'visible)
         (treemacs))))
@@ -266,10 +263,7 @@
     (interactive)
     (when (fboundp 'treemacs)
       (when (eq (treemacs-current-visibility) 'visible)
-        (treemacs))) ; トグルで消す
-    (when (my/sidebar--marked-p 'treemacs)
-      (my/frame-sidebar-adjust (- my/frame-sidebar-width))
-      (my/sidebar--unmark 'treemacs)))
+        (treemacs))))
   
   (defun my/toggle-treemacs-sidebar ()
     (interactive)

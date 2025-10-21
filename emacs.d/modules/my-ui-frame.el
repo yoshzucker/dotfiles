@@ -38,11 +38,6 @@ Used by `my/cycle-frame-size`."
   :type '(choice (const left) (const center) (const right))
   :group 'my/frame)
 
-(defcustom my/frame-sidebar-width 21
-  "Columns to grow/shrink the frame when opening/closing sidecars."
-  :type 'integer
-  :group 'my/frame)
-
 (defvar my/frame-current-size-index 0
   "Current index in `my/frame-size-list`.")
 
@@ -105,6 +100,52 @@ INDEX is 1-based (1 = first entry in `my/frame-size-list`)."
                       cmd)))
       (send-string-to-terminal wrapped))))
 
+(defun my/frame-sidebar-adjust (delta)
+  "Adjust current frame width by DELTA columns, keeping base side alignment."
+  (let* ((fw (frame-width))
+         (fh (frame-height))
+         (next (cons (+ fw delta) fh))
+         (pos  (my/frame-new-position next)))
+    (my/frame-apply-size-and-position next pos)))
+
+(defvar my/sidebar--in-adjust nil
+  "Reentrancy guard for auto sidecar width adjustment.")
+
+(defun my/sidebar--applied-width ()
+  (or (frame-parameter nil 'my/sidecar-comp-width-applied) 0))
+
+(defun my/sidebar--set-applied-width (cols)
+  (set-frame-parameter nil 'my/sidecar-comp-width-applied cols))
+
+(defun my/sidebar--clear-applied-width (&rest _)
+  "Invalidate the currently applied sidebar width so the next frame size change."
+  (my/sidebar--set-applied-width 0))
+
+(defun my/sidebar--compute-desired-width ()
+  "Return the total number of columns occupied by all active side windows — the sum of each side’s maximum width plus one."
+  (let ((left 0) (right 0))
+    (dolist (w (window-list nil 'nomini))
+      (pcase (window-parameter w 'window-side)
+        ('left  (setq left  (max left  (window-total-width w t))))
+        ('right (setq right (max right (window-total-width w t))))))
+    (+ (if (> left 0)  (1+ left)  0)
+       (if (> right 0) (1+ right) 0))))
+
+(defun my/sidebar--auto-adjust (&rest _)
+  "Automatically adjust the frame width to match the current side window configuration."
+  (unless my/sidebar--in-adjust
+    (let* ((desired (my/sidebar--compute-desired-width))
+           (applied (my/sidebar--applied-width))
+           (delta   (- desired applied)))
+      (when (/= delta 0)
+        (let ((my/sidebar--in-adjust t))
+          (my/frame-sidebar-adjust delta)
+          (my/sidebar--set-applied-width desired))))))
+
+(add-hook 'window-configuration-change-hook #'my/sidebar--auto-adjust)
+(advice-add 'my/cycle-frame-size :before #'my/sidebar--clear-applied-width)
+(advice-add 'my/cycle-frame-size :after #'my/sidebar--auto-adjust)
+
 (defun my/frame-setup ()
   "Initialize frame configuration and title."
   (my/frame-apply-default-alist)
@@ -119,27 +160,6 @@ INDEX is 1-based (1 = first entry in `my/frame-size-list`)."
        "e" #'my/cycle-frame-size
        "m" #'toggle-frame-maximized
        "RET" #'iconify-frame))
-
-(defun my/frame-sidebar-adjust (delta)
-  "Adjust current frame width by DELTA columns, keeping base side alignment."
-  (let* ((fw (frame-width))
-         (fh (frame-height))
-         (next (cons (+ fw delta) fh))
-         (pos  (my/frame-new-position next)))
-    (my/frame-apply-size-and-position next pos)))
-
-(defun my/sidebar--tags ()
-  (or (frame-parameter nil 'my/sidecar-tags) '()))
-
-(defun my/sidebar--mark (tag)
-  (set-frame-parameter nil 'my/sidecar-tags (cons tag (my/sidebar--tags))))
-
-(defun my/sidebar--unmark (tag)
-  (set-frame-parameter nil 'my/sidecar-tags
-                       (cl-remove tag (my/sidebar--tags) :test #'eq)))
-
-(defun my/sidebar--marked-p (tag)
-  (cl-member tag (my/sidebar--tags) :test #'eq))
 
 (provide 'my-ui-frame)
 ;;; my-ui-frame.el ends here

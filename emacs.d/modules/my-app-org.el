@@ -1138,22 +1138,22 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
         (re-search-forward str nil t)))
     (advice-add 'deft-search-forward :override #'my/deft-search-forward-migemo))
 
+  (defcustom my/deft-sidebar-width 20
+    "Default width (in columns) of the Deft sidebar window."
+    :type 'integer)
+
   (defun my/deft-sidebar-open ()
     "Open Deft in a left side window; widen frame if not already."
     (interactive)
-    (unless (my/sidebar--marked-p 'deft)
-      (my/frame-sidebar-adjust my/frame-sidebar-width)
-      (my/sidebar--mark 'deft))
     (save-window-excursion (deft))
     (when-let ((buf (get-buffer "*Deft*")))
-      (let* ((wid (1- my/frame-sidebar-width))
-             (win (display-buffer
-                   buf `((display-buffer-in-side-window)
-                         (side . left)
-                         (slot . 0)
-                         (window-width . ,wid)
-                         (window-parameters . ((no-delete-other-windows . t)
-                                               (window-size-fixed . width)))))))
+      (let ((win (display-buffer
+                  buf `((display-buffer-in-side-window)
+                        (side . left)
+                        (slot . 0)
+                        (window-width . ,my/deft-sidebar-width)
+                        (window-parameters . ((no-delete-other-windows . t)
+                                              (window-size-fixed . width)))))))
         (with-current-buffer buf
           (setq-local deft-time-format "")
           (setq-local deft-time-width 0)
@@ -1161,7 +1161,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
         (when (window-live-p win)
           (set-window-dedicated-p win t)
           (set-window-parameter win 'window-size-fixed 'width)
-          (window-preserve-size win t wid)
+          (window-preserve-size win t my/deft-sidebar-width)
           (select-window win)))))
 
   (defun my/deft-sidebar-close ()
@@ -1172,10 +1172,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
       (when side
         (set-window-parameter win 'no-delete-other-windows nil)
         (set-window-dedicated-p win nil)
-        (ignore-errors (delete-window win))))
-    (when (my/sidebar--marked-p 'deft)
-      (my/frame-sidebar-adjust (- my/frame-sidebar-width))
-      (my/sidebar--unmark 'deft)))
+        (ignore-errors (delete-window win)))))
 
   (defun my/toggle-deft-sidebar ()
     "Toggle Deft sidebar, adjusting frame width accordingly."
