@@ -1183,7 +1183,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
 
 (use-package org-dayflow
   :straight nil
-  :after org
+  :after (org evil)
   :load-path "site-lisp/org-dayflow"
   :config
   (dolist (key '("z" "g" "/" "n" "N" ":"))
@@ -1195,8 +1195,10 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
          :key
          "C-c f" #'org-dayflow))
 
-  (with-eval-after-load 'evil
-    (evil-set-initial-state 'org-dayflow-mode 'emacs)))
+  (evil-set-initial-state 'org-dayflow-mode 'emacs)
+  (add-hook 'org-dayflow-mode-hook
+            (lambda ()
+              (my/evil-ex-define-cmd-local "w[rite]" #'org-save-all-org-buffers))))
 
 (provide 'my-app-org)
 ;;; my-app-org.el ends here
