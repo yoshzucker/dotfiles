@@ -54,12 +54,11 @@ ESC::Send("{ESC}{vk1Dsc07B}")
 ;; --- Quake ---------------------------------------------------
 ^Space:: {
   win := "ahk_exe emacs.exe"
- 
   if WinExist(win) {
     if WinActive(win) {
-      WinSetBottom(win)
+      WinMoveBottom(win)
+      Send("!{Tab}")
     } else {
-      WinRestore(win)
       WinActivate(win)
     }
   } else {
