@@ -68,6 +68,18 @@ if [ ! -f "$KEYWORDS_FILE" ]; then
 fi
 
 echo "🔍 Scanning for sensitive keywords listed in $KEYWORDS_FILE"
+TARGETS=("$@")
+if [[ ${#TARGETS[@]} -eq 0 ]]; then
+  TARGETS=(".")
+fi
+
+GREP_BASE=(grep -RniI --color=always -i
+           --exclude-dir=.git --exclude-dir=.hg --exclude-dir=.svn
+           --exclude-dir=node_modules --exclude-dir=.venv --exclude-dir=.idea
+           --exclude-dir=.direnv
+           --exclude='*.min.js' --exclude='*.lock' --exclude='*.png'
+           --exclude='*.jpg' --exclude='*.gif')
+
 
 found=0
 
@@ -86,14 +98,14 @@ done < "$KEYWORDS_FILE"
 
 # Scan for warn-only keywords
 for keyword in "${warn_keywords[@]}"; do
-  if grep -rni --color=always -i "$keyword" .; then
+  if "${GREP_BASE[@]}" -e "$keyword" "${TARGETS[@]}"; then
     echo "⚠️  Warn-only match: $keyword"
   fi
 done
 
 # Scan for blocking keywords
 for keyword in "${mandatory_keywords[@]}"; do
-  if grep -rni --color=always -i "$keyword" .; then
+  if "${GREP_BASE[@]}" -e "$keyword" "${TARGETS[@]}"; then
     echo "❌ Blocked match: $keyword"
     found=1
   fi

@@ -42,8 +42,8 @@ fi
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cd "$REPO_ROOT"
 
-echo "🔒 Running leakseek..."
-if ! leakseek; then
+echo "🔒 Running leakseek on tracked files (no .git)..."
+if ! git ls-files -z | xargs -0 leakseek; then
   echo "❌ leakseek failed. Commit aborted."
   exit 1
 fi
