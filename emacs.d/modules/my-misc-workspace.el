@@ -18,26 +18,10 @@
   (my/tab-close my/workspace-tab-name)
   (my/tab-switch-or-create my/workspace-tab-name)
 
-  ;; Dayflow (below selected), scoped via let-bound display rules
+  ;; Dayflow
   (when (require 'org-dayflow nil 'noerror)
-    (let ((display-buffer-alist
-           (append
-            '(("\\*Org Dayflow.*\\*"
-               (display-buffer-below-selected)
-               (inhibit-same-window . t)
-               (window-height . 10)
-               (window-parameters . ((no-delete-other-windows . t)
-                                     (window-size-fixed . height)))))
-            display-buffer-alist))
-          (org-dayflow-high-density t))
-      (org-dayflow-display 'day)
-      (when-let* ((buf (seq-find (lambda (b)
-                                   (string-match-p "\\*Org Dayflow.*\\*" (buffer-name b)))
-                                 (buffer-list)))
-                  (win (get-buffer-window buf t)))
-        (set-window-parameter win 'no-delete-other-windows t)
-        (set-window-parameter win 'window-size-fixed 'height)
-        (set-window-dedicated-p win t))))
+    (let ((org-dayflow-high-density t))
+      (org-dayflow-display 'day)))
 
   ;; Agenda (no frame reorg)
   (when (require 'org-agenda nil 'noerror)
