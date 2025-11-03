@@ -32,5 +32,13 @@
 (use-package git-timemachine
   :defer t)
 
+(use-package grep
+  :if (eq system-type 'windows-nt)
+  :config
+  (let ((find (expand-file-name "~/scoop/shims/find.exe")))
+    (if (file-exists-p find)
+        (setq find-program find)
+      (user-error "find not found. install findutils with scoop."))))
+
 (provide 'my-files-vc)
 ;;; my-files-vc.el ends here

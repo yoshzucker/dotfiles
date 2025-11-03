@@ -46,5 +46,9 @@ Each entry can have keys like (system-type . gui), (system-type . tty), system-t
 (dolist (key `(,my/c-: "M-:" "C-z"))
   (global-unset-key (kbd key)))
 
+;; Key translation
+(dolist (key '("<C-return>" "C-<return>"))
+  (define-key key-translation-map (kbd key) (kbd "C-RET")))
+
 (provide 'my-core-keys)
 ;;; my-core-keys.el ends here

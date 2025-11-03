@@ -17,6 +17,13 @@
    (:hook python-mode python-ts-mode
           :func #'pyenv-mode)))
 
+(use-package pyvenv
+  :config
+  (add-hook 'pyvenv-post-activate-hooks
+            (lambda ()
+              (setq python-shell-interpreter
+                    (expand-file-name "Scripts/python" pyvenv-virtual-env)))))
+
 (use-package eglot
   :after python
   :config
@@ -53,7 +60,7 @@
         (message "pyright in use: %s" pyright-path)))))
 
   (add-hook 'eglot-connect-hook
-            (lambda ()
+            (lambda (&rest _)
               (when (memq major-mode '(python-mode python-ts-mode))
                 (my/ensure-pyright-available))))
 
@@ -71,33 +78,31 @@
 		         `(,mode . ("pyright-langserver" "--stdio")))))
 
 (use-package reformatter
+  :after eglot
   :config
-  (reformatter-define black-format
-                      :program (or (executable-find "black")
-                                   (user-error "black not found in PATH"))
-                      :args '("-"))
+  (setq eglot-ignored-server-capabilities '(:documentFormattingProvider))
+  (reformatter-define ruff-format
+    :program (or (executable-find "ruff")
+                 (user-error "ruff not found in PATH"))
+    :args '("format" "-"))
   
-  (reformatter-define isort-format
-                      :program (or (executable-find "isort")
-                                   (user-error "isort not found in PATH"))
-                      :args '("-"))
-
-  (define-minor-mode my/python-autoformat-mode
-    "Autoformat Python buffers on save."
-    :lighter " mpf"
-    (if my/python-autoformat-mode
-        (add-hook 'before-save-hook #'my/python-auto-format nil t)
-      (remove-hook 'before-save-hook #'my/python-auto-format t)))
+  ;; (define-minor-mode my/python-autoformat-mode
+  ;;   "Autoformat Python buffers on save."
+  ;;   :lighter " mpf"
+  ;;   (if my/python-autoformat-mode
+  ;;       (add-hook 'before-save-hook #'my/python-auto-format nil t)
+  ;;     (remove-hook 'before-save-hook #'my/python-auto-format t)))
   
-  (defun my/python-auto-format ()
-    "Format with isort and black."
-    (when (derived-mode-p 'python-mode 'python-ts-mode)
-      (isort-format-buffer)
-      (black-format-buffer)))
+  ;; (defun my/python-auto-format ()
+  ;;   "Format with isort and black."
+  ;;   (when (derived-mode-p 'python-mode 'python-ts-mode)
+  ;;     (isort-format-buffer)
+  ;;     (black-format-buffer)))
   
-  (my/add-hook
-   (:hook python-mode-hook python-ts-mode-hook
-          :func #'my/python-autoformat-mode)))
+  ;; (my/add-hook
+  ;;  (:hook python-mode-hook python-ts-mode-hook
+  ;;         :func #'my/python-autoformat-mode))
+  )
 
 (provide 'my-lang-python)
 ;;; my-lang-python.el ends here
