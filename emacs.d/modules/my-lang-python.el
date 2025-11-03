@@ -86,23 +86,9 @@
                  (user-error "ruff not found in PATH"))
     :args '("format" "-"))
   
-  ;; (define-minor-mode my/python-autoformat-mode
-  ;;   "Autoformat Python buffers on save."
-  ;;   :lighter " mpf"
-  ;;   (if my/python-autoformat-mode
-  ;;       (add-hook 'before-save-hook #'my/python-auto-format nil t)
-  ;;     (remove-hook 'before-save-hook #'my/python-auto-format t)))
-  
-  ;; (defun my/python-auto-format ()
-  ;;   "Format with isort and black."
-  ;;   (when (derived-mode-p 'python-mode 'python-ts-mode)
-  ;;     (isort-format-buffer)
-  ;;     (black-format-buffer)))
-  
-  ;; (my/add-hook
-  ;;  (:hook python-mode-hook python-ts-mode-hook
-  ;;         :func #'my/python-autoformat-mode))
-  )
+  (my/add-hook
+   (:hook python-mode-hook python-ts-mode-hook
+          :func #'ruff-format-on-save-mode)))
 
 (provide 'my-lang-python)
 ;;; my-lang-python.el ends here
