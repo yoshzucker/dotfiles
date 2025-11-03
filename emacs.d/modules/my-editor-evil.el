@@ -113,11 +113,12 @@
     (save-buffer)
     (my/evil-vim-quit force))
   
-  (dolist (pair '(("q[ite]" . my/evil-vim-quit)
-                  ("wq"     . my/evil-vim-wq)
-                  ("ls"     . ibuffer)
-                  ("etags"  . create-etags)
-                  ("dg"     . deadgrep)))
+  (dolist (pair '(("q[ite]"  . my/evil-vim-quit)
+                  ("wq"      . my/evil-vim-wq)
+                  ("bk[ill]" . kill-current-buffer)
+                  ("ls"      . ibuffer)
+                  ("etags"   . create-etags)
+                  ("dg"      . deadgrep)))
     (evil-ex-define-cmd (car pair) (cdr pair)))
 
   (defun my/evil-ex-define-cmd-local (cmd function)
