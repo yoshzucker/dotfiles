@@ -113,7 +113,7 @@
     (save-buffer)
     (my/evil-vim-quit force))
   
-  (dolist (pair '(("q[ite]"  . my/evil-vim-quit)
+  (dolist (pair '(("q[uit]"  . my/evil-vim-quit)
                   ("wq"      . my/evil-vim-wq)
                   ("bk[ill]" . kill-current-buffer)
                   ("ls"      . ibuffer)
