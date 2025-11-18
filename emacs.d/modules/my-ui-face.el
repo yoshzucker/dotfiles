@@ -440,7 +440,8 @@ Example: '((primary . brightyellow))"
 (use-package dired-rainbow
   :config
   (defun my/set-dired-rainbow-faces ()
-    (dolist (rule `((src ,my/brightmagenta ("el" "lisp" "sh" "R" "c" "h" "py" "org"))
+    (dolist (rule `((src ,my/brightmagenta ("el" "lisp" "sh" "r" "c" "h" "py"))
+                    (txt ,my/brightmagenta ("txt" "org" "md"))
                     (doc ,my/blue ("docx" "docm"))
                     (xls ,my/green ("xlsx" "xlsm"))
                     (ppt ,my/brightred ("pptx" "pptm"))
