@@ -16,6 +16,13 @@
   :defer t
   :after evil
   :config
+  (when (memq system-type '(darwin gnu/linux))
+    (setq dired-listing-switches "-alh")
+    (when (executable-find "gls")
+      (setq insert-directory-program (executable-find "gls")
+            ls-lisp-use-insert-directory-program t
+            dired-use-ls-dired t
+            dired-listing-switches "-alh --group-directories-first")))
   (setq dired-dwim-target t
         dired-auto-revert-buffer t)
   (put 'dired-find-alternate-file 'disabled nil)
@@ -68,9 +75,9 @@
     "Keep '.' and '..' entries at the top in dired listings."
     (when (derived-mode-p 'dired-mode)
       (let ((inhibit-read-only t))
-	(save-excursion
+    (save-excursion
           (goto-char (point-min))
-          (forward-line 2)
+          (forward-line 1)
           (sort-regexp-fields t "^.*$" "[ ]*[.]*$" (point) (point-max))))))
   (advice-add 'dired-readin :after #'my/dired-keep-dot-top)
 
