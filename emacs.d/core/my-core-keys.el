@@ -12,7 +12,7 @@
 (defcustom my/key-symbols
   '((backslash . ((darwin . "_") (default . "\\")))
     (slash     . ((default . "_")))
-    (c-:       . (((darwin . gui) . "s-:") (default . "C-:"))))
+    (c-:       . ((default . "C-:"))))
   "Mapping of symbolic keys to OS and display (GUI/TTY) specific representations.
 Each entry can have keys like (system-type . gui), (system-type . tty), system-type, tty or just 'default."
   :type '(alist :key-type symbol
