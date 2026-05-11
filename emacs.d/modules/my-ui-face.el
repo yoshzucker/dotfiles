@@ -245,6 +245,7 @@ Example: '((primary . brightyellow))"
   `((font-lock
      (default :foreground my/foreground :background my/background
               :family ,my/font-default :height ,my/font-height)
+     (fixed-pitch :family ,my/font-default)
      (variable-pitch :family ,my/font-variable)
      (fringe :force-inherit 'unspecified)
      (border :force-inherit 'unspecified)

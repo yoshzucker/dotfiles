@@ -1,4 +1,4 @@
-;;; my-ui-frame.el --- Frame configuration and resizing utilities -*- lexical-binding: t; -*-
+;;; my-WI-frame.el --- Frame configuration and resizing utilities -*- lexical-binding: t; -*-
 ;;; Commentary:
 ;; This module defines frame appearance, title, and dynamic resizing behavior.
 
@@ -11,8 +11,9 @@
   :prefix "my/frame-")
 
 (defcustom my/frame-size-list
-  '((81 . 36)
-    (163 . 36))
+  '((81 . 24)
+    (81 . 34)
+    (163 . 34))
   "List of (WIDTH . HEIGHT) frame sizes to cycle through.
 Each element is a cons cell (WIDTH . HEIGHT)."
   :type '(repeat (cons (integer :tag "Width")

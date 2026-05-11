@@ -191,7 +191,7 @@
          (lambda (src)
            (let* ((resolved (if (symbolp src) (symbol-value src) src))
                   (copied (copy-sequence resolved)))
-             (if (eq resolved consult--source-recent-file)
+             (if (eq resolved consult-source-recent-file)
                  (plist-put copied :items #'my/sort-recentf-by-directory)
                src)))
          consult-buffer-sources))

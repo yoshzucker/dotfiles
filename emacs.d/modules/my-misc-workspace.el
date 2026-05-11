@@ -12,7 +12,7 @@
 (defun my/create-workspace ()
   "Switch to the workspace tab and show Dayflow (bottom), Agenda, and Deft (left)."
   (interactive)
-  (my/cycle-frame-size 2)
+  (my/cycle-frame-size 3)
 
   (tab-bar-mode 1)
   (my/tab-close my/workspace-tab-name)

@@ -147,7 +147,7 @@
   
   (advice-add 'tabspaces--local-buffer-p :around #'my/tabspaces-include-prefix)
 
-  (consult-customize consult--source-buffer :hidden t :default nil)
+  (consult-customize consult-source-buffer :hidden t :default nil)
   (defvar consult--source-workspace
     (list :name     "Workspace Buffers"
           :narrow   ?w
@@ -165,10 +165,10 @@
   (defun my--consult-tabspaces ()
     "Deactivate isolated buffers when not using tabspaces."
     (cond (tabspaces-mode
-           (consult-customize consult--source-buffer :hidden t :default nil)
+           (consult-customize consult-source-buffer :hidden t :default nil)
            (add-to-list 'consult-buffer-sources 'consult--source-workspace))
           (t
-           (consult-customize consult--source-buffer :hidden nil :default t)
+           (consult-customize consult-source-buffer :hidden nil :default t)
            (setq consult-buffer-sources (remove #'consult--source-workspace consult-buffer-sources)))))
 
   (my/add-hook
