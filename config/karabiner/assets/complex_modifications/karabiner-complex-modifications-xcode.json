@@ -1,0 +1,82 @@
+{
+	"title": "Xcode Keybinds",
+	"rules": [
+		{
+			"description": "Xcode : control+[/i/j/k to Esc/Tab/Donw/Up",
+			"manipulators": [
+				{
+					"type": "basic",
+					"from": {
+						"key_code": "open_bracket",
+						"modifiers": {
+							"mandatory": ["control"]
+						}
+					},
+					"to": [{ "key_code": "escape" }],
+					"conditions": [
+						{
+							"type": "frontmost_application_if",
+							"bundle_identifiers": [
+								"^com\\.apple\\.dt\\.Xcode$"
+							]
+						}
+					]
+				},
+				{
+					"type": "basic",
+					"from": {
+						"key_code": "i",
+						"modifiers": {
+							"mandatory": ["control"]
+						}
+					},
+					"to": [{ "key_code": "tab" }],
+					"conditions": [
+						{
+							"type": "frontmost_application_if",
+							"bundle_identifiers": [
+								"^com\\.apple\\.dt\\.Xcode$"
+							]
+						}
+					]
+				},
+				{
+					"type": "basic",
+					"from": {
+						"key_code": "j",
+						"modifiers": {
+							"mandatory": ["control"]
+						}
+					},
+					"to": [{ "key_code": "down_arrow" }],
+					"conditions": [
+						{
+							"type": "frontmost_application_if",
+							"bundle_identifiers": [
+								"^com\\.apple\\.dt\\.Xcode$"
+							]
+						}
+					]
+				},
+				{
+					"type": "basic",
+					"from": {
+						"key_code": "k",
+						"modifiers": {
+							"mandatory": ["control"]
+						}
+					},
+					"to": [{ "key_code": "up_arrow" }],
+					"conditions": [
+						{
+							"type": "frontmost_application_if",
+							"bundle_identifiers": [
+								"^com\\.apple\\.dt\\.Xcode$"
+							]
+						}
+					]
+				}
+			]
+		}
+	]
+}
