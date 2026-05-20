@@ -66,7 +66,8 @@
         completion-category-defaults nil
         read-file-name-completion-ignore-case t
         read-buffer-completion-ignore-case t
-        completion-ignore-case t)
+        completion-ignore-case t
+        orderless-matching-styles '(orderless-literal orderless-flex orderless-regexp))
 
   (with-eval-after-load 'migemo
     (defun my/orderless-migemo-matcher (arg)

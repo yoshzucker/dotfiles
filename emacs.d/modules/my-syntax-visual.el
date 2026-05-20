@@ -54,7 +54,9 @@
           (json . ("https://github.com/tree-sitter/tree-sitter-json"))
           (javascript . ("https://github.com/tree-sitter/tree-sitter-javascript" "master" "src"))
           (tsx . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src"))
-          (yaml . ("https://github.com/ikatyang/tree-sitter-yaml"))))
+          (yaml . ("https://github.com/ikatyang/tree-sitter-yaml"))
+          (swift . ("~/.emacs.d/var/treesit/tree-sitter-swift/")) ; https://github.com/alex-pinkus/tree-sitter-swift#where-is-your-parserc
+          ))
 
   ;; Remap major modes to Tree-sitter equivalents
   (setq major-mode-remap-alist

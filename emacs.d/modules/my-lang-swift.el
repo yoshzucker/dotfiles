@@ -6,7 +6,8 @@
 ;; and support for Flyspell, Flycheck, and other syntax-aware tools.
 
 ;;; Code:
-(use-package swift-mode)
+(use-package swift-ts-mode
+  :mode ("\\.swift\\'" . swift-ts-mode))
 
 (provide 'my-lang-swift)
 ;;; my-lang-swift.el ends here

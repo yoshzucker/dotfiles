@@ -5,16 +5,33 @@
 
 ;;; Code:
 (use-package eglot
-  :after (python swift-mode)
+  :after (python swift-ts-mode)
   :config
+  ;; Prevent eglot from hijacking imenu or other features
+  (setq eglot-stay-out-of '(imenu))
+
+  ;; Swift
   (my/add-hook
-   (:hook swift-mode-hook swift-ts-mode-hook :func #'eglot-ensure)
-   (:hook python-mode-hook python-ts-mode-hook :func #'eglot-ensure))
+   (:hook swift-mode-hook swift-ts-mode-hook :func #'eglot-ensure))
 
   (dolist (mode '(swift-mode swift-ts-mode))
     (add-to-list 'eglot-server-programs
-		         `(,mode . ("sourcekit-lsp"))))
+		         `(,mode . ("xcrun" "sourcekit-lsp"))))
 
+  ;; Python
+  (my/add-hook
+   (:hook python-mode-hook python-ts-mode-hook
+          :func #'eglot-ensure #'my/ensure-pyright-available))
+
+  (dolist (mode '(python-mode python-ts-mode))
+    (add-to-list 'eglot-server-programs
+		         `(,mode . ("pyright-langserver" "--stdio"))))
+
+  (setq-default eglot-workspace-configuration
+                '((:pyright . (:useLibraryCodeForTypes t
+                                                       :useTypeCheckingMode "strict"
+                                                       :reportMissingImports t
+                                                       :reportMissingTypeStubs t))))
   (defun my/ensure-pyright-available ()
     "Check current pyright usage and show guidance for reproducibility."
     (interactive)
@@ -41,38 +58,12 @@
           (message "%s %s" base-msg advice)))
        
        (t
-        (message "pyright in use: %s" pyright-path)))))
+        (message "pyright in use: %s" pyright-path))))))
 
-  (add-hook 'eglot-connect-hook
-            (lambda (&rest _)
-              (when (memq major-mode '(python-mode python-ts-mode))
-                (my/ensure-pyright-available))))
-
-  ;; Prevent eglot from hijacking imenu or other features
-  (setq eglot-stay-out-of '(imenu))
-
-  (setq-default eglot-workspace-configuration
-                '((:pyright . (:useLibraryCodeForTypes t
-                               :useTypeCheckingMode "strict"
-                               :reportMissingImports t
-                               :reportMissingTypeStubs t))))
-
-  (dolist (mode '(python-mode python-ts-mode))
-    (add-to-list 'eglot-server-programs
-		         `(,mode . ("pyright-langserver" "--stdio")))))
-
-(use-package reformatter
-  :after eglot
+(use-package apheleia
+  :if (memq system-type '(darwin gnu/linux))
   :config
-  (setq eglot-ignored-server-capabilities '(:documentFormattingProvider))
-  (reformatter-define ruff-format
-    :program (or (executable-find "ruff")
-                 (user-error "ruff not found in PATH"))
-    :args '("format" "-"))
-  
-  (my/add-hook
-   (:hook python-mode-hook python-ts-mode-hook
-          :func #'ruff-format-on-save-mode)))
+  (apheleia-global-mode +1))
 
 (provide 'my-syntax-lsp)
 ;;; my-syntax-lsp.el ends here

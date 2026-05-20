@@ -2,7 +2,7 @@
 	"title": "Xcode Keybinds",
 	"rules": [
 		{
-			"description": "Xcode : control+[/i/j/k to Esc/Tab/Donw/Up",
+			"description": "Xcode : control+[/l/j/k to Esc/Tab/Donw/Up",
 			"manipulators": [
 				{
 					"type": "basic",
@@ -25,7 +25,7 @@
 				{
 					"type": "basic",
 					"from": {
-						"key_code": "i",
+						"key_code": "l",
 						"modifiers": {
 							"mandatory": ["control"]
 						}

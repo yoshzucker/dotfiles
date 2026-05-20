@@ -19,8 +19,8 @@
    (:map corfu-map
          :state insert
          :key
-         "C-y" #'corfu-quit
-         "C-e" #'corfu-reset)))
+         "C-y" #'corfu-insert
+         "C-e" #'corfu-quit)))
 
 (use-package corfu-popupinfo
   :straight nil
