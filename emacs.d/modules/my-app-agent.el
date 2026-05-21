@@ -9,12 +9,6 @@
   (my/define-key
    (:map agent-shell-mode-map :state normal :key "RET" #'comint-send-input))
   
-  (defun my/ensure-system-package (command install-cmd &optional description)
-    "Ensure COMMAND exists by running INSTALL-CMD if it is not found."
-    (unless (executable-find command)
-      (message "Installing %s..." (or description command))
-      (shell-command install-cmd)))
-  
   (when (eq system-type 'windows-nt)
     (dolist (path (list (expand-file-name "~/scoop/apps/nodejs/current")
                         (expand-file-name "~/scoop/apps/nodejs/current/bin")))

@@ -47,7 +47,7 @@ to symbols or other values. If not, the value is interned."
   (if (null afters)
       body
     `(with-eval-after-load ',(car afters)
-        ,(my/wrap-after body (cdr afters)))))
+       ,(my/wrap-after body (cdr afters)))))
 
 ;;;###autoload
 (defmacro my/define-key (&rest specs)
@@ -100,6 +100,13 @@ to symbols or other values. If not, the value is interned."
                                hooks)))
             (list (my/wrap-after `(progn ,@body) afters))))
         specs)))
+
+;;;###autoload
+(defun my/ensure-system-package (command install-cmd &optional description)
+  "Ensure COMMAND exists by running INSTALL-CMD if it is not found."
+  (unless (executable-find command)
+    (message "Installing %s..." (or description command))
+    (shell-command install-cmd)))
 
 (provide 'my-core-utils)
 ;;; my-core-utils.el ends here
