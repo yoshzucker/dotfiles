@@ -47,27 +47,30 @@
   :init
   ;; Define language grammar sources
   (setq treesit-language-source-alist
-        '((bash . ("https://github.com/tree-sitter/tree-sitter-bash"))
-          (c . ("https://github.com/tree-sitter/tree-sitter-c"))
-          (cpp . ("https://github.com/tree-sitter/tree-sitter-cpp"))
-          (python . ("https://github.com/tree-sitter/tree-sitter-python"))
-          (json . ("https://github.com/tree-sitter/tree-sitter-json"))
-          (javascript . ("https://github.com/tree-sitter/tree-sitter-javascript" "master" "src"))
-          (tsx . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src"))
-          (yaml . ("https://github.com/ikatyang/tree-sitter-yaml"))
-          (swift . ("~/.emacs.d/var/treesit/tree-sitter-swift/")) ; https://github.com/alex-pinkus/tree-sitter-swift#where-is-your-parserc
-          ))
+        (append
+         '((bash . (https://github.com/tree-sitter/tree-sitter-bash))
+           (c . (https://github.com/tree-sitter/tree-sitter-c))
+           (cpp . (https://github.com/tree-sitter/tree-sitter-cpp))
+           (python . (https://github.com/tree-sitter/tree-sitter-python))
+           (json . (https://github.com/tree-sitter/tree-sitter-json))
+           (javascript . (https://github.com/tree-sitter/tree-sitter-javascript "master" "src"))
+           (tsx . (https://github.com/tree-sitter/tree-sitter-typescript "master" "tsx/src"))
+           (yaml . (https://github.com/ikatyang/tree-sitter-yaml)))
+         (let ((path (expand-file-name "var/treesit/tree-sitter-swift" user-emacs-directory)))
+           ;; https://github.com/alex-pinkus/tree-sitter-swift#where-is-your-parserc
+           (when (file-directory-p path)
+             `((swift . (,path)))))))
 
   ;; Remap major modes to Tree-sitter equivalents
   (setq major-mode-remap-alist
-	'((sh-mode     . bash-ts-mode)
-      (c-mode      . c-ts-mode)
-      (c++-mode    . c++-ts-mode)
-      (python-mode . python-ts-mode)
-      (json-mode   . json-ts-mode)
-      (js-mode     . js-ts-mode)
-      (tsx-mode    . tsx-ts-mode)
-      (yaml-mode   . yaml-ts-mode)))
+	    '((sh-mode     . bash-ts-mode)
+          (c-mode      . c-ts-mode)
+          (c++-mode    . c++-ts-mode)
+          (python-mode . python-ts-mode)
+          (json-mode   . json-ts-mode)
+          (js-mode     . js-ts-mode)
+          (tsx-mode    . tsx-ts-mode)
+          (yaml-mode   . yaml-ts-mode)))
 
   ;; Add gcc
   (when (eq system-type 'windows-nt)

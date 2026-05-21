@@ -27,9 +27,9 @@
     (interactive "P")
     (let ((n (or count 1)))
       (unless tab-bar-mode
-	(tab-bar-mode 1))
+	    (tab-bar-mode 1))
       (dotimes (_ n)
-	(tab-new))))
+	    (tab-new))))
 
   (evil-define-command my/evil-tab-edit (file)
     :repeat nil
@@ -97,7 +97,7 @@
       (tab-close))
      ;; Kill buffer if more than one user buffer is open
      ((> (length (buffer-list)) 1)
-      (kill-this-buffer))
+      (kill-current-buffer))
      ;; Last resort: exit Emacs
      (t
       (save-buffers-kill-terminal))))
@@ -133,7 +133,7 @@
 (use-package tabspaces
   :after consult
   :config
-  (setq tabspaces-include-buffers '("*GNU Emacs*" "*scratch*" "*Messages*"))
+  (setq tabspaces-include-buffers '("*GNU Emacs*" "*scratch*" "*Messages*" "*Warnings*"))
 
   (defcustom my/tabspaces-include-prefix '("*Org Agenda" "*Org Dayflow")
     "List of buffer name prefixes that should always be included in tabspaces.")

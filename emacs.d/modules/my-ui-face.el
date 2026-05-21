@@ -233,6 +233,14 @@ Example: '((primary . brightyellow))"
   :type 'string
   :group 'my/ui)
 
+(defcustom my/font-emoji
+  (cond ((eq system-type 'darwin) "Apple Color Emoji")
+        ((eq system-type 'windows-nt) "Segoe UI Emoji")
+        (t "Noto Color Emoji"))
+  "Emoji font family."
+  :type 'string
+  :group 'my/ui)
+
 (defcustom my/font-height
   (if (eq system-type 'darwin)
       140
@@ -469,12 +477,16 @@ Example: '((primary . brightyellow))"
   (when (featurep 'smartrep)
     (my/set-smartrep-faces)))
 
+(defun my/apply-font-emoji ()
+  (set-fontset-font t 'emoji my/font-emoji nil 'prepend))
+
 (defun my/setup-theme ()
   (my/load-theme)
   (my/apply-copy-face-rules)
   (my/apply-set-face-rules)
   (my/apply-face-remap-rules)
-  (my/apply-face-extra-packages))
+  (my/apply-face-extra-packages)
+  (my/apply-font-emoji))
 
 (my/setup-theme)
 
