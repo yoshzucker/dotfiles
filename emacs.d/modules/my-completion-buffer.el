@@ -6,7 +6,7 @@
 
 (use-package corfu
   :straight (:files (:defaults "extensions/*.el"))
-  :after evil evil-collection
+  :after (evil evil-collection)
   :config
   (setq corfu-auto t
 	    corfu-auto-delay 0
@@ -14,7 +14,6 @@
 	    corfu-cycle t)
   (global-corfu-mode 1)
 
-  ;; (advice-add 'evil-collection-corfu-quit-and-escape :override #'corfu-quit)
   (my/define-key
    (:map corfu-map
          :state insert

@@ -4,7 +4,10 @@
 
 ;;; Code:
 (use-package agent-shell
-  :after evil
+  :after (evil evil-collection-agent-shell)
+  :init
+  (setq evil-collection-mode-list
+        (delq 'agent-shell evil-collection-mode-list))
   :config
   (my/define-key
    (:map agent-shell-mode-map :state normal :key "RET" #'comint-send-input))
@@ -30,6 +33,32 @@
       (my/ensure-system-package (car package) (cdr package))))
   
   (setq agent-shell-prefer-session-resume nil))
+
+(use-package ob-agent-shell
+  :straight (:host github :repo "eddof13/ob-agent-shell")
+  :after (agent-shell org)
+  :config
+  (add-to-list 'org-babel-load-languages '(agent-shell . t))
+  (add-to-list 'org-src-lang-modes '("agent-shell" . text)))  ;; Prevent font-lock errors
+
+(use-package agent-shell-org-transcript
+  :straight (:host github :repo "lllShamanlll/agent-shell-org-transcript")
+  :after (agent-shell org-roam))
+
+(use-package agent-shell-manager
+  :straight (:host github :repo "jethrokuan/agent-shell-manager")
+  :after agent-shell
+  :config
+  (my/define-key (:map global-map :key "C-c m" #'agent-shell-manager-toggle)))
+
+(use-package knockknock
+  :straight (:host github :repo "konrad1977/knockknock"))
+
+(use-package agent-shell-knockknock
+  :straight (:host github :repo "xenodium/agent-shell-knockknock")
+  :after (agent-shell knockkock)
+  :config
+  (agent-shell-knockknock-mode 1))
 
 (provide 'my-app-agent)
 ;;; my-app-agent.el ends here

@@ -19,7 +19,6 @@
          :prefix "C-c"
          :key
          "t" #'toggle-truncate-lines
-         "e" #'echo-line
          "l" #'org-store-link
          "c" #'org-capture
          "a" #'org-agenda
@@ -542,7 +541,7 @@
   (dolist (key '("z" "g" "/" "n" "N" ":"))
     (define-key org-agenda-mode-map (kbd key)
                 (lookup-key evil-motion-state-map (kbd key))))
-    
+  
   (my/define-key
    (:map org-agenda-mode-map
          :key
@@ -879,7 +878,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
    (:map pdf-history-minor-mode-map
          :state normal
          :key
-          "TAB" #'org-noter-insert-note-toggle-no-questions))
+         "TAB" #'org-noter-insert-note-toggle-no-questions))
 
   (setq org-noter-always-create-frame nil
         org-noter-notes-search-path (list org-complexbrain-directory)
@@ -937,12 +936,12 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
   (citar-register-notes-source
    'orb-citar-source
    `(:name "Org-Roam Notes"
-     :category org-roam-node
-     :items ,#'citar-org-roam--get-candidates
-     :hasitems ,#'citar-org-roam-has-notes
-     :open ,#'citar-org-roam-open-note
-     :create ,#'orb-citar-edit-note
-     :annotate ,#'citar-org-roam--annotate))
+           :category org-roam-node
+           :items ,#'citar-org-roam--get-candidates
+           :hasitems ,#'citar-org-roam-has-notes
+           :open ,#'citar-org-roam-open-note
+           :create ,#'orb-citar-edit-note
+           :annotate ,#'citar-org-roam--annotate))
 
   (citar-org-roam-mode 1))
 
