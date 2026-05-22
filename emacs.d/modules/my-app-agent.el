@@ -4,17 +4,15 @@
 
 ;;; Code:
 (use-package agent-shell
-  :after (evil evil-collection-agent-shell)
-  :init
-  (setq evil-collection-mode-list
-        (delq 'agent-shell evil-collection-mode-list))
+  :after evil
   :config
   (my/define-key
    (:map agent-shell-mode-map :state normal :key "RET" #'comint-send-input))
   
   (when (eq system-type 'windows-nt)
     (dolist (path (list (expand-file-name "~/scoop/apps/nodejs/current")
-                        (expand-file-name "~/scoop/apps/nodejs/current/bin")))
+                        (expand-file-name "~/scoop/apps/nodejs/current/bin")
+                        (expand-file-name "~/scoop/apps/msys2/current/usr/bin")))
       (add-to-list 'exec-path path)
       (setenv "PATH" (concat path ";" (getenv "PATH"))))
     
@@ -26,9 +24,14 @@
           (cond ((eq system-type 'darwin)
                  '(("npm" . "brew install nodejs")))
                 ((eq system-type 'windows-nt)
-                 '(("npm" . "scoop install nodejs")))
+                 `(("npm" . "scoop install nodejs")
+                   ("msys2" . "scoop install msys2")
+                   ("diff" . ,(concat (getenv "USERPROFILE")
+                                      \\scoop\\apps\\msys2\\current\\usr\\bin\\bash.exe
+                                      " -lc \"pacman -S --noconfirm diffutils\""))))
                 (t nil))
-          '(("claude-agent-acp" . "npm install -g @agentclientprotocol/claude-agent-acp --ignore-scripts")))))
+          '(("claude-agent-acp" .
+             "npm install -g @agentclientprotocol/claude-agent-acp --ignore-scripts")))))
     (dolist (package packages)
       (my/ensure-system-package (car package) (cdr package))))
   

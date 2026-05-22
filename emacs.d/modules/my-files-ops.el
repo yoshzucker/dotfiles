@@ -26,7 +26,7 @@
   (setq dired-dwim-target t
         dired-auto-revert-buffer t)
   (put 'dired-find-alternate-file 'disabled nil)
-
+  
   ;; Keybindings
   (my/define-key
    (:map dired-mode-map
@@ -35,7 +35,7 @@
          "RET" #'my/dired-find-marked-files
          "C-c C-o" #'my/dired-open-file-with-system
          "C-c C-d" #'my/dired-open-dir-with-system))
-
+  
   (my/define-key
    (:map dired-mode-map
          :after evil-collection
@@ -44,7 +44,7 @@
          :state normal
          :after evil-collection
          :key "<mouse-2>" #'dired-find-file))
-
+  
   ;; Evil integration
   (dolist (key '("n" "N" "g" "G"))
     (define-key dired-mode-map (kbd key)
@@ -59,28 +59,28 @@
   ;; Hooks
   (my/add-hook
    (:hook dired-mode-hook
-          :func 
+          :func
           #'dired-hide-details-mode
           #'my/dired-buffer-append-slash))
-
+  
   (defun my/dired-buffer-append-slash ()
     "Append a slash to the dired buffer name for easier identification."
     (when (eq major-mode 'dired-mode)
       (rename-buffer (concat (buffer-name) "/") t)))
-
+  
   (setq dired-clean-up-buffers-too t)
-
+  
   ;; Sort .. and . at top
   (defun my/dired-keep-dot-top ()
     "Keep '.' and '..' entries at the top in dired listings."
     (when (derived-mode-p 'dired-mode)
       (let ((inhibit-read-only t))
-    (save-excursion
+        (save-excursion
           (goto-char (point-min))
           (forward-line 1)
           (sort-regexp-fields t "^.*$" "[ ]*[.]*$" (point) (point-max))))))
   (advice-add 'dired-readin :after #'my/dired-keep-dot-top)
-
+  
   ;; Alist of (program . path-transform) per system
   (defconst my/open-program-alist
     (cond
@@ -107,7 +107,7 @@
   (defun my/dired-view-marked-files (&optional arg)
     (interactive "P")
     (my/dired-mapc-marked-files #'view-file arg))
-
+  
   ;; Start process depending on system
   (defun my/start-process (name buffer program &rest program-args)
     (pcase system-type
@@ -120,11 +120,11 @@
     (let ((path (expand-file-name (or path (buffer-file-name)))))
       (cond
        ((not (file-exists-p path))
-	(message "Path %s does not exist" path))
+        (message "Path %s does not exist" path))
        (t
-	(let ((program (car my/open-program-alist))
-          (arg-fn (cdr my/open-program-alist))
-          (truepath (file-truename path)))
+        (let ((program (car my/open-program-alist))
+              (arg-fn (cdr my/open-program-alist))
+              (truepath (file-truename path)))
           (my/start-process program nil program (funcall arg-fn truepath)))))))
   
   (defun my/dired-open-file-with-system ()
@@ -136,7 +136,7 @@
     "Open directory in dired with the system's default application."
     (interactive)
     (my/open-with-system (dired-current-directory)))
-
+  
   (defvar my/open-with-system-ext
     '("app" "exe" "png" "svg" "lnk" "url" "docx" "xlsx" "pptx")
     "List of file extensions to open with system apps.")
@@ -148,20 +148,20 @@
   (defun my/find-file-maybe-external (f filename &optional wildcards)
     "Open FILENAME externally if extension matches, otherwise call F."
     (if (my/open-with-system-ext-p filename)
-	(progn (recentf-push filename) (my/open-with-system filename))
+        (progn (recentf-push filename) (my/open-with-system filename))
       (funcall f filename wildcards)))
   
   (advice-add 'find-file :around #'my/find-file-maybe-external)
-
+  
   ;; Drag and drop support in dired
   (setq dired-dnd-protocol-alist
         '(("^file:///" . dired-dnd-handle-local-file-move)
           ("^file://"  . dired-dnd-handle-file-move)
           ("^file:"    . dired-dnd-handle-local-file-move)))
-
+  
   (defun dired-dnd-handle-local-file-move (uri action)
     (dired-dnd-handle-local-file uri 'move))
-
+  
   (defun dired-dnd-handle-file-move (uri action)
     (dired-dnd-handle-file uri 'move))
   
@@ -175,9 +175,9 @@
                   (seq bol "My Music")
                   (seq bol "My Pictures")
                   (seq bol "My Videos"))))
-
+    
     (my/add-hook (:hook dired-mode-hook :func #'dired-omit-mode)))
-
+  
   ;; Rename (R) uses visible dired as default target unless given C-u
   (advice-add 'dired-do-rename :override #'my/dired-do-rename)
   (defun my/dired-do-rename (&optional arg)
@@ -194,11 +194,11 @@
   ;; Always start in normal state (avoid insert-mode confusion)
   (advice-add 'wdired-change-to-wdired-mode :after
               (lambda () (evil-normal-state)))
-
+  
   ;; Restore dired hide-details after abort
   (advice-add 'wdired-abort-changes :after
               (lambda (&rest _) (dired-hide-details-mode)))
-
+  
   ;; Change background while in wdired
   (advice-add 'wdired-change-to-wdired-mode :after
               (lambda ()
@@ -206,8 +206,8 @@
                  'default
                  :background (if (eq frame-background-mode 'light)
                                  my/white
-                                 my/black))))
-
+                               my/black))))
+  
   ;; Restore background after leaving wdired
   (advice-add 'wdired-change-to-dired-mode :after
               (lambda ()
@@ -249,17 +249,17 @@
    (:map treemacs-mode-map
          :key
          "<mouse-1>" #'treemacs-single-click-expand-action))
-
-  (setq treemacs-no-png-images t
-        treemacs-show-hidden-files t
-        treemacs-position 'right
+  
+  (setq treemacs-no-png-images nil
+        treemacs-show-hidden-files nil
+        treemacs-position 'left
         treemacs-width 20
         treemacs-wide-toggle-width 40)
-
+  
   (treemacs-follow-mode -1)
   (treemacs-filewatch-mode -1)
   (treemacs-fringe-indicator-mode 'always)
-
+  
   (defun my/treemacs-sidebar-open ()
     (interactive)
     (when (require 'treemacs nil 'noerror)
@@ -289,4 +289,3 @@
 
 (provide 'my-files-ops)
 ;;; my-files-ops.el ends here
-
