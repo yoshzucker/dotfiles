@@ -16,6 +16,9 @@
 (use-package server
   :demand t
   :config
+  ;; When emacsclientw.exe errors out (e.g. "handle is invalid" or "No socket"),
+  ;; quit Emacs completely and delete ~/.emacs.d/server/server
+  ;; (this is a common issue after Scoop updates on Windows) 
   (unless (server-running-p)
     (server-start)))
 
