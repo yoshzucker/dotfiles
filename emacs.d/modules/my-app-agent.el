@@ -35,7 +35,30 @@
     (dolist (package packages)
       (my/ensure-system-package (car package) (cdr package))))
   
-  (setq agent-shell-prefer-session-resume nil))
+  (setq agent-shell-prefer-session-resume nil)
+
+  (defun my/agent-shell-find-file (&optional pick-shell)
+    "Send any file (including outside the project) to agent-shell.
+In agent-shell buffer: starts read-file-name from the shell's current directory.
+Outside: pre-fills with the file at point in dired, or buffer-file-name for normal buffers."
+    (interactive "P")
+    (let* ((in-shell (derived-mode-p 'agent-shell-mode))
+           (shell-buffer (when pick-shell
+                           (completing-read "Send to shell: "
+                                            (mapcar #'buffer-name (agent-shell-buffers))
+                                            nil t)))
+           (dir (if in-shell
+                    (with-current-buffer (or shell-buffer (current-buffer))
+                      default-directory)
+                  default-directory))
+           (initial (unless in-shell
+                      (cond ((derived-mode-p 'dired-mode)
+                             (ignore-errors (dired-get-filename nil t)))
+                            (t (buffer-file-name))))))
+      (let* ((file (read-file-name "Send file: " dir initial t (when initial (file-name-nondirectory initial))))
+             (files (list (expand-file-name file dir))))
+        (agent-shell-insert :text (agent-shell--get-files-context :files files)
+                            :shell-buffer shell-buffer)))))
 
 (use-package ob-agent-shell
   :straight (:host github :repo "eddof13/ob-agent-shell")
