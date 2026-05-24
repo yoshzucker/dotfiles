@@ -41,12 +41,19 @@ unlink_dotfiles() {
   # Remove dotfile symlinks directly under $HOME
   find "$HOME" -maxdepth 1 -type l -name ".*" -print -exec rm -f {} +
 
-  # Remove all symlinks under .config, .local, and .emacs.d
-  for dir in "$HOME/.config" "$HOME/.local" "$HOME/.emacs.d"; do
-    if [ -d "$dir" ]; then
+  # Remove symlinks under .config, .local (incl. .local/bin contents), .emacs.d
+  # New model: ~/.local/bin is a real dir. We clean managed symlinks inside it.
+  # Also handle the case where ~/.local/bin itself is still an old whole-directory symlink.
+  for dir in "$HOME/.config" "$HOME/.local" "$HOME/.local/bin" "$HOME/.emacs.d"; do
+    if [ -L "$dir" ] || [ -d "$dir" ]; then
       find "$dir" -maxdepth 1 -type l -print -exec rm -f {} +
     fi
   done
+
+  # If ~/.local/bin itself is still a symlink (old style), remove it too
+  if [ -L "$HOME/.local/bin" ]; then
+    rm -f "$HOME/.local/bin"
+  fi
 
   echo "Finished unlinking."
 }

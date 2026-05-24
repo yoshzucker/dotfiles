@@ -1,8 +1,7 @@
-# --- ~/.zprofile ------------------------------------------------------------
+# --- ~/.zprofile (UL dotfiles) ---------------------------------------------
+# Login shells only. Most env is already in .zshenv (sourced earlier for all zsh).
+# Keep thin: place future login-only exports or path tweaks here if needed.
 
-# Source pXX scripts
-for f in ~/.config/lib/p*.sh; do
-  [ -f "$f" ] && source "$f"
-done
+# (env/ sourcing moved to .zshenv for correct zsh layer semantics)
 
 # --- .zprofile ends here ----------------------------------------------------

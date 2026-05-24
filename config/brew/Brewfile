@@ -1,0 +1,80 @@
+# dotfiles — Homebrew Bundle (declarative packages)
+# Location: config/brew/Brewfile
+#
+# Usage (from repo root or anywhere):
+#   brew bundle --file config/brew/Brewfile --no-upgrade
+#   brew bundle --file config/brew/Brewfile --upgrade   # for updates
+#
+# This file is the single source of truth for brew-managed packages.
+# Run `setup update` (which will call bundle) or `brew bundle` directly.
+#
+# macOS vs Linux conditionals use the Ruby DSL provided by `brew bundle`.
+# emacs-plus (mac) includes the full post-install placement of Emacs.app
+# so that the special-case tap+install+cp logic can be removed from setup.
+
+# --- Taps --------------------------------------------------------------------
+tap "homebrew/core"
+tap "homebrew/cask", if: OS.mac?
+tap "beeftornado/rmtree"
+tap "d12frosted/emacs-plus", if: OS.mac?
+
+# --- Core CLI ----------------------------------------------------------------
+brew "coreutils"
+brew "diffutils"
+brew "findutils"
+brew "cmigemo"
+brew "ripgrep"
+brew "tmux"
+brew "fzf"
+brew "gcc"
+brew "poppler"                 # pdf-tools for Emacs, rgpipe etc.
+brew "aspell"
+brew "git"
+brew "gitleaks"
+brew "global"
+brew "sbcl"
+brew "r"
+brew "python"
+brew "pyenv"
+brew "pyenv-virtualenv"        # (fixed typo from old pyenv-vitualenv)
+
+# --- Platform-specific CLI ---------------------------------------------------
+brew "karabiner-elements", if: OS.mac?
+brew "battery",            if: OS.mac?
+
+# --- Emacs (declarative, no more special-case in setup) ----------------------
+# macOS: full-featured emacs-plus with imagemagick + auto .app placement
+brew "emacs-plus", args: ["with-imagemagick"], if: OS.mac?
+
+# linux / others: standard Emacs from core
+brew "emacs", if: OS.linux?
+
+# --- macOS GUI / Fonts / Casks -----------------------------------------------
+cask "iterm2",        if: OS.mac?
+cask "font-hackgen",  if: OS.mac?
+
+# --- Post-install hooks (macOS Emacs.app placement) --------------------------
+# The following runs *after* the bundle evaluation for the emacs-plus formula
+# on macOS. This reproduces the original cp behavior without any special-case
+# logic inside the setup script itself.
+#
+# Note: Because Brewfile evaluation order + formula post_install timing,
+# we perform the placement here as a top-level step that is safe to re-run.
+# It only acts when the source .app exists in the prefix.
+if OS.mac?
+  # This will be executed every time `brew bundle` runs on mac.
+  # Idempotent: only copies when the Cellar version is newer/missing in /Applications.
+  prefix = `brew --prefix emacs-plus 2>/dev/null`.chomp
+  if File.directory?("#{prefix}/Emacs.app") && !File.directory?("/Applications/Emacs.app")
+    puts "==> Placing Emacs.app into /Applications (from emacs-plus)"
+    system "rm", "-rf", "/Applications/Emacs.app"
+    system "cp", "-a", "#{prefix}/Emacs.app", "/Applications"
+  end
+end
+
+# --- Cleanup hint ------------------------------------------------------------
+# After changes: brew bundle --file config/brew/Brewfile
+# To dump current state for review: brew bundle dump --file config/brew/Brewfile --force
+# (then edit to add comments/conditionals)
+
+# vim: ft=ruby

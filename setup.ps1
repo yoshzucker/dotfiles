@@ -47,7 +47,10 @@ $dotfiles = "$HOME\dotfiles"
 
 New-ContentsLink "$dotfiles\home" "$HOME"
 New-ContentsLink "$dotfiles\config" "$HOME\.config"
-New-ContentsLink "$dotfiles\local" "$HOME\.local"
+# local\bin: real directory populated with individual script symlinks (not a dir symlink)
+# mirrors the Unix change for coexistence with user scripts
+New-Item -ItemType Directory -Path "$HOME\.local" -Force | Out-Null
+New-ContentsLink "$dotfiles\local\bin" "$HOME\.local\bin"
 New-ContentsLink "$dotfiles\emacs.d" "$HOME\.emacs.d"
 
 # --- Install Scoop and Core Applications -------------------------------------

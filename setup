@@ -86,7 +86,8 @@ esac
 # Environment check
 ################################################################################
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$script_dir/config/lib/p00_core_env.sh"
+# Source the new UL modular core env (after Phase 1 restructure)
+source "$script_dir/config/shell/env/00-core-env.sh"
 
 printf "Detected environment: os=%s, distribution=%s, platform=%s\n" "$os" "$distribution" "$platform"
 
@@ -253,7 +254,17 @@ setup_links() {
 
   ln_contents "$HOME/dotfiles/home" "$HOME"
   ln_contents "$HOME/dotfiles/config" "$HOME/.config"
-  ln_contents "$HOME/dotfiles/local" "$HOME/.local"
+
+  # local/bin 専用処理（実ディレクトリ + 中身だけ個別 symlink にする）
+  # 既存が「ディレクトリ全体の symlink」だった場合も強制的に実ディレクトリに置き換える
+  mkdir -p "$HOME/.local"
+  if [ -L "$HOME/.local/bin" ]; then
+    echo "🔁 Replacing old ~/.local/bin symlink with real directory"
+    rm "$HOME/.local/bin"
+  fi
+  mkdir -p "$HOME/.local/bin"
+  ln_contents "$HOME/dotfiles/local/bin" "$HOME/.local/bin"
+
   ln_contents "$HOME/dotfiles/emacs.d" "$HOME/.emacs.d"
 
   print_line "$left_message" "Finished."
@@ -342,58 +353,24 @@ install_brew_packages() {
     return
   fi
 
-  left_message="Installing brew packages"
+  left_message="Installing brew packages (via Brewfile)"
   print_line "$left_message" "Started."
 
   export HOMEBREW_NO_AUTO_UPDATE=1
   brew update
-  
-  packages=(
-    coreutils
-    diffutils
-    findutils
-    cmigemo
-    ripgrep
-    tmux
-    fzf
-    gcc
-    poppler       # for emacs pdf-tools
-    aspell
-    git
-    gitleaks
-    global
-    sbcl
-    r
-    python
-    pyenv
-    pyenv-vitualenv
-  )
+
+  # Single source of truth: config/brew/Brewfile (emacs-plus tap/args + post placement handled there too)
+  brew bundle --file "$script_dir/config/brew/Brewfile" --no-upgrade || true
+
+  # Robust post-brew step for macOS Emacs.app placement (generic, not "install special case")
   if [[ "$os" == "darwin" ]]; then
-    packages+=(
-      karabiner-elements
-      battery
-    )
-    
-    brew tap beeftornado/rmtree
-    brew tap d12frosted/emacs-plus
-    brew install emacs-plus --with-imagemagick
-    rm -rf /Applications/Emacs.app
-    cp -a "$(brew --prefix)/opt/emacs-plus/Emacs.app" /Applications
-  else
-    packages+=(
-      emacs
-    )
+    prefix="$(brew --prefix emacs-plus 2>/dev/null || true)"
+    if [ -d "$prefix/Emacs.app" ]; then
+      rm -rf /Applications/Emacs.app 2>/dev/null || true
+      cp -a "$prefix/Emacs.app" /Applications 2>/dev/null || true
+    fi
   fi
-  brew install "${packages[@]}"
-  
-  if [[ "$os" == "darwin" ]]; then
-    casks=(
-      iterm2
-      font-hackgen
-    )
-    brew install --cask "${casks[@]}" || true
-  fi
-  
+
   brew cleanup
   unset HOMEBREW_NO_AUTO_UPDATE
 
@@ -405,11 +382,11 @@ update_brew_packages() {
     return
   fi
 
-  left_message="Updating Homebrew"
+  left_message="Updating brew packages (via Brewfile)"
   print_line "$left_message" "Started."
 
   brew update
-  brew upgrade
+  brew bundle --file "$script_dir/config/brew/Brewfile" --upgrade || true
   brew cleanup
 
   print_line "$left_message" "Finished."
@@ -537,7 +514,7 @@ configure_terminfo() {
 
   case "$configure_terminfo" in
     [Yy]* | "" )
-      tic -x -o ~/.terminfo "$HOME/dotfiles/config/term-color/terminfo-24bit.src" || true
+      tic -x -o ~/.terminfo "$HOME/dotfiles/config/terminfo/24bit.src" || true
       right_message="Finished."
       ;;
     *)
@@ -546,10 +523,7 @@ configure_terminfo() {
   esac
 
   print_line "$left_message" "$right_message"
-
-  if [ "$right_message" = "Finished." ]; then
-    echo 'Add this to your .zshrc: alias emacs="TERM=xterm-24bits emacs"'
-  fi
+  # Note: 20-ui-truecolor.sh now owns the emacs TERM alias and auto-tic on zsh startup.
 }
 
 configure_org_protocol() {
@@ -576,7 +550,7 @@ configure_org_protocol() {
 }
 
 configure_git() {
-  left_len="Configuring Git settings..."
+  left_message="Configuring Git settings..."
   print_line "$left_message" "Started."
 
   git config --global core.editor "emacsclient"
@@ -590,10 +564,7 @@ show_post_config_instructions() {
   if [ "$platform" = "wsl2" ]; then
     echo "[manual steps] Please do the following manually:"
     echo "- In wsltty settings, enable 24-bit color manually."
-    echo "- Copy:"
-    echo "    \$HOME/dotfiles/os/windows/wsl-xlaunch/.wsltty_config"
-    echo "  to:"
-    echo "    %AppData%/wsltty/config"
+    echo "- (wsl-xlaunch / windows-wsltty configs were removed in UL refactor; restore from git history if needed)"
     echo
   fi
 }

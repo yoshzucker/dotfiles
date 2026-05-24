@@ -1,5 +1,12 @@
-# --- z41_tool_fzf.sh -----------------------------------------------------
-# fzf integration (for interactive shell)
+# --- 45-tool-fzf.sh ------------------------------------------------------
+# fzf keybindings, completions, default opts/command (fd/rg), theme colors.
+# Searches multiple possible fzf install locations; prefers BREW_PREFIX.
+
+# Guard (Option B, reliable): name captured at module top-level before any function
+_module_name="$(basename "${BASH_SOURCE[0]:-${(%):-%N}}" .sh | tr -c "a-zA-Z0-9" "_")"
+_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%N}}")" && pwd)"
+[ -f "$_script_dir/../loader.sh" ] && source "$_script_dir/../loader.sh"
+__load_guard "$_module_name" || return 0
 
 [ -n "$ZSH_VERSION" ] || return 0
 
@@ -19,8 +26,10 @@ __fzf_try_source() {
 }
 
 if command -v fzf >/dev/null 2>&1; then
+  # Prefer centralized BREW_PREFIX from 10-brew-env.sh, then common locations
   typeset -a __FZF_BASES=(
-    "${HOMEBREW_PREFIX:-$(brew --prefix 2>/dev/null)}/opt/fzf"
+    "${BREW_PREFIX:+${BREW_PREFIX}/opt/fzf}"
+    "${HOMEBREW_PREFIX:+${HOMEBREW_PREFIX}/opt/fzf}"
     /opt/homebrew/opt/fzf
     /usr/local/opt/fzf
     /mingw64

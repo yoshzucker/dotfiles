@@ -1,5 +1,12 @@
-# --- z40_tool_alias.sh ---------------------------------------------------
-# Shell aliases (for interactive shell)
+# --- 40-tool-alias.sh ----------------------------------------------------
+# Interactive aliases and small helper functions (ls, emacsc, gitroot, rgp, ...).
+# zsh-only.
+
+# Guard (Option B, reliable): name captured at module top-level before any function
+_module_name="$(basename "${BASH_SOURCE[0]:-${(%):-%N}}" .sh | tr -c "a-zA-Z0-9" "_")"
+_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%N}}")" && pwd)"
+[ -f "$_script_dir/../loader.sh" ] && source "$_script_dir/../loader.sh"
+__load_guard "$_module_name" || return 0
 
 [ -n "$ZSH_VERSION" ] || return 0
 

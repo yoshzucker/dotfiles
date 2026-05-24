@@ -1,31 +1,16 @@
-# --- z10_ui_terminal_colors.sh -------------------------------------------
-# Set terminal ANSI colors based on theme_name and term_type.
-# This script is POSIX-compliant and can be sourced from zsh or bash.
+# --- 10-ui-terminal-colors.sh --------------------------------------------
+# Apply terminal theme colors (OSC sequences) for nord/solarized + iterm/ansi.
+# Exports THEME_* semantic colors used by prompt, fzf, tmux.
+# zsh-specific (uses ${(U)} and set_color).
 
-# Guard: source only, skip if already loaded
-(return 0 2>/dev/null) || { echo "This script must be sourced."; exit 1; }
+# Guard (Option B, reliable): name captured at module top-level before any function
+_module_name="$(basename "${BASH_SOURCE[0]:-${(%):-%N}}" .sh | tr -c "a-zA-Z0-9" "_")"
+_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%N}}")" && pwd)"
+[ -f "$_script_dir/../loader.sh" ] && source "$_script_dir/../loader.sh"
+__load_guard "$_module_name" || return 0
 
-f="${BASH_SOURCE[0]:-${(%):-%N}}"
-b="${f##*/}"
-v="__LOADED_${b%.*}__"
-
-if [ -n "${ZSH_VERSION:-}" ]; then
-  eval "test -n \"\${$v:-}\""
-  if [ $? -eq 0 ]; then
-    return 0
-  fi
-else
-  if [ -n "${!v:-}" ]; then
-    return 0
-  fi
-fi
-
-eval "$v=1"
-
-# Required env variables:
-#   - theme_name: 'nord' or 'solarized'
-#   - theme_variant: 'light' or 'dark'
-#   - term_type: 'ansi' or 'iterm'
+# Required env variables (from 00-core-env):
+#   - THEME_NAME, THEME_VARIANT, TERM_TYPE
 
 # Exit if required variables are missing
 [ -z "$THEME_NAME" ] && return

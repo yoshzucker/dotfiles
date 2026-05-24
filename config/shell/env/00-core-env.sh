@@ -1,30 +1,13 @@
-# --- p00_core_env.sh -----------------------------------------------------
-# Detect OS, distribution, platform, and terminal type.
-# Sets environment variables:
-#   - os:           darwin | linux
-#   - distribution: darwin | ubuntu | debian | msys2 | ...
-#   - platform:     native | wsl1 | wsl2
-#   - term_type:    ansi | iterm
-
-# Guard: source only, skip if already loaded
-(return 0 2>/dev/null) || { echo "This script must be sourced."; exit 1; }
-
-f="${BASH_SOURCE[0]:-${(%):-%N}}"
-b="${f##*/}"
-v="__LOADED_${b%.*}__"
-
-if [ -n "${ZSH_VERSION:-}" ]; then
-  eval "test -n \"\${$v:-}\""
-  if [ $? -eq 0 ]; then
-    return 0
-  fi
-else
-  if [ -n "${!v:-}" ]; then
-    return 0
-  fi
-fi
-
-eval "$v=1"
+# --- 00-core-env.sh ------------------------------------------------------
+# Detect OS, distribution, platform, terminal type and theme.
+# Exports: OS, DISTRIBUTION, PLATFORM, TERM_TYPE, THEME_NAME, THEME_VARIANT
+# and derived THEME_* color variables (consumed by UI modules and tmux).
+#
+# Guard (Option B, reliable): name captured at module top-level before any function
+_module_name="$(basename "${BASH_SOURCE[0]:-${(%):-%N}}" .sh | tr -c "a-zA-Z0-9" "_")"
+_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%N}}")" && pwd)"
+[ -f "$_script_dir/../loader.sh" ] && source "$_script_dir/../loader.sh"
+__load_guard "$_module_name" || return 0
 
 # OS & Distribution Detection
 os="unknown"

@@ -1,6 +1,12 @@
-# --- p05_core_msys.sh --------------------------------------------------------
-# POSIX <-> Windows path helpers and "open" (Windows only)
-# deps: zsh, MSYS2 (pwd -W)
+# --- 30-msys.sh ----------------------------------------------------------
+# MSYS2 helpers: pp/wp (POSIX<->Windows path), open() command.
+# Only activates under msys2 distribution.
+
+# Guard (Option B, reliable): name captured at module top-level before any function
+_module_name="$(basename "${BASH_SOURCE[0]:-${(%):-%N}}" .sh | tr -c "a-zA-Z0-9" "_")"
+_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%N}}")" && pwd)"
+[ -f "$_script_dir/../loader.sh" ] && source "$_script_dir/../loader.sh"
+__load_guard "$_module_name" || return 0
 
 # to POSIX (C:\foo\Bar → /c/foo/Bar, \\server\share → //server/share)
 pp() {
