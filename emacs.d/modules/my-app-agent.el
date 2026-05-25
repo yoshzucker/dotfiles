@@ -69,7 +69,9 @@ Outside: pre-fills with the file at point in dired, or buffer-file-name for norm
 
 (use-package agent-shell-org-transcript
   :straight (:host github :repo "lllShamanlll/agent-shell-org-transcript")
-  :after (agent-shell org-roam))
+  :after (agent-shell org org-roam)
+  :config
+  (setq agent-shell-org-transcript-directory my/org-complexbrain-directory))
 
 (use-package agent-shell-manager
   :straight (:host github :repo "jethrokuan/agent-shell-manager")

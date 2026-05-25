@@ -10,7 +10,7 @@
   (defcustom my/org-main-directory
     (file-name-as-directory "~/Documents/memex/")
     "Top directory for org-mode system.")
-  (defcustom org-complexbrain-directory
+  (defcustom my/org-complexbrain-directory
     (file-name-as-directory (concat my/org-main-directory "complexbrain/"))
     "Directory for org-roam and other structured org files.")
   :config
@@ -91,7 +91,7 @@
   
   (advice-add 'org-return :around #'my/org-return-in-evil-normal)
 
-  (setq org-directory org-complexbrain-directory)
+  (setq org-directory my/org-complexbrain-directory)
   (setq org-default-notes-file (concat org-directory "inbox.org"))
   (setq org-agenda-files
         (if (file-exists-p org-default-notes-file)
@@ -125,10 +125,10 @@
         ;; fallback if rg is not available
         (my/find-org-recursive abs))))
 
-  (when (file-directory-p org-complexbrain-directory)
+  (when (file-directory-p my/org-complexbrain-directory)
     (setq org-agenda-files
           (cl-union org-agenda-files
-                    (my/find-todo-files org-complexbrain-directory)
+                    (my/find-todo-files my/org-complexbrain-directory)
                     :test #'string=)))
 
   (setq org-return-follows-link t)
@@ -420,7 +420,16 @@
         s
       (concat (truncate-string-to-width s (max (- maxlength 1) 0) 0) ".")))
   
-  (advice-add 'org-shorten-string :override #'my/org-shorten-string))
+  (advice-add 'org-shorten-string :override #'my/org-shorten-string)
+
+  ;; Misc
+  (defun my/deadgrep-memex ()
+    (interactive)
+    (require 'deadgrep)
+    (let ((default-directory my/org-main-directory))
+      (call-interactively #'deadgrep)))
+
+  (evil-ex-define-cmd "memex" #'my/deadgrep-memex))
 
 (use-package org-colview
   :straight nil
@@ -881,7 +890,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
          "TAB" #'org-noter-insert-note-toggle-no-questions))
 
   (setq org-noter-always-create-frame nil
-        org-noter-notes-search-path (list org-complexbrain-directory)
+        org-noter-notes-search-path (list my/org-complexbrain-directory)
         org-noter-doc-property-in-notes t))
 
 (use-package citar
@@ -1051,7 +1060,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
 
   (add-hook 'deft-mode-hook #'my/clear-button-key)
 
-  (setq deft-directory org-complexbrain-directory
+  (setq deft-directory my/org-complexbrain-directory
         deft-archive-directory "archive/"
         deft-default-extension "org"
         deft-ignore-file-regexp (concat "\\(?:" "^$" "\\)" "\\|.#")
