@@ -1,0 +1,12 @@
+# MSYS2 (pacman) packages for this dotfiles setup
+# Location: pkg/pacman/msys2-packages.txt  (outside config/)
+#
+# One package name per line. Comments and blanks are ignored.
+#
+# Add one package name per line.
+# This file is read by run_once_30-install-msys2.sh.tmpl
+#
+# Example:
+# git
+# ripgrep
+# tmux

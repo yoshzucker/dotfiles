@@ -1,0 +1,5 @@
+# pacman packages (for Arch Linux and other pacman-based distros)
+# Location: pkg/pacman/packages.txt  (outside config/ — never symlinked)
+#
+# This is separate from msys2-packages.txt because the sets differ.
+# One package name per line. Comments and blanks are ignored.

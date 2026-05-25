@@ -1,12 +1,12 @@
 # dotfiles — Homebrew Bundle (declarative packages)
-# Location: config/brew/Brewfile
+# Location: pkg/brew/Brewfile  (outside config/ so it is never symlinked into ~/.config)
 #
 # Usage (from repo root or anywhere):
-#   brew bundle --file config/brew/Brewfile --no-upgrade
-#   brew bundle --file config/brew/Brewfile --upgrade   # for updates
+#   brew bundle --file pkg/brew/Brewfile --no-upgrade
+#   brew bundle --file pkg/brew/Brewfile --upgrade   # for updates
 #
 # This file is the single source of truth for brew-managed packages.
-# Run `setup update` (which will call bundle) or `brew bundle` directly.
+# Run `./bootstrap update` (or `./bootstrap`) or `brew bundle` directly.
 #
 # macOS vs Linux conditionals use the Ruby DSL provided by `brew bundle`.
 # emacs-plus (mac) includes the full post-install placement of Emacs.app
@@ -37,6 +37,12 @@ brew "r"
 brew "python"
 brew "pyenv"
 brew "pyenv-virtualenv"        # (fixed typo from old pyenv-vitualenv)
+
+# よく使う開発ツール（例）
+brew "jq"
+brew "tree"
+brew "htop"
+brew "tig"
 
 # --- Platform-specific CLI ---------------------------------------------------
 brew "karabiner-elements", if: OS.mac?
@@ -73,8 +79,8 @@ if OS.mac?
 end
 
 # --- Cleanup hint ------------------------------------------------------------
-# After changes: brew bundle --file config/brew/Brewfile
-# To dump current state for review: brew bundle dump --file config/brew/Brewfile --force
+# After changes: brew bundle --file pkg/brew/Brewfile
+# To dump current state for review: brew bundle dump --file pkg/brew/Brewfile --force
 # (then edit to add comments/conditionals)
 
 # vim: ft=ruby

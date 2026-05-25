@@ -1,0 +1,19 @@
+# APT packages for Debian/Ubuntu (and derivatives)
+# Used by the bootstrap script during install/update.
+# One package per line. Comments and blank lines are ignored.
+#
+# These are the base packages needed before Homebrew and other tools.
+# Keep this list minimal and well-commented.
+
+zsh
+curl            # required for Homebrew installer
+build-essential # required to build from source (Homebrew etc.)
+procps          # required by Homebrew on Linux
+git             # required by Homebrew + general use
+x11-apps
+language-pack-ja
+fonts-noto-cjk
+locales
+libcurl4-openssl-dev
+libssl-dev
+libxml2-dev

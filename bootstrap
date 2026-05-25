@@ -1,0 +1,821 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+IFS=$'\n\t'
+
+
+# =============================================================================
+# CLI Argument Parsing & Initialization
+# =============================================================================
+# Handles command-line options, subcommands (bootstrap, link, update, doctor,
+# unlink, etc.), and sets the global flags that drive the main() flow.
+
+usage() {
+  cat <<EOF
+bootstrap — dotfiles environment bootstrapper
+
+Usage:
+  $0 [bootstrap]      # Full bootstrap / re-deploy (installs + links; recommended for fresh)
+  $0 update           # Update packages + refresh links + clean broken links
+  $0 link             # Create or refresh links only (idempotent, safe refresh)
+  $0 unlink           # Remove only links managed by this repo (safe)
+  $0 doctor [--fix]   # Diagnose + optionally remove broken links
+  -h, --help          # Show this help
+
+Recommended flows:
+  First time (fresh) or re-deploy after git clone/pull:
+      curl -fsSL https://raw.githubusercontent.com/yoshzucker/dotfiles/main/bootstrap | bash
+      # or locally: ./bootstrap
+
+  After pulling updates:
+      ./bootstrap update
+
+  Direct operations:
+      ./bootstrap link
+      ./bootstrap unlink
+      ./bootstrap doctor --fix
+
+All operations are non-interactive and safe to re-run on configured machines.
+XDG-backed conflict backups are created only for real files that would be overwritten.
+
+EOF
+  exit 1
+}
+
+
+while getopts hn-: opt; do
+  case $opt in
+    h) usage ;;
+    -)
+      case "$OPTARG" in
+        help) usage ;;
+        *) echo "Unknown option --$OPTARG"; usage ;;
+      esac
+      ;;
+    \?) echo "Invalid option: -$OPTARG" >&2; usage ;;
+  esac
+done
+shift $((OPTIND - 1))
+
+
+link=0
+unlink=0
+update=0
+doctor=0
+doctor_fix=0
+
+
+
+main_mode="${1:-}"
+
+# Shift past the main command
+if [ -n "$main_mode" ]; then
+  shift || true
+fi
+
+# Handle options like --fix (must come after the subcommand)
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --fix)
+      if [ "$main_mode" = "doctor" ]; then
+        doctor_fix=1
+      else
+        echo "Error: --fix is only valid with the 'doctor' subcommand."
+        usage
+      fi
+      ;;
+    *)
+      break
+      ;;
+  esac
+  shift
+done
+
+# Sub-mode for list (if any)
+sub_mode="${1:-}"
+
+case "$main_mode" in
+  "")
+    # No argument: safe default (link refresh + broken link cleanup)
+    # This is the most common "just fix my environment" operation.
+    ;;
+  link)
+    link=1
+    ;;
+  unlink)
+    unlink=1
+    ;;
+  update)
+    update=1
+    ;;
+  bootstrap)
+    # Full bootstrap handled in main(); flag not strictly needed since we key on main_mode value.
+    ;;
+  doctor)
+    doctor=1
+    ;;
+  *)
+    echo "Unknown subcommand: $main_mode"
+    usage
+    ;;
+esac
+
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$script_dir/config/shell/env/00-core-env.sh"
+
+printf "Detected environment: os=%s, distribution=%s, platform=%s\n" "$os" "$distribution" "$platform"
+
+
+main() {
+  # ------------------------------------------------------------------
+  # Full bootstrap (default no-arg, or explicit "bootstrap" subcommand)
+  # Recommended for fresh curl | bash and re-deploys. Idempotent.
+  # ------------------------------------------------------------------
+  if [ -z "$main_mode" ] || [ "$main_mode" = "bootstrap" ]; then
+    perform_full_bootstrap
+    return 0
+  fi
+
+  # ------------------------------------------------------------------
+  # Direct link operations
+  # ------------------------------------------------------------------
+  if [ "$link" -eq 1 ]; then
+    setup_links
+  fi
+
+  if [ "$unlink" -eq 1 ]; then
+    unlink_dotfiles
+  fi
+
+  if [ "$doctor" -eq 1 ]; then
+    doctor
+  fi
+
+  # ------------------------------------------------------------------
+  # Update flow (packages + links)
+  # ------------------------------------------------------------------
+  if [ "$update" -eq 1 ]; then
+    update_apt_packages
+    update_brew
+    update_brew_packages
+    update_r_packages
+    setup_links
+
+    show_restart_notice
+  fi
+
+  # ------------------------------------------------------------------
+  # List commands
+  # ------------------------------------------------------------------
+  if [ "$list_independent" -eq 1 ]; then
+    show_brew_independent_packages
+  elif [ "$list_dependent" -eq 1 ]; then
+    show_brew_dependent_packages
+  fi
+}
+
+
+print_line() {
+  local left="$1"
+  local right="$2"
+  local fill_char="${3:-.}"
+
+  local cols
+  cols=$(tput cols 2>/dev/null || echo 80)
+
+  local left_len=${#left}
+  local right_len=${#right}
+  local total_len=$(( left_len + right_len ))
+
+  local lines=$(( (total_len + cols - 1) / cols ))
+  [ "$lines" -lt 1 ] && lines=1
+
+  local fill_len=$(( lines * cols - total_len ))
+
+  local filler=""
+  while [ ${#filler} -lt "$fill_len" ]; do
+    filler="${filler}${fill_char}"
+  done
+
+  printf "%s%s%s\n" "$left" "$filler" "$right"
+}
+
+
+is_managed_link() {
+  local link="$1"
+  [ -L "$link" ] || return 1
+
+  local target
+  target="$(realpath "$link" 2>/dev/null || true)"
+  local canon_script
+  canon_script="$(realpath "$script_dir" 2>/dev/null || echo "$script_dir")"
+
+  if [ -n "$target" ] && [[ "$target" == "$canon_script"* ]]; then
+    return 0
+  fi
+  return 1
+}
+
+
+
+unlink_dotfiles() {
+  # Removes links that were created by this dotfiles repository
+  # (i.e. links whose targets reside inside the repository directory).
+  # Real files and links created by other tools are never touched.
+  left_message="Unlinking dotfiles"
+  print_line "$left_message" "Started."
+
+  echo "This will remove links that point back into this dotfiles repository."
+  echo "Only links created by 'bootstrap link' (or equivalent) will be touched."
+  echo "Real files and links created by other tools will be left alone."
+  echo
+
+  # === $HOME top level (direct children only - safety critical) ===
+  echo "=== $HOME (top level only) ==="
+  remove_managed_links_under_top_level "$HOME"
+
+  # === Recursively managed locations ===
+  for dir in \
+      "$HOME/.config" \
+      "$HOME/.local" \
+      "$HOME/.emacs.d"
+  do
+      echo
+      echo "=== ${dir/#$HOME/~} ==="
+      remove_managed_links_recursively_under "$dir"
+  done
+
+  echo
+  print_line "$left_message" "Finished."
+}
+
+doctor() {
+  left_message="Running doctor"
+  print_line "$left_message" "Started."
+
+  echo "Scanning for broken links under managed locations (safe, limited scope)..."
+  echo
+  echo "Note: Only direct children of $HOME + full contents of ~/.config and ~/.local are considered."
+  echo "      Deep recursion under ~/Library is intentionally avoided."
+  echo
+
+  if [ "$doctor_fix" -eq 1 ]; then
+    echo "==> Fix mode enabled."
+    echo
+  fi
+
+  # === $HOME top level (direct children only - safety critical) ===
+  echo "=== $HOME (top level only) ==="
+  if [ "$doctor_fix" -eq 1 ]; then
+    remove_broken_links_under_top_level "$HOME"
+  else
+    report_broken_links_under_top_level "$HOME"
+  fi
+
+  # === Recursively managed locations ===
+  for dir in \
+      "$HOME/.config" \
+      "$HOME/.local" \
+      "$HOME/.emacs.d"
+  do
+      echo
+      echo "=== ${dir/#$HOME/~} ==="
+      if [ "$doctor_fix" -eq 1 ]; then
+        remove_broken_links_recursively_under "$dir"
+      else
+        report_broken_links_recursively_under "$dir"
+      fi
+  done
+
+  echo
+  if [ "$doctor_fix" -eq 1 ]; then
+    print_line "$left_message" "Finished (fix mode)."
+  else
+    print_line "$left_message" "Finished (report only)."
+    echo
+    echo "Tip: Run './bootstrap doctor --fix' to remove broken links."
+  fi
+}
+
+# =============================================================================
+# Low-level Link Utilities
+# =============================================================================
+# Basic building blocks for creating, replacing, and checking links.
+# These are pure utilities with no side effects on global state.
+
+ensure_real_directory() {
+  local path="$1"
+  if [ -L "$path" ]; then
+    echo "🔁 Replacing link with real directory: $path"
+    rm -f "$path"
+  fi
+  mkdir -p "$path"
+}
+
+link_directory_contents() {
+  local src_dir="$1"
+  local dest_dir="$2"
+
+  shopt -s nullglob dotglob
+  for src in "$src_dir"/*; do
+    local name
+    name="$(basename "$src")"
+    case "$name" in .|..|.DS_Store) continue ;; esac
+
+    local dest="$dest_dir/$name"
+
+    if [ -L "$src" ] && [ "$(realpath "$src" 2>/dev/null)" = "$dest_dir" ]; then
+      echo "⛔ Skipping circular link: $src → $dest_dir"
+      continue
+    fi
+    if [[ -e "$dest" && "$(realpath "$src" 2>/dev/null)" == "$(realpath "$dest" 2>/dev/null)" ]]; then
+      echo "⛔ Skipping self-referential link: $dest"
+      continue
+    fi
+
+    # If the destination already correctly points to this source, leave it alone.
+    # This makes repeated link runs quiet and truly idempotent.
+    if [ -L "$dest" ]; then
+      if [ "$(realpath "$dest" 2>/dev/null)" = "$(realpath "$src" 2>/dev/null)" ]; then
+        continue
+      fi
+      echo "🔁 Replacing link: $dest"
+      rm -f "$dest"
+    elif [ -e "$dest" ]; then
+      backup_conflicting_file "$dest"
+    fi
+
+    ln -s "$src" "$dest"
+    echo "✅ Linked: $dest → $src"
+  done
+  shopt -u nullglob dotglob
+}
+
+link_tree() {
+  local src_dir="$1"
+  local dest_dir="$2"
+
+  ensure_real_directory "$dest_dir"
+
+  shopt -s nullglob dotglob
+  for src in "$src_dir"/*; do
+    local name
+    name="$(basename "$src")"
+    case "$name" in .|..|.DS_Store) continue ;; esac
+
+    local dest="$dest_dir/$name"
+
+    if [ -L "$src" ] && [ "$(realpath "$src" 2>/dev/null)" = "$dest_dir" ]; then
+      echo "⛔ Skipping circular link: $src → $dest_dir"
+      continue
+    fi
+    if [[ -e "$dest" && "$(realpath "$src" 2>/dev/null)" == "$(realpath "$dest" 2>/dev/null)" ]]; then
+      echo "⛔ Skipping self-referential link: $dest"
+      continue
+    fi
+
+    if [ -d "$src" ] && [ ! -L "$src" ]; then
+      link_tree "$src" "$dest"
+    else
+      if [ -L "$dest" ]; then
+        rm -f "$dest"
+      elif [ -e "$dest" ]; then
+        backup_conflicting_file "$dest"
+      fi
+      ln -s "$src" "$dest"
+      echo "✅ Linked: $dest → $src"
+    fi
+  done
+  shopt -u nullglob dotglob
+}
+
+is_broken_link() {
+  [ -L "$1" ] && [ ! -e "$1" ]
+}
+
+
+
+# =============================================================================
+# Link Scanning & Safety Helpers
+# =============================================================================
+# Higher-level helpers for safely discovering and cleaning links.
+# These respect the rule that raw $HOME must never be scanned recursively.
+#
+# Naming:
+#   *_recursively_under  : full recursive scan (safe for .config, .local, .emacs.d)
+#   *_under_top_level    : direct children only (required for raw $HOME on all OSes)
+
+remove_broken_links_recursively_under() {
+  local base_dir="$1"
+  [ -d "$base_dir" ] || return 0
+
+  while IFS= read -r -d '' link; do
+    if is_broken_link "$link"; then
+      echo "🗑️  Removing broken link: $link"
+      rm -f "$link"
+      continue
+    fi
+
+    local target
+    target="$(realpath "$link" 2>/dev/null || true)"
+    local canon_script
+    canon_script="$(realpath "$script_dir" 2>/dev/null || echo "$script_dir")"
+    if [[ "$target" == "$canon_script"* ]] && [ ! -e "$target" ]; then
+      echo "🗑️  Removing orphan link (source moved/removed): $link → $target"
+      rm -f "$link"
+    fi
+  done < <(find "$base_dir" -type l -print0 2>/dev/null)
+}
+
+remove_managed_links_recursively_under() {
+  local base_dir="$1"
+  [ -d "$base_dir" ] || return 0
+
+  local removed=0
+
+  while IFS= read -r -d '' link; do
+    if is_managed_link "$link"; then
+      echo "🗑️  Removing managed link: $link → $(realpath "$link" 2>/dev/null || true)"
+      rm -f "$link"
+      removed=$((removed + 1))
+    fi
+  done < <(find "$base_dir" -type l -print0 2>/dev/null)
+
+  if [ "$removed" -eq 0 ]; then
+    echo "  (no managed links found)"
+  fi
+}
+
+report_broken_links_recursively_under() {
+  local base_dir="$1"
+  [ -d "$base_dir" ] || return 0
+
+  while IFS= read -r -d '' link; do
+    if is_broken_link "$link"; then
+      echo "Broken: $link"
+      continue
+    fi
+
+    local target
+    target="$(realpath "$link" 2>/dev/null || true)"
+    local canon_script
+    canon_script="$(realpath "$script_dir" 2>/dev/null || echo "$script_dir")"
+    if [[ "$target" == "$canon_script"* ]] && [ ! -e "$target" ]; then
+      echo "Orphan (managed by dotfiles but source gone): $link → $target"
+    fi
+  done < <(find "$base_dir" -type l -print0 2>/dev/null)
+}
+
+# --- Top level only (non-recursive, maxdepth 1) ---
+
+remove_broken_links_under_top_level() {
+  local base_dir="$1"
+  [ -d "$base_dir" ] || return 0
+
+  find "$base_dir" -maxdepth 1 -type l -print0 2>/dev/null |
+  while IFS= read -r -d '' link; do
+    if is_broken_link "$link"; then
+      echo "🗑️  Removing broken link: $link"
+      rm -f "$link"
+    fi
+  done
+}
+
+remove_managed_links_under_top_level() {
+  local base_dir="$1"
+  [ -d "$base_dir" ] || return 0
+
+  find "$base_dir" -maxdepth 1 -type l -print0 2>/dev/null |
+  while IFS= read -r -d '' link; do
+    if is_managed_link "$link"; then
+      echo "🗑️  Removing managed link: $link → $(realpath "$link" 2>/dev/null || true)"
+      rm -f "$link"
+    fi
+  done
+}
+
+report_broken_links_under_top_level() {
+  local base_dir="$1"
+  [ -d "$base_dir" ] || return 0
+
+  find "$base_dir" -maxdepth 1 -type l -print0 2>/dev/null |
+  while IFS= read -r -d '' link; do
+    if is_broken_link "$link"; then
+      echo "Broken: $link"
+    fi
+  done
+}
+
+backup_conflicting_file() {
+  local conflict="$1"
+  local ts
+  ts="$(date +%Y%m%d-%H%M%S)"
+  local backup_root="${XDG_DATA_HOME:-$HOME/.local/share}/dotfiles/backups/${ts}"
+  local rel_path="${conflict#$HOME/}"
+  local backup_path="$backup_root/$rel_path"
+
+  mkdir -p "$(dirname "$backup_path")"
+  mv "$conflict" "$backup_path"
+
+  echo "⚠️  Conflict: $conflict was a real file."
+  echo "    Backed up to: $backup_path"
+  echo "    Proceeding to create link."
+}
+
+# =============================================================================
+# High-level Link Operations
+# =============================================================================
+# Entry points that users (and perform_full_bootstrap) call directly for
+# linking, unlinking, and diagnosis. These orchestrate the low-level
+# utilities above.
+
+setup_links() {
+  left_message="Linking dotfiles"
+  print_line "$left_message" "Started."
+
+  local dotfiles_root="$script_dir"
+
+  # === $HOME top level (direct children only - safety critical) ===
+  # We never recurse under raw $HOME on any OS.
+  remove_broken_links_under_top_level "$HOME"
+
+  # === Recursively managed locations ===
+  # These directories are safe to scan recursively.
+  # Declarative list so it's easy to add/remove targets.
+  for dir in \
+      "$HOME/.config" \
+      "$HOME/.local" \
+      "$HOME/.emacs.d"
+  do
+      remove_broken_links_recursively_under "$dir"
+  done
+
+  link_tree "$dotfiles_root/home" "$HOME"
+  link_tree "$dotfiles_root/config" "$HOME/.config"
+
+  ensure_real_directory "$HOME/.local"
+  ensure_real_directory "$HOME/.local/bin"
+  link_directory_contents "$dotfiles_root/local/bin" "$HOME/.local/bin"
+
+  print_line "$left_message" "Finished."
+}
+
+# =============================================================================
+# Package Management Utilities
+# =============================================================================
+# Functions responsible for installing and updating packages via apt, brew,
+# Scoop (via ps1), R, etc. These are mostly independent of the link logic.
+
+install_apt_packages() {
+  # Installs base APT packages required before Homebrew and other tools.
+  # Reads from pkg/apt/packages.txt when possible (transition in progress).
+  if [[ "$distribution" != "ubuntu" && "$distribution" != "debian" ]]; then
+    return
+  fi
+
+  left_message="Installing APT packages"
+  print_line "$left_message" "Started."
+
+  # Read from pkg/apt/packages.txt (one package per line, comments and blanks ignored)
+  local apt_list_file="$script_dir/pkg/apt/packages.txt"
+  packages=()
+
+  if [ -f "$apt_list_file" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      # Trim leading/trailing whitespace and skip comments/empty
+      line=$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+      case "$line" in
+        ''|\#*) continue ;;
+      esac
+      packages+=("$line")
+    done < "$apt_list_file"
+  fi
+
+  # Fallback if file missing or empty (should not normally happen after manifest move)
+  if [ "${#packages[@]}" -eq 0 ]; then
+    packages=(
+      zsh curl build-essential procps git x11-apps language-pack-ja
+      fonts-noto-cjk locales libcurl4-openssl-dev libssl-dev libxml2-dev
+    )
+  fi
+
+  sudo apt update
+  sudo DEBIAN_FRONTEND=noninteractive apt install -y "${packages[@]}"
+  sudo apt autoremove -y
+
+  print_line "$left_message" "Finished."
+}
+
+update_apt_packages() {
+  # Updates all installed APT packages on Debian/Ubuntu systems.
+  if [[ "$distribution" != "ubuntu" && "$distribution" != "debian" ]]; then
+    return
+  fi
+
+  left_message="Updating APT packages"
+  print_line "$left_message" "Started."
+
+  sudo apt update && sudo apt upgrade -y
+  sudo apt autoremove -y
+
+  print_line "$left_message" "Finished."
+}
+
+install_brew() {
+  # Installs Homebrew itself (the package manager) if not present.
+  # Uses the official installer script. Idempotent.
+  if command -v brew >/dev/null; then
+    return
+  fi
+  
+  left_message="Installing Homebrew"
+  print_line "$left_message" "Started."
+
+  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  
+  if [[ "$os" == "darwin" ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null)"
+  elif [[ "$os" == "linux" ]]; then
+    test -d ~/.linuxbrew && eval "$(~/.linuxbrew/bin/brew shellenv)"
+    test -d /home/linuxbrew/.linuxbrew && eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+    umask 002
+  fi
+  
+  print_line "$left_message" "Finished."
+}
+
+update_brew() {
+  if ! command -v brew >/dev/null; then
+    return
+  fi
+
+  left_message="Updating Homebrew"
+  print_line "$left_message" "Started."
+
+  brew update
+
+  print_line "$left_message" "Finished."
+}
+
+install_brew_packages() {
+  # Installs/updates packages declared in pkg/brew/Brewfile using `brew bundle`.
+  # Includes post-processing for things like Emacs.app placement on macOS.
+  # Idempotent and safe to re-run.
+  if ! command -v brew >/dev/null; then
+    return
+  fi
+
+  left_message="Installing brew packages (via Brewfile)"
+  print_line "$left_message" "Started."
+
+  export HOMEBREW_NO_AUTO_UPDATE=1
+  brew update
+
+  # Single source of truth: pkg/brew/Brewfile (moved out of config/ per requirement 10)
+  brew bundle --file "$script_dir/pkg/brew/Brewfile" --no-upgrade || true
+
+  # Post-brew step for macOS Emacs.app placement (kept minimal; ideally handled in Brewfile DSL)
+  if [[ "$os" == "darwin" ]]; then
+    prefix="$(brew --prefix emacs-plus 2>/dev/null || true)"
+    if [ -d "$prefix/Emacs.app" ]; then
+      rm -rf /Applications/Emacs.app 2>/dev/null || true
+      cp -a "$prefix/Emacs.app" /Applications 2>/dev/null || true
+    fi
+  fi
+
+  brew cleanup
+  unset HOMEBREW_NO_AUTO_UPDATE
+
+  print_line "$left_message" "Finished."
+}
+
+update_brew_packages() {
+  # Updates packages declared in pkg/brew/Brewfile.
+  # Also triggers a link refresh afterwards in the update flow.
+  if ! command -v brew >/dev/null; then
+    return
+  fi
+
+  left_message="Updating brew packages (via Brewfile)"
+  print_line "$left_message" "Started."
+
+  brew update
+  brew bundle --file "$script_dir/pkg/brew/Brewfile" --upgrade || true
+  brew cleanup
+
+  print_line "$left_message" "Finished."
+}
+
+install_r_packages() {
+  # Installs or updates commonly used R packages (tidyverse, IRkernel, etc.).
+  # This is a convenience step and is safe to re-run.
+  if ! command -v R >/dev/null; then
+    return
+  fi
+
+  left_message="Installing or updating R packages"
+  print_line "$left_message" "Started."
+  
+  if [[ "$os" == "darwin" ]]; then
+    chmod u+w "$(brew --prefix)/Cellar/r/"*/lib/R/doc/html/packages.html 2>/dev/null || true
+  fi
+  
+  if [[ "$os" == "linux" ]]; then
+    options="repos='https://cran.rstudio.com', INSTALL_opts=c('--no-lock')"
+  else
+    options="repos='https://cran.rstudio.com'"
+  fi
+  
+  packages="c('tidyverse', 'IRkernel')"
+  Rscript -e "install.packages($packages[! $packages %in% installed.packages()[, 'Package']], $options)" || true
+
+  if command -v jupyter >/dev/null; then
+    Rscript -e "IRkernel::installspec()" || true
+  fi
+  
+  print_line "$left_message" "Finished."
+}
+
+update_r_packages() {
+  # Updates all installed R packages (non-interactive).
+  if ! command -v R >/dev/null; then
+    return
+  fi
+
+  left_message="Updating installed R packages"
+  print_line "$left_message" "Started."
+
+  Rscript -e "update.packages(ask = FALSE)" || true
+
+  print_line "$left_message" "Finished."
+}
+
+install_rgpipe() {
+  # Downloads and installs the rgpipe script into ~/.local/bin if not present.
+  # Used for ripgrep preprocessing on binary files (pdf, docx, etc.).
+  if command -v rgpipe >/dev/null 2>&1; then
+    return
+  fi
+
+  left_message="Installing rgpipe"
+  print_line "$left_message" "Started."
+
+  local rgpipe_path="$HOME/.local/bin/rgpipe"
+  local url="https://raw.githubusercontent.com/ColonelBuendia/rgpipe/master/rgpipe"
+
+  mkdir -p "$HOME/.local/bin"
+  curl -fsSL "$url" -o "$rgpipe_path"
+  chmod u+x "$rgpipe_path"
+
+  print_line "$left_message" "Finished."
+}
+
+
+
+apply_git_defaults() {
+  # Applies a few sensible default Git configurations (editor, default branch, graph alias).
+  # This is idempotent and safe to re-run.
+  left_message="Configuring Git settings"
+  print_line "$left_message" "Started."
+
+  git config --global core.editor "emacsclient"
+  git config --global init.defaultBranch "main"
+  git config --global --add alias.graph 'log --pretty=format:"%C(yellow)%h%Creset %Cgreen%ar%Creset %Cblue%<(8,trunc)%an%Creset %C(auto)%d%Creset %s" --graph'
+
+  print_line "$left_message" "Finished."
+}
+
+perform_full_bootstrap() {
+  # Full initial (or re-deploy) bootstrap for fresh or existing machines.
+  # Idempotent installs (early return if present) + package manifests from pkg/ + links.
+  # This is what 'curl ... | bash' and './bootstrap' (no args) execute.
+  # Re-running is safe; only missing pieces are added and links refreshed.
+  left_message="Full bootstrap"
+  print_line "$left_message" "Started."
+
+  install_apt_packages
+  install_brew
+  install_brew_packages
+  install_r_packages
+  install_rgpipe
+  apply_git_defaults
+  setup_links
+
+  print_line "$left_message" "Finished."
+}
+
+# =============================================================================
+# Support & Reporting Functions
+# =============================================================================
+
+show_restart_notice() {
+  local mode="${main_mode:-bootstrap}"
+  echo
+  echo "Bootstrap step '$mode' complete. To apply shell changes, run:"
+  echo "  exec \$SHELL -l"
+  echo
+}
+
+main "$@"

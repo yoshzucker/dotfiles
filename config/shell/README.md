@@ -54,8 +54,8 @@ See [loader.sh](loader.sh) for the implementation. The guard variable is derived
 
 ## Brew Integration
 
-See [../brew/Brewfile](../brew/Brewfile) — declarative single source of truth.
-`setup update` and `brew bundle --file config/brew/Brewfile` are the ways to apply.
+See [../../pkg/brew/Brewfile](../../pkg/brew/Brewfile) — declarative single source of truth (moved out of config/ tree).
+Run `./bootstrap update` or `brew bundle --file pkg/brew/Brewfile`.
 
 ## Relation to Future Chezmoi
 
