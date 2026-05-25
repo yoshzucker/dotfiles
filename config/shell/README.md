@@ -36,18 +36,19 @@ This follows standard zsh startup layers and eliminates previous duplication.
 Every module begins with:
 
 ```sh
+_module_name="$(basename "${BASH_SOURCE[0]:-${(%):-%N}}" .sh | tr -c "a-zA-Z0-9" "_")"
 _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%N}}")" && pwd)"
 [ -f "$_script_dir/../loader.sh" ] && source "$_script_dir/../loader.sh"
-source_guard || return 0
+__load_guard "$_module_name" || return 0
 ```
 
-See [loader.sh](loader.sh) for the implementation. The guard variable is derived from the module filename.
+See [loader.sh](loader.sh) for the implementation. Each module captures its own filename-derived name and passes it explicitly to `__load_guard`.
 
 ## Adding a New Module
 
 1. Choose `env/` (early, cross-shell) or `zsh/` (interactive only).
 2. Pick next available number in the sequence (e.g. 25-foo.sh).
-3. Copy the header + 3-line guard from an existing file.
+3. Copy the header + guard block from an existing file.
 4. Write the logic. Export uppercase vars for downstream (THEME_*, BREW_PREFIX).
 5. Document `deps:` and `exports:` in the header comment.
 6. Test with `exec zsh -l` and non-interactive `zsh -c 'echo $VAR'`.

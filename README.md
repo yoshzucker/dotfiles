@@ -35,8 +35,6 @@ See `./bootstrap --help` or `.\bootstrap.ps1 -h` for all options.
 | `./bootstrap link`       | Refresh symlinks only (idempotent)               | Quick fix for links after manual changes |
 | `./bootstrap unlink`     | Remove *only* symlinks created by this repo      | Before uninstall or major cleanup (real files untouched) |
 | `./bootstrap doctor [--fix]` | Scan (and optionally delete) broken symlinks under $HOME, ~/.config, ~/.local, ~/.emacs.d | Diagnose or clean dangling links |
-| `./bootstrap list independent` | List brew packages with no dependents         | Maintenance / cleanup                |
-| `./bootstrap list dependent`   | Show dependents for each brew package         | Maintenance                          |
 
 All operations are **non-interactive** and **safe to re-run** any number of times.
 
