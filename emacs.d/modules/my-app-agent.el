@@ -24,11 +24,11 @@
           (cond ((eq system-type 'darwin)
                  '(("npm" . "brew install nodejs")))
                 ((eq system-type 'windows-nt)
-                 `(("npm" . "scoop install nodejs")
+                 `(("npm"   . "scoop install nodejs")
                    ("msys2" . "scoop install msys2")
-                   ("diff" . ,(concat (getenv "USERPROFILE")
-                                      \\scoop\\apps\\msys2\\current\\usr\\bin\\bash.exe
-                                      " -lc \"pacman -S --noconfirm diffutils\""))))
+                   ("diff"  . ,(concat (getenv "USERPROFILE")
+                                       "\\scoop\\apps\\msys2\\current\\usr\\bin\\bash.exe"
+                                       " -lc \"pacman -S --noconfirm diffutils\""))))
                 (t nil))
           '(("claude-agent-acp" .
              "npm install -g @agentclientprotocol/claude-agent-acp --ignore-scripts")))))
