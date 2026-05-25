@@ -91,9 +91,6 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-# Sub-mode for list (if any)
-sub_mode="${1:-}"
-
 case "$main_mode" in
   "")
     # No argument: safe default (link refresh + broken link cleanup)
@@ -163,15 +160,6 @@ main() {
     setup_links
 
     show_restart_notice
-  fi
-
-  # ------------------------------------------------------------------
-  # List commands
-  # ------------------------------------------------------------------
-  if [ "$list_independent" -eq 1 ]; then
-    show_brew_independent_packages
-  elif [ "$list_dependent" -eq 1 ]; then
-    show_brew_dependent_packages
   fi
 }
 
@@ -330,7 +318,7 @@ link_directory_contents() {
       continue
     fi
     if [[ -e "$dest" && "$(realpath "$src" 2>/dev/null)" == "$(realpath "$dest" 2>/dev/null)" ]]; then
-      echo "⛔ Skipping self-referential link: $dest"
+      echo "↔️ Skipping existing correct link: $dest"
       continue
     fi
 
@@ -371,7 +359,7 @@ link_tree() {
       continue
     fi
     if [[ -e "$dest" && "$(realpath "$src" 2>/dev/null)" == "$(realpath "$dest" 2>/dev/null)" ]]; then
-      echo "⛔ Skipping self-referential link: $dest"
+      echo "↔️ Skipping existing correct link: $dest"
       continue
     fi
 
@@ -553,6 +541,7 @@ setup_links() {
 
   link_tree "$dotfiles_root/home" "$HOME"
   link_tree "$dotfiles_root/config" "$HOME/.config"
+  link_tree "$dotfiles_root/emacs.d" "$HOME/.emacs.d"
 
   ensure_real_directory "$HOME/.local"
   ensure_real_directory "$HOME/.local/bin"
@@ -675,15 +664,6 @@ install_brew_packages() {
 
   # Single source of truth: pkg/brew/Brewfile (moved out of config/ per requirement 10)
   brew bundle --file "$script_dir/pkg/brew/Brewfile" --no-upgrade || true
-
-  # Post-brew step for macOS Emacs.app placement (kept minimal; ideally handled in Brewfile DSL)
-  if [[ "$os" == "darwin" ]]; then
-    prefix="$(brew --prefix emacs-plus 2>/dev/null || true)"
-    if [ -d "$prefix/Emacs.app" ]; then
-      rm -rf /Applications/Emacs.app 2>/dev/null || true
-      cp -a "$prefix/Emacs.app" /Applications 2>/dev/null || true
-    fi
-  fi
 
   brew cleanup
   unset HOMEBREW_NO_AUTO_UPDATE
