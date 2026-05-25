@@ -64,8 +64,6 @@ update=0
 doctor=0
 doctor_fix=0
 
-
-
 main_mode="${1:-}"
 
 # Shift past the main command
@@ -244,8 +242,9 @@ doctor() {
 
   echo "Scanning for broken links under managed locations (safe, limited scope)..."
   echo
-  echo "Note: Only direct children of $HOME + full contents of ~/.config and ~/.local are considered."
-  echo "      Deep recursion under ~/Library is intentionally avoided."
+  echo "Note: Only direct children of $HOME + full contents of ~/.config, ~/.local, and ~/.emacs.d are considered."
+  echo "      Deep recursion under raw HOME is intentionally avoided."
+  echo "      Generated dependency directories and link target trees are skipped."
   echo
 
   if [ "$doctor_fix" -eq 1 ]; then
@@ -394,6 +393,33 @@ is_broken_link() {
 #   *_recursively_under  : full recursive scan (safe for .config, .local, .emacs.d)
 #   *_under_top_level    : direct children only (required for raw $HOME on all OSes)
 
+get_symlink_children() {
+  local base_dir="$1"
+  local recurse="${2:-}"
+  [ -d "$base_dir" ] || return 0
+
+  if [ "$recurse" = "--recurse" ]; then
+    find "$base_dir" \
+      -type d \( \
+        -name "myenv" -o \
+        -name ".venv" -o \
+        -name "venv" -o \
+        -name "env" -o \
+        -name "node_modules" -o \
+        -name "__pycache__" -o \
+        -name ".mypy_cache" -o \
+        -name ".pytest_cache" -o \
+        -name ".ruff_cache" -o \
+        -name "target" -o \
+        -name "build" -o \
+        -name "dist" \
+      \) -prune -o \
+      -type l -print0 2>/dev/null
+  else
+    find "$base_dir" -maxdepth 1 -type l -print0 2>/dev/null
+  fi
+}
+
 remove_broken_links_recursively_under() {
   local base_dir="$1"
   [ -d "$base_dir" ] || return 0
@@ -413,7 +439,7 @@ remove_broken_links_recursively_under() {
       echo "🗑️  Removing orphan link (source moved/removed): $link → $target"
       rm -f "$link"
     fi
-  done < <(find "$base_dir" -type l -print0 2>/dev/null)
+  done < <(get_symlink_children "$base_dir" --recurse)
 }
 
 remove_managed_links_recursively_under() {
@@ -428,7 +454,7 @@ remove_managed_links_recursively_under() {
       rm -f "$link"
       removed=$((removed + 1))
     fi
-  done < <(find "$base_dir" -type l -print0 2>/dev/null)
+  done < <(get_symlink_children "$base_dir" --recurse)
 
   if [ "$removed" -eq 0 ]; then
     echo "  (no managed links found)"
@@ -452,7 +478,7 @@ report_broken_links_recursively_under() {
     if [[ "$target" == "$canon_script"* ]] && [ ! -e "$target" ]; then
       echo "Orphan (managed by dotfiles but source gone): $link → $target"
     fi
-  done < <(find "$base_dir" -type l -print0 2>/dev/null)
+  done < <(get_symlink_children "$base_dir" --recurse)
 }
 
 # --- Top level only (non-recursive, maxdepth 1) ---
@@ -461,38 +487,35 @@ remove_broken_links_under_top_level() {
   local base_dir="$1"
   [ -d "$base_dir" ] || return 0
 
-  find "$base_dir" -maxdepth 1 -type l -print0 2>/dev/null |
   while IFS= read -r -d '' link; do
     if is_broken_link "$link"; then
       echo "🗑️  Removing broken link: $link"
       rm -f "$link"
     fi
-  done
+  done < <(get_symlink_children "$base_dir")
 }
 
 remove_managed_links_under_top_level() {
   local base_dir="$1"
   [ -d "$base_dir" ] || return 0
 
-  find "$base_dir" -maxdepth 1 -type l -print0 2>/dev/null |
   while IFS= read -r -d '' link; do
     if is_managed_link "$link"; then
       echo "🗑️  Removing managed link: $link → $(realpath "$link" 2>/dev/null || true)"
       rm -f "$link"
     fi
-  done
+  done < <(get_symlink_children "$base_dir")
 }
 
 report_broken_links_under_top_level() {
   local base_dir="$1"
   [ -d "$base_dir" ] || return 0
 
-  find "$base_dir" -maxdepth 1 -type l -print0 2>/dev/null |
   while IFS= read -r -d '' link; do
     if is_broken_link "$link"; then
       echo "Broken: $link"
     fi
-  done
+  done < <(get_symlink_children "$base_dir")
 }
 
 backup_conflicting_file() {

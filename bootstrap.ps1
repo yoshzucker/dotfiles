@@ -18,6 +18,20 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $MainMode = ""
 $DoctorFix = $false
+$LinkScanSkipDirectoryNames = @(
+    "myenv",
+    ".venv",
+    "venv",
+    "env",
+    "node_modules",
+    "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "target",
+    "build",
+    "dist"
+)
 
 # =============================================================================
 # CLI Argument Parsing & Initialization
@@ -210,6 +224,34 @@ function Test-SamePath {
     return [string]::Equals($leftCanonical, $rightCanonical, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
+function Test-LinkScanSkippedDirectory {
+    param([object]$Item)
+
+    if (-not $Item -or -not $Item.PSIsContainer) {
+        return $false
+    }
+
+    return $script:LinkScanSkipDirectoryNames -contains $Item.Name
+}
+
+function Test-LinkScanDescendableDirectory {
+    param([object]$Item)
+
+    if (-not $Item -or -not $Item.PSIsContainer) {
+        return $false
+    }
+
+    if ($Item.LinkType) {
+        return $false
+    }
+
+    if (($Item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+        return $false
+    }
+
+    return -not (Test-LinkScanSkippedDirectory $Item)
+}
+
 function Ensure-RealDirectory {
     param([string]$Path)
 
@@ -392,11 +434,26 @@ function Get-SymlinkChildren {
         Force = $true
         ErrorAction = "SilentlyContinue"
     }
-    if ($Recurse) {
-        $params.Recurse = $true
+    if (-not $Recurse) {
+        return @(Get-ChildItem @params | Where-Object { $_.LinkType -eq "SymbolicLink" })
     }
 
-    return @(Get-ChildItem @params | Where-Object { $_.LinkType -eq "SymbolicLink" })
+    function Get-SymlinkChildrenRecursively {
+        param([string]$CurrentDir)
+
+        foreach ($child in (Get-ChildItem -LiteralPath $CurrentDir -Force -ErrorAction SilentlyContinue)) {
+            if ($child.LinkType -eq "SymbolicLink") {
+                $child
+                continue
+            }
+
+            if (Test-LinkScanDescendableDirectory $child) {
+                Get-SymlinkChildrenRecursively $child.FullName
+            }
+        }
+    }
+
+    return @(Get-SymlinkChildrenRecursively $BaseDir)
 }
 
 function Remove-BrokenLinksRecursivelyUnder {
@@ -579,6 +636,7 @@ function Doctor {
     Write-Host ""
     Write-Host "Note: Only direct children of $HOME + full contents of ~/.config, ~/.local, and ~/.emacs.d are considered."
     Write-Host "      Deep recursion under raw HOME is intentionally avoided."
+    Write-Host "      Generated dependency directories and link target trees are skipped."
     Write-Host ""
 
     if ($Fix) {

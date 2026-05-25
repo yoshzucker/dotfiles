@@ -34,7 +34,7 @@ See `./bootstrap --help` or `.\bootstrap.ps1 -h` for all options.
 | `./bootstrap update`     | Update packages from manifests + refresh links + clean broken symlinks | After `git pull` to get latest package versions |
 | `./bootstrap link`       | Refresh symlinks only (idempotent)               | Quick fix for links after manual changes |
 | `./bootstrap unlink`     | Remove *only* symlinks created by this repo      | Before uninstall or major cleanup (real files untouched) |
-| `./bootstrap doctor [--fix]` | Scan (and optionally delete) broken symlinks under $HOME, ~/.config, ~/.local | Diagnose or clean dangling links |
+| `./bootstrap doctor [--fix]` | Scan (and optionally delete) broken symlinks under $HOME, ~/.config, ~/.local, ~/.emacs.d | Diagnose or clean dangling links |
 | `./bootstrap list independent` | List brew packages with no dependents         | Maintenance / cleanup                |
 | `./bootstrap list dependent`   | Show dependents for each brew package         | Maintenance                          |
 
@@ -62,7 +62,7 @@ This updates packages (brew/Scoop/apt) to latest per manifests + refreshes all s
 - `home/` → symlinked directly under `$HOME`
 - `config/` → symlinked under `~/.config` (XDG)
 - `local/bin/` → individual scripts symlinked into real directory `~/.local/bin` (the directory itself is never a symlink)
-- `emacs.d/` exists in the repo for manual use or separate git worktrees, **but is never touched by bootstrap** (no linking, no scanning, no removal under `~/.emacs.d`)
+- `emacs.d/` → symlinked under `~/.emacs.d`
 
 **Conflict handling (XDG strict):**
 When a real file (not a symlink) exists at a target path, it is moved to:
@@ -73,6 +73,7 @@ Only real conflicting files are backed up. Existing symlinks (even if not ours) 
 - `unlink` and pre-link cleanup only remove symlinks whose *target* (via realpath / resolved path) lies inside this repository directory.
 - Real files, directories, and symlinks pointing elsewhere are left completely alone.
 - `doctor --fix` removes broken (dangling) symlinks under the usual locations; this is intentionally broader for cleanup convenience.
+- Recursive link scans skip generated/dependency directories (`myenv`, virtualenv names, `node_modules`, build/cache dirs) and never descend into symlink target trees.
 
 This design guarantees that re-running after a `git pull` (or on a fresh machine) always converges to the exact same desired state without destroying user data.
 
@@ -97,7 +98,7 @@ Run `./bootstrap update` (or the explicit package commands) to apply.
 - **macOS**: Homebrew + emacs-plus (provides Emacs.app). Post-install step places Emacs.app in /Applications.
 - **Linux (Debian/Ubuntu/WSL)**: APT base packages first, then Homebrew on top. `language-pack-ja` etc. for Japanese support.
 - **Windows**: Scoop (extras bucket included). Symlink support requires **Developer Mode** enabled (Settings → Update & Security → For developers) or running PowerShell as Administrator. First run after Scoop install usually requires terminal restart.
-- **Emacs**: The `emacs.d/` tree in the repo is provided as a starting point or for reference. Bootstrap never creates `~/.emacs.d` or touches it. Manage it manually (e.g. `ln -s ...` or separate checkout).
+- **Emacs**: The `emacs.d/` tree in the repo is linked under `~/.emacs.d` by bootstrap.
 
 ## Requirements
 
@@ -117,4 +118,4 @@ MIT License.
 
 ## Philosophy
 
-Minimal, modular, long-term maintainable. XDG where it makes sense. Declarative packages. Idempotent everything. No surprises on re-run or fresh machines. Emacs configuration is intentionally left out of the automated symlink story.
+Minimal, modular, long-term maintainable. XDG where it makes sense. Declarative packages. Idempotent everything. No surprises on re-run or fresh machines.
