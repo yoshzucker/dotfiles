@@ -30,7 +30,15 @@ $LinkScanSkipDirectoryNames = @(
     ".ruff_cache",
     "target",
     "build",
-    "dist"
+    "dist",
+    "straight",
+    "var",
+    "elpa",
+    "eln",
+    "auto-save-list",
+    "backups",
+    "transient",
+    ".cache"
 )
 
 # =============================================================================

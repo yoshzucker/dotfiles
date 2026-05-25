@@ -412,7 +412,15 @@ get_symlink_children() {
         -name ".ruff_cache" -o \
         -name "target" -o \
         -name "build" -o \
-        -name "dist" \
+        -name "dist" -o \
+        -name "straight" -o \
+        -name "var" -o \
+        -name "elpa" -o \
+        -name "eln" -o \
+        -name "auto-save-list" -o \
+        -name "backups" -o \
+        -name "transient" -o \
+        -name ".cache" \
       \) -prune -o \
       -type l -print0 2>/dev/null
   else
