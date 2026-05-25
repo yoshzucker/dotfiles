@@ -4,35 +4,221 @@
     Windows bootstrap script for the dotfiles repository.
 .DESCRIPTION
     PowerShell equivalent of the Unix 'bootstrap' script.
-    Designed to have similar command surface and behavior.
-
-    Supported commands:
-      (no argument)   Safe link refresh (default)
-      link            Create/refresh managed symlinks
-      unlink          Remove only symlinks managed by this repo
-      update          Install/update Scoop packages + refresh links
-      doctor [--fix]  Find (and optionally remove) broken symlinks
-
-    The goal is to stay as close as possible to the bash implementation
-    in terms of function names, structure, and safety guarantees.
+    The function words and command flow intentionally mirror the bash version,
+    while keeping PowerShell-style function names.
 #>
 
+param(
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$Arguments
+)
+
+$ErrorActionPreference = "Stop"
+
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$MainMode = ""
+$DoctorFix = $false
 
 # =============================================================================
-# Core Link Utilities (modeled after bash version)
+# CLI Argument Parsing & Initialization
 # =============================================================================
+
+function Show-Usage {
+    Write-Host @"
+bootstrap.ps1 - Windows dotfiles environment bootstrapper
+
+Usage:
+  .\bootstrap.ps1 [bootstrap]     # Full bootstrap / re-deploy (Scoop + packages + links)
+  .\bootstrap.ps1 update          # Update Scoop packages + refresh links + clean broken links
+  .\bootstrap.ps1 link            # Create or refresh links only (idempotent, safe refresh)
+  .\bootstrap.ps1 unlink          # Remove only links managed by this repo (safe)
+  .\bootstrap.ps1 doctor [--fix]  # Diagnose + optionally remove broken links
+  .\bootstrap.ps1 -h | --help     # Show this help
+
+All operations are non-interactive and safe to re-run on configured machines.
+Conflict backups are created only for real items that would be overwritten.
+Requires Windows Developer Mode (or Admin) for symlink creation.
+"@
+}
+
+function Initialize-Arguments {
+    if (-not $script:Arguments) {
+        $script:Arguments = @()
+    }
+
+    if ($script:Arguments.Count -eq 1 -and $script:Arguments[0] -in @("-h", "--help")) {
+        Show-Usage
+        exit 0
+    }
+
+    if ($script:Arguments.Count -gt 0 -and $script:Arguments[0].StartsWith("-")) {
+        Write-Host "Unknown option: $($script:Arguments[0])" -ForegroundColor Yellow
+        Show-Usage
+        exit 1
+    }
+
+    if ($script:Arguments.Count -gt 0) {
+        $script:MainMode = $script:Arguments[0].ToLowerInvariant()
+        $remaining = @()
+        if ($script:Arguments.Count -gt 1) {
+            $remaining = $script:Arguments[1..($script:Arguments.Count - 1)]
+        }
+
+        foreach ($arg in $remaining) {
+            if ($arg -eq "--fix" -or $arg -eq "-Fix") {
+                if ($script:MainMode -eq "doctor") {
+                    $script:DoctorFix = $true
+                } else {
+                    Write-Host "Error: --fix is only valid with the 'doctor' subcommand." -ForegroundColor Yellow
+                    Show-Usage
+                    exit 1
+                }
+            } else {
+                Write-Host "Unknown option or argument: $arg" -ForegroundColor Yellow
+                Show-Usage
+                exit 1
+            }
+        }
+    }
+
+    switch ($script:MainMode) {
+        "" { }
+        "link" { }
+        "unlink" { }
+        "update" { }
+        "bootstrap" { }
+        "doctor" { }
+        default {
+            Write-Host "Unknown subcommand: $script:MainMode" -ForegroundColor Yellow
+            Show-Usage
+            exit 1
+        }
+    }
+}
+
+function Main {
+    if ([string]::IsNullOrEmpty($script:MainMode) -or $script:MainMode -eq "bootstrap") {
+        Perform-FullBootstrap
+        return
+    }
+
+    if ($script:MainMode -eq "link") {
+        Setup-Links
+    }
+
+    if ($script:MainMode -eq "unlink") {
+        Unlink-Dotfiles
+    }
+
+    if ($script:MainMode -eq "doctor") {
+        Doctor -Fix:$script:DoctorFix
+    }
+
+    if ($script:MainMode -eq "update") {
+        Update-Scoop
+        Update-ScoopPackages
+        Update-RPackages
+        Setup-Links
+        Show-RestartNotice
+    }
+}
+
+function Write-PrintLine {
+    param(
+        [string]$Left,
+        [string]$Right,
+        [string]$FillChar = "."
+    )
+
+    $cols = 80
+    try {
+        if ($Host.UI.RawUI.WindowSize.Width -gt 0) {
+            $cols = $Host.UI.RawUI.WindowSize.Width
+        }
+    } catch {
+        $cols = 80
+    }
+
+    $totalLength = $Left.Length + $Right.Length
+    $lines = [Math]::Max(1, [Math]::Ceiling($totalLength / $cols))
+    $fillLength = [Math]::Max(0, ($lines * $cols) - $totalLength)
+    $filler = $FillChar * $fillLength
+
+    Write-Host "$Left$filler$Right"
+}
+
+# =============================================================================
+# Low-level Link Utilities
+# =============================================================================
+
+function Get-PathItem {
+    param([string]$Path)
+    return Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+}
+
+function Get-CanonicalPath {
+    param(
+        [string]$Path,
+        [string]$BaseDir = ""
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return ""
+    }
+
+    $candidate = $Path
+    if ($BaseDir -and -not [System.IO.Path]::IsPathRooted($candidate)) {
+        $candidate = Join-Path $BaseDir $candidate
+    }
+
+    try {
+        $resolved = Resolve-Path -LiteralPath $candidate -ErrorAction Stop
+        return [System.IO.Path]::GetFullPath($resolved.ProviderPath).TrimEnd('\')
+    } catch {
+        try {
+            return [System.IO.Path]::GetFullPath($candidate).TrimEnd('\')
+        } catch {
+            return $candidate.TrimEnd('\')
+        }
+    }
+}
+
+function Get-LinkTargetPath {
+    param([string]$Path)
+
+    $item = Get-PathItem $Path
+    if (-not $item -or $item.LinkType -ne "SymbolicLink") {
+        return ""
+    }
+
+    $target = "$($item.Target)"
+    if (-not $target) {
+        return ""
+    }
+
+    return Get-CanonicalPath $target (Split-Path -Parent $Path)
+}
+
+function Test-SamePath {
+    param(
+        [string]$Left,
+        [string]$Right
+    )
+
+    $leftCanonical = Get-CanonicalPath $Left
+    $rightCanonical = Get-CanonicalPath $Right
+    return [string]::Equals($leftCanonical, $rightCanonical, [System.StringComparison]::OrdinalIgnoreCase)
+}
 
 function Ensure-RealDirectory {
     param([string]$Path)
-    if (Test-Path $Path -PathType Leaf) {
-        Write-Host "🔁 Replacing file with directory: $Path"
-        Remove-Item -Force $Path
+
+    $item = Get-PathItem $Path
+    if ($item -and $item.LinkType -eq "SymbolicLink") {
+        Write-Host "Replacing link with real directory: $Path"
+        Remove-Item -LiteralPath $Path -Force
     }
-    if (Test-Path $Path -PathType Leaf) {
-        # Should not happen after above, but safety
-        Remove-Item -Force $Path
-    }
+
     New-Item -ItemType Directory -Path $Path -Force | Out-Null
 }
 
@@ -41,29 +227,50 @@ function Link-DirectoryContents {
         [string]$SourceDir,
         [string]$TargetDir
     )
+
+    if (-not (Test-Path -LiteralPath $SourceDir -PathType Container)) {
+        return
+    }
+
     Ensure-RealDirectory $TargetDir
 
-    Get-ChildItem -Path $SourceDir -Force | ForEach-Object {
+    Get-ChildItem -LiteralPath $SourceDir -Force | ForEach-Object {
         $name = $_.Name
-        if ($name -in @('.', '..', '.DS_Store')) { return }
+        if ($name -in @(".", "..", ".DS_Store")) {
+            return
+        }
 
         $dest = Join-Path $TargetDir $name
+        $sourceTarget = Get-LinkTargetPath $_.FullName
+        if ($_.LinkType -eq "SymbolicLink" -and $sourceTarget -and (Test-SamePath $sourceTarget $TargetDir)) {
+            Write-Host "Skipping circular link: $($_.FullName) -> $TargetDir"
+            return
+        }
 
-        if (Test-Path $dest) {
-            if ((Get-Item $dest).LinkType -eq 'SymbolicLink') {
-                Write-Host "🔁 Replacing symlink: $dest"
-                Remove-Item -Force $dest
-            } else {
-                Backup-ConflictingItem $dest
+        $destItem = Get-PathItem $dest
+        if ($destItem -and (Test-SamePath $_.FullName $dest)) {
+            Write-Host "Skipping existing correct link: $dest"
+            return
+        }
+
+        if ($destItem -and $destItem.LinkType -eq "SymbolicLink") {
+            $destTarget = Get-LinkTargetPath $dest
+            if ($destTarget -and (Test-SamePath $destTarget $_.FullName)) {
+                return
             }
+
+            Write-Host "Replacing link: $dest"
+            Remove-Item -LiteralPath $dest -Force
+        } elseif ($destItem) {
+            Backup-ConflictingFile $dest
         }
 
         try {
             New-Item -ItemType SymbolicLink -Path $dest -Target $_.FullName -Force -ErrorAction Stop | Out-Null
-            Write-Host "✅ Linked: $dest → $($_.FullName)"
+            Write-Host "Linked: $dest -> $($_.FullName)"
         } catch {
-            Write-Host "⚠️  Failed to create symlink: $dest → $($_.FullName)"
-            Write-Host "   (Windows may require Developer Mode or Admin rights for symlinks)"
+            Write-Host "Failed to create symlink: $dest -> $($_.FullName)" -ForegroundColor Yellow
+            Write-Host "Windows may require Developer Mode or Admin rights for symlinks." -ForegroundColor Yellow
         }
     }
 }
@@ -73,376 +280,502 @@ function Link-Tree {
         [string]$SourceDir,
         [string]$TargetDir
     )
+
+    if (-not (Test-Path -LiteralPath $SourceDir -PathType Container)) {
+        return
+    }
+
     Ensure-RealDirectory $TargetDir
 
-    Get-ChildItem -Path $SourceDir -Force | ForEach-Object {
+    Get-ChildItem -LiteralPath $SourceDir -Force | ForEach-Object {
         $name = $_.Name
-        if ($name -in @('.', '..', '.DS_Store')) { return }
+        if ($name -in @(".", "..", ".DS_Store")) {
+            return
+        }
 
         $dest = Join-Path $TargetDir $name
+        $sourceTarget = Get-LinkTargetPath $_.FullName
+        if ($_.LinkType -eq "SymbolicLink" -and $sourceTarget -and (Test-SamePath $sourceTarget $TargetDir)) {
+            Write-Host "Skipping circular link: $($_.FullName) -> $TargetDir"
+            return
+        }
 
-        if ($_.PSIsContainer) {
+        $destItem = Get-PathItem $dest
+        if ($destItem -and (Test-SamePath $_.FullName $dest)) {
+            Write-Host "Skipping existing correct link: $dest"
+            return
+        }
+
+        if ($_.PSIsContainer -and $_.LinkType -ne "SymbolicLink") {
             Link-Tree $_.FullName $dest
-        } else {
-            if (Test-Path $dest) {
-                if ((Get-Item $dest).LinkType -eq 'SymbolicLink') {
-                    Remove-Item -Force $dest
-                } else {
-                    Backup-ConflictingItem $dest
-                }
-            }
-
-            try {
-                New-Item -ItemType SymbolicLink -Path $dest -Target $_.FullName -Force -ErrorAction Stop | Out-Null
-                Write-Host "✅ Linked: $dest → $($_.FullName)"
-            } catch {
-                Write-Host "⚠️  Failed to create symlink: $dest → $($_.FullName)"
-                Write-Host "   (Windows may require Developer Mode or Admin rights for symlinks)"
-            }
+            return
         }
-    }
-}
 
-function Backup-ConflictingItem {
-    param([string]$Path)
-    $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-    $backupRoot = Join-Path $env:LOCALAPPDATA "dotfiles\backups\$timestamp"
-    $relative = $Path.Replace($HOME, "").TrimStart('\')
-    $backupPath = Join-Path $backupRoot $relative
+        if ($destItem -and $destItem.LinkType -eq "SymbolicLink") {
+            $destTarget = Get-LinkTargetPath $dest
+            if ($destTarget -and (Test-SamePath $destTarget $_.FullName)) {
+                return
+            }
 
-    New-Item -ItemType Directory -Path (Split-Path $backupPath) -Force | Out-Null
-    Move-Item -Force $Path $backupPath
+            Write-Host "Replacing link: $dest"
+            Remove-Item -LiteralPath $dest -Force
+        } elseif ($destItem) {
+            Backup-ConflictingFile $dest
+        }
 
-    Write-Host "⚠️  Conflict: $Path was a real item."
-    Write-Host "    Backed up to: $backupPath"
-}
-
-function Is-ManagedSymlink {
-    param([string]$Path)
-    # Use -Force to handle dangling symlinks (target missing); Test-Path would fail for them.
-    $item = Get-Item -Path $Path -Force -ErrorAction SilentlyContinue
-    if (-not $item) { return $false }
-    if ($item.LinkType -ne 'SymbolicLink') { return $false }
-
-    $target = $item.Target
-    # Target may be relative or absolute; check if it points inside our repo dir.
-    if ($target) {
         try {
-            $resolved = [System.IO.Path]::GetFullPath( (Join-Path (Split-Path $Path) $target) ) 2>$null
+            New-Item -ItemType SymbolicLink -Path $dest -Target $_.FullName -Force -ErrorAction Stop | Out-Null
+            Write-Host "Linked: $dest -> $($_.FullName)"
         } catch {
-            $resolved = $target
+            Write-Host "Failed to create symlink: $dest -> $($_.FullName)" -ForegroundColor Yellow
+            Write-Host "Windows may require Developer Mode or Admin rights for symlinks." -ForegroundColor Yellow
         }
-        if ($resolved -and $resolved.StartsWith($ScriptDir)) { return $true }
-        # Also accept if the raw Target string (common for abs symlinks) starts with repo
-        if ($target.StartsWith($ScriptDir)) { return $true }
     }
-    return $false
 }
 
-function Remove-ManagedSymlinksUnder {
-    param([string]$BaseDir)
-    if (-not (Test-Path $BaseDir)) { return }
+function Is-BrokenLink {
+    param([string]$Path)
 
-    Get-ChildItem -Path $BaseDir -Recurse -Force -ErrorAction SilentlyContinue |
-        Where-Object { $_.LinkType -eq 'SymbolicLink' -and (Is-ManagedSymlink $_.FullName) } |
-        ForEach-Object {
-            Write-Host "🗑️  Removing managed symlink: $($_.FullName)"
-            Remove-Item -Force $_.FullName
-        }
+    $item = Get-PathItem $Path
+    if (-not $item -or $item.LinkType -ne "SymbolicLink") {
+        return $false
+    }
+
+    $target = "$($item.Target)"
+    if (-not $target) {
+        return $true
+    }
+
+    $candidate = $target
+    if (-not [System.IO.Path]::IsPathRooted($candidate)) {
+        $candidate = Join-Path (Split-Path -Parent $Path) $candidate
+    }
+
+    return -not (Test-Path -LiteralPath $candidate)
+}
+
+function Is-ManagedLink {
+    param([string]$Path)
+
+    $item = Get-PathItem $Path
+    if (-not $item -or $item.LinkType -ne "SymbolicLink") {
+        return $false
+    }
+
+    $target = "$($item.Target)"
+    if (-not $target) {
+        return $false
+    }
+
+    $resolved = Get-CanonicalPath $target (Split-Path -Parent $Path)
+    $repo = Get-CanonicalPath $script:ScriptDir
+
+    return $resolved.StartsWith($repo, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
 # =============================================================================
-# High-level commands (matching bash names)
+# Link Scanning & Safety Helpers
+# =============================================================================
+
+function Get-SymlinkChildren {
+    param(
+        [string]$BaseDir,
+        [switch]$Recurse
+    )
+
+    if (-not (Test-Path -LiteralPath $BaseDir -PathType Container)) {
+        return @()
+    }
+
+    $params = @{
+        LiteralPath = $BaseDir
+        Force = $true
+        ErrorAction = "SilentlyContinue"
+    }
+    if ($Recurse) {
+        $params.Recurse = $true
+    }
+
+    return @(Get-ChildItem @params | Where-Object { $_.LinkType -eq "SymbolicLink" })
+}
+
+function Remove-BrokenLinksRecursivelyUnder {
+    param([string]$BaseDir)
+
+    foreach ($link in (Get-SymlinkChildren $BaseDir -Recurse)) {
+        if (Is-BrokenLink $link.FullName) {
+            Write-Host "Removing broken link: $($link.FullName)"
+            Remove-Item -LiteralPath $link.FullName -Force
+            continue
+        }
+
+        $target = Get-LinkTargetPath $link.FullName
+        $repo = Get-CanonicalPath $script:ScriptDir
+        if ($target -and $target.StartsWith($repo, [System.StringComparison]::OrdinalIgnoreCase) -and -not (Test-Path -LiteralPath $target)) {
+            Write-Host "Removing orphan link (source moved/removed): $($link.FullName) -> $target"
+            Remove-Item -LiteralPath $link.FullName -Force
+        }
+    }
+}
+
+function Remove-ManagedLinksRecursivelyUnder {
+    param([string]$BaseDir)
+
+    $removed = 0
+    foreach ($link in (Get-SymlinkChildren $BaseDir -Recurse)) {
+        if (Is-ManagedLink $link.FullName) {
+            $target = Get-LinkTargetPath $link.FullName
+            Write-Host "Removing managed link: $($link.FullName) -> $target"
+            Remove-Item -LiteralPath $link.FullName -Force
+            $removed++
+        }
+    }
+
+    if ($removed -eq 0) {
+        Write-Host "  (no managed links found)"
+    }
+}
+
+function Report-BrokenLinksRecursivelyUnder {
+    param([string]$BaseDir)
+
+    foreach ($link in (Get-SymlinkChildren $BaseDir -Recurse)) {
+        if (Is-BrokenLink $link.FullName) {
+            Write-Host "Broken: $($link.FullName)"
+            continue
+        }
+
+        $target = Get-LinkTargetPath $link.FullName
+        $repo = Get-CanonicalPath $script:ScriptDir
+        if ($target -and $target.StartsWith($repo, [System.StringComparison]::OrdinalIgnoreCase) -and -not (Test-Path -LiteralPath $target)) {
+            Write-Host "Orphan (managed by dotfiles but source gone): $($link.FullName) -> $target"
+        }
+    }
+}
+
+function Remove-BrokenLinksUnderTopLevel {
+    param([string]$BaseDir)
+
+    foreach ($link in (Get-SymlinkChildren $BaseDir)) {
+        if (Is-BrokenLink $link.FullName) {
+            Write-Host "Removing broken link: $($link.FullName)"
+            Remove-Item -LiteralPath $link.FullName -Force
+        }
+    }
+}
+
+function Remove-ManagedLinksUnderTopLevel {
+    param([string]$BaseDir)
+
+    foreach ($link in (Get-SymlinkChildren $BaseDir)) {
+        if (Is-ManagedLink $link.FullName) {
+            $target = Get-LinkTargetPath $link.FullName
+            Write-Host "Removing managed link: $($link.FullName) -> $target"
+            Remove-Item -LiteralPath $link.FullName -Force
+        }
+    }
+}
+
+function Report-BrokenLinksUnderTopLevel {
+    param([string]$BaseDir)
+
+    foreach ($link in (Get-SymlinkChildren $BaseDir)) {
+        if (Is-BrokenLink $link.FullName) {
+            Write-Host "Broken: $($link.FullName)"
+        }
+    }
+}
+
+function Backup-ConflictingFile {
+    param([string]$Path)
+
+    $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $localAppData = $env:LOCALAPPDATA
+    if (-not $localAppData) {
+        $localAppData = Join-Path $HOME "AppData\Local"
+    }
+
+    $backupRoot = Join-Path $localAppData "dotfiles\backups\$timestamp"
+    $homeCanonical = Get-CanonicalPath $HOME
+    $pathCanonical = Get-CanonicalPath $Path
+    $relative = $pathCanonical
+    if ($pathCanonical.StartsWith($homeCanonical, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $relative = $pathCanonical.Substring($homeCanonical.Length).TrimStart('\')
+    }
+
+    $backupPath = Join-Path $backupRoot $relative
+    New-Item -ItemType Directory -Path (Split-Path -Parent $backupPath) -Force | Out-Null
+    Move-Item -LiteralPath $Path -Destination $backupPath -Force
+
+    Write-Host "Conflict: $Path was a real item."
+    Write-Host "    Backed up to: $backupPath"
+    Write-Host "    Proceeding to create link."
+}
+
+# =============================================================================
+# High-level Link Operations
 # =============================================================================
 
 function Setup-Links {
-    <#
-    .SYNOPSIS
-        Creates or refreshes all managed symlinks.
-        Mirrors the bash `setup_links` function.
-    #>
-    Write-Host "Linking dotfiles..."
+    $leftMessage = "Linking dotfiles"
+    Write-PrintLine $leftMessage "Started."
 
-    Remove-ManagedSymlinksUnder $HOME
-    Remove-ManagedSymlinksUnder (Join-Path $HOME ".config")
-    Remove-ManagedSymlinksUnder (Join-Path $HOME ".local")
+    $dotfilesRoot = $script:ScriptDir
 
-    Link-Tree (Join-Path $ScriptDir "home") $HOME
-    Link-Tree (Join-Path $ScriptDir "config") (Join-Path $HOME ".config")
+    Remove-BrokenLinksUnderTopLevel $HOME
+
+    foreach ($dir in @(
+        (Join-Path $HOME ".config"),
+        (Join-Path $HOME ".local"),
+        (Join-Path $HOME ".emacs.d")
+    )) {
+        Remove-BrokenLinksRecursivelyUnder $dir
+    }
+
+    Link-Tree (Join-Path $dotfilesRoot "home") $HOME
+    Link-Tree (Join-Path $dotfilesRoot "config") (Join-Path $HOME ".config")
+    Link-Tree (Join-Path $dotfilesRoot "emacs.d") (Join-Path $HOME ".emacs.d")
 
     Ensure-RealDirectory (Join-Path $HOME ".local")
     Ensure-RealDirectory (Join-Path $HOME ".local\bin")
-    Link-DirectoryContents (Join-Path $ScriptDir "local\bin") (Join-Path $HOME ".local\bin")
+    Link-DirectoryContents (Join-Path $dotfilesRoot "local\bin") (Join-Path $HOME ".local\bin")
 
-    Write-Host "Linking finished."
-    Write-Host "Tip: Run '.\bootstrap.ps1 doctor' to check for any broken symlinks."
+    Write-PrintLine $leftMessage "Finished."
 }
 
 function Unlink-Dotfiles {
-    <#
-    .SYNOPSIS
-        Removes only symlinks that point back into this dotfiles repository.
-        Mirrors the bash `unlink_dotfiles` function.
-    #>
-    Write-Host "Unlinking managed dotfiles symlinks..."
+    $leftMessage = "Unlinking dotfiles"
+    Write-PrintLine $leftMessage "Started."
 
-    Remove-ManagedSymlinksUnder $HOME
-    Remove-ManagedSymlinksUnder (Join-Path $HOME ".config")
-    Remove-ManagedSymlinksUnder (Join-Path $HOME ".local")
+    Write-Host "This will remove links that point back into this dotfiles repository."
+    Write-Host "Only links created by 'bootstrap link' (or equivalent) will be touched."
+    Write-Host "Real files and links created by other tools will be left alone."
+    Write-Host ""
 
-    Write-Host "Unlink finished."
-    Write-Host "All managed symlinks have been removed (real files were left untouched)."
-}
+    Write-Host "=== $HOME (top level only) ==="
+    Remove-ManagedLinksUnderTopLevel $HOME
 
-function Is-BrokenSymlink {
-    <#
-    .SYNOPSIS
-        Returns true if the path is a symlink whose target no longer exists.
-    #>
-    param([string]$Path)
-    # -Force to detect dangling symlinks (Test-Path fails for them)
-    $item = Get-Item -Path $Path -Force -ErrorAction SilentlyContinue
-    if (-not $item) { return $false }
-    if ($item.LinkType -ne 'SymbolicLink') { return $false }
-    $target = $item.Target
-    if (-not $target) { return $true }
-    # For relative targets, resolve against parent dir of the link
-    $candidate = $target
-    if (-not [System.IO.Path]::IsPathRooted($target)) {
-        $candidate = Join-Path (Split-Path $Path) $target
+    foreach ($dir in @(
+        (Join-Path $HOME ".config"),
+        (Join-Path $HOME ".local"),
+        (Join-Path $HOME ".emacs.d")
+    )) {
+        Write-Host ""
+        Write-Host "=== $dir ==="
+        Remove-ManagedLinksRecursivelyUnder $dir
     }
-    return -not (Test-Path $candidate)
+
+    Write-Host ""
+    Write-PrintLine $leftMessage "Finished."
 }
 
 function Doctor {
-    <#
-    .SYNOPSIS
-        Scans for broken (dangling) symlinks under $HOME, ~/.config, ~/.local.
-        With -Fix, removes them.
-        Managed symlinks whose targets were removed from the repo are also cleaned
-        by Setup-Links / Unlink-Dotfiles.
-    #>
     param([switch]$Fix)
 
-    Write-Host "Running doctor..."
+    $leftMessage = "Running doctor"
+    Write-PrintLine $leftMessage "Started."
 
-    $dirs = @($HOME, (Join-Path $HOME ".config"), (Join-Path $HOME ".local"))
+    Write-Host "Scanning for broken links under managed locations (safe, limited scope)..."
+    Write-Host ""
+    Write-Host "Note: Only direct children of $HOME + full contents of ~/.config, ~/.local, and ~/.emacs.d are considered."
+    Write-Host "      Deep recursion under raw HOME is intentionally avoided."
+    Write-Host ""
 
-    $totalBroken = 0
+    if ($Fix) {
+        Write-Host "==> Fix mode enabled."
+        Write-Host ""
+    }
 
-    foreach ($dir in $dirs) {
+    Write-Host "=== $HOME (top level only) ==="
+    if ($Fix) {
+        Remove-BrokenLinksUnderTopLevel $HOME
+    } else {
+        Report-BrokenLinksUnderTopLevel $HOME
+    }
+
+    foreach ($dir in @(
+        (Join-Path $HOME ".config"),
+        (Join-Path $HOME ".local"),
+        (Join-Path $HOME ".emacs.d")
+    )) {
+        Write-Host ""
         Write-Host "=== $dir ==="
-        $broken = Get-ChildItem -Path $dir -Recurse -Force -ErrorAction SilentlyContinue |
-            Where-Object { Is-BrokenSymlink $_.FullName }
-
         if ($Fix) {
-            foreach ($link in $broken) {
-                Write-Host "🗑️  Removing broken symlink: $($link.FullName)"
-                Remove-Item -Force $link.FullName
-                $totalBroken++
-            }
+            Remove-BrokenLinksRecursivelyUnder $dir
         } else {
-            foreach ($link in $broken) {
-                Write-Host "Broken: $($link.FullName)"
-                $totalBroken++
-            }
+            Report-BrokenLinksRecursivelyUnder $dir
         }
     }
 
+    Write-Host ""
     if ($Fix) {
-        Write-Host "Removed $totalBroken broken symlink(s)."
+        Write-PrintLine $leftMessage "Finished (fix mode)."
     } else {
-        Write-Host "Found $totalBroken broken symlink(s)."
-        if ($totalBroken -gt 0) {
-            Write-Host "Tip: Run '.\bootstrap.ps1 doctor -Fix' to remove them."
-        }
+        Write-PrintLine $leftMessage "Finished (report only)."
+        Write-Host ""
+        Write-Host "Tip: Run '.\bootstrap.ps1 doctor --fix' to remove broken links."
     }
 }
 
 # =============================================================================
-# Package management (Scoop)
+# Package Management Utilities
 # =============================================================================
 
 function Install-Scoop {
-    <#
-    .SYNOPSIS
-        Ensures Scoop is installed.
-        Mirrors the bash `install_brew` logic for the Windows side.
-    #>
     if (Get-Command scoop -ErrorAction SilentlyContinue) {
         return
     }
 
-    Write-Host "Scoop not found. Installing Scoop..."
+    $leftMessage = "Installing Scoop"
+    Write-PrintLine $leftMessage "Started."
+
     Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
     try {
-        iwr -useb get.scoop.sh | iex
+        Invoke-RestMethod -UseBasicParsing get.scoop.sh | Invoke-Expression
     } catch {
         Write-Host "Failed to install Scoop. Please install it manually from https://scoop.sh" -ForegroundColor Yellow
         exit 1
     }
 
-    # Refresh PATH so that 'scoop' is immediately available in this session
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
 
-    Write-Host "Scoop installed successfully."
-    Write-Host "IMPORTANT: Close and reopen your terminal (or restart PowerShell) for Scoop to work properly in new sessions."
-    Write-Host "Then re-run: .\bootstrap.ps1"
-    exit 0
+    Write-PrintLine $leftMessage "Finished."
+}
+
+function Update-Scoop {
+    if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
+        return
+    }
+
+    $leftMessage = "Updating Scoop"
+    Write-PrintLine $leftMessage "Started."
+
+    scoop update
+
+    Write-PrintLine $leftMessage "Finished."
 }
 
 function Install-ScoopPackages {
-    <#
-    .SYNOPSIS
-        Installs packages via Scoop.
-        Strongly prefers pkg/scoop/scoopfile.json if present (declarative, matching pkg/brew/Brewfile).
-        Falls back to a small curated list only if the scoopfile is missing.
-    #>
-    # Ensure minimum required buckets
+    if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
+        return
+    }
+
+    $leftMessage = "Installing Scoop packages (via scoopfile)"
+    Write-PrintLine $leftMessage "Started."
+
     $requiredBuckets = @("extras")
-    foreach ($b in $requiredBuckets) {
-        if (-not (scoop bucket list | Select-String "^$b$")) {
-            Write-Host "Adding required Scoop bucket: $b"
-            scoop bucket add $b | Out-Null
+    foreach ($bucket in $requiredBuckets) {
+        if (-not (scoop bucket list | Select-String "^$bucket$")) {
+            Write-Host "Adding required Scoop bucket: $bucket"
+            scoop bucket add $bucket | Out-Null
         }
     }
 
-    $scoopfile = Join-Path $ScriptDir "pkg" "scoop" "scoopfile.json"
-
-    if (Test-Path $scoopfile) {
-        Write-Host "Installing from scoopfile..."
+    $scoopfile = Join-Path (Join-Path (Join-Path $script:ScriptDir "pkg") "scoop") "scoopfile.json"
+    if (Test-Path -LiteralPath $scoopfile) {
         scoop import $scoopfile
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Warning: Some packages from the scoopfile may have failed." -ForegroundColor Yellow
         }
     } else {
         Write-Host "No scoopfile found. Using fallback list."
-        Write-Host "Create pkg/scoop/scoopfile.json (via 'scoop export') for declarative management."
         $packages = @("git", "ripgrep", "fzf", "emacs", "r", "python", "sbcl")
-
-        $installed = @()
-        $skipped = @()
-        $failed = @()
-
         foreach ($pkg in $packages) {
             if (-not (scoop list | Select-String "^$pkg\s")) {
-                scoop install $pkg | Out-Null
-                if ($LASTEXITCODE -eq 0) {
-                    $installed += $pkg
-                } else {
-                    $failed += $pkg
-                }
-            } else {
-                $skipped += $pkg
+                scoop install $pkg
             }
         }
-
-        if ($installed.Count -gt 0) { Write-Host "Installed: $($installed -join ', ')" }
-        if ($skipped.Count -gt 0)  { Write-Host "Skipped (already present): $($skipped -join ', ')" }
-        if ($failed.Count -gt 0)   { Write-Host "Failed: $($failed -join ', ')" -ForegroundColor Yellow }
     }
 
-    Write-Host "Scoop packages step completed."
+    Write-PrintLine $leftMessage "Finished."
+}
+
+function Update-ScoopPackages {
+    if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
+        return
+    }
+
+    $leftMessage = "Updating Scoop packages (via scoopfile)"
+    Write-PrintLine $leftMessage "Started."
+
+    scoop update
+    scoop update *
+    Install-ScoopPackages
+
+    Write-PrintLine $leftMessage "Finished."
+}
+
+function Install-RPackages {
+    if (-not (Get-Command Rscript -ErrorAction SilentlyContinue)) {
+        return
+    }
+
+    $leftMessage = "Installing or updating R packages"
+    Write-PrintLine $leftMessage "Started."
+
+    Rscript -e "packages <- c('tidyverse', 'IRkernel'); install.packages(packages[!packages %in% installed.packages()[, 'Package']], repos='https://cran.rstudio.com')" 2>$null
+    if (Get-Command jupyter -ErrorAction SilentlyContinue) {
+        Rscript -e "IRkernel::installspec()" 2>$null
+    }
+
+    Write-PrintLine $leftMessage "Finished."
+}
+
+function Update-RPackages {
+    if (-not (Get-Command Rscript -ErrorAction SilentlyContinue)) {
+        return
+    }
+
+    $leftMessage = "Updating installed R packages"
+    Write-PrintLine $leftMessage "Started."
+
+    Rscript -e "update.packages(ask = FALSE)" 2>$null
+
+    Write-PrintLine $leftMessage "Finished."
+}
+
+function Apply-GitDefaults {
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        return
+    }
+
+    $leftMessage = "Configuring Git settings"
+    Write-PrintLine $leftMessage "Started."
+
+    git config --global core.editor "emacsclient"
+    git config --global init.defaultBranch "main"
+    git config --global --add alias.graph 'log --pretty=format:"%C(yellow)%h%Creset %Cgreen%ar%Creset %Cblue%<(8,trunc)%an%Creset %C(auto)%d%Creset %s" --graph'
+
+    Write-PrintLine $leftMessage "Finished."
+}
+
+function Perform-FullBootstrap {
+    $leftMessage = "Full bootstrap"
+    Write-PrintLine $leftMessage "Started."
+
+    Install-Scoop
+    Install-ScoopPackages
+    Install-RPackages
+    Apply-GitDefaults
+    Setup-Links
+
+    Write-PrintLine $leftMessage "Finished."
 }
 
 # =============================================================================
-# Main entry point (modeled after bash version)
+# Support & Reporting Functions
 # =============================================================================
 
-function Show-Help {
-    Write-Host @"
-bootstrap.ps1 — Windows bootstrap script
+function Show-RestartNotice {
+    $mode = $script:MainMode
+    if ([string]::IsNullOrEmpty($mode)) {
+        $mode = "bootstrap"
+    }
 
-Usage:
-  .\bootstrap.ps1 [bootstrap]     # Full bootstrap / re-deploy (Scoop + packages + links; recommended for fresh)
-  .\bootstrap.ps1 update          # Update Scoop + packages + refresh links
-  .\bootstrap.ps1 link            # Create/refresh symlinks only (idempotent)
-  .\bootstrap.ps1 unlink          # Remove only managed symlinks (safe)
-  .\bootstrap.ps1 doctor [--fix]  # Diagnose + optionally remove broken symlinks
-  .\bootstrap.ps1 -h | --help
-
-All operations are non-interactive and safe to re-run on configured machines.
-Requires Windows Developer Mode (or Admin) for symlink creation.
-"@
+    Write-Host ""
+    Write-Host "Bootstrap step '$mode' complete. To apply PATH or shell changes, restart PowerShell."
+    Write-Host ""
 }
 
-# Parse arguments - designed to feel similar to the bash version
-param(
-    [Parameter(ValueFromRemainingArguments = $true)]
-    [string[]]$Arguments
-)
-
-if ($Arguments -contains "-h" -or $Arguments -contains "--help") {
-    Show-Help
-    exit 0
-}
-
-$Command = ""
-$DoctorFix = $false
-
-$positional = @()
-foreach ($arg in $Arguments) {
-    $lower = $arg.ToLower()
-    if ($lower -eq "--fix" -or $lower -eq "-fix") {
-        $DoctorFix = $true
-    } elseif (-not $arg.StartsWith("-")) {
-        $positional += $lower
-    }
-}
-
-if ($positional.Count -gt 0) {
-    $Command = $positional[0]
-}
-
-switch ($Command) {
-    "" {
-        # Default: full bootstrap (Scoop ensure + packages from manifest + links)
-        Install-Scoop
-        Write-Host ""
-        Install-ScoopPackages
-        Setup-Links
-        Write-Host ""
-        Write-Host "Done."
-        Write-Host "Recommended: .\bootstrap.ps1 doctor"
-    }
-    "bootstrap" {
-        Install-Scoop
-        Write-Host ""
-        Install-ScoopPackages
-        Setup-Links
-        Write-Host ""
-        Write-Host "Done."
-        Write-Host "Recommended: .\bootstrap.ps1 doctor"
-    }
-    "link" {
-        Setup-Links
-        Write-Host "Done."
-        Write-Host "Recommended: .\bootstrap.ps1 doctor"
-    }
-    "unlink" {
-        Unlink-Dotfiles
-        Write-Host "Done."
-    }
-    "update" {
-        Install-Scoop
-        Write-Host ""
-        # Update Scoop itself and all installed apps for latest versions post-pull
-        scoop update
-        scoop update * 2>$null | Out-Null
-        Install-ScoopPackages
-        Setup-Links
-        Write-Host ""
-        Write-Host "Update complete."
-        Write-Host "Recommended: .\bootstrap.ps1 doctor"
-    }
-    "doctor" {
-        Doctor -Fix:$DoctorFix
-        Write-Host "Done."
-    }
-    default {
-        Write-Host "Unknown command: $Command"
-        Write-Host ""
-        Show-Help
-        exit 1
-    }
-}
+Initialize-Arguments
+Main
