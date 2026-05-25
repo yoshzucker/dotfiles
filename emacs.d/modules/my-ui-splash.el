@@ -33,7 +33,7 @@
              for i from 0
              for l = (if (eq direction 'top-to-bottom) i (- ln i 1))
              do (animate-string line l))
-    (goto-char (point-max))))
+    (goto-char (point-min))))
 
 (defun my/random-insert-art (&optional buffer)
   "Insert a random ASCII art into BUFFER (or current buffer)."
