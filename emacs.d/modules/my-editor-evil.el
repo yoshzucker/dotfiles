@@ -188,8 +188,11 @@
 (use-package evil-collection
   :diminish evil-collection-unimpaired-mode
   :after evil
-  :init
   :config
+  (setopt evil-collection-key-blacklist '("gs" "gr"))
+  (let ((excludes '(agent-shell comint)))
+    (dolist (mode excludes)
+      (setq evil-collection-mode-list (remove mode evil-collection-mode-list))))
   (evil-collection-init)
 
   (my/define-key
