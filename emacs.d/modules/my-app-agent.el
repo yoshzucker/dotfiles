@@ -58,7 +58,18 @@ Outside: pre-fills with the file at point in dired, or buffer-file-name for norm
       (let* ((file (read-file-name "Send file: " dir initial t (when initial (file-name-nondirectory initial))))
              (files (list (expand-file-name file dir))))
         (agent-shell-insert :text (agent-shell--get-files-context :files files)
-                            :shell-buffer shell-buffer)))))
+                            :shell-buffer shell-buffer))))
+
+  (with-eval-after-load 'project
+    (add-to-list 'project-switch-commands
+                 '(my/project-agent-shell "Agent shell" "a")
+                 t))
+
+  (defun my/project-agent-shell ()
+    "Start agent-shell from the root of the current project."
+    (interactive)
+    (let ((default-directory (project-root (project-current t))))
+      (call-interactively #'agent-shell))))
 
 (use-package ob-agent-shell
   :straight (:host github :repo "eddof13/ob-agent-shell")
