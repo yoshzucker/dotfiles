@@ -16,13 +16,6 @@
 
 ;;; Code:
 
-(use-package undo-tree
-  :diminish undo-tree-mode
-  :config
-  (setq evil-undo-system 'undo-tree
-        undo-tree-auto-save-history nil)
-  (add-hook 'evil-local-mode-hook #'turn-on-undo-tree-mode))
-
 (use-package evil
   :init
   (setq evil-want-integration t         ; for evil-collection
@@ -56,13 +49,14 @@
    (:map evil-outer-text-objects-map
          :key "d" #'my/evil-a-defun))
 
-  (setq evil-esc-delay 0
-	    evil-symbol-word-search t
-        evil-jumps-max-length 500
-        evil-split-window-below t
-        evil-vsplit-window-right t
-        evil-mode-line-format 'before
-        evil-echo-state nil)
+  (setopt evil-esc-delay 0
+          evil-undo-system 'undo-redo
+	      evil-symbol-word-search t
+          evil-jumps-max-length 500
+          evil-split-window-below t
+          evil-vsplit-window-right t
+          evil-mode-line-format 'before
+          evil-echo-state nil)
 
   (defun my/evil-swap-key (map key1 key2)
     "Swap KEY1 and KEY2 in MAP."
@@ -98,11 +92,11 @@
     :repeat nil
     (interactive "<!>")
     (condition-case nil
-	(progn (kill-buffer) (delete-window))
+	    (progn (kill-buffer) (delete-window))
       (error
        (when (and (fboundp 'server-edit)
                   (bound-and-true-p server-buffer-clients))
-	 (if force
+	     (if force
              (server-buffer-done (current-buffer))
            (server-edit))))))
   
