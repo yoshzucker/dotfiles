@@ -53,6 +53,7 @@
    (:map dired-mode-map
          :state normal
          :key
+         "r" #'revert-buffer
          "gf" #'find-file-at-point
          "gh" #'my/find-file-at-start-point))
   

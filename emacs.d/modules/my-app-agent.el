@@ -7,7 +7,8 @@
   :after evil
   :config
   (my/define-key
-   (:map agent-shell-mode-map :state normal :key "RET" #'comint-send-input))
+   (:map agent-shell-mode-map :state normal :key "RET" #'comint-send-input)
+   (:map agent-shell-mode-map :key "C-c C-q" #'my/agent-shell-sayoonara))
   
   (when (eq system-type 'windows-nt)
     (dolist (path (list (expand-file-name "~/scoop/apps/nodejs/current")
@@ -69,7 +70,16 @@ Outside: pre-fills with the file at point in dired, or buffer-file-name for norm
     "Start agent-shell from the root of the current project."
     (interactive)
     (let ((default-directory (project-root (project-current t))))
-      (call-interactively #'agent-shell))))
+      (call-interactively #'agent-shell)))
+
+  (defun my/agent-shell-sayoonara ()
+    "Quit the current agent-shell session and kill its buffer."
+    (declare (modes agent-shell-mode))
+    (interactive)
+    (unless (derived-mode-p 'agent-shell-mode)
+      (error "Not in an agent-shell buffer"))
+    (message "Quit agent and close buffer.")
+    (kill-buffer (current-buffer))))
 
 (use-package ob-agent-shell
   :straight (:host github :repo "eddof13/ob-agent-shell")
