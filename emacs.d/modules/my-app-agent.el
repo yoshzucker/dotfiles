@@ -8,6 +8,7 @@
   :config
   (my/define-key
    (:map agent-shell-mode-map :state normal :key "RET" #'comint-send-input)
+   (:map agent-shell-mode-map :state insert :key "C-RET" #'comint-send-input)
    (:map agent-shell-mode-map :key "C-c C-q" #'my/agent-shell-sayoonara))
   
   (when (eq system-type 'windows-nt)
