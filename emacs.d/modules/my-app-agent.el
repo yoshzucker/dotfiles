@@ -7,8 +7,7 @@
   :after evil
   :config
   (my/define-key
-   (:map agent-shell-mode-map :state normal :key "RET" #'comint-send-input)
-   (:map agent-shell-mode-map :state insert :key "C-RET" #'comint-send-input)
+   (:map agent-shell-mode-map :state insert normal :key "C-RET" #'my/shell-maker-submit-and-normal)
    (:map agent-shell-mode-map :key "C-c C-q" #'my/agent-shell-sayoonara))
   
   (when (eq system-type 'windows-nt)
@@ -38,6 +37,12 @@
       (my/ensure-system-package (car package) (cdr package))))
   
   (setq agent-shell-prefer-session-resume nil)
+
+  (defun my/shell-maker-submit-and-normal (&rest args)
+    "Submit input to shell-maker and return to `evil-normal-state'."
+    (interactive)
+    (apply #'shell-maker-submit args)
+    (evil-normal-state))
 
   (defun my/agent-shell-find-file (&optional pick-shell)
     "Send any file (including outside the project) to agent-shell.
