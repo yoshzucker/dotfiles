@@ -12,7 +12,7 @@
 
 ;; Scroll behavior
 (setq scroll-conservatively 5
-      scroll-margin 0)
+      scroll-margin 1)
 
 ;; Mouse support
 (when (fboundp 'mouse-wheel-mode)

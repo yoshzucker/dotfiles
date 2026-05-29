@@ -91,6 +91,7 @@
              '((file             (styles my/orderless-migemo-dot))
                (multi-category   (styles my/orderless-migemo-dot))
                (imenu            (styles my/orderless-migemo-dot))
+               (project-file     (styles my/orderless-migemo-dot))
                (org-heading      (styles my/orderless-migemo-dot))
                (org-refile       (styles my/orderless-migemo-dot))
                (org-roam-node    (styles my/orderless-migemo-dot))

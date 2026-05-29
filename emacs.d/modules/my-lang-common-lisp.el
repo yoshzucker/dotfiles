@@ -49,9 +49,8 @@ Sets `common-lisp-hyperspec-root` to the local path."
       (setq common-lisp-hyperspec-root (concat "file://" target-dir))
       (message "HyperSpec is ready at: %s" common-lisp-hyperspec-root)))
 
-  (setq browse-url-browser-function
-        '(("file:///.*HyperSpec/" . eww-browse-url)
-          ("." . browse-url-default-browser)))
+  (setq browse-url-handlers
+        '(("file:///.*HyperSpec/" . eww-browse-url)))
 
   (defun my/sly-patch-slynk ()
     "Patch `slynk.lisp` to replace any `~<newline>` sequences with `~%`.
