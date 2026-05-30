@@ -340,7 +340,8 @@
       ("C-h" . evil-window-left)
       ("C-j" . evil-window-down)
       ("C-k" . evil-window-up)
-      ("C-l" . evil-window-right)))
+      ("C-l" . evil-window-right)
+      ("e" . my/cycle-frame-size)))
   
   (smartrep-define-key evil-motion-state-map "g"
     '(("t" . evil-tab-next)
