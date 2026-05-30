@@ -238,6 +238,13 @@
          "C-c /" #'dired-filter-map
          "/" (lookup-key evil-motion-state-map "/"))))
 
+(use-package dired-preview
+  :config
+  (setq dired-preview-delay 0.25
+        dired-preview-max-size (expt 2 20))
+
+  (dired-preview-global-mode 1))
+
 (use-package ibuffer
   :config
   (my/define-key
