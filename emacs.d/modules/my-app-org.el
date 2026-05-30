@@ -1208,5 +1208,10 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
             (lambda ()
               (my/evil-ex-define-cmd-local "w[rite]" #'org-save-all-org-buffers))))
 
+(use-package activity-watch-mode
+  :config
+  (setopt activity-watch-org-clock-active t)
+  (global-activity-watch-mode))
+
 (provide 'my-app-org)
 ;;; my-app-org.el ends here
