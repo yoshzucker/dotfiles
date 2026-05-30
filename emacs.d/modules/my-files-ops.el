@@ -238,11 +238,16 @@
          "C-c /" #'dired-filter-map
          "/" (lookup-key evil-motion-state-map "/"))))
 
-(use-package dirvish
+(use-package dired-preview
   :config
-  (setq dirvish-preview-delay 0.2
-        dirvish-preview-max-size (expt 2 20))
-  (dirvish-peek-mode 1))
+  (setq dired-preview-delay 0.25
+        dired-preview-max-size (expt 2 20)
+        dired-preview-display-action-alist
+        '((display-buffer-in-side-window)
+          (side . bottom)
+          (window-height . 0.4)
+          (preserve-size . (t . t))
+          (window-parameters . ((no-delete-other-windows . t))))))
 
 (use-package ibuffer
   :config
