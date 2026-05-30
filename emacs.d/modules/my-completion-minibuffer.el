@@ -215,14 +215,19 @@
 
   ;; Org
   (defun my/consult-org-headings-all (&optional archivep)
-    "Consult all headings under `org-directory`.
+    "Consult all headings under `org-directory` (archives directory excluded).
 With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_archive files."
     (interactive "P")
     (unless (and org-directory (file-directory-p org-directory))
       (user-error "Please set a valid `org-directory`"))
 
     (let* ((ext (if archivep "\\.org\\(_archive\\)?$" "\\.org$"))
-           (files (directory-files-recursively org-directory ext)))
+           (files (directory-files-recursively
+                   org-directory
+                   ext
+                   nil
+                   (lambda (d)
+                     (not (string-match-p "/archive/" d))))))
       (consult-org-heading nil files)))
 
   ;; Omit completion candidates
