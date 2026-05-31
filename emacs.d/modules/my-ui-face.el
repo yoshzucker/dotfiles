@@ -11,7 +11,7 @@
 (defcustom my/theme-name 'rustcity
   "Which theme to use."
   :type 'symbol
-  :options '(solarized nord my-tokyo rustcity)
+  :options '(solarized nord rustcity)
   :group 'my/ui)
 
 (defcustom my/frame-background 'dark
@@ -103,11 +103,6 @@ Example: '((primary . brightyellow))"
                             (my/get-solarized-color 'base3)
                           (my/get-solarized-color 'base03))))))
 
-(use-package my-tokyo-theme
-  :straight nil
-  :load-path "themes"
-  :defer t)
-
 (use-package rustcity-theme
   :straight (:host github :repo "yoshzucker/rustcity-theme")
   :defer t)
@@ -131,16 +126,6 @@ Example: '((primary . brightyellow))"
               (background-far  . brightgreen)
               (foreground-far  . brightyellow)
               (foreground-near . brightyellow)
-              (primary         . blue)
-              (secondary       . magenta)))
-           ('(my-tokyo light)
-            '((foreground-near . brightblack)
-              (background-far  . brightwhite)
-              (primary         . blue)
-              (secondary       . magenta)))
-           ('(my-tokyo dark)
-            '((foreground-near . brightwhite)
-              (background-far  . brightblack)
               (primary         . blue)
               (secondary       . magenta)))
            ('(rustcity light)
@@ -188,8 +173,6 @@ Example: '((primary . brightyellow))"
     ('solarized (load-theme 'solarized t)
                 (enable-theme 'solarized)
                 (my/set-colors (my/solarized-colors)))
-    ('my-tokyo  (load-theme 'my-tokyo t)
-                (my/set-colors (my/tokyo-colors)))
     ('rustcity  (load-theme 'rustcity t)
                 (my/set-colors (rustcity-colors)))
     (_ (message "Unknown theme: %s" my/theme-name))))
