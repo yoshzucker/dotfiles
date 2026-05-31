@@ -1190,7 +1190,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
       (my/deft-sidebar-open))))
 
 (use-package org-dayflow
-  :straight nil
+  :straight (:host github :repo "yoshzucker/org-dayflow")
   :after (org evil)
   :load-path "site-lisp/org-dayflow"
   :config
