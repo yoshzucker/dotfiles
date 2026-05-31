@@ -108,11 +108,8 @@ Example: '((primary . brightyellow))"
   :load-path "themes"
   :defer t)
 
-(use-package hsluv)
-
 (use-package rustcity-theme
-  :straight nil
-  :load-path "themes"
+  :straight (:host github :repo "yoshzucker/rustcity-theme")
   :defer t)
 
 (defun my/semantic-colors ()
