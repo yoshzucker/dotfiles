@@ -7,7 +7,7 @@
 
 ;;; Code:
 
-(require 'cl-lib)
+;; Customization and variables
 
 (defgroup my/theme nil
   "Custom theme settings."
@@ -62,6 +62,21 @@
   :type 'integer
   :group 'my/ui)
 
+(defvar my/theme-special-setups nil
+  "Alist of (THEME-SYMBOL . FUNCTION) for applying theme-specific
+special package configurations (dired-rainbow, smartrep, etc.).
+Populated inside each theme's use-package :config.
+Called from my/setup-theme (so my/toggle-theme also re-applies them).
+Themes without an entry simply leave previous settings as-is.")
+
+(defvar my/wdired-edit-backgrounds nil
+  "Edit background for wdired (:light and :dark).")
+
+(defvar-local my/wdired--bg-cookie nil
+  "Face remap cookie for wdired background.")
+
+;; Faces
+
 (defface my/org-ongo
   '((t (:inverse-video t)))
   "ONGO todo keyword face.")
@@ -82,12 +97,7 @@
   '((t (:inherit font-lock-function-name-face)))
   "Calendar ISO week header face.")
 
-(defvar my/theme-special-setups nil
-  "Alist of (THEME-SYMBOL . FUNCTION) for applying theme-specific
-special package configurations (dired-rainbow, smartrep, etc.).
-Populated inside each theme's use-package :config.
-Called from my/setup-theme (so my/toggle-theme also re-applies them).
-Themes without an entry simply leave previous settings as-is.")
+;; General utilities
 
 (defun my/set-faces (specs)
   "Set faces from SPECS, a list of (FACE . PLIST) forms."
@@ -105,7 +115,7 @@ Themes without an entry simply leave previous settings as-is.")
   (set-face-attribute 'fixed-pitch nil :family my/font-default)
   (set-face-attribute 'variable-pitch nil :family my/font-variable))
 
-;; Special package helpers (non-standard face configuration)
+;; Special package helpers
 
 (defun my/set-dired-rainbow-faces (rules)
   "Define dired-rainbow faces.
@@ -119,7 +129,7 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
            ((and (consp rule) (consp (car rule)))
             (setq exts  (car rule)
                   color (cdr rule)
-                  name  (intern (format "my-dired-rainbow-%04d" (cl-incf i)))))
+                  name  (intern (format "my-dired-rainbow-%04d" (setq i (1+ i))))))
            ((and (consp rule) (cdr rule))
             (setq name  (car rule)
                   color (cadr rule)
@@ -132,12 +142,6 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
 Safe to call before smartrep is loaded; the variable will be read when the
 package initializes."
   (setq smartrep-mode-line-active-bg color))
-
-(defvar my/wdired-edit-backgrounds nil
-  "Edit background for wdired (:light and :dark).")
-
-(defvar-local my/wdired--bg-cookie nil
-  "Face remap cookie for wdired background.")
 
 (defun my/wdired--apply-edit-background (&rest _)
   "Temporarily remap default background for wdired edit mode."
@@ -167,6 +171,8 @@ Safe to call before wdired is loaded (advice-add works on undefined functions)."
     (advice-add 'wdired-change-to-wdired-mode :after #'my/wdired--apply-edit-background)
     (advice-add 'wdired-change-to-dired-mode :after #'my/wdired--restore-background)))
 
+;; Theme helper packages
+
 (use-package rainbow-mode)
 
 (use-package transwin
@@ -175,12 +181,12 @@ Safe to call before wdired is loaded (advice-add works on undefined functions)."
   (smartrep-define-key global-map "C-w" '(("i" . transwin-inc)
                                           ("d" . transwin-dec))))
 
+;; Theme packages
+
 (use-package rustcity-theme
   :straight (:host github :repo "yoshzucker/rustcity-theme")
   :defer t
   :config
-  ;; Register the special package setup for rustcity so that
-  ;; my/setup-theme (including calls from my/toggle-theme) can apply it.
   (setq my/theme-special-setups
         (cons (cons 'rustcity
                     (lambda ()
@@ -215,21 +221,18 @@ Safe to call before wdired is loaded (advice-add works on undefined functions)."
 (use-package nord-theme
   :defer t)
 
+;; Core setup
+
 (defun my/setup-theme ()
   (mapc #'disable-theme custom-enabled-themes)
   (setq frame-background-mode my/frame-background)
   (load-theme my/theme-name t)
 
+  (my/apply-user-fonts)
+  (my/apply-font-emoji)
   (let ((fn (alist-get my/theme-name my/theme-special-setups)))
     (when (functionp fn)
-      (funcall fn)))
-
-  (my/apply-user-fonts)
-  (my/apply-font-emoji))
-
-(add-hook 'after-make-frame-functions #'my/apply-user-fonts)
-
-(my/setup-theme)
+      (funcall fn))))
 
 (defun my/toggle-theme ()
   "Interactively select theme and background variant."
@@ -245,6 +248,12 @@ Safe to call before wdired is loaded (advice-add works on undefined functions)."
     (customize-save-variable 'my/theme-name theme)
     (customize-save-variable 'my/frame-background background)
     (my/setup-theme)))
+
+;; Initialization
+
+(add-hook 'after-make-frame-functions #'my/apply-user-fonts)
+
+(my/setup-theme)
 
 (provide 'my-ui-face)
 ;;; my-ui-face.el ends here
