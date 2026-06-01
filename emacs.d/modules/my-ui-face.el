@@ -1,15 +1,22 @@
 ;;; my-ui-face.el --- Theme selection and user environment configuration -*- lexical-binding: t; -*-
 ;;; Commentary:
-;; - Support for arbitrary themes via my/toggle-theme (no longer limited to a hardcoded set).
+;; - Support for arbitrary themes via my/toggle-theme.
 ;; - User fonts, emoji, and environment-driven theme + background selection.
 ;; - Personal workflow faces (custom org keywords, clock indicators, etc.).
-;; - Package-specific tweaks (dired-rainbow, smartrep) for rustcity.
+;; - Purpose-built generic helpers for packages with non-standard face needs:
+;;     wdired (transient background remap via advice), dired-rainbow (define
+;;     macro), smartrep (mode-line variable).  The helpers themselves are
+;;     theme-agnostic; rustcity-theme's :config block (inside this file) calls
+;;     them with rustcity-appropriate colors to reproduce the classic behavior.
 ;;
 ;; De facto division:
-;;   Themes (including rustcity-theme) own visual identity and faces for popular packages.
-;;   This file owns user prefs, font settings, and personal workflow extensions.
+;;   Themes (including rustcity-theme) own visual identity and faces for popular
+;;   packages.  This file owns user prefs, font settings, personal workflow
+;;   extensions, and the small generic helpers.
 
 ;;; Code:
+
+(require 'cl-lib)
 
 (defgroup my/theme nil
   "Custom theme settings."
@@ -34,13 +41,6 @@ Any theme available via `custom-available-themes' can be used
   (when term
     (my/map-env my/theme-name "theme_name")
     (my/map-env my/frame-background "theme_variant")))
-
-(use-package rustcity-theme
-  :straight (:host github :repo "yoshzucker/rustcity-theme")
-  :defer t)
-
-(use-package nord-theme
-  :defer t)
 
 (defcustom my/font-default
   (if (eq system-type 'darwin)
@@ -74,15 +74,6 @@ Any theme available via `custom-available-themes' can be used
   :type 'integer
   :group 'my/ui)
 
-;; -------------------------------------------------------------------
-;; Personal workflow faces.
-;; These belong to the user's org + UI conventions (not the theme).
-;; Referenced from my-app-org.el.
-;;
-;; Defined with defface so they always exist (no "Invalid face" errors
-;; on any theme). Rustcity-specific colors are applied at setup time.
-;; -------------------------------------------------------------------
-
 (defface my/org-ongo
   '((t (:inverse-video t)))
   "Face for the ONGO todo keyword (rustcity personal workflow).")
@@ -103,56 +94,130 @@ Any theme available via `custom-available-themes' can be used
   '((t (:inherit font-lock-function-name-face)))
   "Face for ISO week numbers shown in the calendar buffer.")
 
-(defun my/apply-rustcity-workflow-faces ()
-  "Customize the personal workflow faces using the current base18 color provider.
-This is intentionally rustcity-specific and only runs when my/theme-name is 'rustcity."
-  (when (eq my/theme-name 'rustcity)
-    (let* ((colors    (my/base18-colors))
-           (red       (alist-get 'red colors))
-           (cyan      (alist-get 'cyan colors))
-           (brightred (alist-get 'brightred colors))
-           (background (alist-get 'background colors)))
-      (set-face-attribute 'my/org-ongo nil
-                          :inverse-video t :foreground brightred :background background)
-      (set-face-attribute 'my/org-wait nil
-                          :inverse-video t :inherit 'font-lock-comment-face)
-      (set-face-attribute 'my/mode-line-over nil
-                          :foreground background :background red)
-      (set-face-attribute 'my/mode-line-under nil
-                          :foreground background :background cyan)
-      (set-face-attribute 'my/calendar-iso-week-header nil
-                          :inherit 'font-lock-function-name-face))))
+(defun my/set-faces (specs)
+  "Set faces from SPECS, a list of (FACE . PLIST) forms.
+This is a generic helper.  The caller is responsible for resolving
+any colors and building the property lists.
 
-;; Extra packages (package-specific color config)
-;; For rustcity we pull colors from the theme's exported palette.
-(use-package dired-rainbow
-  :config
-  (defun my/set-dired-rainbow-faces ()
-    "Define dired-rainbow faces using the current base18 color provider.
-Packages that want different colors can override `my/base18-colors-function'
-in their own :config before this runs."
-    (let* ((colors (my/base18-colors))
-           (brightmagenta (or (alist-get 'brightmagenta colors) "#b48ead"))
-           (blue          (or (alist-get 'blue          colors) "#81a1c1"))
-           (green         (or (alist-get 'green         colors) "#a3be8c"))
-           (brightred     (or (alist-get 'brightred     colors) "#d08770"))
-           (red           (or (alist-get 'red           colors) "#bf616a")))
-      (dolist (rule `((src ,brightmagenta ("el" "lisp" "sh" "r" "c" "h" "py"))
-                      (txt ,brightmagenta ("txt" "org" "md"))
-                      (doc ,blue          ("docx" "docm"))
-                      (xls ,green         ("xlsx" "xlsm"))
-                      (ppt ,brightred     ("pptx" "pptm"))
-                      (pdf ,red           ("pdf"))))
-        (eval `(dired-rainbow-define ,@rule))))))
+Example:
+  (my/set-faces
+   \\='((my/org-ongo :inverse-video t :foreground \"#ff0000\")
+     (my/mode-line-over :foreground \"#000000\" :background \"#ff0000\")))"
+  (dolist (spec specs)
+    (apply #'set-face-attribute (car spec) nil (cdr spec))))
 
-(use-package smartrep
+(use-package rustcity-theme
+  :straight (:host github :repo "yoshzucker/rustcity-theme")
   :defer t
   :config
-  (defun my/set-smartrep-faces ()
-    "Set smartrep active background using the current base18 color provider."
-    (let* ((colors (my/base18-colors))
-           (brightwhite (or (alist-get 'brightwhite colors) "#eceff4")))
-      (setq smartrep-mode-line-active-bg brightwhite))))
+  (let* ((colors (rustcity-colors))
+         (brightmagenta (alist-get 'brightmagenta colors))
+         (blue          (alist-get 'blue          colors))
+         (green         (alist-get 'green         colors))
+         (brightred     (alist-get 'brightred     colors))
+         (red           (alist-get 'red           colors))
+         (cyan          (alist-get 'cyan          colors))
+         (brightwhite   (alist-get 'brightwhite   colors))
+         (background    (alist-get 'background    colors))
+         ;; For wdired edit background we pick reasonable values from the
+         ;; rustcity palette (light variant uses a light tone, dark uses
+         ;; a dark tone).  These replace the former my/white / my/black usage.
+         (wdired-light  (alist-get 'brightwhite colors))
+         (wdired-dark   (alist-get 'black colors)))
+    (my/set-dired-rainbow-faces
+     `((("el" "lisp" "sh" "r" "c" "h" "py") . ,brightmagenta)
+       (("txt" "org" "md")                  . ,brightmagenta)
+       (("docx" "docm")                     . ,blue)
+       (("xlsx" "xlsm")                     . ,green)
+       (("pptx" "pptm")                     . ,brightred)
+       (("pdf")                             . ,red)))
+    (my/set-smartrep-active-background brightwhite)
+    (my/set-wdired-edit-background :light wdired-light :dark wdired-dark)
+    (my/set-faces
+     `((my/org-ongo :inverse-video t :foreground ,brightred :background ,background)
+       (my/org-wait :inverse-video t :inherit font-lock-comment-face)
+       (my/mode-line-over :foreground ,background :background ,red)
+       (my/mode-line-under :foreground ,background :background ,cyan)
+       (my/calendar-iso-week-header :inherit font-lock-function-name-face)))))
+
+(use-package nord-theme
+  :defer t)
+
+;; -------------------------------------------------------------------
+;; Special package helpers (wdired, dired-rainbow, smartrep)
+;;
+;; Purpose-built helpers for packages whose "face" configuration is not a
+;; plain `set-face-attribute'.
+;; -------------------------------------------------------------------
+
+(defvar my/wdired-edit-backgrounds nil
+  "Plist (:light COLOR :dark COLOR) for wdired edit-mode background.
+Set via `my/set-wdired-edit-background'.")
+
+(defvar-local my/wdired--bg-cookie nil
+  "Cookie returned by `face-remap-add-relative' for the wdired bg override.")
+
+(defun my/set-dired-rainbow-faces (rules)
+  "Define dired-rainbow faces.
+RULES: list of ((exts...) . color) or (name color (exts...))."
+  (when (featurep 'dired-rainbow)
+    (let ((i 0))
+      (dolist (rule rules)
+        (let (name color exts)
+          (cond
+           ((and (consp rule) (consp (car rule)))
+            (setq exts  (car rule)
+                  color (cdr rule)
+                  name  (intern (format "my-dired-rainbow-%04d" (cl-incf i)))))
+           ((and (consp rule) (cdr rule))
+            (setq name  (car rule)
+                  color (cadr rule)
+                  exts  (if (consp (cddr rule)) (caddr rule) (cddr rule)))))
+          (when (and name color exts)
+            (eval `(dired-rainbow-define ,name ,color ,exts))))))))
+
+(defun my/set-smartrep-active-background (color)
+  "Set `smartrep-mode-line-active-bg' to COLOR (a concrete color string)."
+  (setq smartrep-mode-line-active-bg color))
+
+(defun my/wdired--apply-edit-background (&rest _)
+  "Advice (after): temporarily remap `default' background in wdired buffers."
+  (when my/wdired-edit-backgrounds
+    (let ((bg (if (eq (bound-and-true-p frame-background-mode) 'light)
+                  (plist-get my/wdired-edit-backgrounds :light)
+                (plist-get my/wdired-edit-backgrounds :dark))))
+      (when (and bg (not (string= bg "")))
+        (setq my/wdired--bg-cookie
+              (face-remap-add-relative 'default :background bg))))))
+
+(defun my/wdired--restore-background (&rest _)
+  "Advice (after): remove the wdired edit-mode background remap."
+  (when my/wdired--bg-cookie
+    (face-remap-remove-relative my/wdired--bg-cookie)
+    (setq my/wdired--bg-cookie nil)))
+
+(defun my/set-wdired-edit-background (&rest plist)
+  "Configure the background shown while editing filenames in wdired.
+PLIST is e.g. (:light \"#f0f0f0\" :dark \"#222222\").
+COLOR values are concrete color strings.
+
+Call this from user configuration (use-package :config etc.).
+The advices are managed idempotently so re-calling after a theme toggle
+does not leak duplicate advice entries.
+
+This replaces the old rustcity-only logic that lived in my-files-ops.el."
+  (setq my/wdired-edit-backgrounds plist)
+  (my/apply-wdired-background))
+
+(defun my/apply-wdired-background ()
+  "Install/refresh wdired background-remap advices from stored config.
+Uses per-buffer cookie tracking for correct cleanup on mode exit.
+Mainly for advanced re-application; normal activation is from rustcity-theme :config.")
+(advice-remove 'wdired-change-to-wdired-mode #'my/wdired--apply-edit-background)
+(advice-remove 'wdired-change-to-dired-mode #'my/wdired--restore-background)
+(when my/wdired-edit-backgrounds
+  (advice-add 'wdired-change-to-wdired-mode :after #'my/wdired--apply-edit-background)
+  (advice-add 'wdired-change-to-dired-mode :after #'my/wdired--restore-background))
 
 (use-package rainbow-mode)
 
@@ -161,12 +226,6 @@ in their own :config before this runs."
   :config
   (smartrep-define-key global-map "C-w" '(("i" . transwin-inc)
                                           ("d" . transwin-dec))))
-
-(defun my/apply-face-extra-packages ()
-  (when (featurep 'dired-rainbow)
-    (my/set-dired-rainbow-faces))
-  (when (featurep 'smartrep)
-    (my/set-smartrep-faces)))
 
 (defun my/apply-font-emoji ()
   (set-fontset-font t 'emoji my/font-emoji nil 'prepend))
@@ -181,67 +240,11 @@ font choice is a user environment / preference concern."
   (set-face-attribute 'fixed-pitch nil :family my/font-default)
   (set-face-attribute 'variable-pitch nil :family my/font-variable))
 
-;;; Base18 color provider abstraction
-;;;
-;;; This allows "color-aware" customizations (dired-rainbow, smartrep,
-;;; personal workflow faces, etc.) to obtain a 16-color + fg/bg palette
-;;; without hardcoding knowledge of specific themes.
-;;;
-;;; - By default, a minimal fallback is used.
-;;; - Rustcity (and other themes that want to) can bind a better provider
-;;;   by setting `my/base18-colors-function` in their post-processing.
-;;; - Packages that really care can override it themselves via :config.
-
-(defvar my/base18-colors-function #'my/default-base18-colors
-  "Function that returns an alist of base18 colors ((name . \"#hex\") ...).
-The expected keys are the classic 16 ANSI colors plus `foreground' and `background'.")
-
-(defun my/default-base18-colors ()
-  "Minimal fallback color provider.
-Returns a very basic alist so that color-using customizations don't break
-completely when no rich theme provider is active."
-  ;; Conservative neutral-ish defaults. Real themes should override this.
-  '((black         . "#000000")
-    (red           . "#cd0000")
-    (green         . "#00cd00")
-    (yellow        . "#cdcd00")
-    (blue          . "#0000ee")
-    (magenta       . "#cd00cd")
-    (cyan          . "#00cdcd")
-    (white         . "#e5e5e5")
-    (brightblack   . "#7f7f7f")
-    (brightred     . "#ff0000")
-    (brightgreen   . "#00ff00")
-    (brightyellow  . "#ffff00")
-    (brightblue    . "#5c5cff")
-    (brightmagenta . "#ff00ff")
-    (brightcyan    . "#00ffff")
-    (brightwhite   . "#ffffff")
-    (foreground    . "#ffffff")
-    (background    . "#000000")))
-
-(defun my/base18-colors ()
-  "Return the current base18 color alist by calling the active provider."
-  (funcall my/base18-colors-function))
-
 (defun my/setup-theme ()
-  ;; Reset to default provider before loading new theme
-  (setq my/base18-colors-function #'my/default-base18-colors)
-
-  ;; Generic theme loading
+  ;; Generic theme loading (no more base18 provider switching).
   (mapc #'disable-theme custom-enabled-themes)
   (setq frame-background-mode my/frame-background)
   (load-theme my/theme-name t)
-
-  (when (eq my/theme-name 'rustcity)
-    ;; Rustcity provides a high-quality base18 palette.
-    ;; Anything that wants nice colors (dired-rainbow, smartrep, third-party
-    ;; packages, etc.) can call (my/base18-colors) and will get them.
-    (when (fboundp 'rustcity-colors)
-      (setq my/base18-colors-function #'rustcity-colors))
-
-    (my/apply-rustcity-workflow-faces)
-    (my/apply-face-extra-packages))
 
   (my/apply-user-fonts)
   (my/apply-font-emoji))
