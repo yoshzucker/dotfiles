@@ -82,11 +82,6 @@
   '((t (:inherit font-lock-function-name-face)))
   "Calendar ISO week header face.")
 
-(defun my/set-faces (specs)
-  "Set faces from SPECS, a list of (FACE . PLIST) forms."
-  (dolist (spec specs)
-    (apply #'set-face-attribute (car spec) nil (cdr spec))))
-
 (defvar my/theme-special-setups nil
   "Alist of (THEME-SYMBOL . FUNCTION) for applying theme-specific
 special package configurations (dired-rainbow, smartrep, etc.).
@@ -94,45 +89,21 @@ Populated inside each theme's use-package :config.
 Called from my/setup-theme (so my/toggle-theme also re-applies them).
 Themes without an entry simply leave previous settings as-is.")
 
-(use-package rustcity-theme
-  :straight (:host github :repo "yoshzucker/rustcity-theme")
-  :defer t
-  :config
-  ;; Register the special package setup for rustcity so that
-  ;; my/setup-theme (including calls from my/toggle-theme) can apply it.
-  (setq my/theme-special-setups
-        (cons (cons 'rustcity
-                    (lambda ()
-                      (let* ((colors (rustcity-colors))
-                             (brightmagenta (alist-get 'brightmagenta colors))
-                             (blue          (alist-get 'blue          colors))
-                             (green         (alist-get 'green         colors))
-                             (brightred     (alist-get 'brightred     colors))
-                             (red           (alist-get 'red           colors))
-                             (cyan          (alist-get 'cyan          colors))
-                             (brightwhite   (alist-get 'brightwhite   colors))
-                             (background    (alist-get 'background    colors))
-                             (wdired-light  (alist-get 'brightwhite colors))
-                             (wdired-dark   (alist-get 'black colors)))
-                        (my/set-dired-rainbow-faces
-                         `((("el" "lisp" "sh" "r" "c" "h" "py") . ,brightmagenta)
-                           (("txt" "org" "md")                  . ,brightmagenta)
-                           (("docx" "docm")                     . ,blue)
-                           (("xlsx" "xlsm")                     . ,green)
-                           (("pptx" "pptm")                     . ,brightred)
-                           (("pdf")                             . ,red)))
-                        (my/set-smartrep-active-background brightwhite)
-                        (my/set-wdired-edit-background :light wdired-light :dark wdired-dark)
-                        (my/set-faces
-                         `((my/org-ongo :inverse-video t :foreground ,brightred :background ,background)
-                           (my/org-wait :inverse-video t :inherit font-lock-comment-face)
-                           (my/mode-line-over :foreground ,background :background ,red)
-                           (my/mode-line-under :foreground ,background :background ,cyan)
-                           (my/calendar-iso-week-header :inherit font-lock-function-name-face))))))
-              (assq-delete-all 'rustcity my/theme-special-setups))))
+(defun my/set-faces (specs)
+  "Set faces from SPECS, a list of (FACE . PLIST) forms."
+  (dolist (spec specs)
+    (apply #'set-face-attribute (car spec) nil (cdr spec))))
 
-(use-package nord-theme
-  :defer t)
+(defun my/apply-font-emoji ()
+  (set-fontset-font t 'emoji my/font-emoji nil 'prepend))
+
+(defun my/apply-user-fonts (&optional _frame)
+  "Apply user font preferences."
+  (set-face-attribute 'default nil
+                      :family my/font-default
+                      :height my/font-height)
+  (set-face-attribute 'fixed-pitch nil :family my/font-default)
+  (set-face-attribute 'variable-pitch nil :family my/font-variable))
 
 ;; Special package helpers (non-standard face configuration)
 
@@ -204,25 +175,51 @@ Safe to call before wdired is loaded (advice-add works on undefined functions)."
   (smartrep-define-key global-map "C-w" '(("i" . transwin-inc)
                                           ("d" . transwin-dec))))
 
-(defun my/apply-font-emoji ()
-  (set-fontset-font t 'emoji my/font-emoji nil 'prepend))
+(use-package rustcity-theme
+  :straight (:host github :repo "yoshzucker/rustcity-theme")
+  :defer t
+  :config
+  ;; Register the special package setup for rustcity so that
+  ;; my/setup-theme (including calls from my/toggle-theme) can apply it.
+  (setq my/theme-special-setups
+        (cons (cons 'rustcity
+                    (lambda ()
+                      (let* ((colors (rustcity-colors))
+                             (brightmagenta (alist-get 'brightmagenta colors))
+                             (blue          (alist-get 'blue          colors))
+                             (green         (alist-get 'green         colors))
+                             (brightred     (alist-get 'brightred     colors))
+                             (red           (alist-get 'red           colors))
+                             (cyan          (alist-get 'cyan          colors))
+                             (brightwhite   (alist-get 'brightwhite   colors))
+                             (background    (alist-get 'background    colors))
+                             (wdired-light  (alist-get 'brightwhite colors))
+                             (wdired-dark   (alist-get 'black colors)))
+                        (my/set-dired-rainbow-faces
+                         `((("el" "lisp" "sh" "r" "c" "h" "py") . ,brightmagenta)
+                           (("txt" "org" "md")                  . ,brightmagenta)
+                           (("docx" "docm")                     . ,blue)
+                           (("xlsx" "xlsm")                     . ,green)
+                           (("pptx" "pptm")                     . ,brightred)
+                           (("pdf")                             . ,red)))
+                        (my/set-smartrep-active-background brightwhite)
+                        (my/set-wdired-edit-background :light wdired-light :dark wdired-dark)
+                        (my/set-faces
+                         `((my/org-ongo :inverse-video t :foreground ,brightred :background ,background)
+                           (my/org-wait :inverse-video t :inherit font-lock-comment-face)
+                           (my/mode-line-over :foreground ,background :background ,red)
+                           (my/mode-line-under :foreground ,background :background ,cyan)
+                           (my/calendar-iso-week-header :inherit font-lock-function-name-face))))))
+              (assq-delete-all 'rustcity my/theme-special-setups))))
 
-(defun my/apply-user-fonts (&optional _frame)
-  "Apply user font preferences."
-  (set-face-attribute 'default nil
-                      :family my/font-default
-                      :height my/font-height)
-  (set-face-attribute 'fixed-pitch nil :family my/font-default)
-  (set-face-attribute 'variable-pitch nil :family my/font-variable))
+(use-package nord-theme
+  :defer t)
 
 (defun my/setup-theme ()
   (mapc #'disable-theme custom-enabled-themes)
   (setq frame-background-mode my/frame-background)
   (load-theme my/theme-name t)
 
-  ;; Apply theme-specific special package configurations (if registered
-  ;; by the theme's use-package :config). This makes my/toggle-theme
-  ;; also re-apply the correct settings.
   (let ((fn (alist-get my/theme-name my/theme-special-setups)))
     (when (functionp fn)
       (funcall fn)))
