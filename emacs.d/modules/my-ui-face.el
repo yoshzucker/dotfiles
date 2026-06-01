@@ -35,11 +35,11 @@ Any theme available via `custom-available-themes' can be used
     (my/map-env my/theme-name "theme_name")
     (my/map-env my/frame-background "theme_variant")))
 
-(use-package nord-theme
-  :defer t)
-
 (use-package rustcity-theme
   :straight (:host github :repo "yoshzucker/rustcity-theme")
+  :defer t)
+
+(use-package nord-theme
   :defer t)
 
 (defcustom my/font-default
@@ -104,33 +104,34 @@ Any theme available via `custom-available-themes' can be used
   "Face for ISO week numbers shown in the calendar buffer.")
 
 (defun my/apply-rustcity-workflow-faces ()
-  "Customize the personal workflow faces with rustcity palette colors."
+  "Customize the personal workflow faces using the current base18 color provider.
+This is intentionally rustcity-specific and only runs when my/theme-name is 'rustcity."
   (when (eq my/theme-name 'rustcity)
-    (when (fboundp 'rustcity-colors)
-      (let* ((colors    (rustcity-colors))
-             (red       (alist-get 'red colors))
-             (cyan      (alist-get 'cyan colors))
-             (brightred (alist-get 'brightred colors))
-             (background (alist-get 'background colors)))
-        (set-face-attribute 'my/org-ongo nil
-                            :inverse-video t :foreground brightred :background background)
-        (set-face-attribute 'my/org-wait nil
-                            :inverse-video t :inherit 'font-lock-comment-face)
-        (set-face-attribute 'my/mode-line-over nil
-                            :foreground background :background red)
-        (set-face-attribute 'my/mode-line-under nil
-                            :foreground background :background cyan)
-        (set-face-attribute 'my/calendar-iso-week-header nil
-                            :inherit 'font-lock-function-name-face)))))
+    (let* ((colors    (my/base18-colors))
+           (red       (alist-get 'red colors))
+           (cyan      (alist-get 'cyan colors))
+           (brightred (alist-get 'brightred colors))
+           (background (alist-get 'background colors)))
+      (set-face-attribute 'my/org-ongo nil
+                          :inverse-video t :foreground brightred :background background)
+      (set-face-attribute 'my/org-wait nil
+                          :inverse-video t :inherit 'font-lock-comment-face)
+      (set-face-attribute 'my/mode-line-over nil
+                          :foreground background :background red)
+      (set-face-attribute 'my/mode-line-under nil
+                          :foreground background :background cyan)
+      (set-face-attribute 'my/calendar-iso-week-header nil
+                          :inherit 'font-lock-function-name-face))))
 
 ;; Extra packages (package-specific color config)
 ;; For rustcity we pull colors from the theme's exported palette.
 (use-package dired-rainbow
   :config
   (defun my/set-dired-rainbow-faces ()
-    (let* ((colors (and (eq my/theme-name 'rustcity)
-                        (fboundp 'rustcity-colors)
-                        (rustcity-colors)))
+    "Define dired-rainbow faces using the current base18 color provider.
+Packages that want different colors can override `my/base18-colors-function'
+in their own :config before this runs."
+    (let* ((colors (my/base18-colors))
            (brightmagenta (or (alist-get 'brightmagenta colors) "#b48ead"))
            (blue          (or (alist-get 'blue          colors) "#81a1c1"))
            (green         (or (alist-get 'green         colors) "#a3be8c"))
@@ -148,9 +149,8 @@ Any theme available via `custom-available-themes' can be used
   :defer t
   :config
   (defun my/set-smartrep-faces ()
-    (let* ((colors (and (eq my/theme-name 'rustcity)
-                        (fboundp 'rustcity-colors)
-                        (rustcity-colors)))
+    "Set smartrep active background using the current base18 color provider."
+    (let* ((colors (my/base18-colors))
            (brightwhite (or (alist-get 'brightwhite colors) "#eceff4")))
       (setq smartrep-mode-line-active-bg brightwhite))))
 
@@ -181,13 +181,65 @@ font choice is a user environment / preference concern."
   (set-face-attribute 'fixed-pitch nil :family my/font-default)
   (set-face-attribute 'variable-pitch nil :family my/font-variable))
 
+;;; Base18 color provider abstraction
+;;;
+;;; This allows "color-aware" customizations (dired-rainbow, smartrep,
+;;; personal workflow faces, etc.) to obtain a 16-color + fg/bg palette
+;;; without hardcoding knowledge of specific themes.
+;;;
+;;; - By default, a minimal fallback is used.
+;;; - Rustcity (and other themes that want to) can bind a better provider
+;;;   by setting `my/base18-colors-function` in their post-processing.
+;;; - Packages that really care can override it themselves via :config.
+
+(defvar my/base18-colors-function #'my/default-base18-colors
+  "Function that returns an alist of base18 colors ((name . \"#hex\") ...).
+The expected keys are the classic 16 ANSI colors plus `foreground' and `background'.")
+
+(defun my/default-base18-colors ()
+  "Minimal fallback color provider.
+Returns a very basic alist so that color-using customizations don't break
+completely when no rich theme provider is active."
+  ;; Conservative neutral-ish defaults. Real themes should override this.
+  '((black         . "#000000")
+    (red           . "#cd0000")
+    (green         . "#00cd00")
+    (yellow        . "#cdcd00")
+    (blue          . "#0000ee")
+    (magenta       . "#cd00cd")
+    (cyan          . "#00cdcd")
+    (white         . "#e5e5e5")
+    (brightblack   . "#7f7f7f")
+    (brightred     . "#ff0000")
+    (brightgreen   . "#00ff00")
+    (brightyellow  . "#ffff00")
+    (brightblue    . "#5c5cff")
+    (brightmagenta . "#ff00ff")
+    (brightcyan    . "#00ffff")
+    (brightwhite   . "#ffffff")
+    (foreground    . "#ffffff")
+    (background    . "#000000")))
+
+(defun my/base18-colors ()
+  "Return the current base18 color alist by calling the active provider."
+  (funcall my/base18-colors-function))
+
 (defun my/setup-theme ()
-  ;; Generic theme loading (no more my/load-theme wrapper)
+  ;; Reset to default provider before loading new theme
+  (setq my/base18-colors-function #'my/default-base18-colors)
+
+  ;; Generic theme loading
   (mapc #'disable-theme custom-enabled-themes)
   (setq frame-background-mode my/frame-background)
   (load-theme my/theme-name t)
 
   (when (eq my/theme-name 'rustcity)
+    ;; Rustcity provides a high-quality base18 palette.
+    ;; Anything that wants nice colors (dired-rainbow, smartrep, third-party
+    ;; packages, etc.) can call (my/base18-colors) and will get them.
+    (when (fboundp 'rustcity-colors)
+      (setq my/base18-colors-function #'rustcity-colors))
+
     (my/apply-rustcity-workflow-faces)
     (my/apply-face-extra-packages))
 
