@@ -65,37 +65,28 @@
 (defvar my/theme-special-setups nil
   "Alist of (THEME-SYMBOL . FUNCTION) for applying theme-specific
 special package configurations (dired-rainbow, smartrep, etc.).
-Populated inside each theme's use-package :config.
 Called from my/setup-theme (so my/toggle-theme also re-applies them).
 Themes without an entry simply leave previous settings as-is.")
 
-(defvar my/wdired-edit-backgrounds nil
-  "Edit background for wdired (:light and :dark).")
-
-(defvar-local my/wdired--bg-cookie nil
-  "Face remap cookie for wdired background.")
-
 ;; Faces
 
-(defface my/org-ongo
-  '((t (:inverse-video t)))
+(defface my/org-ongo '((t (:inverse-video t)))
   "ONGO todo keyword face.")
 
-(defface my/org-wait
-  '((t (:inverse-video t :inherit font-lock-comment-face)))
+(defface my/org-wait '((t (:inverse-video t :inherit font-lock-comment-face)))
   "WAIT todo keyword face.")
 
-(defface my/mode-line-over
-  '((t ()))
+(defface my/mode-line-over '((t ()))
   "Overrunning clock face.")
 
-(defface my/mode-line-under
-  '((t ()))
+(defface my/mode-line-under '((t ()))
   "Normal clock face.")
 
-(defface my/calendar-iso-week-header
-  '((t (:inherit font-lock-function-name-face)))
+(defface my/calendar-iso-week-header '((t (:inherit font-lock-function-name-face)))
   "Calendar ISO week header face.")
+
+(defface my/wdired-edit-face '((t nil))
+  "Temporary face used while in wdired edit mode.")
 
 ;; General utilities
 
@@ -137,39 +128,25 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
           (when (and name color exts)
             (eval `(dired-rainbow-define ,name ,color ,exts))))))))
 
-(defun my/set-smartrep-active-background (color)
-  "Set `smartrep-mode-line-active-bg' to COLOR (a concrete color string).
-Safe to call before smartrep is loaded; the variable will be read when the
-package initializes."
-  (setq smartrep-mode-line-active-bg color))
+;; wdired edit background is driven by the dedicated face my/wdired-edit-face.
+;; The remap is applied/removed by advising the canonical wdired mode transition functions.
+
+(defvar-local my/wdired--bg-cookie nil
+  "Face remap cookie for wdired edit background.")
 
 (defun my/wdired--apply-edit-background (&rest _)
-  "Temporarily remap default background for wdired edit mode."
-  (when my/wdired-edit-backgrounds
-    (let ((bg (if (eq (bound-and-true-p frame-background-mode) 'light)
-                  (plist-get my/wdired-edit-backgrounds :light)
-                (plist-get my/wdired-edit-backgrounds :dark))))
-      (when (and bg (not (string= bg "")))
-        (setq my/wdired--bg-cookie
-              (face-remap-add-relative 'default :background bg))))))
+  "Remap default to my/wdired-edit-face when entering wdired edit mode."
+  (setq my/wdired--bg-cookie
+        (face-remap-add-relative 'default 'my/wdired-edit-face)))
 
 (defun my/wdired--restore-background (&rest _)
-  "Remove wdired edit background remap."
+  "Remove the wdired edit background remap on exit."
   (when my/wdired--bg-cookie
     (face-remap-remove-relative my/wdired--bg-cookie)
     (setq my/wdired--bg-cookie nil)))
 
-(defun my/set-wdired-edit-background (&rest plist)
-  "Set edit background for wdired (:light and :dark).
-This installs the necessary advice to temporarily change the default
-background when entering wdired mode.
-Safe to call before wdired is loaded (advice-add works on undefined functions)."
-  (setq my/wdired-edit-backgrounds plist)
-  (advice-remove 'wdired-change-to-wdired-mode #'my/wdired--apply-edit-background)
-  (advice-remove 'wdired-change-to-dired-mode #'my/wdired--restore-background)
-  (when my/wdired-edit-backgrounds
-    (advice-add 'wdired-change-to-wdired-mode :after #'my/wdired--apply-edit-background)
-    (advice-add 'wdired-change-to-dired-mode :after #'my/wdired--restore-background)))
+(advice-add 'wdired-change-to-wdired-mode :after #'my/wdired--apply-edit-background)
+(advice-add 'wdired-change-to-dired-mode  :after #'my/wdired--restore-background)
 
 ;; Theme helper packages
 
@@ -191,16 +168,16 @@ Safe to call before wdired is loaded (advice-add works on undefined functions)."
         (cons (cons 'rustcity
                     (lambda ()
                       (let* ((colors (rustcity-colors))
-                             (brightmagenta (alist-get 'brightmagenta colors))
-                             (blue          (alist-get 'blue          colors))
-                             (green         (alist-get 'green         colors))
-                             (brightred     (alist-get 'brightred     colors))
-                             (red           (alist-get 'red           colors))
-                             (cyan          (alist-get 'cyan          colors))
-                             (brightwhite   (alist-get 'brightwhite   colors))
                              (background    (alist-get 'background    colors))
-                             (wdired-light  (alist-get 'brightwhite colors))
-                             (wdired-dark   (alist-get 'black colors)))
+                             (red           (alist-get 'red           colors))
+                             (green         (alist-get 'green         colors))
+                             (blue          (alist-get 'blue          colors))
+                             (cyan          (alist-get 'cyan          colors))
+                             (black         (alist-get 'black         colors))
+                             (brightred     (alist-get 'brightred     colors))
+                             (brightmagenta (alist-get 'brightmagenta colors))
+                             (brightwhite   (alist-get 'brightwhite   colors)))
+                        (setq smartrep-mode-line-active-bg brightwhite)
                         (my/set-dired-rainbow-faces
                          `((("el" "lisp" "sh" "r" "c" "h" "py") . ,brightmagenta)
                            (("txt" "org" "md")                  . ,brightmagenta)
@@ -208,10 +185,11 @@ Safe to call before wdired is loaded (advice-add works on undefined functions)."
                            (("xlsx" "xlsm")                     . ,green)
                            (("pptx" "pptm")                     . ,brightred)
                            (("pdf")                             . ,red)))
-                        (my/set-smartrep-active-background brightwhite)
-                        (my/set-wdired-edit-background :light wdired-light :dark wdired-dark)
                         (my/set-faces
-                         `((my/org-ongo :inverse-video t :foreground ,brightred :background ,background)
+                         `((my/wdired-edit-face :background ,(if (eq my/frame-background 'light)
+                                                                 brightwhite
+                                                               black))
+                           (my/org-ongo :inverse-video t :foreground ,brightred :background ,background)
                            (my/org-wait :inverse-video t :inherit font-lock-comment-face)
                            (my/mode-line-over :foreground ,background :background ,red)
                            (my/mode-line-under :foreground ,background :background ,cyan)
