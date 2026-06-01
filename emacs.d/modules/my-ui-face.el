@@ -1,7 +1,9 @@
 ;;; my-ui-face.el --- Theme selection and user environment configuration -*- lexical-binding: t; -*-
 ;;; Commentary:
 ;; Theme selection, user fonts, and personal workflow faces.
-;; Generic helpers for special packages are called from rustcity-theme :config.
+;; Generic helpers for special packages (dired-rainbow, smartrep, etc.)
+;; are registered by each theme's use-package :config and applied from
+;; my/setup-theme (including on my/toggle-theme).
 
 ;;; Code:
 
@@ -85,36 +87,49 @@
   (dolist (spec specs)
     (apply #'set-face-attribute (car spec) nil (cdr spec))))
 
+(defvar my/theme-special-setups nil
+  "Alist of (THEME-SYMBOL . FUNCTION) for applying theme-specific
+special package configurations (dired-rainbow, smartrep, etc.).
+Populated inside each theme's use-package :config.
+Called from my/setup-theme (so my/toggle-theme also re-applies them).
+Themes without an entry simply leave previous settings as-is.")
+
 (use-package rustcity-theme
   :straight (:host github :repo "yoshzucker/rustcity-theme")
   :defer t
   :config
-  (let* ((colors (rustcity-colors))
-         (brightmagenta (alist-get 'brightmagenta colors))
-         (blue          (alist-get 'blue          colors))
-         (green         (alist-get 'green         colors))
-         (brightred     (alist-get 'brightred     colors))
-         (red           (alist-get 'red           colors))
-         (cyan          (alist-get 'cyan          colors))
-         (brightwhite   (alist-get 'brightwhite   colors))
-         (background    (alist-get 'background    colors))
-         (wdired-light  (alist-get 'brightwhite colors))
-         (wdired-dark   (alist-get 'black colors)))
-    (my/set-dired-rainbow-faces
-     `((("el" "lisp" "sh" "r" "c" "h" "py") . ,brightmagenta)
-       (("txt" "org" "md")                  . ,brightmagenta)
-       (("docx" "docm")                     . ,blue)
-       (("xlsx" "xlsm")                     . ,green)
-       (("pptx" "pptm")                     . ,brightred)
-       (("pdf")                             . ,red)))
-    (my/set-smartrep-active-background brightwhite)
-    (my/set-wdired-edit-background :light wdired-light :dark wdired-dark)
-    (my/set-faces
-     `((my/org-ongo :inverse-video t :foreground ,brightred :background ,background)
-       (my/org-wait :inverse-video t :inherit font-lock-comment-face)
-       (my/mode-line-over :foreground ,background :background ,red)
-       (my/mode-line-under :foreground ,background :background ,cyan)
-       (my/calendar-iso-week-header :inherit font-lock-function-name-face)))))
+  ;; Register the special package setup for rustcity so that
+  ;; my/setup-theme (including calls from my/toggle-theme) can apply it.
+  (setq my/theme-special-setups
+        (cons (cons 'rustcity
+                    (lambda ()
+                      (let* ((colors (rustcity-colors))
+                             (brightmagenta (alist-get 'brightmagenta colors))
+                             (blue          (alist-get 'blue          colors))
+                             (green         (alist-get 'green         colors))
+                             (brightred     (alist-get 'brightred     colors))
+                             (red           (alist-get 'red           colors))
+                             (cyan          (alist-get 'cyan          colors))
+                             (brightwhite   (alist-get 'brightwhite   colors))
+                             (background    (alist-get 'background    colors))
+                             (wdired-light  (alist-get 'brightwhite colors))
+                             (wdired-dark   (alist-get 'black colors)))
+                        (my/set-dired-rainbow-faces
+                         `((("el" "lisp" "sh" "r" "c" "h" "py") . ,brightmagenta)
+                           (("txt" "org" "md")                  . ,brightmagenta)
+                           (("docx" "docm")                     . ,blue)
+                           (("xlsx" "xlsm")                     . ,green)
+                           (("pptx" "pptm")                     . ,brightred)
+                           (("pdf")                             . ,red)))
+                        (my/set-smartrep-active-background brightwhite)
+                        (my/set-wdired-edit-background :light wdired-light :dark wdired-dark)
+                        (my/set-faces
+                         `((my/org-ongo :inverse-video t :foreground ,brightred :background ,background)
+                           (my/org-wait :inverse-video t :inherit font-lock-comment-face)
+                           (my/mode-line-over :foreground ,background :background ,red)
+                           (my/mode-line-under :foreground ,background :background ,cyan)
+                           (my/calendar-iso-week-header :inherit font-lock-function-name-face))))))
+              (assq-delete-all 'rustcity my/theme-special-setups))))
 
 (use-package nord-theme
   :defer t)
@@ -204,6 +219,13 @@ Safe to call before wdired is loaded (advice-add works on undefined functions)."
   (mapc #'disable-theme custom-enabled-themes)
   (setq frame-background-mode my/frame-background)
   (load-theme my/theme-name t)
+
+  ;; Apply theme-specific special package configurations (if registered
+  ;; by the theme's use-package :config). This makes my/toggle-theme
+  ;; also re-apply the correct settings.
+  (let ((fn (alist-get my/theme-name my/theme-special-setups)))
+    (when (functionp fn)
+      (funcall fn)))
 
   (my/apply-user-fonts)
   (my/apply-font-emoji))
