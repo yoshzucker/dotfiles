@@ -1,18 +1,7 @@
 ;;; my-ui-face.el --- Theme selection and user environment configuration -*- lexical-binding: t; -*-
 ;;; Commentary:
-;; - Support for arbitrary themes via my/toggle-theme.
-;; - User fonts, emoji, and environment-driven theme + background selection.
-;; - Personal workflow faces (custom org keywords, clock indicators, etc.).
-;; - Purpose-built generic helpers for packages with non-standard face needs:
-;;     wdired (transient background remap via advice), dired-rainbow (define
-;;     macro), smartrep (mode-line variable).  The helpers themselves are
-;;     theme-agnostic; rustcity-theme's :config block (inside this file) calls
-;;     them with rustcity-appropriate colors to reproduce the classic behavior.
-;;
-;; De facto division:
-;;   Themes (including rustcity-theme) own visual identity and faces for popular
-;;   packages.  This file owns user prefs, font settings, personal workflow
-;;   extensions, and the small generic helpers.
+;; Theme selection, user fonts, and personal workflow faces.
+;; Generic helpers for special packages are called from rustcity-theme :config.
 
 ;;; Code:
 
@@ -23,20 +12,17 @@
   :group 'my/ui)
 
 (defcustom my/theme-name 'rustcity
-  "Which theme to use.
-Any theme available via `custom-available-themes' can be used
-(via `M-x my/toggle-theme'). The listed options are just common choices."
+  "Theme to use."
   :type 'symbol
   :options '(nord rustcity)
   :group 'my/ui)
 
 (defcustom my/frame-background 'dark
-  "Which background to use."
+  "Background variant."
   :type 'symbol
   :options '(light dark)
   :group 'my/ui)
 
-;; Update from environment
 (let ((term (not (display-graphic-p))))
   (when term
     (my/map-env my/theme-name "theme_name")
@@ -76,33 +62,26 @@ Any theme available via `custom-available-themes' can be used
 
 (defface my/org-ongo
   '((t (:inverse-video t)))
-  "Face for the ONGO todo keyword (rustcity personal workflow).")
+  "ONGO todo keyword face.")
 
 (defface my/org-wait
   '((t (:inverse-video t :inherit font-lock-comment-face)))
-  "Face for the WAIT todo keyword (rustcity personal workflow).")
+  "WAIT todo keyword face.")
 
 (defface my/mode-line-over
   '((t ()))
-  "Face for clock string in mode-line/tab-bar when task is overrunning.")
+  "Overrunning clock face.")
 
 (defface my/mode-line-under
   '((t ()))
-  "Face for clock string in mode-line/tab-bar under normal conditions.")
+  "Normal clock face.")
 
 (defface my/calendar-iso-week-header
   '((t (:inherit font-lock-function-name-face)))
-  "Face for ISO week numbers shown in the calendar buffer.")
+  "Calendar ISO week header face.")
 
 (defun my/set-faces (specs)
-  "Set faces from SPECS, a list of (FACE . PLIST) forms.
-This is a generic helper.  The caller is responsible for resolving
-any colors and building the property lists.
-
-Example:
-  (my/set-faces
-   \\='((my/org-ongo :inverse-video t :foreground \"#ff0000\")
-     (my/mode-line-over :foreground \"#000000\" :background \"#ff0000\")))"
+  "Set faces from SPECS, a list of (FACE . PLIST) forms."
   (dolist (spec specs)
     (apply #'set-face-attribute (car spec) nil (cdr spec))))
 
@@ -119,9 +98,6 @@ Example:
          (cyan          (alist-get 'cyan          colors))
          (brightwhite   (alist-get 'brightwhite   colors))
          (background    (alist-get 'background    colors))
-         ;; For wdired edit background we pick reasonable values from the
-         ;; rustcity palette (light variant uses a light tone, dark uses
-         ;; a dark tone).  These replace the former my/white / my/black usage.
          (wdired-light  (alist-get 'brightwhite colors))
          (wdired-dark   (alist-get 'black colors)))
     (my/set-dired-rainbow-faces
@@ -143,23 +119,12 @@ Example:
 (use-package nord-theme
   :defer t)
 
-;; -------------------------------------------------------------------
-;; Special package helpers (wdired, dired-rainbow, smartrep)
-;;
-;; Purpose-built helpers for packages whose "face" configuration is not a
-;; plain `set-face-attribute'.
-;; -------------------------------------------------------------------
-
-(defvar my/wdired-edit-backgrounds nil
-  "Plist (:light COLOR :dark COLOR) for wdired edit-mode background.
-Set via `my/set-wdired-edit-background'.")
-
-(defvar-local my/wdired--bg-cookie nil
-  "Cookie returned by `face-remap-add-relative' for the wdired bg override.")
+;; Special package helpers (non-standard face configuration)
 
 (defun my/set-dired-rainbow-faces (rules)
   "Define dired-rainbow faces.
-RULES: list of ((exts...) . color) or (name color (exts...))."
+RULES: list of ((exts...) . color) or (name color (exts...)).
+Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
   (when (featurep 'dired-rainbow)
     (let ((i 0))
       (dolist (rule rules)
@@ -177,11 +142,19 @@ RULES: list of ((exts...) . color) or (name color (exts...))."
             (eval `(dired-rainbow-define ,name ,color ,exts))))))))
 
 (defun my/set-smartrep-active-background (color)
-  "Set `smartrep-mode-line-active-bg' to COLOR (a concrete color string)."
+  "Set `smartrep-mode-line-active-bg' to COLOR (a concrete color string).
+Safe to call before smartrep is loaded; the variable will be read when the
+package initializes."
   (setq smartrep-mode-line-active-bg color))
 
+(defvar my/wdired-edit-backgrounds nil
+  "Edit background for wdired (:light and :dark).")
+
+(defvar-local my/wdired--bg-cookie nil
+  "Face remap cookie for wdired background.")
+
 (defun my/wdired--apply-edit-background (&rest _)
-  "Advice (after): temporarily remap `default' background in wdired buffers."
+  "Temporarily remap default background for wdired edit mode."
   (when my/wdired-edit-backgrounds
     (let ((bg (if (eq (bound-and-true-p frame-background-mode) 'light)
                   (plist-get my/wdired-edit-backgrounds :light)
@@ -191,33 +164,22 @@ RULES: list of ((exts...) . color) or (name color (exts...))."
               (face-remap-add-relative 'default :background bg))))))
 
 (defun my/wdired--restore-background (&rest _)
-  "Advice (after): remove the wdired edit-mode background remap."
+  "Remove wdired edit background remap."
   (when my/wdired--bg-cookie
     (face-remap-remove-relative my/wdired--bg-cookie)
     (setq my/wdired--bg-cookie nil)))
 
 (defun my/set-wdired-edit-background (&rest plist)
-  "Configure the background shown while editing filenames in wdired.
-PLIST is e.g. (:light \"#f0f0f0\" :dark \"#222222\").
-COLOR values are concrete color strings.
-
-Call this from user configuration (use-package :config etc.).
-The advices are managed idempotently so re-calling after a theme toggle
-does not leak duplicate advice entries.
-
-This replaces the old rustcity-only logic that lived in my-files-ops.el."
+  "Set edit background for wdired (:light and :dark).
+This installs the necessary advice to temporarily change the default
+background when entering wdired mode.
+Safe to call before wdired is loaded (advice-add works on undefined functions)."
   (setq my/wdired-edit-backgrounds plist)
-  (my/apply-wdired-background))
-
-(defun my/apply-wdired-background ()
-  "Install/refresh wdired background-remap advices from stored config.
-Uses per-buffer cookie tracking for correct cleanup on mode exit.
-Mainly for advanced re-application; normal activation is from rustcity-theme :config.")
-(advice-remove 'wdired-change-to-wdired-mode #'my/wdired--apply-edit-background)
-(advice-remove 'wdired-change-to-dired-mode #'my/wdired--restore-background)
-(when my/wdired-edit-backgrounds
-  (advice-add 'wdired-change-to-wdired-mode :after #'my/wdired--apply-edit-background)
-  (advice-add 'wdired-change-to-dired-mode :after #'my/wdired--restore-background))
+  (advice-remove 'wdired-change-to-wdired-mode #'my/wdired--apply-edit-background)
+  (advice-remove 'wdired-change-to-dired-mode #'my/wdired--restore-background)
+  (when my/wdired-edit-backgrounds
+    (advice-add 'wdired-change-to-wdired-mode :after #'my/wdired--apply-edit-background)
+    (advice-add 'wdired-change-to-dired-mode :after #'my/wdired--restore-background)))
 
 (use-package rainbow-mode)
 
@@ -231,9 +193,7 @@ Mainly for advanced re-application; normal activation is from rustcity-theme :co
   (set-fontset-font t 'emoji my/font-emoji nil 'prepend))
 
 (defun my/apply-user-fonts (&optional _frame)
-  "Apply user font preferences to the default, fixed-pitch and variable-pitch faces.
-This is intentionally kept in dotfiles (not in the theme package) because
-font choice is a user environment / preference concern."
+  "Apply user font preferences."
   (set-face-attribute 'default nil
                       :family my/font-default
                       :height my/font-height)
@@ -241,7 +201,6 @@ font choice is a user environment / preference concern."
   (set-face-attribute 'variable-pitch nil :family my/font-variable))
 
 (defun my/setup-theme ()
-  ;; Generic theme loading (no more base18 provider switching).
   (mapc #'disable-theme custom-enabled-themes)
   (setq frame-background-mode my/frame-background)
   (load-theme my/theme-name t)
@@ -249,7 +208,6 @@ font choice is a user environment / preference concern."
   (my/apply-user-fonts)
   (my/apply-font-emoji))
 
-;; Re-apply fonts when new frames are created (important for emacs --daemon)
 (add-hook 'after-make-frame-functions #'my/apply-user-fonts)
 
 (my/setup-theme)
