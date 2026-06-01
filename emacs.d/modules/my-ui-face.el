@@ -1,13 +1,13 @@
 ;;; my-ui-face.el --- Theme selection and user environment configuration -*- lexical-binding: t; -*-
 ;;; Commentary:
-;; - Multi-theme support (nord / solarized / rustcity) with toggle.
-;; - User fonts, emoji, and environment-driven theme selection.
+;; - Support for arbitrary themes via my/toggle-theme (no longer limited to a hardcoded set).
+;; - User fonts, emoji, and environment-driven theme + background selection.
 ;; - Personal workflow faces (custom org keywords, clock indicators, etc.).
-;; - Package-specific tweaks (dired-rainbow, smartrep).
+;; - Package-specific tweaks (dired-rainbow, smartrep) for rustcity.
 ;;
 ;; De facto division:
-;;   rustcity-theme package owns the visual identity and faces for popular packages.
-;;   This file owns user prefs + personal workflow extensions.
+;;   Themes (including rustcity-theme) own visual identity and faces for popular packages.
+;;   This file owns user prefs, font settings, and personal workflow extensions.
 
 ;;; Code:
 
@@ -16,7 +16,9 @@
   :group 'my/ui)
 
 (defcustom my/theme-name 'rustcity
-  "Which theme to use."
+  "Which theme to use.
+Any theme available via `custom-available-themes' can be used
+(via `M-x my/toggle-theme'). The listed options are just common choices."
   :type 'symbol
   :options '(solarized nord rustcity)
   :group 'my/ui)
@@ -37,24 +39,12 @@
   :defer t)
 
 (use-package solarized-theme
-  :straight (:host github :repo "sellout/emacs-color-theme-solarized" :branch "master" :files ("*.el" "out"))
+  :straight (:host github :repo "bbatsov/solarized-emacs")
   :defer t)
 
 (use-package rustcity-theme
   :straight (:host github :repo "yoshzucker/rustcity-theme")
   :defer t)
-
-;; Load theme (rustcity now owns the majority of its face rules inside the package)
-(defun my/load-theme ()
-  "Load the theme specified in my/theme-name."
-  (mapc #'disable-theme custom-enabled-themes)
-  (setq frame-background-mode my/frame-background)
-  (pcase my/theme-name
-    ('nord      (load-theme 'nord t))
-    ('solarized (load-theme 'solarized t)
-                (enable-theme 'solarized))
-    ('rustcity  (load-theme 'rustcity t))
-    (_ (message "Unknown theme: %s" my/theme-name))))
 
 (defcustom my/font-default
   (if (eq system-type 'darwin)
@@ -195,11 +185,24 @@ font choice is a user environment / preference concern."
   (set-face-attribute 'fixed-pitch nil :family my/font-default)
   (set-face-attribute 'variable-pitch nil :family my/font-variable))
 
+(defun my/resolve-theme (name)
+  "Resolve the actual theme symbol to load, handling variants like solarized."
+  (if (eq name 'solarized)
+      (if (eq my/frame-background 'light)
+          'solarized-light
+        'solarized-dark)
+    name))
+
 (defun my/setup-theme ()
-  (my/load-theme)
+  ;; Generic theme loading (no more my/load-theme wrapper)
+  (mapc #'disable-theme custom-enabled-themes)
+  (setq frame-background-mode my/frame-background)
+  (load-theme (my/resolve-theme my/theme-name) t)
+
   (when (eq my/theme-name 'rustcity)
     (my/apply-rustcity-workflow-faces)
     (my/apply-face-extra-packages))
+
   (my/apply-user-fonts)
   (my/apply-font-emoji))
 
