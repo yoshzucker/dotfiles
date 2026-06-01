@@ -200,19 +200,20 @@
   (advice-add 'wdired-abort-changes :after
               (lambda (&rest _) (dired-hide-details-mode)))
   
-  ;; Change background while in wdired
-  (advice-add 'wdired-change-to-wdired-mode :after
-              (lambda ()
-                (face-remap-add-relative
-                 'default
-                 :background (if (eq frame-background-mode 'light)
-                                 my/white
-                               my/black))))
-  
-  ;; Restore background after leaving wdired
-  (advice-add 'wdired-change-to-dired-mode :after
-              (lambda ()
-                (face-remap-add-relative 'default :background my/background))))
+  ;; Change background while in wdired (rustcity custom skin only)
+  (when (eq my/theme-name 'rustcity)
+    (advice-add 'wdired-change-to-wdired-mode :after
+                (lambda ()
+                  (face-remap-add-relative
+                   'default
+                   :background (if (eq frame-background-mode 'light)
+                                   my/white
+                                 my/black))))
+
+    ;; Restore background after leaving wdired
+    (advice-add 'wdired-change-to-dired-mode :after
+                (lambda ()
+                  (face-remap-add-relative 'default :background my/background)))))
 
 (use-package dired-subtree
   :defer t
