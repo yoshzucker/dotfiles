@@ -20,7 +20,7 @@
 Any theme available via `custom-available-themes' can be used
 (via `M-x my/toggle-theme'). The listed options are just common choices."
   :type 'symbol
-  :options '(solarized nord rustcity)
+  :options '(nord rustcity)
   :group 'my/ui)
 
 (defcustom my/frame-background 'dark
@@ -36,10 +36,6 @@ Any theme available via `custom-available-themes' can be used
     (my/map-env my/frame-background "theme_variant")))
 
 (use-package nord-theme
-  :defer t)
-
-(use-package solarized-theme
-  :straight (:host github :repo "bbatsov/solarized-emacs")
   :defer t)
 
 (use-package rustcity-theme
@@ -185,19 +181,11 @@ font choice is a user environment / preference concern."
   (set-face-attribute 'fixed-pitch nil :family my/font-default)
   (set-face-attribute 'variable-pitch nil :family my/font-variable))
 
-(defun my/resolve-theme (name)
-  "Resolve the actual theme symbol to load, handling variants like solarized."
-  (if (eq name 'solarized)
-      (if (eq my/frame-background 'light)
-          'solarized-light
-        'solarized-dark)
-    name))
-
 (defun my/setup-theme ()
   ;; Generic theme loading (no more my/load-theme wrapper)
   (mapc #'disable-theme custom-enabled-themes)
   (setq frame-background-mode my/frame-background)
-  (load-theme (my/resolve-theme my/theme-name) t)
+  (load-theme my/theme-name t)
 
   (when (eq my/theme-name 'rustcity)
     (my/apply-rustcity-workflow-faces)
