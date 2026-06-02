@@ -167,7 +167,7 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
   (setq my/theme-special-setups
         (cons (cons 'rustcity
                     (lambda ()
-                      (let* ((colors (rustcity-colors))
+                      (let* ((colors (rustcity-palette))
                              (background    (alist-get 'background    colors))
                              (red           (alist-get 'red           colors))
                              (green         (alist-get 'green         colors))
@@ -195,6 +195,22 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
                            (my/mode-line-under :foreground ,background :background ,cyan)
                            (my/calendar-iso-week-header :inherit font-lock-function-name-face))))))
               (assq-delete-all 'rustcity my/theme-special-setups))))
+
+(use-package gensho-theme
+  :straight (:host github :repo "yoshzucker/gensho-theme" :branch "develop")
+  :defer t
+  :config
+  (setq my/theme-special-setups
+        (cons (cons 'gensho
+                    (lambda ()
+                      (let* ((colors (gensho-palette))
+                             ;; ここに今まで書いてあった (alist-get ...) をそのまま gensho-palette から取るように
+                             (background    (alist-get 'background    colors))
+                             ;; ... 必要な色を追加・整理 ...
+                             )
+                        ;; ここ以降は今まで通り dired-rainbow や my/* face の設定
+                        )))
+              (assq-delete-all 'gensho my/theme-special-setups))))
 
 (use-package nord-theme
   :defer t)
