@@ -161,38 +161,36 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
 ;; Theme packages
 
 (use-package rustcity-theme
-  :straight (:host github :repo "yoshzucker/rustcity-theme")
+  :straight (:host github :repo "yoshzucker/rustcity-theme" :branch "refactor/theme-tweak")
   :defer t
   :config
   (setq my/theme-special-setups
         (cons (cons 'rustcity
                     (lambda ()
                       (let* ((colors (rustcity-palette))
-                             (background    (alist-get 'background    colors))
-                             (red           (alist-get 'red           colors))
-                             (green         (alist-get 'green         colors))
-                             (blue          (alist-get 'blue          colors))
-                             (cyan          (alist-get 'cyan          colors))
-                             (black         (alist-get 'black         colors))
-                             (brightred     (alist-get 'brightred     colors))
-                             (brightmagenta (alist-get 'brightmagenta colors))
-                             (brightwhite   (alist-get 'brightwhite   colors)))
-                        (setq smartrep-mode-line-active-bg brightwhite)
+                             (mono0  (alist-get 'mono0  colors))
+                             (mono1  (alist-get 'mono1  colors))
+                             (mono5  (alist-get 'mono5  colors))
+                             (red    (alist-get 'red    colors))
+                             (orange (alist-get 'orange colors))
+                             (green  (alist-get 'green  colors))
+                             (cyan   (alist-get 'cyan   colors))
+                             (blue   (alist-get 'blue   colors))
+                             (purple (alist-get 'purple colors)))
+                        (setq smartrep-mode-line-active-bg mono5)
                         (my/set-dired-rainbow-faces
-                         `((("el" "lisp" "sh" "r" "c" "h" "py") . ,brightmagenta)
-                           (("txt" "org" "md")                  . ,brightmagenta)
+                         `((("el" "lisp" "sh" "r" "c" "h" "py") . ,purple)
+                           (("txt" "org" "md")                  . ,purple)
                            (("docx" "docm")                     . ,blue)
                            (("xlsx" "xlsm")                     . ,green)
-                           (("pptx" "pptm")                     . ,brightred)
+                           (("pptx" "pptm")                     . ,orange)
                            (("pdf")                             . ,red)))
                         (my/set-faces
-                         `((my/wdired-edit-face :background ,(if (eq my/frame-background 'light)
-                                                                 brightwhite
-                                                               black))
-                           (my/org-ongo :inverse-video t :foreground ,brightred :background ,background)
+                         `((my/wdired-edit-face :background ,mono1)
+                           (my/org-ongo :inverse-video t :foreground ,orange :background ,mono0)
                            (my/org-wait :inverse-video t :inherit font-lock-comment-face)
-                           (my/mode-line-over :foreground ,background :background ,red)
-                           (my/mode-line-under :foreground ,background :background ,cyan)
+                           (my/mode-line-over :foreground ,mono0 :background ,red)
+                           (my/mode-line-under :foreground ,mono0 :background ,cyan)
                            (my/calendar-iso-week-header :inherit font-lock-function-name-face))))))
               (assq-delete-all 'rustcity my/theme-special-setups))))
 
