@@ -161,7 +161,7 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
 ;; Theme packages
 
 (use-package rustcity-theme
-  :straight (:host github :repo "yoshzucker/rustcity-theme" :branch "refactor/theme-tweak")
+  :straight (:host github :repo "yoshzucker/rustcity-theme")
   :defer t
   :config
   (setq my/theme-special-setups
@@ -170,21 +170,18 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
                       (let* ((colors (rustcity-palette))
                              (mono0  (alist-get 'mono0  colors))
                              (mono1  (alist-get 'mono1  colors))
-                             (mono5  (alist-get 'mono5  colors))
+                             (mono2  (alist-get 'mono2  colors))
                              (red    (alist-get 'red    colors))
                              (orange (alist-get 'orange colors))
                              (green  (alist-get 'green  colors))
                              (cyan   (alist-get 'cyan   colors))
-                             (blue   (alist-get 'blue   colors))
-                             (purple (alist-get 'purple colors)))
-                        (setq smartrep-mode-line-active-bg mono5)
+                             (blue   (alist-get 'blue   colors)))
+                        (setq smartrep-mode-line-active-bg mono2)
                         (my/set-dired-rainbow-faces
-                         `((("el" "lisp" "sh" "r" "c" "h" "py") . ,purple)
-                           (("txt" "org" "md")                  . ,purple)
-                           (("docx" "docm")                     . ,blue)
-                           (("xlsx" "xlsm")                     . ,green)
-                           (("pptx" "pptm")                     . ,orange)
-                           (("pdf")                             . ,red)))
+                         `((("docx" "docm") . ,blue)
+                           (("xlsx" "xlsm") . ,green)
+                           (("pptx" "pptm") . ,orange)
+                           (("pdf")         . ,red)))
                         (my/set-faces
                          `((my/wdired-edit-face :background ,mono1)
                            (my/org-ongo :inverse-video t :foreground ,orange :background ,mono0)
@@ -202,12 +199,27 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
         (cons (cons 'gensho
                     (lambda ()
                       (let* ((colors (gensho-palette))
-                             ;; ここに今まで書いてあった (alist-get ...) をそのまま gensho-palette から取るように
-                             (background    (alist-get 'background    colors))
-                             ;; ... 必要な色を追加・整理 ...
-                             )
-                        ;; ここ以降は今まで通り dired-rainbow や my/* face の設定
-                        )))
+                             (mono0  (alist-get 'mono0  colors))
+                             (mono1  (alist-get 'mono1  colors))
+                             (mono2  (alist-get 'mono2  colors))
+                             (red    (alist-get 'red    colors))
+                             (orange (alist-get 'orange colors))
+                             (green  (alist-get 'green  colors))
+                             (cyan   (alist-get 'cyan   colors))
+                             (blue   (alist-get 'blue   colors)))
+                        (setq smartrep-mode-line-active-bg mono2)
+                        (my/set-dired-rainbow-faces
+                         `((("docx" "docm") . ,blue)
+                           (("xlsx" "xlsm") . ,green)
+                           (("pptx" "pptm") . ,orange)
+                           (("pdf")         . ,red)))
+                        (my/set-faces
+                         `((my/wdired-edit-face :background ,mono1)
+                           (my/org-ongo :inverse-video t :foreground ,orange :background ,mono0)
+                           (my/org-wait :inverse-video t :inherit font-lock-comment-face)
+                           (my/mode-line-over :foreground ,mono0 :background ,red)
+                           (my/mode-line-under :foreground ,mono0 :background ,cyan)
+                           (my/calendar-iso-week-header :inherit font-lock-function-name-face))))))
               (assq-delete-all 'gensho my/theme-special-setups))))
 
 (use-package nord-theme

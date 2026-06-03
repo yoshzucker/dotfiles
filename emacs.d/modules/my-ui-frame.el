@@ -25,7 +25,7 @@ Each element is a cons cell (WIDTH . HEIGHT)."
     (left-fringe . nil) (right-fringe . nil)
     (menu-bar-lines . nil) (tool-bar-lines . nil)
     (vertical-scroll-bars . nil)
-    (alpha . (0.96 0.96))
+    (alpha . (1.00 1.00))
     (ns-transparent-titlebar . t)
     (ns-appearance . dark))
   "Default frame parameters applied to new frames.
@@ -158,7 +158,6 @@ INDEX is 1-based (1 = first entry in `my/frame-size-list`)."
  (:map evil-window-map
        :after evil
        :key
-       "e" #'my/cycle-frame-size
        "m" #'toggle-frame-maximized
        "RET" #'iconify-frame))
 
