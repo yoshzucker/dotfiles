@@ -220,13 +220,7 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
                            (my/mode-line-over :foreground ,mono0 :background ,red)
                            (my/mode-line-under :foreground ,mono0 :background ,cyan)
                            (my/calendar-iso-week-header :inherit font-lock-function-name-face)))
-                        ;; Enable auto-dim-other-buffers. The dim background face
-                        ;; is provided by gensho-theme (using mono1, the standard
-                        ;; first auxiliary step). This gives the subtle non-selected
-                        ;; / aux tone while preserving de-facto subtle roles on main
-                        ;; content.
-                        (when (fboundp 'auto-dim-other-buffers-mode)
-                          (auto-dim-other-buffers-mode 1))))))
+                        )))
               (assq-delete-all 'gensho my/theme-special-setups))))
 
 (use-package nord-theme
@@ -234,6 +228,16 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
 
 (use-package auto-dim-other-buffers
   :defer t)
+
+;; Configure auto-dim-other-buffers for use with gensho (and generally).
+;; - Exclude 'fringe' from affected faces. This avoids known initialization
+;;   races and flickering issues when the theme explicitly sets fringe
+;;   background (gensho sets fringe to mono0 for a clean "no visible seam"
+;;   slate look, matching vertical-border treatment).
+;;   See the package's README section "My screen is flickering".
+(with-eval-after-load 'auto-dim-other-buffers
+  (setq auto-dim-other-buffers-affected-faces
+        (assq-delete-all 'fringe auto-dim-other-buffers-affected-faces)))
 
 ;; Core setup
 
@@ -261,11 +265,29 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
                              nil t) )))
     (customize-save-variable 'my/theme-name theme)
     (customize-save-variable 'my/frame-background background)
-    (my/setup-theme)))
+    (my/setup-theme)
+    ;; Re-ensure auto-dim-other-buffers is active after theme change.
+    ;; This re-runs the face remaps using the (new) theme's definition
+    ;; of the dim face. Safe because toggle-theme is only called
+    ;; interactively after full Emacs init.
+    (when (fboundp 'auto-dim-other-buffers-mode)
+      (auto-dim-other-buffers-mode 1))))
 
 ;; Initialization
 
 (add-hook 'after-make-frame-functions #'my/apply-user-fonts)
+
+;; Enable auto-dim-other-buffers *after full init* to avoid race conditions
+;; with fringe and frame initialization (a known issue with this package
+;; when used together with themes that customize fringe background to match
+;; default, as gensho does for clean slate appearance with no visible seam).
+;; Initial enable at theme setup time can leave fringes etc. in a bad state
+;; until the mode is toggled off/on once.
+;; See auto-dim-other-buffers README "My screen is flickering".
+(add-hook 'after-init-hook
+          (lambda ()
+            (when (fboundp 'auto-dim-other-buffers-mode)
+              (auto-dim-other-buffers-mode 1))))
 
 (my/setup-theme)
 
