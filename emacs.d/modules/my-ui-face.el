@@ -227,15 +227,18 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
   :defer t)
 
 (use-package auto-dim-other-buffers
-  :defer t)
-
-;; Configure auto-dim-other-buffers for use with gensho (and generally).
-;; - Exclude 'fringe' from affected faces. This avoids known initialization
-;;   races and flickering issues when the theme explicitly sets fringe
-;;   background (gensho sets fringe to mono0 for a clean "no visible seam"
-;;   slate look, matching vertical-border treatment).
-;;   See the package's README section "My screen is flickering".
-(with-eval-after-load 'auto-dim-other-buffers
+  :defer t
+  :config
+  ;; Enable the mode here. We control the load timing (see after-init-hook
+  ;; below) so that this runs after full frame/theme initialization.
+  ;; This avoids the known race where enabling too early leaves fringes
+  ;; (and other elements) in a broken state until the mode is toggled.
+  (auto-dim-other-buffers-mode 1)
+  ;; Exclude 'fringe' from affected faces. Gensho explicitly sets fringe
+  ;; background to mono0 (same as default) for a clean slate look with
+  ;; no visible seam (see vertical-border treatment). Including fringe
+  ;; in auto-dim often causes flickering or wrong colors during init.
+  ;; See the package README "My screen is flickering".
   (setq auto-dim-other-buffers-affected-faces
         (assq-delete-all 'fringe auto-dim-other-buffers-affected-faces)))
 
@@ -277,17 +280,14 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
 
 (add-hook 'after-make-frame-functions #'my/apply-user-fonts)
 
-;; Enable auto-dim-other-buffers *after full init* to avoid race conditions
-;; with fringe and frame initialization (a known issue with this package
-;; when used together with themes that customize fringe background to match
-;; default, as gensho does for clean slate appearance with no visible seam).
-;; Initial enable at theme setup time can leave fringes etc. in a bad state
-;; until the mode is toggled off/on once.
-;; See auto-dim-other-buffers README "My screen is flickering".
+;; Trigger loading of auto-dim-other-buffers after full init.
+;; This ensures its :config (which enables the mode and sets fringe
+;; exclusion) runs late enough to avoid initialization races with
+;; frames, fonts, and theme faces (gensho sets fringe and the dim face).
+;; The direct (mode 1) is now inside the package's :config.
 (add-hook 'after-init-hook
           (lambda ()
-            (when (fboundp 'auto-dim-other-buffers-mode)
-              (auto-dim-other-buffers-mode 1))))
+            (require 'auto-dim-other-buffers)))
 
 (my/setup-theme)
 
