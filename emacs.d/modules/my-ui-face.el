@@ -192,7 +192,7 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
               (assq-delete-all 'rustcity my/theme-special-setups))))
 
 (use-package gensho-theme
-  :straight (:host github :repo "yoshzucker/gensho-theme" :branch "develop")
+  :straight (:host github :repo "yoshzucker/gensho-theme")
   :defer t
   :config
   (setq my/theme-special-setups
