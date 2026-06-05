@@ -219,10 +219,20 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
                            (my/org-wait :inverse-video t :inherit font-lock-comment-face)
                            (my/mode-line-over :foreground ,mono0 :background ,red)
                            (my/mode-line-under :foreground ,mono0 :background ,cyan)
-                           (my/calendar-iso-week-header :inherit font-lock-function-name-face))))))
+                           (my/calendar-iso-week-header :inherit font-lock-function-name-face)))
+                        ;; Enable auto-dim-other-buffers. The dim background face
+                        ;; is provided by gensho-theme (using mono1, the standard
+                        ;; first auxiliary step). This gives the subtle non-selected
+                        ;; / aux tone while preserving de-facto subtle roles on main
+                        ;; content.
+                        (when (fboundp 'auto-dim-other-buffers-mode)
+                          (auto-dim-other-buffers-mode 1))))))
               (assq-delete-all 'gensho my/theme-special-setups))))
 
 (use-package nord-theme
+  :defer t)
+
+(use-package auto-dim-other-buffers
   :defer t)
 
 ;; Core setup
