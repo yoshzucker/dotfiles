@@ -45,7 +45,7 @@ wp() {
   print -r -- "$wpath"
 }
 
-if command -v powershell.exe >/dev/null 2>&1 && [[ "${DISTRIBUTION:-}" == "msys2" ]]; then
+if command -v powershell.exe >/dev/null 2>&1; then
   open() {
     local p; p="$(wp "${1:-.}")"
     if [[ -z "$p" ]]; then
