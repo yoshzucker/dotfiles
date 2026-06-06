@@ -1,67 +1,72 @@
-# config/shell — UL Modular Shell Environment
+# config/shell — Shell Environment
 
-This directory contains the **modular, minimal, high-maintainability** shell configuration after the UL refactor (2026).
+Modular shell configuration for macOS (Ghostty) and Windows (MSYS2/Mintty).
+All `env/` files are bash/zsh-safe and non-interactive-safe.
 
 ## Layout
 
 ```
 config/shell/
-├── loader.sh          # Option B: single source of truth for one-time sourcing guard
-├── env/               # Early modules — sourced from ~/.zshenv (all zsh, even non-interactive)
-│   ├── 00-core-env.sh # THEME_NAME/THEME_VARIANT exports (macOS + MSYS2)
-│   ├── 10-brew-env.sh # brew shellenv + central BREW_PREFIX export (macOS)
-│   ├── 15-path.sh     # ~/.local/bin, venv, coreutils gnubin
-│   ├── 20-timezone.sh # TZ=Asia/Tokyo
-│   └── 30-msys.sh     # pp/wp path converters, open() (MSYS2 only)
-└── zsh/               # Interactive-only — sourced from ~/.zshrc
-    ├── 10-ui-terminal-colors.sh
-    ├── 15-ui-dircolors.sh
-    ├── 20-ui-truecolor.sh
-    ├── 30-zsh-ux.sh   # history, prompt, vcs_info, compinit, keys
-    ├── 40-tool-alias.sh
-    └── 45-tool-fzf.sh
+├── env/           # Early env — sourced explicitly from ~/.zshenv
+│   ├── common.sh  # TZ, ~/.local/bin + ~/.venv/bin in PATH
+│   ├── macos.sh   # Homebrew init, BREW_PREFIX, gnubin PATH  (Darwin-only)
+│   └── msys.sh    # pp/wp path converters, open()            (MSYS2-only)
+└── zsh/           # Interactive-only — sourced explicitly from ~/.zshrc
+    ├── colors.sh  # THEME_NAME/VARIANT, truecolor, OSC palette, THEME_MONO*
+    ├── zsh.sh     # history, setopt, compinit, prompt, vcs_info, keybinds
+    ├── aliases.sh # eza/ls, emacs client, git, tool aliases
+    └── fzf.sh     # fzf keybindings, completions, FZF_DEFAULT_OPTS
 ```
 
 ## Loading Order & Semantics
 
-- `~/.zshenv` → `shell/env/*.sh` (lexical 00-30)
-- `~/.zprofile` → (thin, login only)
-- `~/.zshrc`  → `shell/zsh/*.sh` (lexical 10-45)
+Both layers use explicit sourcing (not glob) so load order is visible and
+adding a file requires a deliberate edit.
 
-This follows standard zsh startup layers and eliminates previous duplication.
-
-## Guard (Option B — no copy-paste)
-
-Every module begins with:
-
+**`~/.zshenv`** (every zsh invocation, non-interactive safe):
 ```sh
-_module_name="$(basename "${BASH_SOURCE[0]:-${(%):-%N}}" .sh | tr -c "a-zA-Z0-9" "_")"
-_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%N}}")" && pwd)"
-[ -f "$_script_dir/../loader.sh" ] && source "$_script_dir/../loader.sh"
-__load_guard "$_module_name" || return 0
+source ~/.config/shell/env/common.sh
+source ~/.config/shell/env/macos.sh   # self-guards: no-op outside Darwin
+source ~/.config/shell/env/msys.sh    # self-guards: no-op outside MSYS2
 ```
 
-See [loader.sh](loader.sh) for the implementation. Each module captures its own filename-derived name and passes it explicitly to `__load_guard`.
+**`~/.zshrc`** (interactive only):
+```sh
+source ~/.config/shell/zsh/colors.sh   # must be first — sets THEME_MONO*
+source ~/.config/shell/zsh/zsh.sh      # needs THEME_MONO* for prompt
+source ~/.config/shell/zsh/aliases.sh
+source ~/.config/shell/zsh/fzf.sh      # needs THEME_MONO* for colors
+```
 
-## Adding a New Module
+`colors.sh` must precede `zsh.sh` and `fzf.sh` because they reference
+`THEME_MONO*` environment variables at source time.
 
-1. Choose `env/` (early, cross-shell) or `zsh/` (interactive only).
-2. Pick next available number in the sequence (e.g. 25-foo.sh).
-3. Copy the header + guard block from an existing file.
-4. Write the logic. Export uppercase vars for downstream (THEME_*, BREW_PREFIX).
-5. Document `deps:` and `exports:` in the header comment.
-6. Test with `exec zsh -l` and non-interactive `zsh -c 'echo $VAR'`.
+## Platform Guards
+
+Each module self-guards at the top rather than relying on a shared mechanism:
+
+| Module | Guard |
+|--------|-------|
+| `env/macos.sh` | `[ "$(uname -s)" = "Darwin" ] \|\| return 0` |
+| `env/msys.sh`  | `[ -n "${MSYSTEM:-}" ] \|\| return 0` |
+| `zsh/*.sh`     | `[ -n "$ZSH_VERSION" ] \|\| return 0` |
+| `zsh/colors.sh`| additionally `[ "$THEME_NAME" = "gensho" ] \|\| return 0` |
+
+## Adding a New env Module
+
+1. Create `env/<name>.sh`.
+2. Add a platform guard if needed.
+3. Export uppercase vars (`BREW_PREFIX`, …).
+4. Register it in `~/.zshenv` with an explicit `source` line.
+5. Test: `exec zsh -l` (interactive) and `zsh -c 'echo $VAR'` (non-interactive).
+
+## Adding a New zsh Module
+
+1. Create `zsh/<name>.sh` with `[ -n "$ZSH_VERSION" ] || return 0` at the top.
+2. If it consumes `THEME_MONO*`, it must be sourced after `colors.sh` in `.zshrc`.
+3. Register it in `~/.zshrc` with an explicit `source` line.
 
 ## Brew Integration
 
-See [../../pkg/brew/Brewfile](../../pkg/brew/Brewfile) — declarative single source of truth (moved out of config/ tree).
-Run `./bootstrap update` or `brew bundle --file pkg/brew/Brewfile`.
-
-## Relation to Future Chezmoi
-
-The small, single-purpose files + declarative Brewfile make migration to chezmoi (next step) straightforward (each .sh can become a template, Brewfile can be managed via `brew` package in chezmoi).
-
-## Legacy
-
-Old `config/lib/pXX_*/zXX_*.sh` were moved here with cleaned names during the refactor.
-`config/lib/` directory was removed.
+See [../../pkg/brew/Brewfile](../../pkg/brew/Brewfile) — declarative single source of truth.
+Run `brew bundle --file pkg/brew/Brewfile`.

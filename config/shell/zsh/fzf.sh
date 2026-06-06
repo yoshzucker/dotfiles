@@ -1,12 +1,6 @@
-# --- 45-tool-fzf.sh ------------------------------------------------------
+# --- fzf.sh --------------------------------------------------------------
 # fzf keybindings, completions, default opts/command (fd/rg), theme colors.
 # Searches multiple possible fzf install locations; prefers BREW_PREFIX.
-
-# Guard (Option B, reliable): name captured at module top-level before any function
-_module_name="$(basename "${BASH_SOURCE[0]:-${(%):-%N}}" .sh | tr -c "a-zA-Z0-9" "_")"
-_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%N}}")" && pwd)"
-[ -f "$_script_dir/../loader.sh" ] && source "$_script_dir/../loader.sh"
-__load_guard "$_module_name" || return 0
 
 [ -n "$ZSH_VERSION" ] || return 0
 
@@ -26,7 +20,7 @@ __fzf_try_source() {
 }
 
 if command -v fzf >/dev/null 2>&1; then
-  # Prefer centralized BREW_PREFIX from 10-brew-env.sh, then common locations
+  # Prefer centralized BREW_PREFIX from env/macos.sh, then common locations
   typeset -a __FZF_BASES=(
     "${BREW_PREFIX:+${BREW_PREFIX}/opt/fzf}"
     "${HOMEBREW_PREFIX:+${HOMEBREW_PREFIX}/opt/fzf}"
@@ -48,20 +42,14 @@ unset -f __fzf_try_source
 unset __FZF_SOURCED __FZF_BASES
 
 if command -v fzf >/dev/null 2>&1; then
-  __fzf_opts_new=$(cat <<EOF
---no-bold
---smart-case
---color=bg+:${THEME_BG_HIGHLIGHT}
---color=fg+:${THEME_PRIMARY}
---color=hl:${THEME_SECONDARY},hl+:${THEME_SECONDARY}
---color=info:${THEME_PRIMARY},prompt:${THEME_PRIMARY}
---color=pointer:${THEME_PRIMARY}
---color=marker:${THEME_PRIMARY},spinner:${THEME_PRIMARY}
---color=header:${THEME_PRIMARY}
-EOF
-)
-  export FZF_DEFAULT_OPTS="${FZF_DEFAULT_OPTS:+$FZF_DEFAULT_OPTS$'\n'}${__fzf_opts_new}"
-  unset __fzf_opts_new
+  export FZF_DEFAULT_OPTS="--smart-case
+--color=bg+:${THEME_MONO1}
+--color=fg+:${THEME_MONO7}
+--color=hl:${THEME_MONO6},hl+:${THEME_MONO7}
+--color=info:${THEME_MONO5},prompt:${THEME_MONO6}
+--color=pointer:${THEME_MONO6}
+--color=marker:${THEME_MONO6},spinner:${THEME_MONO5}
+--color=header:${THEME_MONO5}"
 fi
 
 if command -v fd >/dev/null 2>&1; then
@@ -74,4 +62,4 @@ fi
 
 export FZF_CTRL_T_OPTS=$'--height 50%\n--preview "ls -lh --color=always {} 2>/dev/null || tree -L 1 -C {} 2>/dev/null"'
 
-# --- end of z41_tool_fzf.sh ----------------------------------------------
+# --- end of fzf.sh -------------------------------------------------------
