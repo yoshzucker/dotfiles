@@ -9,12 +9,11 @@ _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%N}}")" && pwd)"
 __load_guard "$_module_name" || return 0
 
 # Required (from 00-core-env + theme):
-#   - THEME_NAME, THEME_VARIANT, TERM_TYPE
+#   - THEME_NAME, THEME_VARIANT
 
 # Validate required environment variables
 [ -z "$THEME_NAME" ] && return 0
 [ -z "$THEME_VARIANT" ] && return 0
-[ -z "$TERM_TYPE" ] && return 0
 
 # Determine appropriate dircolors file based on theme
 dcs_path=""

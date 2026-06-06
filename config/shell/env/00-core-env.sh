@@ -1,6 +1,6 @@
 # --- 00-core-env.sh ------------------------------------------------------
-# Detect OS, distribution, platform, terminal type and theme.
-# Exports: OS, DISTRIBUTION, PLATFORM, TERM_TYPE, THEME_NAME, THEME_VARIANT
+# Detect OS, distribution, platform and theme.
+# Exports: OS, DISTRIBUTION, PLATFORM, THEME_NAME, THEME_VARIANT
 # and derived THEME_* color variables (consumed by UI modules and tmux).
 #
 # Guard (Option B, reliable): name captured at module top-level before any function
@@ -29,22 +29,14 @@ if grep -qEi "(Microsoft|WSL)" /proc/version 2>/dev/null; then
   [ -z "${WSL_DISTRO_NAME:-}" ] && platform="wsl1"
 fi
 
-# Terminal Type Detection
-case "$TERM_PROGRAM" in
-  Apple_Terminal*) term_type="ansi"  ;;
-  iTerm*)          term_type="iterm" ;;
-  *)               term_type="ansi"  ;;
-esac
-
 # Set environment variables for terminal theme
-theme_name="nord"           # or 'solarized'
+theme_name="gensho"           # or 'solarized'
 theme_variant="dark"        # or 'light'
 
 # Export all
 export OS="$os"
 export DISTRIBUTION="$distribution"
 export PLATFORM="$platform"
-export TERM_TYPE="$term_type"
 export THEME_NAME="$theme_name"
 export THEME_VARIANT="$theme_variant"
 

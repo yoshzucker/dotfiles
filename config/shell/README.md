@@ -8,7 +8,7 @@ This directory contains the **modular, minimal, high-maintainability** shell con
 config/shell/
 ├── loader.sh          # Option B: single source of truth for one-time sourcing guard
 ├── env/               # Early modules — sourced from ~/.zshenv (all zsh, even non-interactive)
-│   ├── 00-core-env.sh # OS/distribution/platform/TERM_TYPE/THEME_* detection + exports
+│   ├── 00-core-env.sh # OS/distribution/platform/THEME_* detection + exports
 │   ├── 05-wsl.sh      # WSL SHELL=zsh
 │   ├── 10-brew-env.sh # brew shellenv + central BREW_PREFIX export
 │   ├── 15-path.sh     # ~/.local/bin, venv, coreutils gnubin
