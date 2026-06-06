@@ -26,7 +26,7 @@ __fzf_try_source() {
 }
 
 if command -v fzf >/dev/null 2>&1; then
-  # Prefer centralized BREW_PREFIX from 10-brew-env.sh, then common locations
+  # Prefer centralized BREW_PREFIX from env/macos.sh, then common locations
   typeset -a __FZF_BASES=(
     "${BREW_PREFIX:+${BREW_PREFIX}/opt/fzf}"
     "${HOMEBREW_PREFIX:+${HOMEBREW_PREFIX}/opt/fzf}"

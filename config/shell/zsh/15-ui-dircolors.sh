@@ -8,7 +8,7 @@ _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%N}}")" && pwd)"
 [ -f "$_script_dir/../loader.sh" ] && source "$_script_dir/../loader.sh"
 __load_guard "$_module_name" || return 0
 
-# Required (from 00-core-env + theme):
+# Required (from env/common.sh + theme):
 #   - THEME_NAME, THEME_VARIANT
 
 # Validate required environment variables

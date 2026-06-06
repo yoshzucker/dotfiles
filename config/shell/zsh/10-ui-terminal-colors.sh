@@ -9,7 +9,7 @@ _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%N}}")" && pwd)"
 [ -f "$_script_dir/../loader.sh" ] && source "$_script_dir/../loader.sh"
 __load_guard "$_module_name" || return 0
 
-# Required env variables (from 00-core-env):
+# Required env variables (from env/common.sh):
 #   - THEME_NAME, THEME_VARIANT
 
 # Exit if required variables are missing
