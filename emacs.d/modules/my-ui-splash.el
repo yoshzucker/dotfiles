@@ -53,8 +53,14 @@
                  (with-current-buffer buf
                    (setq buffer-read-only nil)
                    ;; Clear any unwanted face remapping like :stipple
+                   ;; (setq-local face-remapping-alist
+                   ;;             (assq-delete-all 'default face-remapping-alist))
                    (setq-local face-remapping-alist
-                               (assq-delete-all 'default face-remapping-alist))
+                               (mapcar (lambda (entry)
+                                         (if (eq (car entry) 'default)
+                                             (assq-delete-all :stipple entry)
+                                           entry))
+                                       face-remapping-alist))
                    (my/random-insert-art)))))))
 
 (when (eq system-type 'windows-nt)
