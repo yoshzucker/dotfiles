@@ -4,11 +4,6 @@
 # Exports: BREW_PREFIX, HOMEBREW_CURLRC (when ~/.curlrc exists)
 # Modifies: PATH (Homebrew bin, gnubin)
 
-_module_name="$(basename "${BASH_SOURCE[0]:-${(%):-%N}}" .sh | tr -c 'a-zA-Z0-9' '_')"
-_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%N}}")" && pwd)"
-[ -f "$_script_dir/../loader.sh" ] && . "$_script_dir/../loader.sh"
-__load_guard "$_module_name" || return 0
-
 [ "$(uname -s)" = "Darwin" ] || return 0
 
 if [ -e /opt/homebrew ]; then

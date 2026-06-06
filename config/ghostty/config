@@ -1,0 +1,19 @@
+# === Ghostty （for Emacs + tmux user） ===
+
+# --- Font ---
+font-family = "HackGen Console"
+font-size = 13
+# font-feature = "liga"
+
+# --- Key Handling ---
+macos-option-as-alt = true
+
+# --- Appearance ---
+window-padding-x = 6
+window-padding-y = 6
+window-decoration = false
+# background-opacity = 1.0
+
+# --- Others ---
+scrollback-limit = 10000
+copy-on-select = true

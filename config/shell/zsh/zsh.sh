@@ -1,12 +1,6 @@
-# --- 30-zsh-ux.sh --------------------------------------------------------
+# --- zsh.sh ---------------------------------------------------------------
 # Zsh interactive UX: history, setopt, compinit, prompt (with vcs_info),
-# basic keybinds. Requires THEME_* from UI modules.
-
-# Guard (Option B, reliable): name captured at module top-level before any function
-_module_name="$(basename "${BASH_SOURCE[0]:-${(%):-%N}}" .sh | tr -c "a-zA-Z0-9" "_")"
-_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%N}}")" && pwd)"
-[ -f "$_script_dir/../loader.sh" ] && source "$_script_dir/../loader.sh"
-__load_guard "$_module_name" || return 0
+# basic keybinds. Requires THEME_MONO* from colors.sh.
 
 [ -n "$ZSH_VERSION" ] || return 0
 
@@ -34,9 +28,11 @@ compinit -C -d ~/.zcompdump-$HOST # rebuild -> compinit -u -d ~/.zcompdump-$HOST
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
 
 # ----- prompt -----
-PROMPT="%{%F{${THEME_SECONDARY}}%}%n@%m %# %{%f%}"
+# MONO6: prominent secondary (cursor/prompt/identifier level per gensho mono ramp)
+# MONO5: secondary text (less prominent; path in rprompt stays quieter than prompt)
+PROMPT="%{%F{${THEME_MONO6}}%}%n@%m %# %{%f%}"
 
-RPROMPT_BASE="%{%F{${THEME_SECONDARY}}%}%(4~|.../%2~|%~)%{%f%}"
+RPROMPT_BASE="%{%F{${THEME_MONO5}}%}%(4~|.../%2~|%~)%{%f%}"
 RPROMPT="$RPROMPT_BASE"
 
 # ----- git vcs -----
@@ -46,7 +42,7 @@ zstyle ':vcs_info:git:*' formats '%b'
 precmd() {
   vcs_info
   if [[ -n "$vcs_info_msg_0_" ]]; then
-    RPROMPT="%{%F{${THEME_PRIMARY}}%}(${vcs_info_msg_0_})%{%f%} $RPROMPT_BASE"
+    RPROMPT="%{%F{${THEME_MONO6}}%}(${vcs_info_msg_0_})%{%f%} $RPROMPT_BASE"
   else
     RPROMPT="$RPROMPT_BASE"
   fi
@@ -59,4 +55,4 @@ bindkey '^l' forward-word
 bindkey '^f' backward-char
 bindkey '^b' forward-char
 
-# --- end of z30_zsh_ux.sh ------------------------------------------------
+# --- end of zsh.sh -------------------------------------------------------

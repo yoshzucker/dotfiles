@@ -3,11 +3,6 @@
 # No-op on non-MSYS2 systems. Safe for bash and zsh.
 # Defines: pp(), wp(), open() (open only when powershell.exe is available)
 
-_module_name="$(basename "${BASH_SOURCE[0]:-${(%):-%N}}" .sh | tr -c 'a-zA-Z0-9' '_')"
-_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%N}}")" && pwd)"
-[ -f "$_script_dir/../loader.sh" ] && . "$_script_dir/../loader.sh"
-__load_guard "$_module_name" || return 0
-
 [ -n "${MSYSTEM:-}" ] || return 0
 
 # pp: Windows path -> POSIX  (C:\foo\Bar -> /c/foo/Bar, \\srv\sh -> //srv/sh)
