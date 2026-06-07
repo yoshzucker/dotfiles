@@ -58,30 +58,40 @@
 
 (my/allocate-window-global-mode -1)
 
+(defun my/non-side-windows ()
+  "Return a list of non-side windows, excluding sidebars and Treemacs."
+  (seq-filter
+   (lambda (win)
+     (let ((buf (window-buffer win)))
+       (and (not (window-parameter win 'window-side))
+            (not (string-prefix-p "*Treemacs" (buffer-name buf)))
+            (not (eq (buffer-local-value 'major-mode buf) 'treemacs-mode)))))
+   (window-list nil 'nomini)))
+
 (defun my/toggle-window-split-direction ()
-  "Toggle window split between horizontal and vertical when exactly two windows are open."
+  "Toggle the split direction of exactly two non-side windows, ignoring any sidebars."
   (interactive)
-  (unless (= (count-windows) 2)
-    (user-error "This function only supports exactly two windows."))
-  (let* ((win1 (nth 0 (window-list)))
-         (win2 (nth 1 (window-list)))
-         (edges1 (window-edges win1))
-         (edges2 (window-edges win2))
-         (buf1 (window-buffer win1))
-         (buf2 (window-buffer win2))
-         (start1 (window-start win1))
-         (start2 (window-start win2))
-         (horizontal (eq (cadr edges1) (cadr edges2))) ; compare TOP coordinates
-         (split-fn (if horizontal
-                       #'split-window-vertically
-                     #'split-window-horizontally)))
-    (delete-other-windows)
-    (let ((new-win (funcall split-fn)))
-      (set-window-buffer (selected-window) buf1)
-      (set-window-start (selected-window) start1)
-      (set-window-buffer new-win buf2)
-      (set-window-start new-win start2))
-    (balance-windows)))
+  (pcase (my/non-side-windows)
+    (`(,win1 ,win2)
+     (let* ((horizontal (eq (cadr (window-edges win1))
+                            (cadr (window-edges win2))))
+            (split-fn   (if horizontal
+                            #'split-window-vertically
+                          #'split-window-horizontally))
+            (selected   (selected-window))
+            (base       (if (memq selected (list win1 win2)) selected win1))
+            (other      (if (eq base win1) win2 win1))
+            (other-buf  (window-buffer other))
+            (other-start (window-start other)))
+
+       (select-window base)
+       (delete-window other)
+       (let ((new-win (funcall split-fn)))
+         (set-window-buffer new-win other-buf)
+         (set-window-start new-win other-start))
+       (balance-windows)))
+
+    (_ (user-error "There are not exactly two non-side windows"))))
 
 (my/define-key
  (:map evil-window-map
