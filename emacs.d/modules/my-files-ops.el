@@ -62,13 +62,19 @@
    (:hook dired-mode-hook
           :func
           #'dired-hide-details-mode
-          #'my/dired-buffer-append-slash))
+          #'my/dired-buffer-append-slash
+          #'my/dired-enable-auto-revert))
   
   (defun my/dired-buffer-append-slash ()
     "Append a slash to the dired buffer name for easier identification."
     (when (eq major-mode 'dired-mode)
       (rename-buffer (concat (buffer-name) "/") t)))
-  
+
+  (defun my/dired-enable-auto-revert ()
+    "Enable `auto-revert-mode' for Dired buffers, except for remote directories."
+    (unless (file-remote-p default-directory)
+      (auto-revert-mode)))
+
   (setq dired-clean-up-buffers-too t)
   
   ;; Sort .. and . at top
@@ -240,50 +246,16 @@
   (my/define-key
    (:map global-map :key "C-x C-b" #'ibuffer)))
 
-(use-package treemacs
+(use-package dired-sidebar
+  :after dired
   :config
-  (my/define-key
-   (:map global-map :key "C-c n t" #'my/toggle-treemacs-sidebar)
-   (:map treemacs-mode-map
-         :key
-         "<mouse-1>" #'treemacs-single-click-expand-action))
-  
-  (setq treemacs-no-png-images nil
-        treemacs-show-hidden-files nil
-        treemacs-position 'left
-        treemacs-width 20
-        treemacs-wide-toggle-width 40)
-  
-  (treemacs-follow-mode -1)
-  (treemacs-filewatch-mode -1)
-  (treemacs-fringe-indicator-mode 'always)
-  
-  (defun my/treemacs-sidebar-open ()
-    (interactive)
-    (when (require 'treemacs nil 'noerror)
-      (unless (eq (treemacs-current-visibility) 'visible)
-        (treemacs))))
-  
-  (defun my/treemacs-sidebar-close ()
-    (interactive)
-    (when (fboundp 'treemacs)
-      (when (eq (treemacs-current-visibility) 'visible)
-        (treemacs))))
-  
-  (defun my/toggle-treemacs-sidebar ()
-    (interactive)
-    (if (and (fboundp 'treemacs)
-             (eq (treemacs-current-visibility) 'visible))
-        (my/treemacs-sidebar-close)
-      (my/treemacs-sidebar-open))))
+  (my/define-key (:map global-map :key "C-x C-n" #'dired-sidebar-toggle-sidebar))
+  (my/add-hook (:hook dired-sidebar-mode-hook :func #'my/dired-enable-auto-revert))
 
-(use-package treemacs-evil
-  :after treemacs evil)
+  (setq dired-sidebar-width 20)
 
-(use-package treemacs-tab-bar
-  :after treemacs
-  :config
-  (treemacs-set-scope-type 'Tabs))
+  (push 'toggle-window-split dired-sidebar-toggle-hidden-commands)
+  (push 'rotate-windows dired-sidebar-toggle-hidden-commands))
 
 (provide 'my-files-ops)
 ;;; my-files-ops.el ends here
