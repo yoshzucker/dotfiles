@@ -252,7 +252,8 @@
   (my/define-key (:map global-map :key "C-x C-n" #'dired-sidebar-toggle-sidebar))
   (my/add-hook (:hook dired-sidebar-mode-hook :func #'my/dired-enable-auto-revert))
 
-  (setq dired-sidebar-width 20)
+  (setq dired-sidebar-width 20
+        dired-sidebar-no-delete-other-windows t)
 
   (push 'toggle-window-split dired-sidebar-toggle-hidden-commands)
   (push 'rotate-windows dired-sidebar-toggle-hidden-commands))
