@@ -16,7 +16,7 @@
          :key
          "g:" #'execute-extended-command
          "gf" #'find-file-at-point
-         "gh" #'my/find-file-at-start-point
+         "gh" #'my/find-file-from-base
          "gs" #'consult-buffer))
 
   (when (eq system-type 'windows-nt)

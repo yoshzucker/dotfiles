@@ -31,19 +31,37 @@
     (my/map-env my/frame-background "theme_variant")))
 
 (defcustom my/font-default
-  (if (eq system-type 'darwin)
-      "HackGen Console"
-    "HackGen Console NF")
-  "Default font family."
-  :type 'string
+  `(:family "FirgeNerd Console"
+            :weight normal
+            :height ,(if (eq system-type 'darwin) 140 120))
+  "Default face font spec (plist of :family, :weight, :height)."
+  :type '(list (const :family) string
+               (const :weight) (choice (const thin)
+                                       (const ultra-light)
+                                       (const light)
+                                       (const semi-light)
+                                       (const normal)
+                                       (const semi-bold)
+                                       (const bold)
+                                       (const ultra-bold)
+                                       (const heavy))
+               (const :height) integer)
   :group 'my/ui)
 
-(defcustom my/font-variable
-  (if (eq system-type 'darwin)
-      "HackGen"
-    "HackGen NF")
-  "Variable pitch font family."
-  :type 'string
+(defcustom my/font-variable-pitch
+  `(:family "Source Han Sans JP"
+            :weight normal)
+  "Variable-pitch face font spec (plist of :family and :weight)."
+  :type '(list (const :family) string
+               (const :weight) (choice (const thin)
+                                       (const ultra-light)
+                                       (const light)
+                                       (const semi-light)
+                                       (const normal)
+                                       (const semi-bold)
+                                       (const bold)
+                                       (const ultra-bold)
+                                       (const heavy)))
   :group 'my/ui)
 
 (defcustom my/font-emoji
@@ -52,14 +70,6 @@
         (t "Noto Color Emoji"))
   "Emoji font family."
   :type 'string
-  :group 'my/ui)
-
-(defcustom my/font-height
-  (if (eq system-type 'darwin)
-      140
-    120)
-  "Default font height."
-  :type 'integer
   :group 'my/ui)
 
 (defvar my/theme-special-setups nil
@@ -100,11 +110,9 @@ Themes without an entry simply leave previous settings as-is.")
 
 (defun my/apply-user-fonts (&optional _frame)
   "Apply user font preferences."
-  (set-face-attribute 'default nil
-                      :family my/font-default
-                      :height my/font-height)
-  (set-face-attribute 'fixed-pitch nil :family my/font-default)
-  (set-face-attribute 'variable-pitch nil :family my/font-variable))
+  (apply #'set-face-attribute 'default nil my/font-default)
+  (apply #'set-face-attribute 'fixed-pitch nil my/font-default)
+  (apply #'set-face-attribute 'variable-pitch nil my/font-variable-pitch))
 
 ;; Special package helpers
 

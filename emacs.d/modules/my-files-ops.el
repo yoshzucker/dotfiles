@@ -9,6 +9,17 @@
 
 ;;; Code:
 
+(defcustom my/base-directory "~/"
+  "Base directory used as the starting point for `my/find-file-from-base`."
+  :type 'directory
+  :group 'my-config)
+
+(defun my/find-file-from-base ()
+  "Start `find-file` from `my/base-directory`."
+  (interactive)
+  (let ((default-directory (expand-file-name my/base-directory)))
+    (call-interactively #'find-file)))
+
 (use-package unify-opening)
 
 (use-package dired
@@ -55,7 +66,7 @@
          :key
          "r" #'revert-buffer
          "gf" #'find-file-at-point
-         "gh" #'my/find-file-at-start-point))
+         "gh" #'my/find-file-from-base))
   
   ;; Hooks
   (my/add-hook
@@ -217,7 +228,7 @@
    (:map dired-mode-map
          :state normal
          :key
-         "gh" #'my/find-file-at-start-point
+         "gh" #'my/find-file-from-base
          "gH" #'dired-subtree-up)))
 
 (use-package dired-filter
