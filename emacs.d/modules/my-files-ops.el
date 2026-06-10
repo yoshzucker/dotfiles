@@ -260,6 +260,10 @@ cp932 so that mojibake doesn't occur in file names."
            (coding (if (eq system-type 'windows-nt)
                        '(cp932-dos . cp932-dos)
                      'utf-8-unix))
+           (shell (if (eq system-type 'windows-nt)
+                      (or (executable-find "bash") shell-file-name)
+                    shell-file-name))
+           (switch (if (eq system-type 'windows-nt) "-c" shell-command-switch))
            command)
       (unless fd-executable
         (user-error "fd command not found"))
@@ -294,7 +298,7 @@ cp932 so that mojibake doesn't occur in file names."
       (let ((proc (make-process
                    :name "fd-dired"
                    :buffer (current-buffer)
-                   :command (list shell-file-name shell-command-switch command)
+                   :command (list shell switch command)
                    :coding coding
                    :connection-type 'pipe
                    :filter #'find-dired-filter
