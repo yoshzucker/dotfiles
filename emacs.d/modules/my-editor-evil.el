@@ -112,7 +112,8 @@
                   ("bk[ill]" . kill-current-buffer)
                   ("ls"      . ibuffer)
                   ("etags"   . create-etags)
-                  ("dg"      . deadgrep)))
+                  ("dg"      . deadgrep)
+                  ("fd"      . my/fd-dired)))
     (evil-ex-define-cmd (car pair) (cdr pair)))
 
   (defun my/evil-ex-define-cmd-local (cmd function)
