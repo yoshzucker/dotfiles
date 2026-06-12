@@ -7,6 +7,7 @@
 (use-package vertico
   :config
   (vertico-mode)
+  (vertico-mouse-mode 1)
   (my/define-key
    (:map vertico-map
          :key
