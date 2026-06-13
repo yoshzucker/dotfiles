@@ -2,7 +2,7 @@
   "buckets": [
     {
       "Name": "main",
-      "Source": "https://github.com/ScoopInstaller/Scoop"
+      "Source": "https://github.com/ScoopInstaller/Main"
     },
     {
       "Name": "extras",
@@ -11,7 +11,15 @@
   ],
   "apps": [
     {
-      "Name": "git",
+      "Name": "msys2",
+      "Source": "extras"
+    },
+    {
+      "Name": "ripgrep",
+      "Source": "main"
+    },
+    {
+      "Name": "fd",
       "Source": "main"
     },
     {
@@ -19,8 +27,52 @@
       "Source": "main"
     },
     {
-      "Name": "ripgrep",
+      "Name": "tree",
       "Source": "main"
+    },
+    {
+      "Name": "eza",
+      "Source": "main"
+    },
+    {
+      "Name": "pandoc",
+      "Source": "main"
+    },
+    {
+      "Name": "poppler",
+      "Source": "main"
+    },
+    {
+      "Name": "git",
+      "Source": "main"
+    },
+    {
+      "Name": "gitleaks",
+      "Source": "main"
+    },
+    {
+      "Name": "tig",
+      "Source": "extras"
+    },
+    {
+      "Name": "python",
+      "Source": "main"
+    },
+    {
+      "Name": "nodejs",
+      "Source": "main"
+    },
+    {
+      "Name": "r",
+      "Source": "main"
+    },
+    {
+      "Name": "sbcl",
+      "Source": "extras"
+    },
+    {
+      "Name": "emacs",
+      "Source": "extras"
     }
   ]
 }

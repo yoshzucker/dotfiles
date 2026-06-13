@@ -1,7 +1,8 @@
 # --- macos.sh ----------------------------------------------------------------
 # macOS-specific: Homebrew init, BREW_PREFIX, GNU coreutils/findutils PATH.
 # No-op on non-Darwin systems. Safe for bash and zsh.
-# Exports: BREW_PREFIX, HOMEBREW_CURLRC (when ~/.curlrc exists)
+# Exports: BREW_PREFIX, HOMEBREW_CURLRC (when ~/.curlrc exists),
+#          HOMEBREW_NO_ENV_HINTS
 # Modifies: PATH (Homebrew bin, gnubin)
 
 [ "$(uname -s)" = "Darwin" ] || return 0
@@ -11,6 +12,10 @@ if [ -e /opt/homebrew ]; then
 fi
 
 [ -e "$HOME/.curlrc" ] && export HOMEBREW_CURLRC=1
+
+# Silence the "Adjust how often ... / Hide these hints with ..." footer that
+# brew prints after auto-update. Auto-update itself stays enabled.
+export HOMEBREW_NO_ENV_HINTS=1
 
 if command -v brew >/dev/null 2>&1; then
   BREW_PREFIX="$(brew --prefix 2>/dev/null || true)"

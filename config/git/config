@@ -1,0 +1,8 @@
+[alias]
+	graph = log --pretty=format:"%C(yellow)%h%Creset %Cgreen%ar%Creset %Cblue%<(8,trunc)%an%Creset %C(auto)%d%Creset %s" --graph
+
+[core]
+	editor = emacsclient
+
+[init]
+	defaultBranch = main

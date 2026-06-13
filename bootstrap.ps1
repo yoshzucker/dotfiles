@@ -800,21 +800,6 @@ function Update-RPackages {
     Write-PrintLine $leftMessage "Finished."
 }
 
-function Apply-GitDefaults {
-    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        return
-    }
-
-    $leftMessage = "Configuring Git settings"
-    Write-PrintLine $leftMessage "Started."
-
-    git config --global core.editor "emacsclient"
-    git config --global init.defaultBranch "main"
-    git config --global --add alias.graph 'log --pretty=format:"%C(yellow)%h%Creset %Cgreen%ar%Creset %Cblue%<(8,trunc)%an%Creset %C(auto)%d%Creset %s" --graph'
-
-    Write-PrintLine $leftMessage "Finished."
-}
-
 function Perform-FullBootstrap {
     $leftMessage = "Full bootstrap"
     Write-PrintLine $leftMessage "Started."
@@ -822,7 +807,6 @@ function Perform-FullBootstrap {
     Install-Scoop
     Install-ScoopPackages
     Install-RPackages
-    Apply-GitDefaults
     Setup-Links
 
     Write-PrintLine $leftMessage "Finished."

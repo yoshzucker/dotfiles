@@ -777,6 +777,9 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
         org-clock-convenience-clocked-agenda-re
         "^ +\\([^:]+\\)[[:space:]]*\\(\\([ \t012][0-9]\\):\\([0-5][0-9]\\)\\)\\(?:-\\(\\([ 012][0-9]\\):\\([0-5][0-9]\\)\\)\\|.*\\)?[[:space:]]+Clocked:[[:space:]]+\\(([0-9]+:[0-5][0-9])\\|(-)\\)"))
 
+(use-package ox-pandoc
+  :after org)
+
 (use-package org-ql
   :after org
   :config

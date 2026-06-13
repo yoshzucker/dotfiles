@@ -802,19 +802,6 @@ install_rgpipe() {
 
 
 
-apply_git_defaults() {
-  # Applies a few sensible default Git configurations (editor, default branch, graph alias).
-  # This is idempotent and safe to re-run.
-  left_message="Configuring Git settings"
-  print_line "$left_message" "Started."
-
-  git config --global core.editor "emacsclient"
-  git config --global init.defaultBranch "main"
-  git config --global --add alias.graph 'log --pretty=format:"%C(yellow)%h%Creset %Cgreen%ar%Creset %Cblue%<(8,trunc)%an%Creset %C(auto)%d%Creset %s" --graph'
-
-  print_line "$left_message" "Finished."
-}
-
 perform_full_bootstrap() {
   # Full initial (or re-deploy) bootstrap for fresh or existing machines.
   # Idempotent installs (early return if present) + package manifests from pkg/ + links.
@@ -828,7 +815,6 @@ perform_full_bootstrap() {
   install_brew_packages
   install_r_packages
   install_rgpipe
-  apply_git_defaults
   setup_links
 
   print_line "$left_message" "Finished."
