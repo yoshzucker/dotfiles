@@ -258,7 +258,7 @@ cp932 so that mojibake doesn't occur in file names."
                             "-ldh --group-directories-first"
                           "-ldh"))
            (coding (if (eq system-type 'windows-nt)
-                       '(cp932-dos . cp932-dos)
+                       '(utf-8-unix . cp932-dos)
                      'utf-8-unix))
            (shell (if (eq system-type 'windows-nt)
                       (or (executable-find "bash") shell-file-name)
