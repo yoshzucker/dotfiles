@@ -98,11 +98,15 @@ Themes without an entry simply leave previous settings as-is.")
 (defface my/wdired-edit-face '((t nil))
   "Temporary face used while in wdired edit mode.")
 
-(defface my/mode-line-edge '((t (:inherit mode-line-inactive)))
-  "Background color outside the slants of the active mode-line.")
+;; mode-line / mode-line-inactive themselves carry the EDGE color, so
+;; the auto-fill area at the right of the mode-line is naturally edge-
+;; colored.  The center content area is overlaid with the LINE faces
+;; below to restore the mono0 (active) / mono1 (inactive) center.
+(defface my/mode-line-line '((t (:inherit mode-line)))
+  "Background of the active mode-line center content area.")
 
-(defface my/mode-line-inactive-edge '((t (:inherit mode-line-inactive)))
-  "Background color outside the slants of the inactive mode-line.")
+(defface my/mode-line-inactive-line '((t (:inherit mode-line-inactive)))
+  "Background of the inactive mode-line center content area.")
 
 ;; General utilities
 
@@ -211,45 +215,49 @@ visual width is constant across switches."
 (defconst my/mode-line-slant-right "\xe0ba"
   "Lower-right triangle drawn at the end of the mode-line.")
 
-(defun my/mode-line-edge-face ()
-  "Return the edge face matching the active/inactive state of this mode-line."
+(defun my/mode-line-line-face ()
+  "Return the line (content) face for the current mode-line."
   (if (mode-line-window-selected-p)
-      'my/mode-line-edge
-    'my/mode-line-inactive-edge))
+      'my/mode-line-line
+    'my/mode-line-inactive-line))
+
+(defun my/mode-line-edge-face ()
+  "Return the edge face for the current mode-line.
+The `mode-line' / `mode-line-inactive' faces themselves carry the
+edge color, so Emacs' implicit fill at the trailing end of the
+mode-line is naturally edge-colored."
+  (if (mode-line-window-selected-p)
+      'mode-line
+    'mode-line-inactive))
 
 (defun my/mode-line-slant (side)
   "Return a slant glyph for SIDE (`left' or `right') of the mode-line.
-Picks the active or inactive color pair based on which window is
-rendering this mode-line.  The glyph's bg uses the line's own bg
-(so its upper half blends with the line and body above), and its
-fg uses the edge color (the wedge that connects to the leading or
-trailing edge padding)."
-  (let* ((active (mode-line-window-selected-p))
-         (line-face (if active 'mode-line 'mode-line-inactive))
-         (edge-face (if active 'my/mode-line-edge 'my/mode-line-inactive-edge))
-         (line-bg (face-background line-face nil 'default))
-         (edge-bg (face-background edge-face nil 'default))
+The glyph's bg uses the line color (matches the center content),
+and its fg paints the edge color as a wedge in the lower corner,
+connecting visually to the surrounding edge fill."
+  (let* ((line-bg (face-background (my/mode-line-line-face) nil 'default))
+         (edge-bg (face-background (my/mode-line-edge-face) nil 'default))
          (face `(:foreground ,edge-bg :background ,line-bg))
          (glyph (if (eq side 'left)
                     my/mode-line-slant-left
                   my/mode-line-slant-right)))
     (propertize glyph 'face face)))
 
-(defun my/mode-line-edge-pad (stretch)
-  "Return a space propertized with the current edge face.
-With STRETCH non-nil, align to the right window edge so the space
-fills the entire trailing region of the mode-line."
-  (let ((face (my/mode-line-edge-face)))
-    (if stretch
-        (propertize " " 'display '(space :align-to right) 'face face)
-      (propertize " " 'face face))))
+(defun my/mode-line-edge-pad ()
+  "Return a 1-char space carrying the edge (mode-line) face."
+  (propertize " " 'face (my/mode-line-edge-face)))
+
+(defvar my/mode-line-default-format
+  (default-value 'mode-line-format)
+  "Snapshot of the standard `mode-line-format' before our wrappers.")
 
 (setq-default mode-line-format
-              `((:eval (my/mode-line-edge-pad nil))
+              `((:eval (my/mode-line-edge-pad))
                 (:eval (my/mode-line-slant 'left))
-                ,@(default-value 'mode-line-format)
+                (:eval (propertize (format-mode-line my/mode-line-default-format)
+                                   'face (my/mode-line-line-face)))
                 (:eval (my/mode-line-slant 'right))
-                (:eval (my/mode-line-edge-pad t))))
+                (:eval (my/mode-line-edge-pad))))
 
 ;; Theme helper packages
 
@@ -291,8 +299,10 @@ fills the entire trailing region of the mode-line."
                            (my/org-wait :inverse-video t :inherit font-lock-comment-face)
                            (my/mode-line-over :foreground ,mono0 :background ,red)
                            (my/mode-line-under :foreground ,mono0 :background ,cyan)
-                           (my/mode-line-edge :background ,mono1)
-                           (my/mode-line-inactive-edge :background ,mono2)
+                           (mode-line :background ,mono1)
+                           (mode-line-inactive :background ,mono2)
+                           (my/mode-line-line :background ,mono0)
+                           (my/mode-line-inactive-line :background ,mono1)
                            (my/calendar-iso-week-header :inherit font-lock-function-name-face))))))
               (assq-delete-all 'rustcity my/theme-special-setups))))
 
@@ -324,8 +334,10 @@ fills the entire trailing region of the mode-line."
                            (my/org-wait :inverse-video t :inherit font-lock-comment-face)
                            (my/mode-line-over :foreground ,mono0 :background ,red)
                            (my/mode-line-under :foreground ,mono0 :background ,cyan)
-                           (my/mode-line-edge :background ,mono1)
-                           (my/mode-line-inactive-edge :background ,mono2)
+                           (mode-line :background ,mono1)
+                           (mode-line-inactive :background ,mono2)
+                           (my/mode-line-line :background ,mono0)
+                           (my/mode-line-inactive-line :background ,mono1)
                            (my/calendar-iso-week-header :inherit font-lock-function-name-face)))
                         )))
               (assq-delete-all 'gensho my/theme-special-setups))))
