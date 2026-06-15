@@ -47,7 +47,7 @@ Each module self-guards at the top rather than relying on a shared mechanism:
 
 | Module | Guard |
 |--------|-------|
-| `env/macos.sh` | `[ "$(uname -s)" = "Darwin" ] \|\| return 0` |
+| `env/macos.sh` | `[ "$(/usr/bin/uname -s)" = "Darwin" ] \|\| return 0` |
 | `env/msys.sh`  | `[ -n "${MSYSTEM:-}" ] \|\| return 0` |
 | `zsh/*.sh`     | `[ -n "$ZSH_VERSION" ] \|\| return 0` |
 | `zsh/colors.sh`| additionally `[ "$THEME_NAME" = "gensho" ] \|\| return 0` |

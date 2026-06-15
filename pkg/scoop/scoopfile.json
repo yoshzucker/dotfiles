@@ -39,6 +39,10 @@
       "Source": "main"
     },
     {
+      "Name": "weasyprint",
+      "Source": "main"
+    },
+    {
       "Name": "poppler",
       "Source": "main"
     },

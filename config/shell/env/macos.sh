@@ -5,7 +5,7 @@
 #          HOMEBREW_NO_ENV_HINTS
 # Modifies: PATH (Homebrew bin, gnubin)
 
-[ "$(uname -s)" = "Darwin" ] || return 0
+[ "$(/usr/bin/uname -s)" = "Darwin" ] || return 0
 
 if [ -e /opt/homebrew ]; then
   eval "$(/opt/homebrew/bin/brew shellenv)"
