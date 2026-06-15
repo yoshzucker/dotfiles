@@ -277,16 +277,7 @@
         '(:scope agenda :maxlevel 5 :lang "en" :block thisweek :step day)
         org-duration-format '((special . h:mm))) ;; Avoid incorrect sort: 1d 0:10 < 0:20
   
-  ;; Clock in mode-line or tab-bar 
-  (defun my/org-clock-colorize (string)
-    "Color clock string based on overrun status."
-    (let ((face (if org-clock-task-overrun
-                    'my/mode-line-over
-                  'my/mode-line-under)))
-      (propertize string 'face face)))
-  
-  (advice-add 'org-clock-get-clock-string :filter-return #'my/org-clock-colorize)
-  
+  ;; Clock display in tab-bar (coloring + left-edge slant live in my-ui-face).
   (with-eval-after-load 'tab-bar
     (unless (memq 'tab-bar-format-global tab-bar-format)
       (setq tab-bar-format
