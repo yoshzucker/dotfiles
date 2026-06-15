@@ -98,6 +98,12 @@ Themes without an entry simply leave previous settings as-is.")
 (defface my/wdired-edit-face '((t nil))
   "Temporary face used while in wdired edit mode.")
 
+(defface my/mode-line-edge '((t (:inherit mode-line-inactive)))
+  "Background color outside the slants of the active mode-line.")
+
+(defface my/mode-line-inactive-edge '((t (:inherit mode-line-inactive)))
+  "Background color outside the slants of the inactive mode-line.")
+
 ;; General utilities
 
 (defun my/set-faces (specs)
@@ -156,6 +162,95 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
 (advice-add 'wdired-change-to-wdired-mode :after #'my/wdired--apply-edit-background)
 (advice-add 'wdired-change-to-dired-mode  :after #'my/wdired--restore-background)
 
+;; Tab-bar and mode-line visuals
+
+;; Trapezoidal active tab using Nerd Font lower-triangle glyphs
+;; (powerline range U+E0B8 / U+E0BA), so the active tab visually
+;; widens at the bottom and flows into the editing surface below.
+;; Requires a Nerd Font (e.g. `FirgeNerd Console' set in my-ui-face).
+;; Inactive tabs render plain; only the current tab carries the slant.
+(defconst my/tab-slant-left  "\xe0ba"
+  "Glyph placed before the current tab name to widen its left edge.")
+(defconst my/tab-slant-right "\xe0b8"
+  "Glyph placed after the current tab name to widen its right edge.")
+
+(defun my/tab-bar-tab-name-format (tab _i)
+  "Wrap each tab with slanted edges that fan outward to body.
+The slant glyphs use the `tab-bar' bg above the diagonal and the
+tab's own bg below, producing a trapezoidal tab whose lower edge
+merges with the chrome layer underneath (the active tab merges
+with body `mono0', the inactive with the chrome neutral `mono1').
+Both current and inactive tabs share the same format, so the
+visual width is constant across switches."
+  (let* ((current-p (eq (car tab) 'current-tab))
+         (face (if current-p 'tab-bar-tab 'tab-bar-tab-inactive))
+         (name (alist-get 'name tab))
+         (text (concat " " name " "))
+         (bar-bg (face-background 'tab-bar nil 'default))
+         (tab-bg (face-background face nil 'default))
+         (slant `(:foreground ,tab-bg :background ,bar-bg)))
+    (concat
+     (propertize my/tab-slant-left  'face slant)
+     (propertize text                'face face)
+     (propertize my/tab-slant-right 'face slant))))
+
+(setq tab-bar-tab-name-format-function #'my/tab-bar-tab-name-format)
+
+;; Trapezoidal mode-line using lower-triangle glyphs (U+E0B8 / U+E0BA).
+;; Figure-ground inversion of the tab-bar: instead of painting the line
+;; color as a triangle on the edge color, we paint the EDGE color as a
+;; wedge on the line bg.  This keeps the slant cell's upper area as
+;; pure line bg (no rendering sliver at the top), so the open side of
+;; the inverted-ハ merges cleanly with the body above.  The wedge
+;; itself (foreground) connects to the leading/trailing edge padding,
+;; producing the trapezoidal silhouette.
+;; Both active and inactive mode-lines get the same shape; color pairs
+;; are theme-driven via `my/mode-line-edge' / `my/mode-line-inactive-edge'.
+(defconst my/mode-line-slant-left  "\xe0b8"
+  "Lower-left triangle drawn at the start of the mode-line.")
+(defconst my/mode-line-slant-right "\xe0ba"
+  "Lower-right triangle drawn at the end of the mode-line.")
+
+(defun my/mode-line-edge-face ()
+  "Return the edge face matching the active/inactive state of this mode-line."
+  (if (mode-line-window-selected-p)
+      'my/mode-line-edge
+    'my/mode-line-inactive-edge))
+
+(defun my/mode-line-slant (side)
+  "Return a slant glyph for SIDE (`left' or `right') of the mode-line.
+Picks the active or inactive color pair based on which window is
+rendering this mode-line.  The glyph's bg uses the line's own bg
+(so its upper half blends with the line and body above), and its
+fg uses the edge color (the wedge that connects to the leading or
+trailing edge padding)."
+  (let* ((active (mode-line-window-selected-p))
+         (line-face (if active 'mode-line 'mode-line-inactive))
+         (edge-face (if active 'my/mode-line-edge 'my/mode-line-inactive-edge))
+         (line-bg (face-background line-face nil 'default))
+         (edge-bg (face-background edge-face nil 'default))
+         (face `(:foreground ,edge-bg :background ,line-bg))
+         (glyph (if (eq side 'left)
+                    my/mode-line-slant-left
+                  my/mode-line-slant-right)))
+    (propertize glyph 'face face)))
+
+(defun my/mode-line-edge-pad (stretch)
+  "Return a space propertized with the current edge face.
+With STRETCH non-nil, align to the right window edge so the space
+fills the entire trailing region of the mode-line."
+  (let ((face (my/mode-line-edge-face)))
+    (if stretch
+        (propertize " " 'display '(space :align-to right) 'face face)
+      (propertize " " 'face face))))
+
+(setq-default mode-line-format
+              `((:eval (my/mode-line-edge-pad nil))
+                (:eval (my/mode-line-slant 'left))
+                ,@(default-value 'mode-line-format)
+                (:eval (my/mode-line-slant 'right))
+                (:eval (my/mode-line-edge-pad t))))
+
 ;; Theme helper packages
 
 (use-package rainbow-mode)
@@ -196,6 +291,8 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
                            (my/org-wait :inverse-video t :inherit font-lock-comment-face)
                            (my/mode-line-over :foreground ,mono0 :background ,red)
                            (my/mode-line-under :foreground ,mono0 :background ,cyan)
+                           (my/mode-line-edge :background ,mono1)
+                           (my/mode-line-inactive-edge :background ,mono2)
                            (my/calendar-iso-week-header :inherit font-lock-function-name-face))))))
               (assq-delete-all 'rustcity my/theme-special-setups))))
 
@@ -227,6 +324,8 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
                            (my/org-wait :inverse-video t :inherit font-lock-comment-face)
                            (my/mode-line-over :foreground ,mono0 :background ,red)
                            (my/mode-line-under :foreground ,mono0 :background ,cyan)
+                           (my/mode-line-edge :background ,mono1)
+                           (my/mode-line-inactive-edge :background ,mono2)
                            (my/calendar-iso-week-header :inherit font-lock-function-name-face)))
                         )))
               (assq-delete-all 'gensho my/theme-special-setups))))
