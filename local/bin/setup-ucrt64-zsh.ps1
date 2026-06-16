@@ -1,15 +1,11 @@
-$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$lnkDir = "$env:USERPROFILE\.local\bin"
 $msys2 = "$env:USERPROFILE\scoop\apps\msys2\current"
+$mintty = "$msys2\usr\bin\mintty.exe"
 $ws = New-Object -ComObject WScript.Shell
  
-$s = $ws.CreateShortcut("$scriptDir\msys2-zsh.lnk")
-$s.TargetPath = "$msys2\msys2_shell.cmd"
-$s.Arguments = "-mintty -shell zsh"
-$s.IconLocation = "$msys2\msys2.ico"
-$s.Save()
- 
-$s = $ws.CreateShortcut("$scriptDir\ucrt64-zsh.lnk")
-$s.TargetPath = "$msys2\msys2_shell.cmd"
-$s.Arguments = "-mintty -ucrt64 -shell zsh"
+$s = $ws.CreateShortcut("$lnkDir\ucrt64-zsh.lnk")
+$s.TargetPath = $mintty
+$s.Arguments = "--store-taskbar-properties -e /usr/bin/env MSYSTEM=UCRT64 MSYS2_PATH_TYPE=inherit /usr/bin/zsh --login -i"
+$s.WorkingDirectory = $env:USERPROFILE
 $s.IconLocation = "$msys2\ucrt64.ico"
 $s.Save()
