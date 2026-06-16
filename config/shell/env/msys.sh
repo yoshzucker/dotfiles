@@ -12,14 +12,14 @@ pp() {
   local t="${1:-.}" p drive rest
   case "$t" in
     [A-Za-z]:[\\/]*)
-      p="$(printf '%s' "$t" | tr '\\' '/')"
+      p="$(printf '%s' "$t" | /usr/bin/tr '\\' '/')"
       drive="${p%%:*}"
       rest="${p#*:}"
-      drive="$(printf '%s' "$drive" | tr '[:upper:]' '[:lower:]')"
+      drive="$(printf '%s' "$drive" | /usr/bin/tr '[:upper:]' '[:lower:]')"
       p="/${drive}${rest}"
       ;;
     \\\\*)
-      p="$(printf '%s' "$t" | tr '\\' '/')"
+      p="$(printf '%s' "$t" | /usr/bin/tr '\\' '/')"
       ;;
     *)
       p="$(cd "$t" 2>/dev/null && pwd -P || printf '%s' "$t")"

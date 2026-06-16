@@ -200,6 +200,37 @@ visual width is constant across switches."
 
 (setq tab-bar-tab-name-format-function #'my/tab-bar-tab-name-format)
 
+;; Org-clock left-edge slant for the tab-bar global area.  Figure-
+;; ground inverted vs. an "upper-right triangle painted with clock fg"
+;; approach: we paint the CHROME wedge as fg on a solid CLOCK bg, so
+;; the top row of the slant cell is a clean clock-color fill (no anti-
+;; alias sliver at the top edge — the same fix used for the mode-line
+;; slants).  The fg wedge sits in the lower-left where it meets the
+;; surrounding chrome, so any rendering artifact there is hidden by
+;; same-color continuation.  Net visual: upper-right of the cell is
+;; clock, lower-left is chrome — clock "rises" from lower-right to
+;; upper-left into the chrome layer.
+(defconst my/tab-bar-clock-slant "\xe0b8"
+  "Lower-left triangle drawn at the left edge of the org-clock area.")
+
+(defun my/org-clock-decorate (string)
+  "Filter-return advice for `org-clock-get-clock-string'.
+Color STRING by `org-clock-task-overrun' and prepend a slant
+glyph whose fg paints a `tab-bar' chrome wedge on a solid clock-
+colored bg, producing a triangular bridge into the clock area."
+  (let* ((face (if org-clock-task-overrun
+                   'my/mode-line-over
+                 'my/mode-line-under))
+         (clock-bg (face-background face nil 'default))
+         (bar-bg (face-background 'tab-bar nil 'default))
+         (slant `(:foreground ,bar-bg :background ,clock-bg)))
+    (concat (propertize my/tab-bar-clock-slant 'face slant)
+            (propertize string 'face face))))
+
+(with-eval-after-load 'org-clock
+  (advice-add 'org-clock-get-clock-string
+              :filter-return #'my/org-clock-decorate))
+
 ;; Trapezoidal mode-line using lower-triangle glyphs (U+E0B8 / U+E0BA).
 ;; Figure-ground inversion of the tab-bar: instead of painting the line
 ;; color as a triangle on the edge color, we paint the EDGE color as a
@@ -258,37 +289,6 @@ connecting visually to the surrounding edge fill."
                                    'face (my/mode-line-line-face)))
                 (:eval (my/mode-line-slant 'right))
                 (:eval (my/mode-line-edge-pad))))
-
-;; Org-clock left-edge slant for the tab-bar global area.  Figure-
-;; ground inverted vs. an "upper-right triangle painted with clock fg"
-;; approach: we paint the CHROME wedge as fg on a solid CLOCK bg, so
-;; the top row of the slant cell is a clean clock-color fill (no anti-
-;; alias sliver at the top edge — the same fix used for the mode-line
-;; slants).  The fg wedge sits in the lower-left where it meets the
-;; surrounding chrome, so any rendering artifact there is hidden by
-;; same-color continuation.  Net visual: upper-right of the cell is
-;; clock, lower-left is chrome — clock "rises" from lower-right to
-;; upper-left into the chrome layer.
-(defconst my/tab-bar-clock-slant "\xe0b8"
-  "Lower-left triangle drawn at the left edge of the org-clock area.")
-
-(defun my/org-clock-decorate (string)
-  "Filter-return advice for `org-clock-get-clock-string'.
-Color STRING by `org-clock-task-overrun' and prepend a slant
-glyph whose fg paints a `tab-bar' chrome wedge on a solid clock-
-colored bg, producing a triangular bridge into the clock area."
-  (let* ((face (if org-clock-task-overrun
-                   'my/mode-line-over
-                 'my/mode-line-under))
-         (clock-bg (face-background face nil 'default))
-         (bar-bg (face-background 'tab-bar nil 'default))
-         (slant `(:foreground ,bar-bg :background ,clock-bg)))
-    (concat (propertize my/tab-bar-clock-slant 'face slant)
-            (propertize string 'face face))))
-
-(with-eval-after-load 'org-clock
-  (advice-add 'org-clock-get-clock-string
-              :filter-return #'my/org-clock-decorate))
 
 ;; Theme helper packages
 

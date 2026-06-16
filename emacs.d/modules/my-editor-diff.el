@@ -43,11 +43,13 @@
 
 (use-package diff-hl
   :after magit
-  :hook ((prog-mode . diff-hl-mode)
-         (conf-mode . diff-hl-mode)
-         (dired-mode . diff-hl-dired-mode)
-         (magit-pre-refresh  . diff-hl-magit-pre-refresh)
-         (magit-post-refresh . diff-hl-magit-post-refresh))
+  :init
+  (my/add-hook
+   (:hook prog-mode-hook :func #'diff-hl-mode)
+   (:hook conf-mode-hook :func #'diff-hl-mode)
+   (:hook dired-mode-hook :func #'diff-hl-dired-mode)
+   (:hook magit-pre-refresh-hook :func #'diff-hl-magit-pre-refresh)
+   (:hook magit-post-refresh-hook :func #'diff-hl-magit-post-refresh))
   :config
   (unless (display-graphic-p)
     (diff-hl-margin-mode 1))
@@ -59,6 +61,8 @@
          :key
          "]c" #'diff-hl-next-hunk
          "[c" #'diff-hl-previous-hunk)))
+
+
 
 (provide 'my-editor-diff)
 ;;; my-editor-diff.el ends here
