@@ -21,6 +21,7 @@ setopt auto_cd               # typing a dir name = cd
 setopt interactive_comments  # allow # comments in interactive shell
 
 # ----- compinit -----
+[ -d ~/.grok/completions/zsh ] && fpath=(~/.grok/completions/zsh $fpath)
 autoload -Uz compinit
 compinit -C -d ~/.zcompdump-$HOST # rebuild -> compinit -u -d ~/.zcompdump-$HOST
 
@@ -28,25 +29,32 @@ compinit -C -d ~/.zcompdump-$HOST # rebuild -> compinit -u -d ~/.zcompdump-$HOST
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
 
 # ----- prompt -----
-# MONO6: prominent secondary (cursor/prompt/identifier level per gensho mono ramp)
-# MONO5: secondary text (less prominent; path in rprompt stays quieter than prompt)
-PROMPT="%{%F{${THEME_MONO6}}%}%n@%m %# %{%f%}"
+# Pure-style two-line prompt. Color roles follow gensho-theme mono ramp:
+#   MONO7 = primary content (path)        — like default text
+#   MONO6 = prominent secondary (❯)       — same step as minibuffer-prompt
+#   MONO5 = secondary low-weight (git, host) — same step as comments
+# user@host is shown only on SSH / root, freeing the input line in local shells.
+setopt prompt_subst
 
-RPROMPT_BASE="%{%F{${THEME_MONO5}}%}%(4~|.../%2~|%~)%{%f%}"
-RPROMPT="$RPROMPT_BASE"
-
-# ----- git vcs -----
 autoload -Uz vcs_info
-zstyle ':vcs_info:git:*' formats '%b'
+zstyle ':vcs_info:git:*' formats $' %b'
+zstyle ':vcs_info:git:*' actionformats $' %b|%a'
 
-precmd() {
-  vcs_info
-  if [[ -n "$vcs_info_msg_0_" ]]; then
-    RPROMPT="%{%F{${THEME_MONO6}}%}(${vcs_info_msg_0_})%{%f%} $RPROMPT_BASE"
-  else
-    RPROMPT="$RPROMPT_BASE"
+_prompt_context() {
+  if [[ -n "$SSH_CONNECTION" || -n "$SSH_TTY" ]]; then
+    print -n "%F{${THEME_MONO5}}%n@%m%f"
+  elif (( EUID == 0 )); then
+    print -n "%F{${THEME_MONO5}}%n%f"
   fi
 }
+
+precmd() { vcs_info }
+
+PROMPT=$'\n%F{'"${THEME_MONO7}"$'}%(4~|.../%2~|%~)%f'\
+$' %F{'"${THEME_MONO5}"$'}${vcs_info_msg_0_}%f\n'\
+$'%(?.%F{'"${THEME_MONO6}"$'}.%F{red})❯%f '
+
+RPROMPT='$(_prompt_context)'
 
 # ----- key -----
 bindkey -e

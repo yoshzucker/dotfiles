@@ -1,7 +1,9 @@
 # --- msys.sh -----------------------------------------------------------------
-# MSYS2/Mintty helpers: pp/wp (POSIX<->Windows path), open() command.
+# MSYS2/Mintty helpers: pp/wp (POSIX<->Windows path), open() command,
+# Scoop shims appended to PATH.
 # No-op on non-MSYS2 systems. Safe for bash and zsh.
 # Defines: pp(), wp(), open() (open only when powershell.exe is available)
+# Modifies: PATH (Scoop shims appended at low priority)
 
 [ -n "${MSYSTEM:-}" ] || return 0
 
@@ -58,5 +60,16 @@ if command -v powershell.exe >/dev/null 2>&1; then
     powershell.exe -NoProfile -Command "Start-Process $p"
   }
 fi
+
+# Scoop shims. Appended (not prepended) so pacman/ucrt64 binaries take
+# precedence when both exist (e.g. fzf), while scoop-only tools (e.g. claude)
+# still resolve. pp converts USERPROFILE (Windows path) to POSIX form.
+if [ -n "${USERPROFILE:-}" ]; then
+  __scoop_shims="$(pp "$USERPROFILE")/scoop/shims"
+  [ -d "$__scoop_shims" ] && PATH="$PATH:$__scoop_shims"
+  unset __scoop_shims
+fi
+[ -d /c/ProgramData/scoop/shims ] && PATH="$PATH:/c/ProgramData/scoop/shims"
+export PATH
 
 # --- end of msys.sh ----------------------------------------------------------
