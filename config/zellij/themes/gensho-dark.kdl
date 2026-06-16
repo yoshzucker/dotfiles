@@ -1,0 +1,17 @@
+// gensho-dark — derived from gensho-theme.el `wet` variant.
+// RGB triples mirror the OSC palette set by config/shell/zsh/colors.sh.
+themes {
+    gensho-dark {
+        fg      136 140 140  // mono7
+        bg       38  40  40  // mono0
+        black    51  52  53  // mono1
+        red     212 100 127
+        green    89 150  94
+        yellow  162 131  90
+        blue     99 140 180
+        magenta 203  99 174
+        cyan     95 145 150
+        white   106 109 109  // mono5
+        orange  187 120  90
+    }
+}

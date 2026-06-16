@@ -1,0 +1,81 @@
+# eza theme — read from EZA_CONFIG_DIR (set in env/common.sh).
+# Conservative monochrome palette using ANSI names so it follows the
+# terminal's gensho-driven colors. Accents only on git status & broken links.
+
+filekinds:
+  normal:      { foreground: White }
+  directory:   { foreground: White, is_bold: true }
+  symlink:     { foreground: BrightBlack }
+  pipe:        { foreground: BrightBlack }
+  block_device:{ foreground: BrightBlack }
+  char_device: { foreground: BrightBlack }
+  socket:      { foreground: BrightBlack }
+  special:     { foreground: BrightBlack }
+  executable:  { foreground: White, is_bold: true }
+  mount_point: { foreground: BrightBlack }
+
+permissions:
+  user_read:           { foreground: White }
+  user_write:          { foreground: White }
+  user_execute_file:   { foreground: White, is_bold: true }
+  user_execute_other:  { foreground: BrightBlack }
+  group_read:          { foreground: BrightBlack }
+  group_write:         { foreground: BrightBlack }
+  group_execute:       { foreground: BrightBlack }
+  other_read:          { foreground: BrightBlack }
+  other_write:         { foreground: BrightBlack }
+  other_execute:       { foreground: BrightBlack }
+  special_user_file:   { foreground: BrightBlack }
+  special_other:       { foreground: BrightBlack }
+  attribute:           { foreground: BrightBlack }
+
+size:
+  major:              { foreground: BrightBlack }
+  minor:              { foreground: BrightBlack }
+  number_byte:        { foreground: White }
+  number_kilo:        { foreground: White }
+  number_mega:        { foreground: White }
+  number_giga:        { foreground: White }
+  number_huge:        { foreground: White }
+  unit_byte:          { foreground: BrightBlack }
+  unit_kilo:          { foreground: BrightBlack }
+  unit_mega:          { foreground: BrightBlack }
+  unit_giga:          { foreground: BrightBlack }
+  unit_huge:          { foreground: BrightBlack }
+
+users:
+  user_you:           { foreground: White }
+  user_other:         { foreground: BrightBlack }
+  user_root:          { foreground: White, is_bold: true }
+  group_yours:        { foreground: White }
+  group_other:        { foreground: BrightBlack }
+  group_root:         { foreground: White, is_bold: true }
+
+links:
+  normal:             { foreground: White }
+  multi_link_file:    { foreground: White }
+
+git:
+  new:                { foreground: Green }
+  modified:           { foreground: Yellow }
+  deleted:            { foreground: Red }
+  renamed:            { foreground: Cyan }
+  typechange:         { foreground: Yellow }
+  ignored:            { foreground: BrightBlack }
+  conflicted:         { foreground: Red, is_bold: true }
+
+git_repo:
+  branch_main:        { foreground: White }
+  branch_other:       { foreground: BrightBlack }
+  git_clean:          { foreground: BrightBlack }
+  git_dirty:          { foreground: Yellow }
+
+broken_symlink:       { foreground: Red, is_bold: true }
+broken_path_overlay:  { foreground: Red, is_bold: true }
+date:                 { foreground: BrightBlack }
+inode:                { foreground: BrightBlack }
+blocks:               { foreground: BrightBlack }
+header:               { foreground: White, is_bold: true }
+octal:                { foreground: BrightBlack }
+flags:                { foreground: BrightBlack }
+punctuation:          { foreground: BrightBlack }

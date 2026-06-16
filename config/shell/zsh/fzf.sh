@@ -42,24 +42,28 @@ unset -f __fzf_try_source
 unset __FZF_SOURCED __FZF_BASES
 
 if command -v fzf >/dev/null 2>&1; then
-  export FZF_DEFAULT_OPTS="--smart-case
---color=bg+:${THEME_MONO1}
---color=fg+:${THEME_MONO7}
---color=hl:${THEME_MONO6},hl+:${THEME_MONO7}
---color=info:${THEME_MONO5},prompt:${THEME_MONO6}
---color=pointer:${THEME_MONO6}
---color=marker:${THEME_MONO6},spinner:${THEME_MONO5}
---color=header:${THEME_MONO5}"
+  # Single-line FZF_DEFAULT_OPTS: third-party callers (navi, etc.) shell-parse
+  # this variable and choke on embedded newlines or parenthesized actions
+  # (e.g. execute-silent(...)). Persistent layout + safe binds only here;
+  # per-context complexity (execute-silent for copy) lives in *_OPTS below.
+  # Ctrl-R is left to atuin (its init in zsh.sh runs after this file).
+  export FZF_DEFAULT_OPTS="--smart-case --height=60% --layout=reverse --border=rounded --info=inline-right --scrollbar=│ --marker=▎ --pointer=▌ --bind=ctrl-/:toggle-preview --bind=alt-a:select-all --bind=alt-d:deselect-all --color=bg+:${THEME_MONO1} --color=fg+:${THEME_MONO7} --color=hl:${THEME_MONO6},hl+:${THEME_MONO7} --color=info:${THEME_MONO5},prompt:${THEME_MONO6} --color=pointer:${THEME_MONO6} --color=marker:${THEME_MONO6},spinner:${THEME_MONO5} --color=header:${THEME_MONO5} --color=border:${THEME_MONO3}"
 fi
 
 if command -v fd >/dev/null 2>&1; then
-  export FZF_DEFAULT_COMMAND='fd --hidden --follow --exclude .git'
+  # fd already reads ~/.config/fd/ignore; only --hidden/--follow tweaks here.
+  export FZF_DEFAULT_COMMAND='fd --hidden --follow --type f'
   export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+  export FZF_ALT_C_COMMAND='fd --hidden --follow --type d'
 elif command -v rg >/dev/null 2>&1; then
   export FZF_DEFAULT_COMMAND='rg --files --hidden -g !.git'
   export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
 fi
 
-export FZF_CTRL_T_OPTS=$'--height 50%\n--preview "ls -lh --color=always {} 2>/dev/null || tree -L 1 -C {} 2>/dev/null"'
+# Ctrl-T: file picker with bat preview + ctrl-y to copy path.
+export FZF_CTRL_T_OPTS=$'--preview "bat --color=always --style=numbers --line-range=:300 {} 2>/dev/null || eza -1 --color=always --icons=auto {} 2>/dev/null"\n--preview-window=right,60%,border-left\n--bind=ctrl-y:execute-silent(printf %s {} | pbcopy)+abort'
+
+# Alt-c: directory jump with eza tree preview.
+export FZF_ALT_C_OPTS=$'--preview "eza --tree --level=2 --color=always --icons=auto {} 2>/dev/null"\n--preview-window=right,50%,border-left\n--bind=ctrl-y:execute-silent(printf %s {} | pbcopy)+abort'
 
 # --- end of fzf.sh -------------------------------------------------------

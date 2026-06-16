@@ -1,0 +1,5 @@
+--theme="ansi"
+--style="numbers,changes,header"
+--paging=auto
+--map-syntax="*.conf:INI"
+--map-syntax=".env*:Bash"

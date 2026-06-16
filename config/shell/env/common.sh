@@ -11,4 +11,9 @@ export TZ='Asia/Tokyo'
 [ -d "$HOME/.grok/bin"  ] && PATH="$HOME/.grok/bin:$PATH"
 export PATH
 
+# Tool config locations (XDG-aware). Each tool reads these at startup.
+export RIPGREP_CONFIG_PATH="$HOME/.config/ripgrep/config"
+export EZA_CONFIG_DIR="$HOME/.config/eza"
+export BAT_CONFIG_PATH="$HOME/.config/bat/config"
+
 # --- end of common.sh --------------------------------------------------------

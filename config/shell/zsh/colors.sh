@@ -1,14 +1,33 @@
 # --- colors.sh -----------------------------------------------------------
 # Theme identity, truecolor setup, terminal palette (OSC 4/10/11/12), THEME_MONO*.
 # zsh-specific.
+#
+# ANSI 16-color slot strategy (Solarized convention; matches
+# gensho--export-name-map in ~/Developer/gensho-theme/gensho-theme.el):
+#
+#   0  black        mono1
+#   1-6 hues        red/green/yellow/blue/magenta/cyan
+#   7  white        mono5
+#   8  brightblack  mono0 = bg   (intentionally near-invisible for dim text)
+#   9  brightred    orange
+#   10 brightgreen  mono2
+#   11 brightyellow mono3
+#   12 brightblue   mono4
+#   13 brightmagenta purple
+#   14 brightcyan   mono6        (visible light grey — NEVER bg)
+#   15 brightwhite  mono7
+#
+# Single source of truth: gensho-theme.el (`gensho-export-palette 'hex-list)`).
+# The hex values below are harvested via `emacs --batch` and pasted in.
+# Re-harvest after changing gensho-{wet,dry}-hsl.
 
 [ -n "$ZSH_VERSION" ] || return 0
 
-# Theme identity — kept here because only the interactive terminal layer consumes it
+# Theme identity — kept here because only the interactive terminal layer consumes it.
 export THEME_NAME="gensho"
-export THEME_VARIANT="dark"
+export THEME_VARIANT="${THEME_VARIANT:-dark}"      # dark | light
 
-# Truecolor — terminal-wide, not theme-specific
+# Truecolor — terminal-wide, not theme-specific.
 export COLORTERM=truecolor
 if ! infocmp xterm-24bits >/dev/null 2>&1; then
   tic -x -o "$HOME/.terminfo" "$HOME/dotfiles/config/terminfo/24bit.src" || true
@@ -42,41 +61,93 @@ set_color() {
   export "$export_name"="#$color_value"
 }
 
-# gensho wet/dark palette — ordered per gensho-theme.el ordered-keys.
-# Non-standard ANSI slot assignments (designed for TUI semantic coherence):
-#   slot 11 (br_yellow)  → purple (keyword/control-flow)
-#   slot 13 (br_magenta) → mono6  (cursor/prompt gray)
-#   slot 14 (br_cyan)    → mono0  (background, fills the slot)
-set_color "black"      "333435"  # mono1  — subtle bg layer / selection highlight
-set_color "red"        "d4647f"  # red    — error / critical
-set_color "green"      "59965e"  # green  — string / success
-set_color "yellow"     "a2835a"  # yellow — warning
-set_color "blue"       "638cb4"  # blue   — constant / link
-set_color "magenta"    "cb63ae"  # magenta — function name
-set_color "cyan"       "5f9196"  # cyan   — type / structure
-set_color "white"      "6a6d6d"  # mono5  — secondary text / comment
-set_color "br_black"   "404242"  # mono2  — chrome bg
-set_color "br_red"     "bb785a"  # orange — interactive highlight
-set_color "br_green"   "5c5e5f"  # mono4  — faint text / shadow
-set_color "br_yellow"  "9a79c9"  # purple — keyword / control-flow (slot 11)
-set_color "br_blue"    "4e5050"  # mono3  — active chrome
-set_color "br_magenta" "797c7d"  # mono6  — cursor / prompt gray (slot 13)
-set_color "br_cyan"    "262828"  # mono0  — background (slot 14)
-set_color "br_white"   "888c8c"  # mono7  — foreground
-set_color "fg"         "888c8c"  # mono7  — default foreground
-set_color "bg"         "262828"  # mono0  — default background
-set_color "curbg"      "797c7d"  # mono6  — cursor color
+# ----- palette tables (harvested via gensho-export-palette 'hex-list) -----
+# Order: slots 0..15 (canonical ANSI). Update both arrays if HSL changes.
+typeset -ga GENSHO_DARK_HEX=(
+  333435  # 0  black        mono1
+  d4647f  # 1  red
+  59965e  # 2  green
+  a2835a  # 3  yellow
+  638cb4  # 4  blue
+  cb63ae  # 5  magenta
+  5f9196  # 6  cyan
+  6a6d6d  # 7  white        mono5
+  262828  # 8  brightblack  mono0 (bg)
+  bb785a  # 9  brightred    orange
+  404242  # 10 brightgreen  mono2
+  4e5050  # 11 brightyellow mono3
+  5c5e5f  # 12 brightblue   mono4
+  9a79c9  # 13 brightmagenta purple
+  797c7d  # 14 brightcyan   mono6
+  888c8c  # 15 brightwhite  mono7
+)
+typeset -ga GENSHO_LIGHT_HEX=(
+  494b4b  # 0  black        mono1
+  d4647f  # 1  red
+  59965e  # 2  green
+  a2835a  # 3  yellow
+  638cb4  # 4  blue
+  cb63ae  # 5  magenta
+  5f9196  # 6  cyan
+  838687  # 7  white        mono5
+  3c3d3e  # 8  brightblack  mono0 (bg)
+  bb785a  # 9  brightred    orange
+  57595a  # 10 brightgreen  mono2
+  656868  # 11 brightyellow mono3
+  747777  # 12 brightblue   mono4
+  9a79c9  # 13 brightmagenta purple
+  929697  # 14 brightcyan   mono6
+  a2a6a7  # 15 brightwhite  mono7
+)
+
+# Slot 0..15 → set_color name (used to walk the active palette).
+typeset -ga _GENSHO_SLOT_NAMES=(
+  black red green yellow blue magenta cyan white
+  br_black br_red br_green br_yellow br_blue br_magenta br_cyan br_white
+)
+
+_gensho_emit_palette() {
+  local -a hex
+  if [[ "$THEME_VARIANT" == "light" ]]; then
+    hex=("${GENSHO_LIGHT_HEX[@]}")
+  else
+    hex=("${GENSHO_DARK_HEX[@]}")
+  fi
+  local i
+  for (( i = 1; i <= 16; i++ )); do
+    set_color "${_GENSHO_SLOT_NAMES[i]}" "${hex[i]}"
+  done
+  # OSC 10/11/12 — bg uses slot 8 hex (= mono0), fg uses slot 15 hex (= mono7),
+  # cursor bg uses slot 14 hex (= mono6).
+  set_color "fg"    "${hex[16]}"
+  set_color "bg"    "${hex[9]}"
+  set_color "curbg" "${hex[15]}"
+}
+
+_gensho_emit_palette
 
 # THEME_MONO* — portable mono ramp for fzf, tmux, and zsh prompt.
-# Each theme maps its neutral gray steps to these names; consumers use THEME_MONO*
-# without knowing the underlying ANSI slot or theme name.
-export THEME_MONO0="$THEME_BR_CYAN"     # #262828 — background
-export THEME_MONO1="$THEME_BLACK"       # #333435 — subtle selection / highlight bg
-export THEME_MONO2="$THEME_BR_BLACK"    # #404242 — chrome bg (rest)
-export THEME_MONO3="$THEME_BR_BLUE"     # #4e5050 — chrome bg (active)
-export THEME_MONO4="$THEME_BR_GREEN"    # #5c5e5f — faint text / shadow
-export THEME_MONO5="$THEME_WHITE"       # #6a6d6d — secondary text / comment
-export THEME_MONO6="$THEME_BR_MAGENTA"  # #797c7d — prominent secondary (cursor, prompt)
-export THEME_MONO7="$THEME_BR_WHITE"    # #888c8c — primary foreground
+# Consumers read THEME_MONO* without knowing the underlying ANSI slot.
+# After Solarized re-shuffle:
+#   mono0 = slot 8  (brightblack)  = bg
+#   mono1 = slot 0  (black)
+#   mono2 = slot 10 (brightgreen)
+#   mono3 = slot 11 (brightyellow)
+#   mono4 = slot 12 (brightblue)
+#   mono5 = slot 7  (white)
+#   mono6 = slot 14 (brightcyan)
+#   mono7 = slot 15 (brightwhite)
+export THEME_MONO0="$THEME_BR_BLACK"
+export THEME_MONO1="$THEME_BLACK"
+export THEME_MONO2="$THEME_BR_GREEN"
+export THEME_MONO3="$THEME_BR_YELLOW"
+export THEME_MONO4="$THEME_BR_BLUE"
+export THEME_MONO5="$THEME_WHITE"
+export THEME_MONO6="$THEME_BR_CYAN"
+export THEME_MONO7="$THEME_BR_WHITE"
+
+# delta picks its light/dark profile via DELTA_FEATURES; the git config
+# defines [delta "gensho-dark"] and [delta "gensho-light"].
+export DELTA_FEATURES="gensho-${THEME_VARIANT}"
 
 # --- end of colors.sh ----------------------------------------------------

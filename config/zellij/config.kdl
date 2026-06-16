@@ -1,0 +1,13 @@
+// zellij — minimal config. Default keybindings retained; tmux remains
+// available for SSH/server work where zellij is not installed.
+
+default_shell "zsh"
+copy_command "pbcopy"
+
+mouse_mode true
+pane_frames false
+simplified_ui true
+
+// Switch to "gensho-light" for the dry/washed-stone variant.
+// (Theme definitions live in themes/ alongside this file.)
+theme "gensho-dark"

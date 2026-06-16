@@ -63,4 +63,32 @@ bindkey '^l' forward-word
 bindkey '^f' backward-char
 bindkey '^b' forward-char
 
+# ----- plugins (sheldon) -----
+# sheldon must run before fzf-tab zstyles so the plugin's compdef takes effect.
+command -v sheldon >/dev/null 2>&1 && eval "$(sheldon source)"
+
+# ----- fzf-tab zstyle -----
+# Native menu off so fzf-tab can take over; previews use bat/eza when present.
+zstyle ':completion:*' menu no
+zstyle ':fzf-tab:complete:cd:*' fzf-preview \
+  'eza -1 --color=always --icons=auto $realpath 2>/dev/null || ls -1 $realpath'
+zstyle ':fzf-tab:complete:*:*' fzf-preview \
+  'bat --color=always --style=numbers --line-range=:200 $realpath 2>/dev/null \
+   || eza -1 --color=always --icons=auto $realpath 2>/dev/null || true'
+zstyle ':fzf-tab:*' fzf-flags --height=60% --layout=reverse --border=rounded
+zstyle ':fzf-tab:*' switch-group ',' '.'
+
+# ----- external integrations -----
+# Order matters: atuin/navi rebind Ctrl-R/Ctrl-G last so they win over fzf.
+command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init zsh)"
+command -v mise   >/dev/null 2>&1 && eval "$(mise activate zsh)"
+command -v atuin  >/dev/null 2>&1 && eval "$(atuin init zsh --disable-up-arrow)"
+command -v navi   >/dev/null 2>&1 && eval "$(navi widget zsh)"
+
+# atuin 18.x binds `?` to its AI natural-language mode. We rebind to
+# self-insert so `?` types normally; the `?` alias (cheat) still expands
+# after Enter because alias expansion runs on the command name, not on
+# character input.
+bindkey '?' self-insert 2>/dev/null
+
 # --- end of zsh.sh -------------------------------------------------------

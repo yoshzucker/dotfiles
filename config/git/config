@@ -3,6 +3,26 @@
 
 [core]
 	editor = emacsclient
+	pager = delta
+
+[interactive]
+	diffFilter = delta --color-only
+
+[delta]
+	navigate = true
+	line-numbers = true
+	side-by-side = false
+
+# Named features chosen at runtime via DELTA_FEATURES (set by colors.sh
+# based on $THEME_VARIANT). delta merges in the [delta "<name>"] section
+# for each entry in DELTA_FEATURES.
+[delta "gensho-dark"]
+	light = false
+[delta "gensho-light"]
+	light = true
+
+[merge]
+	conflictstyle = zdiff3
 
 [init]
 	defaultBranch = main

@@ -1,0 +1,23 @@
+# ripgrep — read via RIPGREP_CONFIG_PATH (set in env/common.sh).
+# Smart case + hidden files, but skip the usual noise directories.
+# Colors stay close to the gensho mono ramp (match is the only accent).
+
+--smart-case
+--hidden
+
+--glob=!.git/*
+--glob=!node_modules/*
+--glob=!.venv/*
+--glob=!__pycache__/*
+--glob=!.cache/*
+--glob=!dist/*
+--glob=!build/*
+--glob=!target/*
+
+--max-columns=200
+--max-columns-preview
+
+--colors=path:fg:cyan
+--colors=line:none
+--colors=match:fg:yellow
+--colors=match:style:bold
