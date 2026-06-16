@@ -33,7 +33,7 @@
 (defcustom my/font-default
   `(:family "FirgeNerd Console"
             :weight normal
-            :height ,(if (eq system-type 'darwin) 140 120))
+            :height ,(if (eq system-type 'darwin) 140 140))
   "Default face font spec (plist of :family, :weight, :height)."
   :type '(list (const :family) string
                (const :weight) (choice (const thin)

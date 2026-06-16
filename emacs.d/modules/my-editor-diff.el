@@ -35,7 +35,10 @@
    (:hook ediff-before-setup-hook
           :func #'my/ediff-save-window-config)
    (:hook ediff-quit-hook
-          :func #'my/ediff-restore-window-config)))
+          :func #'my/ediff-restore-window-config))
+
+  (when (eq system-type 'windows-nt)
+    (add-to-list 'process-coding-system-alist '("diff" cp932-dos . cp932-dos))))
 
 ;; evil-collection ships an ediff integration that is enabled automatically
 ;; by (evil-collection-init) in my-editor-evil.el, so no extra binding is
