@@ -29,9 +29,13 @@ export THEME_VARIANT="${THEME_VARIANT:-dark}"      # dark | light
 
 # Truecolor — terminal-wide, not theme-specific.
 export COLORTERM=truecolor
-if ! infocmp xterm-24bits >/dev/null 2>&1; then
-  tic -x -o "$HOME/.terminfo" "$HOME/dotfiles/config/terminfo/24bit.src" || true
-fi
+# Skip the costly `infocmp` fork (~0.25s/shell on Windows) by checking the
+# compiled entry directly. ncurses stores it under a hashed (78/) or letter
+# (x/) subdir depending on platform; the (N) nullglob qualifier matches either
+# without a subprocess. Array assignment (not [[ ]]) so filename generation runs.
+_ti24=($HOME/.terminfo/*/xterm-24bits(N))
+(( $#_ti24 )) || tic -x -o "$HOME/.terminfo" "$HOME/dotfiles/config/terminfo/24bit.src" 2>/dev/null
+unset _ti24
 alias emacs='env TERM=xterm-24bits emacs'
 
 [ "$THEME_NAME" = "gensho" ] || return 0

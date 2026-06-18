@@ -7,7 +7,7 @@ CursorBlinks=no
 
 # Text
 Font=FirgeNerd Console
-FontHeight=12
+FontHeight=13
 
 BoldAsFont=no
 BoldAsColour=no
@@ -40,6 +40,7 @@ Language=ja
 
 # Terminal
 Term=xterm-256color
+XTermModifyOtherKeys=1
 AllowBlinking=no
 
 BellType=0

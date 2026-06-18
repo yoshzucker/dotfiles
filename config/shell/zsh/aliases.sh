@@ -68,4 +68,16 @@ alias gitroot='cd $(git rev-parse --show-toplevel)'
 alias R='R --no-save'
 alias rgp="rg --pre-glob '*.{pdf,xl[tas][bxm],xl[wsrta],do[ct],do[ct][xm],p[po]t[xm],p[op]t,html,htm,xhtm,xhtml,epub,chm,od[stp]}' --pre rgpipe"
 
+
+# ----- shell-reset: flush derived state, reload fresh -----
+# Clears the tool-init caches (~/.cache/zsh/init_*.zsh) and the tmux server,
+# then re-execs a fresh login shell (which re-warms the tmux daemon). Use
+# after a theme/PATH change or a tool upgrade if anything looks stale.
+# Everything it removes is derived data and is regenerated -- nothing is lost.
+shell-reset() {
+  rm -f "${XDG_CACHE_HOME:-$HOME/.cache}"/zsh/init_*.zsh
+  command -v tmux >/dev/null 2>&1 && tmux kill-server 2>/dev/null
+  exec zsh -l
+}
+
 # --- end of aliases.sh ---------------------------------------------------
