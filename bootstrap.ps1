@@ -141,6 +141,7 @@ function Main {
         Update-ScoopPackages
         Update-MSYS2Packages
         Update-RPackages
+        Install-ZshPlugins
         Setup-Links
         Show-RestartNotice
     }
@@ -887,10 +888,7 @@ function Install-RPackages {
     $leftMessage = "Installing or updating R packages"
     Write-PrintLine $leftMessage "Started."
 
-    Rscript -e "packages <- c('tidyverse', 'IRkernel'); install.packages(packages[!packages %in% installed.packages()[, 'Package']], repos='https://cran.rstudio.com')" 2>$null
-    if (Get-Command jupyter -ErrorAction SilentlyContinue) {
-        Rscript -e "IRkernel::installspec()" 2>$null
-    }
+    Rscript -e "packages <- c('tidyverse'); install.packages(packages[!packages %in% installed.packages()[, 'Package']], repos='https://cran.rstudio.com')" 2>$null
 
     Write-PrintLine $leftMessage "Finished."
 }
@@ -908,6 +906,68 @@ function Update-RPackages {
     Write-PrintLine $leftMessage "Finished."
 }
 
+function Install-ZshPlugins {
+    # Clones the zsh plugins listed in pkg/zsh-plugins/plugins.txt by invoking
+    # the Scoop-installed MSYS2 bash, so the repos land in exactly the path the
+    # MSYS2 zsh reads ($XDG_DATA_HOME/zsh/plugins). Mirrors install_zsh_plugins()
+    # in the Unix 'bootstrap' (single clone implementation, in bash). Idempotent;
+    # no-op if MSYS2 (via Scoop) or git is unavailable.
+    $bash = Get-MSYS2BashPath
+    if (-not $bash) {
+        Write-Host "MSYS2 (via Scoop) not found; skipping zsh plugins." -ForegroundColor Yellow
+        return
+    }
+
+    $listFile = Join-Path (Join-Path (Join-Path $script:ScriptDir "pkg") "zsh-plugins") "plugins.txt"
+    if (-not (Test-Path -LiteralPath $listFile)) {
+        return
+    }
+
+    $leftMessage = "Installing zsh plugins"
+    Write-PrintLine $leftMessage "Started."
+
+    # Same temp-file + env-var + cygpath approach as Install-MSYS2Packages: a
+    # multi-line bash script across the Windows -> bash.exe boundary is corrupted
+    # if passed via -lc, so write it to a file and run `bash -l <posix-path>`.
+    # The list path is passed via $DOTFILES_PKGLIST and converted with cygpath.
+    $bashScript = (@'
+set -e
+command -v git >/dev/null 2>&1 || exit 0
+list="$(cygpath -u "$DOTFILES_PKGLIST")"
+plugin_dir="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/plugins"
+mkdir -p "$plugin_dir"
+while IFS= read -r url || [ -n "$url" ]; do
+  url=$(printf '%s' "$url" | sed -e 's/[[:space:]]*#.*$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+  [ -z "$url" ] && continue
+  name="$(basename "$url")"
+  dest="$plugin_dir/$name"
+  if [ -d "$dest/.git" ]; then
+    git -C "$dest" pull --ff-only --quiet || echo "Could not update $name"
+  else
+    git clone --depth 1 "$url" "$dest"
+  fi
+done < "$list"
+'@) -replace "`r", ""
+
+    $tmp = [System.IO.Path]::GetTempFileName()
+    $savedPkglist = $env:DOTFILES_PKGLIST
+    try {
+        [System.IO.File]::WriteAllText($tmp, $bashScript, (New-Object System.Text.UTF8Encoding $false))
+        $posix = (& $bash -lc 'cygpath -u "$0"' $tmp | Select-Object -First 1).Trim()
+
+        $env:DOTFILES_PKGLIST = $listFile
+        & $bash -l $posix
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Warning: some zsh plugins may have failed (exit $LASTEXITCODE)." -ForegroundColor Yellow
+        }
+    } finally {
+        $env:DOTFILES_PKGLIST = $savedPkglist
+        [System.IO.File]::Delete($tmp)
+    }
+
+    Write-PrintLine $leftMessage "Finished."
+}
+
 function Perform-FullBootstrap {
     $leftMessage = "Full bootstrap"
     Write-PrintLine $leftMessage "Started."
@@ -916,6 +976,7 @@ function Perform-FullBootstrap {
     Install-ScoopPackages
     Install-MSYS2Packages
     Install-RPackages
+    Install-ZshPlugins
     Setup-Links
 
     Write-PrintLine $leftMessage "Finished."

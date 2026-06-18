@@ -9,6 +9,8 @@ Everything here lives **outside** `config/` so it is never symlinked into `~/.co
 - `apt/packages.txt` — APT packages for Debian/Ubuntu
 - `pacman/packages.txt` + `pacman/msys2-packages.txt` — pacman (Arch, MSYS2)
 - `scoop/scoopfile.json` — Scoop (Windows) — generated via `scoop export`
+- `zsh-plugins/plugins.txt` — zsh plugin git repos, cloned to `$XDG_DATA_HOME/zsh/plugins`
+  (no plugin manager; sourced directly by `config/shell/zsh/zsh.sh`)
 
 ## Usage from the bootstrap script
 

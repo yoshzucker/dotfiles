@@ -1,0 +1,8 @@
+# Line-ending policy: LF everywhere (Unix/macOS style; matches Emacs utf-8-unix).
+# `text=auto` lets git detect text vs binary; `eol=lf` forces LF in the working
+# tree on every platform (including Windows/MSYS2), so the repo never drifts to
+# CRLF. Binary files are auto-detected and left untouched.
+* text=auto eol=lf
+
+# Windows registry scripts must keep CRLF (regedit expects it).
+*.reg text eol=crlf

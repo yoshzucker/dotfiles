@@ -173,6 +173,7 @@ main() {
     update_brew_packages
     update_pacman_packages
     update_r_packages
+    install_zsh_plugins
     setup_links
 
     show_restart_notice
@@ -786,7 +787,7 @@ update_brew_packages() {
 }
 
 install_r_packages() {
-  # Installs or updates commonly used R packages (tidyverse, IRkernel, etc.).
+  # Installs or updates commonly used R packages (tidyverse, etc.).
   # This is a convenience step and is safe to re-run.
   if ! command -v R >/dev/null; then
     return
@@ -794,24 +795,20 @@ install_r_packages() {
 
   left_message="Installing or updating R packages"
   print_line "$left_message" "Started."
-  
+
   if [[ "$os" == "darwin" ]]; then
     chmod u+w "$(brew --prefix)/Cellar/r/"*/lib/R/doc/html/packages.html 2>/dev/null || true
   fi
-  
+
   if [[ "$os" == "linux" ]]; then
     options="repos='https://cran.rstudio.com', INSTALL_opts=c('--no-lock')"
   else
     options="repos='https://cran.rstudio.com'"
   fi
-  
-  packages="c('tidyverse', 'IRkernel')"
+
+  packages="c('tidyverse')"
   Rscript -e "install.packages($packages[! $packages %in% installed.packages()[, 'Package']], $options)" || true
 
-  if command -v jupyter >/dev/null; then
-    Rscript -e "IRkernel::installspec()" || true
-  fi
-  
   print_line "$left_message" "Finished."
 }
 
@@ -849,6 +846,42 @@ install_rgpipe() {
   print_line "$left_message" "Finished."
 }
 
+install_zsh_plugins() {
+  # Clones the zsh plugins listed in pkg/zsh-plugins/plugins.txt, which
+  # config/shell/zsh/zsh.sh sources directly (no plugin manager: sheldon forks a
+  # native binary on every shell start and fails to lock its config dir on
+  # locked-down Windows). Idempotent: missing -> shallow clone, present ->
+  # fast-forward pull. bootstrap.ps1 mirrors this via Install-ZshPlugins.
+  if ! command -v git >/dev/null 2>&1; then
+    return
+  fi
+
+  local list_file="$script_dir/pkg/zsh-plugins/plugins.txt"
+  [ -f "$list_file" ] || return
+
+  left_message="Installing zsh plugins"
+  print_line "$left_message" "Started."
+
+  local plugin_dir="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/plugins"
+  mkdir -p "$plugin_dir"
+
+  local url name dest
+  while IFS= read -r url || [ -n "$url" ]; do
+    # Strip inline comments, then leading/trailing whitespace; skip blanks.
+    url=$(echo "$url" | sed -e 's/[[:space:]]*#.*$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+    case "$url" in '') continue ;; esac
+    name="$(basename "$url")"
+    dest="$plugin_dir/$name"
+    if [ -d "$dest/.git" ]; then
+      git -C "$dest" pull --ff-only --quiet || echo "⚠️  Could not update $name"
+    else
+      git clone --depth 1 "$url" "$dest"
+    fi
+  done < "$list_file"
+
+  print_line "$left_message" "Finished."
+}
+
 
 
 perform_full_bootstrap() {
@@ -865,6 +898,7 @@ perform_full_bootstrap() {
   install_pacman_packages
   install_r_packages
   install_rgpipe
+  install_zsh_plugins
   setup_links
 
   print_line "$left_message" "Finished."

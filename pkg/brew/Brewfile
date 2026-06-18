@@ -28,18 +28,10 @@ brew "ripgrep"
 brew "fd"
 brew "fzf"
 brew "cmigemo"
-brew "tree"
-brew "tmux"                     # kept for SSH/server use; zellij is primary locally
-brew "zellij"
-brew "bottom"                   # btm: htop replacement
+brew "tmux"                     # terminal multiplexer (pre-warmed daemon in .zshrc)
 brew "eza"
 brew "bat"                      # cat replacement, also MANPAGER
 brew "git-delta"                # git diff pager
-brew "dust"                     # du replacement
-brew "duf"                      # df replacement
-brew "procs"                    # ps replacement
-brew "tealdeer"                 # tldr client
-brew "jq"
 brew "aspell"
 brew "poppler"                  # pdf-tools for Emacs, rgpipe etc.
 brew "automake"                 # pdf-tools for Emacs
@@ -47,18 +39,11 @@ brew "pandoc"
 brew "weasyprint"               # for pandoc
 
 # --- Shell ergonomics --------------------------------------------------------
-brew "sheldon"                  # zsh plugin manager (TOML, Rust)
-brew "atuin"                    # SQLite shell history, owns Ctrl-R
 brew "zoxide"                   # learning cd, exposed as `z`
-brew "navi"                     # interactive cheatsheet, Ctrl-G
 
 # --- Dev tools ---------------------------------------------------------------
 brew "git"
 brew "gitleaks"
-brew "tig"
-brew "lazygit"                  # git TUI
-brew "gh"                       # GitHub CLI
-brew "mise"                     # runtime version manager (asdf successor)
 
 # --- TUI file manager --------------------------------------------------------
 brew "yazi"

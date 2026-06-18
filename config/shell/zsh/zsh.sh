@@ -62,12 +62,26 @@ bindkey '^L' forward-word
 bindkey '^F' backward-char
 bindkey '^B' forward-char
 
-# ----- plugins (sheldon) -----
-# These must be set before sheldon loads the plugins that read them.
-ZSH_AUTOSUGGEST_USE_ASYNC=1       # fetch suggestions async — non-blocking ZLE
+# ----- plugins (direct source, no manager) -----
+# We source the plugin repos directly instead of using a manager. sheldon spawns
+# a native sheldon.exe on every shell start (a fork we work hard to avoid on
+# Windows) and, on this corporate box, fails to lock its config dir entirely
+# (os error 5) so it loaded nothing. These three are plain `source`-able repos;
+# `bootstrap` clones them into $ZPLUGDIR.
+#
+# Load order is significant: fzf-tab needs compinit (already run above), and
+# fast-syntax-highlighting must be last so it sees every widget the others bind.
+#
+# These knobs must be set BEFORE the plugins that read them are sourced.
+# Suggestions run synchronously: the async path uses zsh/zpty, which forks a
+# worker per fetch (~expensive on Windows); the history strategy is in-process.
 ZSH_AUTOSUGGEST_MANUAL_REBIND=1   # skip per-precmd widget rebind overhead
 ZSH_HIGHLIGHT_MAXLENGTH=512       # skip syntax highlighting beyond 512 chars
-command -v sheldon >/dev/null 2>&1 && eval "$(sheldon source)"
+
+ZPLUGDIR="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/plugins"
+[[ -r $ZPLUGDIR/fzf-tab/fzf-tab.plugin.zsh ]] && source $ZPLUGDIR/fzf-tab/fzf-tab.plugin.zsh
+[[ -r $ZPLUGDIR/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && source $ZPLUGDIR/zsh-autosuggestions/zsh-autosuggestions.zsh
+[[ -r $ZPLUGDIR/fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh ]] && source $ZPLUGDIR/fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh
 
 # ----- git status (fork-free) -----
 # vcs_info forks git several times per prompt and probes every VCS backend
@@ -109,14 +123,22 @@ _git_prompt_info() {
 }
 add-zsh-hook precmd _git_prompt_info
 
-# ----- fzf-tab zstyle -----
-# Native menu off so fzf-tab can take over.
-# No bat preview (expensive process spawn); eza listing for cd only.
-zstyle ':completion:*' menu no
-zstyle ':fzf-tab:complete:cd:*' fzf-preview \
-  'eza -1 --color=always --icons=auto $realpath 2>/dev/null || ls -1 $realpath'
-zstyle ':fzf-tab:*' fzf-flags --height=60% --layout=reverse --border=rounded
-zstyle ':fzf-tab:*' switch-group ',' '.'
+# ----- completion menu -----
+# Apply fzf-tab's styles only when fzf-tab actually loaded (it defines
+# enable-fzf-tab). Otherwise fall back to zsh's native menu-select so TAB still
+# completes — without this guard, `menu no` would disable the menu with nothing
+# to take over (e.g. on machines where the plugins aren't cloned).
+if (( ${+functions[enable-fzf-tab]} )); then
+  # Native menu off so fzf-tab can take over.
+  # No bat preview (expensive process spawn); eza listing for cd only.
+  zstyle ':completion:*' menu no
+  zstyle ':fzf-tab:complete:cd:*' fzf-preview \
+    'eza -1 --color=always --icons=auto $realpath 2>/dev/null || ls -1 $realpath'
+  zstyle ':fzf-tab:*' fzf-flags --height=60% --layout=reverse --border=rounded
+  zstyle ':fzf-tab:*' switch-group ',' '.'
+else
+  zstyle ':completion:*' menu select
+fi
 
 # ----- external integrations (startup cache) -----
 # Cache each tool init output; regenerated when binary mtime changes.
@@ -143,8 +165,6 @@ if (( ${+functions[__zoxide_hook]} )); then
   functions[__zoxide_hook_sync]=$functions[__zoxide_hook]
   __zoxide_hook() { __zoxide_hook_sync &! }
 fi
-_cached_init mise    mise activate zsh
-_cached_init navi    navi widget zsh
 unfunction _cached_init
 
 # --- end of zsh.sh -------------------------------------------------------

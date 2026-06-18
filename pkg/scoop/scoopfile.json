@@ -27,10 +27,6 @@
       "Source": "main"
     },
     {
-      "Name": "tree",
-      "Source": "main"
-    },
-    {
       "Name": "eza",
       "Source": "main"
     },
@@ -55,10 +51,6 @@
       "Source": "main"
     },
     {
-      "Name": "tig",
-      "Source": "extras"
-    },
-    {
       "Name": "python",
       "Source": "main"
     },
@@ -80,26 +72,6 @@
     },
     {
       "Name": "win32yank",
-      "Source": "main"
-    },
-    {
-      "Name": "mise",
-      "Source": "main"
-    },
-    {
-      "Name": "navi",
-      "Source": "main"
-    },
-    {
-      "Name": "lazygit",
-      "Source": "extras"
-    },
-    {
-      "Name": "duf",
-      "Source": "main"
-    },
-    {
-      "Name": "zellij",
       "Source": "main"
     }
   ]

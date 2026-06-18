@@ -1,7 +1,0 @@
-# bottom (btm) — minimal config. Defaults are reasonable; only set knobs we
-# actively want. Theme is left at the default so it inherits terminal colors.
-
-[flags]
-hide_table_gap = true
-tree = true
-mem_as_value = true

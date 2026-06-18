@@ -27,11 +27,6 @@ if command -v bat >/dev/null 2>&1; then
   alias cat='bat --paging=never'
   export MANPAGER="sh -c 'col -bx | bat -l man -p'"
 fi
-command -v btm     >/dev/null 2>&1 && { alias htop='btm'; alias top='btm'; }
-command -v dust    >/dev/null 2>&1 && alias du='dust'
-command -v duf     >/dev/null 2>&1 && alias df='duf'
-command -v procs   >/dev/null 2>&1 && alias ps='procs'
-command -v lazygit >/dev/null 2>&1 && alias lg='lazygit'
 
 # ----- yazi (TUI file manager) with cd follow -----
 # `y` opens yazi; on exit, the shell cd's to yazi's final directory.
@@ -46,9 +41,8 @@ if command -v yazi >/dev/null 2>&1; then
   }
 fi
 
-# ----- cheatsheet fallback (`?` / `cheat`) -----
-# Shows the in-repo dotfiles cheatsheet. navi (Ctrl-G) is the richer UI;
-# this is the always-available textual reference.
+# ----- cheatsheet (`?` / `cheat`) -----
+# Shows the in-repo dotfiles cheatsheet (always-available textual reference).
 cheat() {
   local f="$HOME/.config/cheat/dotfiles.md"
   [ -f "$f" ] || { echo "no cheatsheet at $f" >&2; return 1; }

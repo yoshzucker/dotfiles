@@ -1,0 +1,14 @@
+# zsh plugins sourced directly by config/shell/zsh/zsh.sh (no plugin manager).
+# One git repository URL per line. Inline `#` comments and blank lines are ignored.
+#
+# Cloned into $XDG_DATA_HOME/zsh/plugins/<repo-name> by:
+#   - bootstrap        : install_zsh_plugins()   (reads this file directly)
+#   - bootstrap.ps1    : Install-ZshPlugins       (delegates to MSYS2 bash)
+# Idempotent: missing -> shallow clone, present -> fast-forward pull.
+#
+# NOTE: load ORDER is significant and is defined in zsh.sh, not here:
+#   fzf-tab -> zsh-autosuggestions -> fast-syntax-highlighting (last).
+
+https://github.com/Aloxaf/fzf-tab
+https://github.com/zsh-users/zsh-autosuggestions
+https://github.com/zdharma-continuum/fast-syntax-highlighting

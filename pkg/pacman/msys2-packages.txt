@@ -13,23 +13,12 @@ fd:p
 fzf:p
 eza:p
 bat:p
-tree:           # msys base repo (no ucrt64 build)
-jq:p
 
 # --- shell ergonomics ---
 zoxide:p
-atuin:p
-tldr:p          # brew: tealdeer
-
-# --- system monitors (brew btm/dust/procs) ---
-bottom:p
-dust:p
-procs:p
 
 # --- git / dev ---
 delta:p         # brew: git-delta
-github-cli:p    # brew: gh
-tig:            # msys base repo
 git:            # msys base repo (coexists w/ Scoop git; ucrt64 takes precedence)
 
 # --- terminal / file manager ---
@@ -45,6 +34,8 @@ pactoys:        # provides pacboy (installer also self-bootstraps this)
 # --- NOT packaged in MSYS2 ---------------------------------------------------
 # Provided via Scoop instead (see pkg/scoop/scoopfile.json), on PATH through the
 # Scoop shims appended in config/shell/env/msys.sh:
-#   mise, navi, lazygit, duf, zellij, gitleaks
-# Not in pacman OR Scoop official buckets — install manually:
-#   sheldon  ->  cargo install sheldon   (or a GitHub-release binary on PATH)
+#   gitleaks
+#
+# zsh plugins (fzf-tab, zsh-autosuggestions, fast-syntax-highlighting) are not
+# packaged: `bootstrap` git-clones them into $XDG_DATA_HOME/zsh/plugins and
+# config/shell/zsh/zsh.sh sources them directly (no plugin manager).
