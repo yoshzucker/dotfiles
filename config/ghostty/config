@@ -15,5 +15,12 @@ window-padding-y = 6
 # background-opacity = 1.0
 
 # --- Others ---
-scrollback-limit = 10000
+# Unit is BYTES (not lines). When running tmux, tmux's history-limit governs the
+# scrollback, so this only matters for bare ghostty. 10MB ≈ tens of thousands of lines.
+scrollback-limit = 10000000
+
+# Wheel scroll amount. Default is discrete(mouse)=3 / precision(trackpad)=1, so a
+# mouse wheel scrolls 3 lines per notch. Pin to 1 to match the tmux wheel feel
+# (tmux uses -N 1) → 1 line per notch with a discrete mouse too.
+mouse-scroll-multiplier = 1
 copy-on-select = true

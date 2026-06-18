@@ -171,6 +171,7 @@ main() {
     update_apt_packages
     update_brew
     update_brew_packages
+    update_pacman_packages
     update_r_packages
     setup_links
 
@@ -719,6 +720,54 @@ install_brew_packages() {
   print_line "$left_message" "Finished."
 }
 
+install_pacman_packages() {
+  # Installs MSYS2/ucrt64 shell tools from pkg/pacman/msys2-packages.txt via pacboy.
+  # `name:p` entries resolve to the active $MSYSTEM prefix; bare names hit the
+  # msys base repo. Idempotent (--needed) and safe to re-run.
+  if [ "$pkg_manager" != "pacman" ] || ! command -v pacman >/dev/null; then
+    return
+  fi
+
+  left_message="Installing MSYS2 packages (via pacman/pacboy)"
+  print_line "$left_message" "Started."
+
+  # pacboy ships in pactoys; ensure it is present before using `:p` notation.
+  command -v pacboy >/dev/null 2>&1 || pacman -S --needed --noconfirm pactoys
+
+  # Read pkg/pacman/msys2-packages.txt (one package per line, comments/blanks ignored)
+  local list_file="$script_dir/pkg/pacman/msys2-packages.txt"
+  packages=()
+
+  if [ -f "$list_file" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      # Strip inline comments, then leading/trailing whitespace.
+      line=$(echo "$line" | sed -e 's/[[:space:]]*#.*$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+      case "$line" in
+        '') continue ;;
+      esac
+      packages+=("$line")
+    done < "$list_file"
+  fi
+
+  [ "${#packages[@]}" -gt 0 ] && pacboy -S --needed --noconfirm "${packages[@]}"
+
+  print_line "$left_message" "Finished."
+}
+
+update_pacman_packages() {
+  # Updates all installed MSYS2 packages (full system upgrade).
+  if [ "$pkg_manager" != "pacman" ] || ! command -v pacman >/dev/null; then
+    return
+  fi
+
+  left_message="Updating MSYS2 packages (via pacman)"
+  print_line "$left_message" "Started."
+
+  pacman -Syu --noconfirm
+
+  print_line "$left_message" "Finished."
+}
+
 update_brew_packages() {
   # Updates packages declared in pkg/brew/Brewfile.
   # Also triggers a link refresh afterwards in the update flow.
@@ -813,6 +862,7 @@ perform_full_bootstrap() {
   install_apt_packages
   install_brew
   install_brew_packages
+  install_pacman_packages
   install_r_packages
   install_rgpipe
   setup_links

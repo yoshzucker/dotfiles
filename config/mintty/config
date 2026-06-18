@@ -35,6 +35,14 @@ Rows=25
 
 Scrollbar=none
 ScrollMod=off
+# When running tmux the wheel is handed to tmux, so mintty's own scrollback is
+# bypassed; the settings below only apply to bare mintty (e.g. right after
+# login, before attaching tmux). Match the tmux wheel feel (1 line/notch);
+# mintty's default is taken from the Windows mouse setting (~3). ScrollbackLines
+# is capped by MaxScrollbackLines, so raise both together.
+LinesPerMouseWheelNotch=1
+ScrollbackLines=50000
+MaxScrollbackLines=50000
 
 Language=ja
 

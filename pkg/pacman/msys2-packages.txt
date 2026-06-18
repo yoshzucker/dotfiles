@@ -1,12 +1,50 @@
-# MSYS2 (pacman) packages for this dotfiles setup
+# MSYS2 (pacman) shell tools for ucrt64 zsh — installed via `pacboy -S`.
 # Location: pkg/pacman/msys2-packages.txt  (outside config/)
 #
-# One package name per line. Comments and blanks are ignored.
-#
-# Add one package name per line.
-# This file is read by run_once_30-install-msys2.sh.tmpl
-#
-# Example:
-# git
-# ripgrep
-# tmux
+# pacboy name translation (see `pacboy` help):
+#   name   / name:p  -> mingw-w64-ucrt-x86_64-name  (current $MSYSTEM prefix)
+#   name:            -> name                        (no translation; msys base repo)
+# Comments and blanks are ignored. Consumed by install_pacman_packages() in
+# ../../bootstrap and by Install-MSYS2Packages in ../../bootstrap.ps1.
+
+# --- core search / list / view ---
+ripgrep:p
+fd:p
+fzf:p
+eza:p
+bat:p
+tree:           # msys base repo (no ucrt64 build)
+jq:p
+
+# --- shell ergonomics ---
+zoxide:p
+atuin:p
+tldr:p          # brew: tealdeer
+
+# --- system monitors (brew btm/dust/procs) ---
+bottom:p
+dust:p
+procs:p
+
+# --- git / dev ---
+delta:p         # brew: git-delta
+github-cli:p    # brew: gh
+tig:            # msys base repo
+git:            # msys base repo (coexists w/ Scoop git; ucrt64 takes precedence)
+
+# --- terminal / file manager ---
+tmux:           # msys base repo
+yazi:p
+ffmpeg:p        # yazi preview: video/audio
+7zip:p          # yazi preview: archives
+
+# --- the shell + pacboy provider ---
+zsh:            # msys base repo
+pactoys:        # provides pacboy (installer also self-bootstraps this)
+
+# --- NOT packaged in MSYS2 ---------------------------------------------------
+# Provided via Scoop instead (see pkg/scoop/scoopfile.json), on PATH through the
+# Scoop shims appended in config/shell/env/msys.sh:
+#   mise, navi, lazygit, duf, zellij, gitleaks
+# Not in pacman OR Scoop official buckets — install manually:
+#   sheldon  ->  cargo install sheldon   (or a GitHub-release binary on PATH)

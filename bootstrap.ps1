@@ -50,8 +50,8 @@ function Show-Usage {
 bootstrap.ps1 - Windows dotfiles environment bootstrapper
 
 Usage:
-  .\bootstrap.ps1 [bootstrap]     # Full bootstrap / re-deploy (Scoop + packages + links)
-  .\bootstrap.ps1 update          # Update Scoop packages + refresh links + clean broken links
+  .\bootstrap.ps1 [bootstrap]     # Full bootstrap / re-deploy (Scoop + MSYS2/pacman + links)
+  .\bootstrap.ps1 update          # Update Scoop + MSYS2 packages + refresh links + clean broken links
   .\bootstrap.ps1 link            # Create or refresh links only (idempotent, safe refresh)
   .\bootstrap.ps1 unlink          # Remove only links managed by this repo (safe)
   .\bootstrap.ps1 doctor [--fix]  # Diagnose + optionally remove broken links
@@ -139,6 +139,7 @@ function Main {
     if ($script:MainMode -eq "update") {
         Update-Scoop
         Update-ScoopPackages
+        Update-MSYS2Packages
         Update-RPackages
         Setup-Links
         Show-RestartNotice
@@ -771,6 +772,113 @@ function Update-ScoopPackages {
     Write-PrintLine $leftMessage "Finished."
 }
 
+function Get-MSYS2BashPath {
+    # Returns the path to the Scoop-installed MSYS2 bash.exe, or $null if MSYS2
+    # is not available via Scoop.
+    if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
+        return $null
+    }
+
+    $prefix = $null
+    try {
+        $prefix = (scoop prefix msys2 2>$null | Select-Object -First 1)
+        if ($prefix) { $prefix = $prefix.Trim() }
+    } catch {
+        $prefix = $null
+    }
+    if (-not $prefix -or -not (Test-Path -LiteralPath $prefix)) {
+        return $null
+    }
+
+    $bash = Join-Path $prefix "usr\bin\bash.exe"
+    if (-not (Test-Path -LiteralPath $bash)) {
+        return $null
+    }
+    return $bash
+}
+
+function Install-MSYS2Packages {
+    # Installs MSYS2/ucrt64 shell tools from pkg/pacman/msys2-packages.txt by
+    # invoking the Scoop-installed MSYS2 bash with MSYSTEM=UCRT64. Mirrors
+    # install_pacman_packages() in the Unix 'bootstrap'. Idempotent (--needed);
+    # safe no-op if MSYS2 (via Scoop) is unavailable.
+    $bash = Get-MSYS2BashPath
+    if (-not $bash) {
+        Write-Host "MSYS2 (via Scoop) not found; skipping pacman packages." -ForegroundColor Yellow
+        return
+    }
+
+    $listFile = Join-Path (Join-Path (Join-Path $script:ScriptDir "pkg") "pacman") "msys2-packages.txt"
+    if (-not (Test-Path -LiteralPath $listFile)) {
+        return
+    }
+
+    $leftMessage = "Installing MSYS2 packages (via pacman/pacboy)"
+    Write-PrintLine $leftMessage "Started."
+
+    # pacboy (from pactoys) resolves `name:p` to the active $MSYSTEM prefix.
+    # The script is written to a temp file (UTF-8, no BOM, LF) and run as
+    # `bash -l <posix-path>` rather than `bash -lc "<script>"`: passing a
+    # multi-line, nested-quote script across the Windows -> bash.exe argument
+    # boundary corrupts it (the command line is re-parsed and a UTF-8 BOM is
+    # prepended). A file + a single path argument sidesteps both problems.
+    # The package list path is passed via the environment and converted with
+    # cygpath inside MSYS2.
+    $bashScript = (@'
+set -e
+command -v pacboy >/dev/null 2>&1 || pacman -S --needed --noconfirm pactoys
+list="$(cygpath -u "$DOTFILES_PKGLIST")"
+mapfile -t pkgs < <(sed -e 's/[[:space:]]*#.*$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$list" | grep -v '^[[:space:]]*$')
+if [ "${#pkgs[@]}" -gt 0 ]; then
+  pacboy -S --needed --noconfirm "${pkgs[@]}"
+fi
+'@) -replace "`r", ""
+
+    $tmp = [System.IO.Path]::GetTempFileName()
+    $savedMsystem = $env:MSYSTEM
+    $savedPkglist = $env:DOTFILES_PKGLIST
+    try {
+        [System.IO.File]::WriteAllText($tmp, $bashScript, (New-Object System.Text.UTF8Encoding $false))
+        # Convert the temp path with cygpath; pass it as $0 (single-level quotes,
+        # no nesting) so the argument survives the Windows -> bash.exe boundary.
+        $posix = (& $bash -lc 'cygpath -u "$0"' $tmp | Select-Object -First 1).Trim()
+
+        $env:MSYSTEM = "UCRT64"
+        $env:DOTFILES_PKGLIST = $listFile
+        & $bash -l $posix
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Warning: some MSYS2 packages may have failed (exit $LASTEXITCODE)." -ForegroundColor Yellow
+        }
+    } finally {
+        $env:MSYSTEM = $savedMsystem
+        $env:DOTFILES_PKGLIST = $savedPkglist
+        [System.IO.File]::Delete($tmp)
+    }
+
+    Write-PrintLine $leftMessage "Finished."
+}
+
+function Update-MSYS2Packages {
+    # Full MSYS2 system upgrade via pacman. Mirrors update_pacman_packages().
+    $bash = Get-MSYS2BashPath
+    if (-not $bash) {
+        return
+    }
+
+    $leftMessage = "Updating MSYS2 packages (via pacman)"
+    Write-PrintLine $leftMessage "Started."
+
+    $savedMsystem = $env:MSYSTEM
+    try {
+        $env:MSYSTEM = "UCRT64"
+        & $bash -lc "pacman -Syu --noconfirm"
+    } finally {
+        $env:MSYSTEM = $savedMsystem
+    }
+
+    Write-PrintLine $leftMessage "Finished."
+}
+
 function Install-RPackages {
     if (-not (Get-Command Rscript -ErrorAction SilentlyContinue)) {
         return
@@ -806,6 +914,7 @@ function Perform-FullBootstrap {
 
     Install-Scoop
     Install-ScoopPackages
+    Install-MSYS2Packages
     Install-RPackages
     Setup-Links
 

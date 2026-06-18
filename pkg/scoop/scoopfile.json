@@ -77,6 +77,30 @@
     {
       "Name": "emacs",
       "Source": "extras"
+    },
+    {
+      "Name": "win32yank",
+      "Source": "main"
+    },
+    {
+      "Name": "mise",
+      "Source": "main"
+    },
+    {
+      "Name": "navi",
+      "Source": "main"
+    },
+    {
+      "Name": "lazygit",
+      "Source": "extras"
+    },
+    {
+      "Name": "duf",
+      "Source": "main"
+    },
+    {
+      "Name": "zellij",
+      "Source": "main"
     }
   ]
 }

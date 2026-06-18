@@ -15,6 +15,7 @@ Everything here lives **outside** `config/` so it is never symlinked into `~/.co
 Run `./bootstrap` (or `./bootstrap update`) or the platform-native commands directly:
 - `brew bundle --file pkg/brew/Brewfile`
 - `scoop import pkg/scoop/scoopfile.json` (Windows)
+- `pacboy -S --needed - < pkg/pacman/msys2-packages.txt` (MSYS2/ucrt64; needs `pactoys`)
 - `sudo apt install -y $(cat pkg/apt/packages.txt | grep -v '^#' | grep -v '^$')` etc.
 
 ## Regenerating
