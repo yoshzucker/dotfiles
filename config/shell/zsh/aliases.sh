@@ -63,6 +63,16 @@ alias R='R --no-save'
 alias rgp="rg --pre-glob '*.{pdf,xl[tas][bxm],xl[wsrta],do[ct],do[ct][xm],p[po]t[xm],p[op]t,html,htm,xhtm,xhtml,epub,chm,od[stp]}' --pre rgpipe"
 
 
+# ----- open (cross-platform file/URL opener) -----
+# macOS has /usr/bin/open natively; provide a shim on MSYS2 and Linux.
+if [[ $OSTYPE == msys* || $OSTYPE == cygwin* ]]; then
+  open() { start "$@" }
+  compdef _files start   # start has no zsh completion spec; add file completion
+elif ! command -v open >/dev/null 2>&1; then
+  command -v xdg-open >/dev/null 2>&1 && open() { xdg-open "$@" }
+fi
+compdef _files open
+
 # ----- shell-reset: flush derived state, reload fresh -----
 # Clears the tool-init caches (~/.cache/zsh/init_*.zsh) and the tmux server,
 # then re-execs a fresh login shell (which re-warms the tmux daemon). Use
@@ -70,6 +80,7 @@ alias rgp="rg --pre-glob '*.{pdf,xl[tas][bxm],xl[wsrta],do[ct],do[ct][xm],p[po]t
 # Everything it removes is derived data and is regenerated -- nothing is lost.
 shell-reset() {
   rm -f "${XDG_CACHE_HOME:-$HOME/.cache}"/zsh/init_*.zsh
+  rm -f "${XDG_CACHE_HOME:-$HOME/.cache}"/zsh/completions.zwc  # completion digest; rebuilt on next start
   command -v tmux >/dev/null 2>&1 && tmux kill-server 2>/dev/null
   exec zsh -l
 }

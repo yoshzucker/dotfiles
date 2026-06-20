@@ -1,6 +1,6 @@
 # --- zsh.sh ---------------------------------------------------------------
-# Zsh interactive UX: history, setopt, compinit, prompt (with vcs_info),
-# basic keybinds. Requires THEME_MONO* from colors.sh.
+# Zsh interactive shell: history, completion, prompt (fork-free git branch),
+# keybindings, plugins. Requires THEME_MONO* from colors.sh.
 
 [ -n "$ZSH_VERSION" ] || return 0
 
@@ -22,11 +22,41 @@ setopt interactive_comments  # allow # comments in interactive shell
 
 # ----- compinit -----
 [ -d ~/.grok/completions/zsh ] && fpath=(~/.grok/completions/zsh $fpath)
+
+# Pre-compile all completion functions into one digest, prepended to fpath.
+# On Defender-scanned Windows each autoloaded function is a separately-scanned
+# file read (~9ms), so the first TAB pays 0.5-2s loading the 30-50 functions a
+# completion needs. One digest = one read: measured 777 functions 7.11s -> 0.30s.
+# Rebuilt only when missing or after a zsh upgrade (new function files); the
+# ~1.8s build is a rare one-off. NOTE: call the `zcompile` builtin with FILE
+# PATHS (not names) -- a stray `autoload zcompile` would shadow the builtin and
+# fail with "function definition file not found".
+() {
+  emulate -L zsh
+  local zwc="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/completions.zwc"
+  if [[ ! -e $zwc || $commands[zsh] -nt $zwc ]]; then
+    local files=( ${^fpath}/_*(N.) )
+    if (( $#files )); then
+      mkdir -p "${zwc:h}"
+      builtin zcompile -U "$zwc" $files 2>/dev/null
+    fi
+  fi
+  [[ -e $zwc ]] && fpath=( "$zwc" $fpath )
+}
+
 autoload -Uz compinit
 compinit -C -d ~/.zcompdump-$HOST # rebuild -> compinit -u -d ~/.zcompdump-$HOST
 
 # ----- completion -----
-zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
+# Case-insensitive, plus substring/partial matching so a fragment narrows the
+# candidates without fuzzy (e.g. `ki`->kill-server, `srv`->kill-server). This
+# gives fzf-like "type to narrow" in-process — no external picker spawn.
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'l:|=* r:|=*'
+
+# Completion display threshold.
+# > 0: suppress "do you wish to see all N?" and auto-invoke fzf-tab instead.
+# = 0: disabled; all completions go directly to menuselect.
+LISTMAX=20
 
 # ----- prompt -----
 # Pure-style two-line prompt. Color roles follow gensho-theme mono ramp:
@@ -58,28 +88,67 @@ fi
 # ----- key -----
 bindkey -e
 bindkey '^H' backward-word
+bindkey '^J' down-line-or-history
+bindkey '^K' up-line-or-history
 bindkey '^L' forward-word
-bindkey '^F' backward-char
-bindkey '^B' forward-char
+
+# menuselect keymap (active while the completion menu is open).
+# Ctrl+HJKL mirrors arrow-key navigation vim-style.
+zmodload zsh/complist
+bindkey -M menuselect '^H' backward-char
+bindkey -M menuselect '^J' down-line-or-history
+bindkey -M menuselect '^K' up-line-or-history
+bindkey -M menuselect '^L' forward-char
+
+# Completion widget: counts matches via compstate, suppresses list+insert when
+# matches exceed LISTMAX so the "do you wish to see all N?" prompt never fires.
+# Result is stored in _smart_tab_nmatches for _tab_enter_menu to read.
+typeset -gi _smart_tab_nmatches=0
+_smart_tab_fn() {
+  _main_complete
+  typeset -g _smart_tab_nmatches=$compstate[nmatches]
+  if (( LISTMAX > 0 && _smart_tab_nmatches > LISTMAX )); then
+    compstate[list]=
+    compstate[insert]=
+  fi
+}
+zle -C _smart_tab_expand complete-word _smart_tab_fn
+
+# TAB: insert longest common prefix on first press; if nothing more can be
+# inserted (buffer unchanged), immediately enter menuselect on the same press.
+# When candidates exceed LISTMAX, auto-invoke fzf-tab with a loading message.
+_tab_enter_menu() {
+  local buf=$BUFFER cur=$CURSOR
+  _smart_tab_nmatches=0
+  zle _smart_tab_expand
+  if (( LISTMAX > 0 && ${+widgets[fzf-tab-complete]} && _smart_tab_nmatches > LISTMAX )); then
+    zle -R "fzf-tab: loading ${_smart_tab_nmatches} candidates..."
+    zle fzf-tab-complete
+    return
+  fi
+  [[ $BUFFER == $buf && $CURSOR == $cur ]] && zle _smart_tab_expand
+}
+zle -N _tab_enter_menu
+bindkey '^I' _tab_enter_menu
+# ^. (Ctrl+Period) → fzf-tab-complete
+#   outside tmux : mintty XTermModifyOtherKeys=1 sends \e[1;5n
+#   inside  tmux : extended-keys on re-encodes as CSI u \e[46;5u (codepoint 46='.', modifier 5=Ctrl)
+bindkey $'\e[1;5n'  fzf-tab-complete
+bindkey $'\e[46;5u' fzf-tab-complete
 
 # ----- plugins (direct source, no manager) -----
-# We source the plugin repos directly instead of using a manager. sheldon spawns
-# a native sheldon.exe on every shell start (a fork we work hard to avoid on
-# Windows) and, on this corporate box, fails to lock its config dir entirely
-# (os error 5) so it loaded nothing. These three are plain `source`-able repos;
-# `bootstrap` clones them into $ZPLUGDIR.
-#
-# Load order is significant: fzf-tab needs compinit (already run above), and
-# fast-syntax-highlighting must be last so it sees every widget the others bind.
-#
-# These knobs must be set BEFORE the plugins that read them are sourced.
-# Suggestions run synchronously: the async path uses zsh/zpty, which forks a
-# worker per fetch (~expensive on Windows); the history strategy is in-process.
+# Load order: zsh-autosuggestions → fast-syntax-highlighting (last).
+# fzf-tab is loaded earlier in fzf.sh (see there for rationale).
+# Knobs set before source so plugins read them on load.
 ZSH_AUTOSUGGEST_MANUAL_REBIND=1   # skip per-precmd widget rebind overhead
+ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=${THEME_MONO4},italic"  # mono4 = faint/shadow; italic adds shape contrast vs input
 ZSH_HIGHLIGHT_MAXLENGTH=512       # skip syntax highlighting beyond 512 chars
+# FSH free-theme default comment=fg=black (mono1, +6L above bg) is nearly
+# invisible; override before source so free_theme.zsh's := does not overwrite.
+typeset -gA FAST_HIGHLIGHT_STYLES
+FAST_HIGHLIGHT_STYLES[freecomment]="fg=${THEME_MONO5},italic"
 
 ZPLUGDIR="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/plugins"
-[[ -r $ZPLUGDIR/fzf-tab/fzf-tab.plugin.zsh ]] && source $ZPLUGDIR/fzf-tab/fzf-tab.plugin.zsh
 [[ -r $ZPLUGDIR/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && source $ZPLUGDIR/zsh-autosuggestions/zsh-autosuggestions.zsh
 [[ -r $ZPLUGDIR/fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh ]] && source $ZPLUGDIR/fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh
 
@@ -124,21 +193,24 @@ _git_prompt_info() {
 add-zsh-hook precmd _git_prompt_info
 
 # ----- completion menu -----
-# Apply fzf-tab's styles only when fzf-tab actually loaded (it defines
-# enable-fzf-tab). Otherwise fall back to zsh's native menu-select so TAB still
-# completes — without this guard, `menu no` would disable the menu with nothing
-# to take over (e.g. on machines where the plugins aren't cloned).
-if (( ${+functions[enable-fzf-tab]} )); then
-  # Native menu off so fzf-tab can take over.
-  # No bat preview (expensive process spawn); eza listing for cd only.
-  zstyle ':completion:*' menu no
-  zstyle ':fzf-tab:complete:cd:*' fzf-preview \
-    'eza -1 --color=always --icons=auto $realpath 2>/dev/null || ls -1 $realpath'
-  zstyle ':fzf-tab:*' fzf-flags --height=60% --layout=reverse --border=rounded
-  zstyle ':fzf-tab:*' switch-group ',' '.'
-else
-  zstyle ':completion:*' menu select
-fi
+# menu select=2: single match → complete directly; 2+ matches → menu select.
+# No `interactive` flag: hjkl / Ctrl+HJKL act as navigation, not filter chars.
+zstyle ':completion:*' menu select=2
+
+# list-colors: file-type colors + selected-item highlight.
+# di= follows dired-directory → font-lock-type-face → cyan (#5f9196).
+# ma= must include the fg explicitly: zsh applies ma= standalone for selected
+# items and does NOT layer the type color on top. Without an explicit fg,
+# selected items fall back to terminal default instead of their type color.
+# Using the same cyan fg as di= makes selection appear as bg-only change.
+() {
+  local dihex="${THEME_CYAN#\#}" bhex="${THEME_MONO1#\#}"
+  local dr=$((16#${dihex[1,2]})) dg=$((16#${dihex[3,4]})) db=$((16#${dihex[5,6]}))
+  local br=$((16#${bhex[1,2]})) bg=$((16#${bhex[3,4]})) bb=$((16#${bhex[5,6]}))
+  zstyle ':completion:*' list-colors \
+    "di=38;2;${dr};${dg};${db}" \
+    "ma=38;2;${dr};${dg};${db};48;2;${br};${bg};${bb}"
+}
 
 # ----- external integrations (startup cache) -----
 # Cache each tool init output; regenerated when binary mtime changes.

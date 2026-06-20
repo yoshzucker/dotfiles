@@ -60,10 +60,43 @@ elif command -v rg >/dev/null 2>&1; then
   export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
 fi
 
+# Platform clipboard for ctrl-y copy binding.
+# execute-silent(...) with spaces inside must be double-quoted in the opts string:
+# Windows CommandLineToArgvW splits on unquoted spaces, breaking the action.
+if [[ $OSTYPE == darwin* ]]; then
+  _fzf_copy='pbcopy'
+elif command -v win32yank >/dev/null 2>&1; then
+  _fzf_copy='win32yank -i'
+else
+  _fzf_copy='clip'
+fi
+
 # Ctrl-T: file picker with bat preview + ctrl-y to copy path.
-export FZF_CTRL_T_OPTS=$'--preview "bat --color=always --style=numbers --line-range=:300 {} 2>/dev/null || eza -1 --color=always --icons=auto {} 2>/dev/null"\n--preview-window=right,60%,border-left\n--bind=ctrl-y:execute-silent(printf %s {} | pbcopy)+abort'
+export FZF_CTRL_T_OPTS=$'--preview "bat --color=always --style=numbers --line-range=:300 {} 2>/dev/null || eza -1 --color=always --icons=auto {} 2>/dev/null"\n--preview-window=right,60%,border-left\n'"--bind=\"ctrl-y:execute-silent(printf %s {} | ${_fzf_copy})+abort\""
 
 # Alt-c: directory jump with eza tree preview.
-export FZF_ALT_C_OPTS=$'--preview "eza --tree --level=2 --color=always --icons=auto {} 2>/dev/null"\n--preview-window=right,50%,border-left\n--bind=ctrl-y:execute-silent(printf %s {} | pbcopy)+abort'
+export FZF_ALT_C_OPTS=$'--preview "eza --tree --level=2 --color=always --icons=auto {} 2>/dev/null"\n--preview-window=right,50%,border-left\n'"--bind=\"ctrl-y:execute-silent(printf %s {} | ${_fzf_copy})+abort\""
+
+unset _fzf_copy
+
+# fzf-tab (optional): ^. opens fzf completion picker.
+# Loaded here (before compinit in zsh.sh) so fzf-tab records
+# _ftb_orig_widget=expand-or-complete, not _tab_enter_menu. If it wraps
+# _tab_enter_menu, that widget's double-call logic fires (buffer unchanged
+# during capture phase) and fzf opens twice. Loading here avoids the issue.
+# Disable: comment this block; TAB + menuselect remain fully active.
+() {
+  local zplugdir="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/plugins"
+  [[ -r $zplugdir/fzf-tab/fzf-tab.plugin.zsh ]] || return 0
+  source $zplugdir/fzf-tab/fzf-tab.plugin.zsh
+  # MSYS2/ucrt64: $OSTYPE=cygwin → fzf-tab defaults continuous-trigger=//;
+  # fzf 0.72+ rejects //. Override to / and shield --expect=/ from MSYS2
+  # path conversion via MSYS2_ARG_CONV_EXCL='--'.
+  if [[ $OSTYPE == msys* || $OSTYPE == cygwin* ]]; then
+    _ftb_fzf() { MSYS2_ARG_CONV_EXCL='--' fzf "$@" }
+    zstyle ':fzf-tab:*' fzf-command _ftb_fzf
+    zstyle ':fzf-tab:*' continuous-trigger '/'
+  fi
+}
 
 # --- end of fzf.sh -------------------------------------------------------
