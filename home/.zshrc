@@ -6,6 +6,7 @@ source ~/.config/shell/zsh/colors.sh   # theme, truecolor, OSC palette, THEME_MO
 source ~/.config/shell/zsh/fzf.sh      # fzf widgets/opts (ZLE only, no compinit dep at source time)
 source ~/.config/shell/zsh/zsh.sh      # compinit, prompt, keybinds (key section has final say)
 source ~/.config/shell/zsh/aliases.sh  # eza/ls, emacs client, git, tool aliases
+source ~/.config/shell/zsh/term.sh    # terminal window size cycling (C-w e)
 
 # --- tmux server pre-warm (daemon model) ---------------------------------
 # tmux's first server start is slow on Windows (~4.6s) because Defender scans
