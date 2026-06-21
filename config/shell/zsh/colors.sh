@@ -36,16 +36,24 @@ export COLORTERM=truecolor
 _ti24=($HOME/.terminfo/*/xterm-24bits(N))
 (( $#_ti24 )) || tic -x -o "$HOME/.terminfo" "$HOME/dotfiles/config/terminfo/24bit.src" 2>/dev/null
 unset _ti24
-alias emacs='env TERM=xterm-24bits emacs'
+# xterm-24bits is just xterm-256color + Tc; only needed where Tc is missing
+# (e.g. mintty default xterm-256color terminfo on Windows). Skip on terminals
+# whose own terminfo already advertises Tc (Ghostty, *-direct, tmux-256color),
+# otherwise we'd force emacs onto a less accurate entry on macOS.
+case "$TERM" in
+  xterm-ghostty|*-direct|tmux-256color|tmux-direct) ;;
+  *) alias emacs='env TERM=xterm-24bits emacs' ;;
+esac
 
 [ "$THEME_NAME" = "gensho" ] || return 0
 
+# Always export THEME_<NAME>; only emit OSC outside tmux. Inside tmux the OSC
+# is swallowed before reaching the outer terminal (DCS passthrough would be
+# needed), so it'd be wasted bytes per shell start while the Ghostty palette
+# stays correctly set from the very first non-tmux zsh of the session.
 set_color() {
   local color_name="$1"
   local color_value="$2"
-
-  local esc_prefix='\x1b]'
-  local esc_suffix='\x07'
 
   typeset -A osc_map=(fg 10 bg 11 curbg 12)
   typeset -A ansi_map=(
@@ -55,11 +63,14 @@ set_color() {
     br_blue 12 br_magenta 13 br_cyan 14 br_white 15
   )
 
-  local osc="${osc_map[$color_name]:-4}"
-  local index="${ansi_map[$color_name]:-}"
-  local color_sequence="${osc};${index:+${index};}#"
-
-  printf "%b" "${esc_prefix}${color_sequence}${color_value}${esc_suffix}"
+  if [[ -z $TMUX ]]; then
+    local esc_prefix='\x1b]'
+    local esc_suffix='\x07'
+    local osc="${osc_map[$color_name]:-4}"
+    local index="${ansi_map[$color_name]:-}"
+    local color_sequence="${osc};${index:+${index};}#"
+    printf "%b" "${esc_prefix}${color_sequence}${color_value}${esc_suffix}"
+  fi
 
   local export_name="THEME_${(U)color_name}"
   export "$export_name"="#$color_value"

@@ -95,10 +95,13 @@ bindkey '^L' forward-word
 # menuselect keymap (active while the completion menu is open).
 # Ctrl+HJKL mirrors arrow-key navigation vim-style.
 zmodload zsh/complist
-bindkey -M menuselect '^H' backward-char
-bindkey -M menuselect '^J' down-line-or-history
-bindkey -M menuselect '^K' up-line-or-history
-bindkey -M menuselect '^L' forward-char
+bindkey -M menuselect '^H'         backward-char
+# bindkey -M menuselect '^I'         menu-complete  # TAB (raw \t)
+# bindkey -M menuselect $'\e[105;5u' menu-complete  # Ghostty/Kitty kbd: Ctrl+I → CSI u
+# bindkey -M menuselect $'\e[9;5u'   menu-complete  # kitty-style fallback
+bindkey -M menuselect '^J'         down-line-or-history
+bindkey -M menuselect '^K'         up-line-or-history
+bindkey -M menuselect '^L'         forward-char
 
 # Completion widget: counts matches via compstate, suppresses list+insert when
 # matches exceed LISTMAX so the "do you wish to see all N?" prompt never fires.
@@ -118,6 +121,7 @@ zle -C _smart_tab_expand complete-word _smart_tab_fn
 # inserted (buffer unchanged), immediately enter menuselect on the same press.
 # When candidates exceed LISTMAX, auto-invoke fzf-tab with a loading message.
 _tab_enter_menu() {
+  POSTDISPLAY=''  # clear autosuggestion ghost before menu becomes interactive
   local buf=$BUFFER cur=$CURSOR
   _smart_tab_nmatches=0
   zle _smart_tab_expand
@@ -129,10 +133,16 @@ _tab_enter_menu() {
   [[ $BUFFER == $buf && $CURSOR == $cur ]] && zle _smart_tab_expand
 }
 zle -N _tab_enter_menu
-bindkey '^I' _tab_enter_menu
-# ^. (Ctrl+Period) → fzf-tab-complete
-#   outside tmux : mintty XTermModifyOtherKeys=1 sends \e[1;5n
-#   inside  tmux : extended-keys on re-encodes as CSI u \e[46;5u (codepoint 46='.', modifier 5=Ctrl)
+# Ctrl+I (Tab + Ctrl):
+#   tmux inside / legacy term : raw 0x09 → '^I'
+#   Ghostty outside tmux      : Kitty kbd → \e[105;5u (codepoint 'i'=105)
+#   kitty-style "associate Tab": \e[9;5u (kept as a no-cost fallback)
+bindkey '^I'         _tab_enter_menu
+bindkey $'\e[105;5u' _tab_enter_menu
+bindkey $'\e[9;5u'   _tab_enter_menu
+# Ctrl+. (Period + Ctrl) → fzf-tab-complete
+#   mintty outside tmux  : XTermModifyOtherKeys=1 → \e[1;5n
+#   tmux extended-keys on: CSI u → \e[46;5u (codepoint '.'=46)
 bindkey $'\e[1;5n'  fzf-tab-complete
 bindkey $'\e[46;5u' fzf-tab-complete
 
@@ -150,6 +160,18 @@ FAST_HIGHLIGHT_STYLES[freecomment]="fg=${THEME_MONO5},italic"
 
 ZPLUGDIR="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/plugins"
 [[ -r $ZPLUGDIR/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && source $ZPLUGDIR/zsh-autosuggestions/zsh-autosuggestions.zsh
+# Append custom clear widgets AFTER source so plugin's default list (which
+# includes accept-line, history-search-*, etc.) is initialized first.
+# Pre-source += sets ${+VAR}=1, causing config.zsh's guard to skip defaults.
+ZSH_AUTOSUGGEST_CLEAR_WIDGETS+=(
+  _tab_enter_menu   # TAB path: clears before menuselect becomes interactive
+  fzf-tab-complete  # Ctrl+. path: clears before fzf opens
+)
+# Disable async on MSYS2/Cygwin: async uses process substitution (fork) per
+# keystroke; fork is ~30-70ms on Windows. Sync mode reads $history in-process.
+# The plugin auto-enables async via `typeset -g ZSH_AUTOSUGGEST_USE_ASYNC=`
+# for zsh >= 5.0.8, so we must explicitly unset after source to disable it.
+[[ $OSTYPE == msys* || $OSTYPE == cygwin* ]] && unset ZSH_AUTOSUGGEST_USE_ASYNC
 [[ -r $ZPLUGDIR/fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh ]] && source $ZPLUGDIR/fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh
 
 # ----- git status (fork-free) -----

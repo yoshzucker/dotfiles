@@ -89,6 +89,8 @@ unset _fzf_copy
   local zplugdir="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/plugins"
   [[ -r $zplugdir/fzf-tab/fzf-tab.plugin.zsh ]] || return 0
   source $zplugdir/fzf-tab/fzf-tab.plugin.zsh
+  # Switch between completion groups (e.g. git subcommands vs file paths).
+  zstyle ':fzf-tab:*' switch-group '<' '>'
   # MSYS2/ucrt64: $OSTYPE=cygwin → fzf-tab defaults continuous-trigger=//;
   # fzf 0.72+ rejects //. Override to / and shield --expect=/ from MSYS2
   # path conversion via MSYS2_ARG_CONV_EXCL='--'.
