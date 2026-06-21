@@ -7,8 +7,7 @@
 # Idempotent: missing -> shallow clone, present -> fast-forward pull.
 #
 # NOTE: load ORDER is significant and is defined in zsh.sh, not here:
-#   fzf-tab -> zsh-autosuggestions -> fast-syntax-highlighting (last).
+#   zsh-autocomplete (before compinit) -> zsh-autosuggestions.
 
-https://github.com/Aloxaf/fzf-tab
+https://github.com/marlonrichert/zsh-autocomplete
 https://github.com/zsh-users/zsh-autosuggestions
-https://github.com/zdharma-continuum/fast-syntax-highlighting

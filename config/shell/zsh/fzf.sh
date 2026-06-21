@@ -79,26 +79,4 @@ export FZF_ALT_C_OPTS=$'--preview "eza --tree --level=2 --color=always --icons=a
 
 unset _fzf_copy
 
-# fzf-tab (optional): ^. opens fzf completion picker.
-# Loaded here (before compinit in zsh.sh) so fzf-tab records
-# _ftb_orig_widget=expand-or-complete, not _tab_enter_menu. If it wraps
-# _tab_enter_menu, that widget's double-call logic fires (buffer unchanged
-# during capture phase) and fzf opens twice. Loading here avoids the issue.
-# Disable: comment this block; TAB + menuselect remain fully active.
-() {
-  local zplugdir="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/plugins"
-  [[ -r $zplugdir/fzf-tab/fzf-tab.plugin.zsh ]] || return 0
-  source $zplugdir/fzf-tab/fzf-tab.plugin.zsh
-  # Switch between completion groups (e.g. git subcommands vs file paths).
-  zstyle ':fzf-tab:*' switch-group '<' '>'
-  # MSYS2/ucrt64: $OSTYPE=cygwin → fzf-tab defaults continuous-trigger=//;
-  # fzf 0.72+ rejects //. Override to / and shield --expect=/ from MSYS2
-  # path conversion via MSYS2_ARG_CONV_EXCL='--'.
-  if [[ $OSTYPE == msys* || $OSTYPE == cygwin* ]]; then
-    _ftb_fzf() { MSYS2_ARG_CONV_EXCL='--' fzf "$@" }
-    zstyle ':fzf-tab:*' fzf-command _ftb_fzf
-    zstyle ':fzf-tab:*' continuous-trigger '/'
-  fi
-}
-
 # --- end of fzf.sh -------------------------------------------------------
