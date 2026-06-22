@@ -7,6 +7,15 @@
 ;; flag so it works without relying on config-relative path resolution.
 ;;; Code:
 
+(defgroup my-marp nil
+  "Marp slide preview and export helpers."
+  :group 'tools)
+
+(defcustom my/marp-server-open-browser t
+  "Non-nil means automatically open the preview URL in the default browser when server starts."
+  :type 'boolean
+  :group 'my-marp)
+
 (defvar my/marp-config-dir
   (expand-file-name "marp"
                     (or (getenv "XDG_CONFIG_HOME")
@@ -25,6 +34,23 @@
 (defun my/marp--preview-url ()
   "Return the full preview URL for the Marp live server."
   (format "http://localhost:%d" my/marp--server-port))
+
+(defun my/marp--browser-opening-filter (url)
+  "Return a process filter that opens URL in browser once when Marp is ready."
+  (let ((opened nil))
+    (lambda (proc output)
+      (when (buffer-live-p (process-buffer proc))
+        (with-current-buffer (process-buffer proc)
+          (let ((moving (= (point) (process-mark proc))))
+            (save-excursion
+              (goto-char (process-mark proc))
+              (insert output)
+              (set-marker (process-mark proc) (point)))
+            (when moving (goto-char (process-mark proc))))))
+      (when (and (not opened)
+                 (string-match-p (regexp-quote url) output))
+        (setq opened t)
+        (browse-url url)))))
 
 (defun my/marp--config-args ()
   "Flags applying the global Marp config + custom theme, when present."
@@ -55,6 +81,8 @@ If a server is already running, just surface its output buffer."
                             (lambda (p event)
                               (when (memq (process-status p) '(exit signal))
                                 (message "Marp server exited: %s" (string-trim event)))))
+      (when my/marp-server-open-browser
+        (set-process-filter proc (my/marp--browser-opening-filter (my/marp--preview-url))))
       (display-buffer buf)
       (message "Marp server started for %s — open %s"
                (abbreviate-file-name dir)
