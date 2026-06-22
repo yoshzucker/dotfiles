@@ -25,7 +25,7 @@
 
 # Theme identity — kept here because only the interactive terminal layer consumes it.
 export THEME_NAME="gensho"
-export THEME_VARIANT="${THEME_VARIANT:-dark}"      # dark | light
+export THEME_VARIANT="${THEME_VARIANT:-light}"      # dark | light
 
 # Truecolor — terminal-wide, not theme-specific.
 export COLORTERM=truecolor
@@ -64,12 +64,14 @@ set_color() {
   )
 
   if [[ -z $TMUX ]]; then
-    local esc_prefix='\x1b]'
-    local esc_suffix='\x07'
-    local osc="${osc_map[$color_name]:-4}"
     local index="${ansi_map[$color_name]:-}"
-    local color_sequence="${osc};${index:+${index};}#"
-    printf "%b" "${esc_prefix}${color_sequence}${color_value}${esc_suffix}"
+    local osc="${osc_map[$color_name]:-}"
+    if [[ -n $index || -n $osc ]]; then
+      local esc_prefix='\x1b]'
+      local esc_suffix='\x07'
+      local color_sequence="${osc:-4};${index:+${index};}#"
+      printf "%b" "${esc_prefix}${color_sequence}${color_value}${esc_suffix}"
+    fi
   fi
 
   local export_name="THEME_${(U)color_name}"
@@ -95,6 +97,8 @@ typeset -ga GENSHO_DARK_HEX=(
   9a79c9  # 13 brightmagenta purple
   797c7d  # 14 brightcyan   mono6
   888c8c  # 15 brightwhite  mono7
+  2a2c2c  # 16 dim0         HSLuv(200,5,18)
+  2f3030  # 17 dim1         HSLuv(200,5,20)
 )
 typeset -ga GENSHO_LIGHT_HEX=(
   494b4b  # 0  black        mono1
@@ -113,12 +117,15 @@ typeset -ga GENSHO_LIGHT_HEX=(
   9a79c9  # 13 brightmagenta purple
   929697  # 14 brightcyan   mono6
   a2a6a7  # 15 brightwhite  mono7
+  404242  # 16 dim0         HSLuv(200,5,28)
+  444747  # 17 dim1         HSLuv(200,5,30)
 )
 
 # Slot 0..15 → set_color name (used to walk the active palette).
 typeset -ga _GENSHO_SLOT_NAMES=(
   black red green yellow blue magenta cyan white
   br_black br_red br_green br_yellow br_blue br_magenta br_cyan br_white
+  dim0 dim1
 )
 
 _gensho_emit_palette() {
@@ -129,7 +136,7 @@ _gensho_emit_palette() {
     hex=("${GENSHO_DARK_HEX[@]}")
   fi
   local i
-  for (( i = 1; i <= 16; i++ )); do
+  for (( i = 1; i <= 18; i++ )); do
     set_color "${_GENSHO_SLOT_NAMES[i]}" "${hex[i]}"
   done
   # OSC 10/11/12 — bg uses slot 8 hex (= mono0), fg uses slot 15 hex (= mono7),

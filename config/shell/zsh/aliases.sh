@@ -12,7 +12,10 @@
 shell-reset() {
   rm -f "${XDG_CACHE_HOME:-$HOME/.cache}"/zsh/init_*.zsh
   rm -f "${XDG_CACHE_HOME:-$HOME/.cache}"/zsh/completions.zwc  # completion digest; rebuilt on next start
-  command -v tmux >/dev/null 2>&1 && tmux kill-server 2>/dev/null
+  if command -v tmux >/dev/null 2>&1; then
+    tmux kill-server 2>/dev/null
+    rm -f "/tmp/tmux-$(id -u)/default" 2>/dev/null
+  fi
   exec zsh -l
 }
 

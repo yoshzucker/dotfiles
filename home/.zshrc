@@ -19,7 +19,9 @@ source ~/.config/shell/zsh/term.sh    # terminal window size cycling (C-w e)
 # Runs only in a real login terminal, after colors.sh exported THEME_MONO*
 # (the status bar reads those at server-start time).
 if [[ -o interactive && -o login && -z $TMUX ]] && command -v tmux >/dev/null 2>&1; then
-  (tmux has-session -t _daemon 2>/dev/null || tmux new-session -d -s _daemon) &!
+  (tmux has-session -t _daemon 2>/dev/null \
+    || tmux new-session -d -s _daemon 2>/dev/null \
+    || { rm -f "/tmp/tmux-$(id -u)/default" 2>/dev/null; tmux new-session -d -s _daemon }) &!
 fi
 
 # --- .zshrc ends here ----------------------------------------------------

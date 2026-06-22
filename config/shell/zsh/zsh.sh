@@ -203,6 +203,8 @@ bindkey '^J' down-line-or-select
 # menuselect keymap (active during completion menu): vim-style navigation.
 bindkey -M menuselect '^J' down-history
 bindkey -M menuselect '^K' up-history
+# ^F accepts the current candidate (mirrors autosuggest-accept outside menuselect).
+bindkey -M menuselect '^F' accept-line
 
 # ----- zoxide -----
 # Caches init scripts keyed by binary name; regenerates when the binary changes.
