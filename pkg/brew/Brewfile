@@ -55,6 +55,7 @@ brew "python"
 brew "r"
 brew "sbcl"
 brew "node"
+brew "marp-cli"
 
 # --- Linux-only CLI ----------------------------------------------------------
 # (none for now)

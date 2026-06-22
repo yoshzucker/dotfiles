@@ -1,0 +1,16 @@
+# Global Marp CLI config (YAML).
+#
+# YAML/JSON is used on purpose: the Scoop standalone binary CANNOT load
+# JavaScript/ESM config (marp.config.mjs / .js) — only YAML/JSON works on both
+# the standalone binary and the Node/Homebrew install.
+#
+# The custom theme is intentionally NOT set here: a theme path cannot be written
+# portably in YAML (an absolute path differs per machine, and relative-path
+# resolution from a config file is unspecified). Instead the `marps` shell
+# helper and the Emacs commands inject
+#   --theme "$HOME/.config/marp/themes/custom.css"
+# where the home directory expands reliably.
+
+allowLocalFiles: true   # embed local images/assets into PDF/PPTX
+html: true              # allow raw HTML in slides
+# browser: left unset -> auto-detect the environment default (Edge/Chrome)

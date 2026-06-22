@@ -1,0 +1,10 @@
+/* @theme custom */
+@import 'default';
+
+section {
+  font-family: "Yu Gothic", "Hiragino Kaku Gothic ProN", "Noto Sans CJK JP",
+               "Segoe UI", system-ui, sans-serif;
+}
+section pre, section code {
+  font-family: "Cascadia Code", "Consolas", "Menlo", monospace;
+}

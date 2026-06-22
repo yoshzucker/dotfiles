@@ -4,6 +4,28 @@
 
 [ -n "$ZSH_VERSION" ] || return 0
 
+# ----- shell-reset: flush derived state, reload fresh -----
+# Clears the tool-init caches (~/.cache/zsh/init_*.zsh) and the tmux server,
+# then re-execs a fresh login shell (which re-warms the tmux daemon). Use
+# after a theme/PATH change or a tool upgrade if anything looks stale.
+# Everything it removes is derived data and is regenerated -- nothing is lost.
+shell-reset() {
+  rm -f "${XDG_CACHE_HOME:-$HOME/.cache}"/zsh/init_*.zsh
+  rm -f "${XDG_CACHE_HOME:-$HOME/.cache}"/zsh/completions.zwc  # completion digest; rebuilt on next start
+  command -v tmux >/dev/null 2>&1 && tmux kill-server 2>/dev/null
+  exec zsh -l
+}
+
+# ----- open (cross-platform file/URL opener) -----
+# macOS has /usr/bin/open natively; provide a shim on MSYS2 and Linux.
+if [[ $OSTYPE == msys* || $OSTYPE == cygwin* ]]; then
+  open() { start "$@" }
+  compdef _files start   # start has no zsh completion spec; add file completion
+elif ! command -v open >/dev/null 2>&1; then
+  command -v xdg-open >/dev/null 2>&1 && open() { xdg-open "$@" }
+fi
+compdef _files open
+
 # ----- eza (ls family) -----
 # Icons + git status + relative time + age gradient for ll/lla.
 # `lt` is a shallow 2-level tree that respects .gitignore.
@@ -62,27 +84,20 @@ alias gitroot='cd $(git rev-parse --show-toplevel)'
 alias R='R --no-save'
 alias rgp="rg --pre-glob '*.{pdf,xl[tas][bxm],xl[wsrta],do[ct],do[ct][xm],p[po]t[xm],p[op]t,html,htm,xhtm,xhtml,epub,chm,od[stp]}' --pre rgpipe"
 
-
-# ----- open (cross-platform file/URL opener) -----
-# macOS has /usr/bin/open natively; provide a shim on MSYS2 and Linux.
-if [[ $OSTYPE == msys* || $OSTYPE == cygwin* ]]; then
-  open() { start "$@" }
-  compdef _files start   # start has no zsh completion spec; add file completion
-elif ! command -v open >/dev/null 2>&1; then
-  command -v xdg-open >/dev/null 2>&1 && open() { xdg-open "$@" }
+# ----- marp (slide live preview server) -----
+# `marps [dir]` serves the directory with live reload (default: cwd), applying
+# the global Marp config (local-file embedding, raw HTML) + the custom theme.
+# The theme is passed as a flag (not via the YAML config) so $HOME expands
+# portably. The authoring server is the one thing you need running while
+# writing slides; exports are just e.g.
+#   marp --config-file ~/.config/marp/marp.config.yml \
+#        --theme ~/.config/marp/themes/custom.css deck.md --pdf
+if command -v marp >/dev/null 2>&1; then
+  marps() {
+    marp --config-file "$HOME/.config/marp/marp.config.yml" \
+         --theme "$HOME/.config/marp/themes/custom.css" \
+         --server "${1:-.}"
+  }
 fi
-compdef _files open
-
-# ----- shell-reset: flush derived state, reload fresh -----
-# Clears the tool-init caches (~/.cache/zsh/init_*.zsh) and the tmux server,
-# then re-execs a fresh login shell (which re-warms the tmux daemon). Use
-# after a theme/PATH change or a tool upgrade if anything looks stale.
-# Everything it removes is derived data and is regenerated -- nothing is lost.
-shell-reset() {
-  rm -f "${XDG_CACHE_HOME:-$HOME/.cache}"/zsh/init_*.zsh
-  rm -f "${XDG_CACHE_HOME:-$HOME/.cache}"/zsh/completions.zwc  # completion digest; rebuilt on next start
-  command -v tmux >/dev/null 2>&1 && tmux kill-server 2>/dev/null
-  exec zsh -l
-}
 
 # --- end of aliases.sh ---------------------------------------------------

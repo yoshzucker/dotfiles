@@ -133,9 +133,9 @@
 (use-package tabspaces
   :after consult
   :config
-  (setq tabspaces-include-buffers '("*GNU Emacs*" "*scratch*" "*Messages*" "*Warnings*"))
+  (setq tabspaces-include-buffers '("*GNU Emacs*" "*scratch*" "*Messages*" "*Warnings*" "*Backtrace*"))
 
-  (defcustom my/tabspaces-include-prefix '("*Org Agenda" "*Org Dayflow")
+  (defcustom my/tabspaces-include-prefix '("*Org Agenda" "*Org Dayflow" "*straigt" "magit")
     "List of buffer name prefixes that should always be included in tabspaces.")
   
   (defun my/tabspaces-include-prefix (orig-fn buffer)
