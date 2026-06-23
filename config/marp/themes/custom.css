@@ -1,4 +1,9 @@
 /* @theme custom */
+/*
+ * custom: the white/formal theme (default `@import` background) with CJK +
+ * monospace fonts. Use it for exports meant for a real presentation.
+ * For dark, editor-matched authoring see gensho-light.css in this directory.
+ */
 @import 'default';
 
 section {

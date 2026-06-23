@@ -14,7 +14,7 @@ shell-reset() {
   rm -f "${XDG_CACHE_HOME:-$HOME/.cache}"/zsh/completions.zwc  # completion digest; rebuilt on next start
   if command -v tmux >/dev/null 2>&1; then
     tmux kill-server 2>/dev/null
-    rm -f "/tmp/tmux-$(id -u)/default" 2>/dev/null
+    rm -f "/tmp/tmux-$(id -u)/default"
   fi
   exec zsh -l
 }
@@ -87,19 +87,35 @@ alias gitroot='cd $(git rev-parse --show-toplevel)'
 alias R='R --no-save'
 alias rgp="rg --pre-glob '*.{pdf,xl[tas][bxm],xl[wsrta],do[ct],do[ct][xm],p[po]t[xm],p[op]t,html,htm,xhtm,xhtml,epub,chm,od[stp]}' --pre rgpipe"
 
-# ----- marp (slide live preview server) -----
-# `marps [dir]` serves the directory with live reload (default: cwd), applying
-# the global Marp config (local-file embedding, raw HTML) + the custom theme.
-# The theme is passed as a flag (not via the YAML config) so $HOME expands
-# portably. The authoring server is the one thing you need running while
-# writing slides; exports are just e.g.
-#   marp --config-file ~/.config/marp/marp.config.yml \
-#        --theme ~/.config/marp/themes/custom.css deck.md --pdf
+# ----- marp (slide live preview server + export) -----
+# Both helpers register the whole themes dir (--theme-set, $HOME expands
+# portably) and pick a theme by its `/* @theme NAME */` name, so they stay
+# theme-agnostic: drop a new CSS into ~/.config/marp/themes and it's selectable.
+# Theme *colors* live only in those CSS files; the default theme *names* are the
+# only knob here, overridable per-invocation via env vars (zsh analog of the
+# Emacs defcustoms).
+#
+# `marps [dir]`         live-reload server (default: cwd). Dark, editor-matched
+#                       gensho-light by default; MARP_PREVIEW_THEME overrides.
+# `marpx file [fmt] [theme]`  one-shot export. fmt=pdf|pptx|html (default pdf),
+#                       theme defaults to MARP_EXPORT_THEME (white `custom`).
 if command -v marp >/dev/null 2>&1; then
   marps() {
     marp --config-file "$HOME/.config/marp/marp.config.yml" \
-         --theme "$HOME/.config/marp/themes/custom.css" \
+         --theme-set "$HOME/.config/marp/themes" \
+         --theme "${MARP_PREVIEW_THEME:-gensho-light}" \
          --server "${1:-.}"
+  }
+  marpx() {
+    local file="$1" fmt="${2:-pdf}" theme="${3:-${MARP_EXPORT_THEME:-custom}}"
+    if [[ -z "$file" ]]; then
+      print -u2 "usage: marpx <file> [pdf|pptx|html] [theme]"
+      return 2
+    fi
+    marp --config-file "$HOME/.config/marp/marp.config.yml" \
+         --theme-set "$HOME/.config/marp/themes" \
+         --theme "$theme" \
+         "--$fmt" -- "$file"
   }
 fi
 

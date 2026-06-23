@@ -1,5 +1,6 @@
 ---
 marp: true
+theme: custom
 paginate: true
 # header: "Header text"
 # footer: "Footer text"

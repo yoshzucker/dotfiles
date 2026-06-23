@@ -1,0 +1,71 @@
+/* @theme gensho-light */
+/*
+ * gensho-light: a dark-toned Marp theme that mirrors the editor (gensho-theme,
+ * light variant) so the live preview no longer glares white against a dark
+ * editor. Pick it for authoring/preview; use the white `custom` theme for
+ * formal exports.
+ *
+ * Colors are harvested from GENSHO_LIGHT_HEX in
+ *   config/shell/zsh/colors.sh   (single source of truth: gensho-theme.el,
+ *   `gensho-export-palette 'hex-list`). Re-harvest there if the palette moves.
+ *   bg=mono0 #3c3d3e  fg=mono7 #a2a6a7  blue #638cb4  mono1 #494b4b
+ *   mono3 #656868  mono4 #747777  mono6 #929697  dim1 #444747
+ */
+@import 'default';
+
+section {
+  background-color: #3c3d3e;
+  color: #a2a6a7;
+  font-family: "Yu Gothic", "Hiragino Kaku Gothic ProN", "Noto Sans CJK JP",
+               "Segoe UI", system-ui, sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: #a2a6a7;
+}
+
+a {
+  color: #638cb4;
+}
+
+strong {
+  color: #a2a6a7;
+}
+
+hr {
+  border-color: #656868;
+}
+
+/* Code: a touch darker than the slide so blocks read as inset. */
+section pre, section code {
+  font-family: "Cascadia Code", "Consolas", "Menlo", monospace;
+}
+section code {
+  background-color: #333435;
+  color: #a2a6a7;
+}
+section pre {
+  background-color: #333435;
+  border: 1px solid #747777;
+}
+section pre code {
+  background-color: transparent;
+  border: none;
+}
+
+blockquote {
+  border-left-color: #656868;
+  color: #929697;
+}
+
+table th, table td {
+  border-color: #747777;
+}
+table th {
+  background-color: #444747;
+}
+
+/* Chrome: header, footer, and page numbers stay muted. */
+header, footer, section::after {
+  color: #747777;
+}

@@ -34,7 +34,7 @@ export COLORTERM=truecolor
 # (x/) subdir depending on platform; the (N) nullglob qualifier matches either
 # without a subprocess. Array assignment (not [[ ]]) so filename generation runs.
 _ti24=($HOME/.terminfo/*/xterm-24bits(N))
-(( $#_ti24 )) || tic -x -o "$HOME/.terminfo" "$HOME/dotfiles/config/terminfo/24bit.src" 2>/dev/null
+(( $#_ti24 )) || tic -x -o "$HOME/.terminfo" "$HOME/dotfiles/config/terminfo/24bit.src"
 unset _ti24
 # xterm-24bits is just xterm-256color + Tc; only needed where Tc is missing
 # (e.g. mintty default xterm-256color terminfo on Windows). Skip on terminals

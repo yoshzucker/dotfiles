@@ -103,7 +103,7 @@ setopt correct nobeep auto_pushd auto_cd interactive_comments
   local zwc="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/completions.zwc"
   if [[ ! -e $zwc || $commands[zsh] -nt $zwc ]]; then
     local files=( ${^fpath}/_*(N.) )
-    (( $#files )) && { mkdir -p "${zwc:h}"; builtin zcompile -U "$zwc" $files 2>/dev/null }
+    (( $#files )) && { mkdir -p "${zwc:h}"; builtin zcompile -U "$zwc" $files }
   fi
   [[ -e $zwc ]] && fpath=( "$zwc" $fpath )
 }
@@ -215,7 +215,7 @@ _cached_init() {
   local cache="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/init_${name}.zsh"
   if [[ ! -f "$cache" || "$bin_path" -nt "$cache" ]]; then
     mkdir -p "${cache:h}"
-    "$@" > "$cache" 2>/dev/null
+    "$@" > "$cache"
   fi
   source "$cache"
 }

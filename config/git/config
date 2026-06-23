@@ -3,7 +3,7 @@
 
 [core]
 	editor = emacsclient
-	pager = delta
+	pager = less -FRX
 	# EOL is enforced per-repo via .gitattributes (text=auto eol=lf, Unix/macOS
 	# style, matching Emacs utf-8-unix). Disable Git-for-Windows' default
 	# LF->CRLF checkout conversion so it never re-introduces CRLF drift.
@@ -11,6 +11,12 @@
 
 [interactive]
 	diffFilter = delta --color-only
+
+[pager]
+	diff  = delta
+	log   = delta
+	show  = delta
+	blame = delta
 
 [delta]
 	navigate = true
