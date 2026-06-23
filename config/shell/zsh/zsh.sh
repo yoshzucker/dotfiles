@@ -128,10 +128,11 @@ compinit -C -d ~/.zcompdump-$HOST  # force-rebuild: compinit -u
 # ----- Prompt & VCS Info -----
 setopt prompt_subst
 typeset -g vcs_info_msg_0_=""
+typeset -g _prompt_status_color=$THEME_MONO6
 
 PROMPT=$'\n%F{'"${THEME_MONO7}"$'}%(4~|.../%2~|%~)%f'\
 $' %F{'"${THEME_MONO5}"$'}${vcs_info_msg_0_}%f\n'\
-$'%(?.%F{'"${THEME_MONO6}"$'}.%F{red})❯%f '
+$'%F{${_prompt_status_color}}❯%f '
 
 # RPROMPT is fixed for the shell lifetime (SSH/root context never changes).
 # Per-prompt $(...) would fork a subshell (~42ms on Windows).
@@ -145,6 +146,19 @@ fi
 
 # Fork-free git branch/action: reads .git/ directly, no subprocess.
 autoload -Uz add-zsh-hook
+
+# Capture the real last-command exit status before any other precmd hook
+# (git info / zsh-autocomplete async / autosuggestions) clobbers $?. The prompt
+# sigil reads $_prompt_status_color instead of a live %(?..) so its color tracks
+# the command, not whatever status a hook happened to leave behind.
+_prompt_capture_status() {
+  if (( $? == 0 )); then
+    _prompt_status_color=$THEME_MONO6
+  else
+    _prompt_status_color=red
+  fi
+}
+
 _git_prompt_info() {
   emulate -L zsh
   local dir=$PWD gitdir head ref line action
@@ -227,5 +241,10 @@ if (( ${+functions[__zoxide_hook]} )); then
   __zoxide_hook() { __zoxide_hook_sync &! }
 fi
 unfunction _cached_init
+
+# ----- Prompt status capture -----
+# Prepend after all plugins registered their precmd hooks so this runs FIRST and
+# sees the command's true $? before git/autocomplete/autosuggestions clobber it.
+precmd_functions=(_prompt_capture_status ${(@)precmd_functions:#_prompt_capture_status})
 
 # --- end of zsh.sh -------------------------------------------------------

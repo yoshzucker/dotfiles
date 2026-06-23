@@ -1,7 +1,7 @@
 # === Ghostty （for Emacs + tmux user） ===
 
 # --- Font ---
-font-family = "FirgeNerd Console"
+font-family = "PlemolJP Console NF"
 font-size = 13
 # font-feature = "liga"
 

@@ -6,7 +6,7 @@ CursorType=block
 CursorBlinks=no
 
 # Text
-Font=FirgeNerd Console
+Font=PlemolJP Console NF
 FontHeight=13
 
 BoldAsFont=no
