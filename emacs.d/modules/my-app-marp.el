@@ -115,12 +115,11 @@ The actual theme is chosen separately with --theme by the caller."
 (defun my/marp-start-server (&optional arg)
   "Start a Marp live-preview server for the current file's directory.
 Uses `my/marp-preview-theme'; with a prefix ARG, prompt for the theme.
-If a server is already running, just surface its output buffer."
+If a server is already running, report its URL.  Use `my/marp-server-buffer'
+\\[my/marp-server-buffer] to inspect server output on demand."
   (interactive "P")
   (if (process-live-p (get-process my/marp--server-name))
-      (progn
-        (display-buffer my/marp--server-buffer)
-        (message "Marp server already running — %s" (my/marp--preview-url)))
+      (message "Marp server already running — %s  (C-c m l to view log)" (my/marp--preview-url))
     (let* ((theme (if arg
                       (my/marp--read-theme "Preview theme: " my/marp-preview-theme)
                     my/marp-preview-theme))
@@ -137,10 +136,18 @@ If a server is already running, just surface its output buffer."
                                 (message "Marp server exited: %s" (string-trim event)))))
       (when my/marp-server-open-browser
         (set-process-filter proc (my/marp--browser-opening-filter (my/marp--preview-url))))
-      (display-buffer buf)
-      (message "Marp server started for %s — open %s"
+      (message "Marp server started for %s — open %s  (C-c m l to view log)"
                (abbreviate-file-name dir)
                (my/marp--preview-url)))))
+
+(defun my/marp-server-buffer ()
+  "Display the Marp live-preview server output buffer.
+The server buffer is not shown automatically on startup (like `eglot-events-buffer').
+Use this command to inspect server output on demand."
+  (interactive)
+  (if (get-buffer my/marp--server-buffer)
+      (display-buffer my/marp--server-buffer)
+    (message "No Marp server buffer (start with C-c m s)")))
 
 (defun my/marp-stop-server ()
   "Stop the Marp live-preview server if it is running."
@@ -176,6 +183,7 @@ If a server is already running, just surface its output buffer."
        :key
        "C-c m s" #'my/marp-start-server
        "C-c m k" #'my/marp-stop-server
+       "C-c m l" #'my/marp-server-buffer
        "C-c m e" #'my/marp-export))
 
 (provide 'my-app-marp)

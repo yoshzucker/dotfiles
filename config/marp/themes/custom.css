@@ -13,3 +13,9 @@ section {
 section pre, section code {
   font-family: "Cascadia Code", "Consolas", "Menlo", monospace;
 }
+
+/* Dense: reduces the base font size for content-heavy slides.
+   Apply: <!-- _class: dense --> */
+section.dense {
+  font-size: 0.75em;
+}
