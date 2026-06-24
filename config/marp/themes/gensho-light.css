@@ -69,3 +69,9 @@ table th {
 header, footer, section::after {
   color: #747777;
 }
+
+/* Dense: reduces the base font size for content-heavy slides.
+   Apply: <!-- _class: dense --> */
+section.dense {
+  font-size: 0.75em;
+}
