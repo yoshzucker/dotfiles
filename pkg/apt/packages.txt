@@ -7,6 +7,7 @@
 
 zsh
 curl            # required for Homebrew installer
+unzip           # required by local/bin/build-plemoljp-nf (font build)
 build-essential # required to build from source (Homebrew etc.)
 procps          # required by Homebrew on Linux
 git             # required by Homebrew + general use

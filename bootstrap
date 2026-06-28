@@ -846,6 +846,34 @@ install_rgpipe() {
   print_line "$left_message" "Finished."
 }
 
+install_fonts() {
+  # Builds and installs the custom "PlemolJP NF" font (non-Console PlemolJP with
+  # full-width arrows + Nerd Font icons) via local/bin/build-plemoljp-nf.
+  # Idempotent: skips when already installed. Requires fontforge (Brewfile).
+  # Windows is handled separately by bootstrap.ps1 (Install-Fonts).
+  local font_dir
+  case "$os" in
+    darwin) font_dir="$HOME/Library/Fonts" ;;
+    linux)  font_dir="$HOME/.local/share/fonts" ;;
+    *)      return ;;
+  esac
+
+  if [ -f "$font_dir/PlemolJPNF-Regular.ttf" ]; then
+    return
+  fi
+  if ! command -v fontforge >/dev/null 2>&1; then
+    echo "fontforge not found; skipping PlemolJP NF font build."
+    return
+  fi
+
+  left_message="Building PlemolJP NF font"
+  print_line "$left_message" "Started."
+
+  "$script_dir/local/bin/build-plemoljp-nf" || echo "⚠️  PlemolJP NF build failed."
+
+  print_line "$left_message" "Finished."
+}
+
 install_zsh_plugins() {
   # Clones the zsh plugins listed in pkg/zsh-plugins/plugins.txt, which
   # config/shell/zsh/zsh.sh sources directly (no plugin manager: sheldon forks a
@@ -895,6 +923,7 @@ perform_full_bootstrap() {
   install_apt_packages
   install_brew
   install_brew_packages
+  install_fonts
   install_pacman_packages
   install_r_packages
   install_rgpipe

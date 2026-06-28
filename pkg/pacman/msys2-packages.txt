@@ -31,6 +31,11 @@ ffmpeg:p        # yazi preview: video/audio
 zsh:            # msys base repo
 pactoys:        # provides pacboy (installer also self-bootstraps this)
 
+# --- font build (PlemolJP NF, via local/bin/build-plemoljp-nf) ---
+fontforge:p     # merges PlemolJP + Console NF glyphs into "PlemolJP NF"
+curl:           # download font sources (msys base repo)
+unzip:          # extract font source zips (msys base repo)
+
 # --- NOT packaged in MSYS2 ---------------------------------------------------
 # Provided via Scoop instead (see pkg/scoop/scoopfile.json), on PATH through the
 # Scoop shims appended in config/shell/env/msys.sh:

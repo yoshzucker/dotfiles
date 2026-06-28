@@ -47,6 +47,8 @@
 
 (use-package tempel
   :config
+  (setq tempel-path (expand-file-name "etc/tempel/*.eld" user-emacs-directory))
+
   (my/define-key
    (:map tempel-map
          :after evil

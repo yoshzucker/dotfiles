@@ -57,6 +57,14 @@ brew "sbcl"
 brew "node"
 brew "marp-cli"
 
+# --- Fonts -------------------------------------------------------------------
+# fontforge builds the custom "PlemolJP NF" (full-width arrows + Nerd icons)
+# via local/bin/build-plemoljp-nf (run from bootstrap's install_fonts).
+brew "fontforge"
+# PlemolJP Console NF: used directly by Ghostty, and as the Nerd-glyph source
+# for the "PlemolJP NF" build (so the build skips re-downloading it).
+cask "font-plemol-jp-nf" if OS.mac?
+
 # --- Linux-only CLI ----------------------------------------------------------
 # (none for now)
 
