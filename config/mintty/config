@@ -6,8 +6,10 @@ CursorType=block
 CursorBlinks=no
 
 # Text
-Font=PlemolJP Console NF
+Font=PlemolJP NF
 FontHeight=13
+# Render ambiguous-width chars (arrows, etc.) as full-width (2 cells)
+Charwidth=ambig-wide
 
 BoldAsFont=no
 BoldAsColour=no

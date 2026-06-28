@@ -880,6 +880,106 @@ function Update-MSYS2Packages {
     Write-PrintLine $leftMessage "Finished."
 }
 
+function Install-Fonts {
+    # Builds the custom "PlemolJP NF" font (non-Console PlemolJP with full-width
+    # arrows + Nerd Font icons) by running local/bin/build-plemoljp-nf inside the
+    # Scoop-installed MSYS2 (which provides fontforge), then registers the built
+    # TTFs for the current user so mintty can use them. Mirrors install_fonts()
+    # in the Unix 'bootstrap'. Idempotent; non-fatal on failure.
+    $fontName    = "PlemolJP NF"
+    $userFontDir = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts"
+    $regPath     = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts"
+
+    if (Test-Path -LiteralPath (Join-Path $userFontDir "PlemolJPNF-Regular.ttf")) {
+        return
+    }
+
+    $bash = Get-MSYS2BashPath
+    if (-not $bash) {
+        Write-Host "MSYS2 (via Scoop) not found; skipping PlemolJP NF font build." -ForegroundColor Yellow
+        Write-Host "  Install the ttf manually, or rerun bootstrap after MSYS2 is set up." -ForegroundColor Yellow
+        return
+    }
+
+    $leftMessage = "Building PlemolJP NF font (via MSYS2 fontforge)"
+    Write-PrintLine $leftMessage "Started."
+
+    # Build into a known Windows temp dir so PS can pick up + register the result.
+    $work = Join-Path $env:TEMP "plemoljp-nf-build"
+    if (Test-Path -LiteralPath $work) {
+        Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    New-Item -ItemType Directory -Path $work -Force | Out-Null
+
+    # Same temp-file + env-var + cygpath approach as Install-MSYS2Packages: the
+    # build script downloads sources, merges with fontforge, and (on MSYS2) leaves
+    # the ttf in $WORKDIR/dist without trying to install them.
+    $bashScript = (@'
+set -e
+export WORKDIR="$(cygpath -u "$DOTFILES_FONT_WORKDIR")"
+repo="$(cygpath -u "$DOTFILES_REPO")"
+exec "$repo/local/bin/build-plemoljp-nf"
+'@) -replace "`r", ""
+
+    $tmp = [System.IO.Path]::GetTempFileName()
+    $savedMsystem = $env:MSYSTEM
+    $savedRepo    = $env:DOTFILES_REPO
+    $savedWork    = $env:DOTFILES_FONT_WORKDIR
+    try {
+        [System.IO.File]::WriteAllText($tmp, $bashScript, (New-Object System.Text.UTF8Encoding $false))
+        $posix = (& $bash -lc 'cygpath -u "$0"' $tmp | Select-Object -First 1).Trim()
+
+        $env:MSYSTEM = "UCRT64"
+        $env:DOTFILES_REPO = $script:ScriptDir
+        $env:DOTFILES_FONT_WORKDIR = $work
+        & $bash -l $posix
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Warning: PlemolJP NF build failed (exit $LASTEXITCODE)." -ForegroundColor Yellow
+            return
+        }
+    } finally {
+        $env:MSYSTEM = $savedMsystem
+        $env:DOTFILES_REPO = $savedRepo
+        $env:DOTFILES_FONT_WORKDIR = $savedWork
+        [System.IO.File]::Delete($tmp)
+    }
+
+    $distDir = Join-Path $work "dist"
+    $ttfs = Get-ChildItem -LiteralPath $distDir -Filter "PlemolJPNF-*.ttf" -ErrorAction SilentlyContinue
+    if (-not $ttfs) {
+        Write-Host "No built fonts found in $distDir; skipping registration." -ForegroundColor Yellow
+        return
+    }
+
+    New-Item -ItemType Directory -Path $userFontDir -Force | Out-Null
+    if (-not (Test-Path -LiteralPath $regPath)) {
+        New-Item -Path $regPath -Force | Out-Null
+    }
+
+    foreach ($ttf in $ttfs) {
+        $dest = Join-Path $userFontDir $ttf.Name
+        Copy-Item -LiteralPath $ttf.FullName -Destination $dest -Force
+
+        $style = switch -regex ($ttf.Name) {
+            "BoldItalic" { "Bold Italic"; break }
+            "Bold"       { "Bold"; break }
+            "Italic"     { "Italic"; break }
+            default      { "Regular" }
+        }
+        if ($style -eq "Regular") {
+            $valueName = "$fontName (TrueType)"
+        } else {
+            $valueName = "$fontName $style (TrueType)"
+        }
+        # Per-user registered fonts store the full file path as the value data.
+        New-ItemProperty -Path $regPath -Name $valueName -Value $dest -PropertyType String -Force | Out-Null
+        Write-Host "Installed font: $valueName -> $dest"
+    }
+
+    Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+    Write-PrintLine $leftMessage "Finished."
+}
+
 function Install-RPackages {
     if (-not (Get-Command Rscript -ErrorAction SilentlyContinue)) {
         return
@@ -975,6 +1075,7 @@ function Perform-FullBootstrap {
     Install-Scoop
     Install-ScoopPackages
     Install-MSYS2Packages
+    Install-Fonts
     Install-RPackages
     Install-ZshPlugins
     Setup-Links

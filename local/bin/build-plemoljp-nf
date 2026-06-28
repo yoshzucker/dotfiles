@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+IFS=$'\n\t'
+
+# build-plemoljp-nf — build a single "PlemolJP NF" font: NON-Console PlemolJP
+# (East-Asian ambiguous-width glyphs such as arrows are FULL width) carrying the
+# Nerd Font icons taken from the official "PlemolJP Console NF".
+#
+# Why: the official Nerd Fonts build of PlemolJP (PlemolJP_NF release) ships
+# Console variants only, which draw ambiguous-width glyphs (→ ★ ※ …) at half
+# width. Patching the non-Console PlemolJP directly with nerd-fonts' font-patcher
+# does not reproduce correct single-cell icon/powerline sizing for this
+# dual-width CJK font. Instead we copy the already-correct Nerd glyphs (PUA) out
+# of PlemolJP Console NF into the non-Console PlemolJP. Both share the same em
+# and design, so the icons drop in unchanged while the arrows stay full width.
+#
+# Result family: "PlemolJP NF"  (styles: Regular / Bold / Italic / BoldItalic)
+#
+# Prerequisite: fontforge (macOS: brew install fontforge).
+# Installs into ~/Library/Fonts (macOS) or ~/.local/share/fonts (Linux). On
+# Windows/MSYS2 the ttf are only built into "$WORKDIR/dist" (bootstrap.ps1
+# registers them for the user). Override WORKDIR to control the build location.
+
+PLEMOLJP_VERSION="${PLEMOLJP_VERSION:-3.0.0}"
+STYLES=(Regular Bold Italic BoldItalic)
+
+command -v fontforge >/dev/null || { echo "error: fontforge not found (brew install fontforge)" >&2; exit 1; }
+
+WORKDIR="${WORKDIR:-$(mktemp -d "${TMPDIR:-/tmp}/plemoljp-nf.XXXXXX")}"
+DISTDIR="$WORKDIR/dist"
+mkdir -p "$DISTDIR"
+echo ">> work dir: $WORKDIR"
+
+base_url="https://github.com/yuru7/PlemolJP/releases/download/v${PLEMOLJP_VERSION}"
+
+# Non-console PlemolJP (source of full-width glyphs) is not normally installed,
+# so always fetch it.
+echo ">> downloading PlemolJP (non-NF) v${PLEMOLJP_VERSION}"
+curl -fsSL -o "$WORKDIR/PlemolJP.zip" "$base_url/PlemolJP_v${PLEMOLJP_VERSION}.zip"
+unzip -oq "$WORKDIR/PlemolJP.zip" -d "$WORKDIR/src"
+base_dir="$WORKDIR/src/PlemolJP_v${PLEMOLJP_VERSION}/PlemolJP"
+
+# Nerd glyph source = PlemolJP Console NF. Reuse an installed copy when present
+# (e.g. the font-plemol-jp-nf cask on macOS) to avoid a large extra download.
+sym_dir=""
+for d in "$HOME/Library/Fonts" "$HOME/.local/share/fonts" "$HOME/.fonts" "/Library/Fonts"; do
+  if [ -f "$d/PlemolJPConsoleNF-Regular.ttf" ]; then sym_dir="$d"; break; fi
+done
+if [ -z "$sym_dir" ]; then
+  echo ">> downloading PlemolJP_NF (Console NF source) v${PLEMOLJP_VERSION}"
+  curl -fsSL -o "$WORKDIR/PlemolJP_NF.zip" "$base_url/PlemolJP_NF_v${PLEMOLJP_VERSION}.zip"
+  unzip -oq "$WORKDIR/PlemolJP_NF.zip" -d "$WORKDIR/nf"
+  sym_dir="$WORKDIR/nf/PlemolJP_NF_v${PLEMOLJP_VERSION}/PlemolJPConsole_NF"
+fi
+echo ">> nerd glyph source: $sym_dir"
+
+cat > "$WORKDIR/merge.py" <<'PY'
+import fontforge, sys
+base_path, sym_path, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
+NEWFAM = "PlemolJP NF"
+base = fontforge.open(base_path)   # non-console PlemolJP (full-width arrows, no nerd)
+sym  = fontforge.open(sym_path)    # PlemolJP Console NF (perfect single-cell nerd glyphs)
+assert base.em == sym.em
+base.encoding = 'UnicodeFull'; sym.encoding = 'UnicodeFull'
+copied = 0
+for g in sym.glyphs():
+    u = g.unicode
+    if u is None or u < 0xE000:      # only PUA / nerd glyph area
+        continue
+    if u in base:                     # keep base's native glyphs (e.g. powerline E0A0-E0B3)
+        continue
+    sym.selection.none(); sym.selection.select(("unicode",), u); sym.copy()
+    base.selection.none(); base.selection.select(("unicode",), u); base.paste()
+    base[u].width = g.width
+    copied += 1
+def rename(val, key):
+    if not isinstance(val, str) or "PlemolJP" not in val:
+        return val
+    if key in ("PostScriptName", "UniqueID"):
+        return val.replace("PlemolJP", "PlemolJPNF")
+    return val.replace("PlemolJP", NEWFAM)
+orig_sfnt = list(base.sfnt_names)          # capture BEFORE touching name props
+orig_fontname = base.fontname
+orig_fullname = base.fullname
+base.familyname = NEWFAM
+base.fontname   = orig_fontname.replace("PlemolJP", "PlemolJPNF")
+base.fullname   = orig_fullname.replace("PlemolJP", NEWFAM)
+base.sfnt_names = tuple((lang, key, rename(val, key)) for (lang, key, val) in orig_sfnt)
+print("  %s -> copied %d nerd glyphs" % (out_path.split('/')[-1], copied))
+base.generate(out_path)
+PY
+
+echo ">> merging styles: ${STYLES[*]}"
+for s in "${STYLES[@]}"; do
+  fontforge -lang=py -script "$WORKDIR/merge.py" \
+    "$base_dir/PlemolJP-$s.ttf" "$sym_dir/PlemolJPConsoleNF-$s.ttf" \
+    "$DISTDIR/PlemolJPNF-$s.ttf" 2>&1 | grep -E 'copied'
+done
+
+case "$(uname -s)" in
+  Darwin) dest="$HOME/Library/Fonts" ;;
+  Linux)  dest="$HOME/.local/share/fonts"; mkdir -p "$dest" ;;
+  *)      dest="" ;;   # Windows/MSYS2: bootstrap.ps1 registers from $DISTDIR
+esac
+if [ -n "$dest" ]; then
+  echo ">> installing into $dest"
+  cp -f "$DISTDIR"/*.ttf "$dest"/
+  command -v fc-cache >/dev/null && fc-cache -f "$dest" >/dev/null 2>&1 || true
+else
+  echo ">> built fonts in $DISTDIR (install them manually / via bootstrap.ps1)"
+fi
+
+echo ">> done. family: \"PlemolJP NF\""
+ls -1 "$DISTDIR"/*.ttf

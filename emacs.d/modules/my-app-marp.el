@@ -177,6 +177,138 @@ Use this command to inspect server output on demand."
     (message "Marp exporting %s → %s (%s)…"
              (file-name-nondirectory buffer-file-name) format theme)))
 
+;;; Follow mode: track the cursor in the live preview.
+;; The bespoke preview encodes the current page as the URL hash `#N' (1-based)
+;; and navigates on `hashchange' without reloading.  So following the cursor is
+;; just: compute the slide at point, then set `location.hash'.  On xwidget-capable
+;; builds (macOS/Linux) we drive an embedded WebKit preview directly; elsewhere
+;; (e.g. native Windows, where xwidget is unavailable) `my/marp-goto-slide-in-browser'
+;; offers a portable single-shot jump via the external browser.
+
+(declare-function xwidget-webkit-browse-url "xwidget")
+(declare-function xwidget-webkit-current-session "xwidget")
+(declare-function xwidget-webkit-execute-script "xwidget")
+(declare-function xwidget-buffer "xwidget")
+(declare-function xwidget-live-p "xwidget")
+
+;; Defined below by `define-minor-mode'; forward-declared so the helper
+;; functions can reference the mode variable without a compiler warning.
+(defvar my/marp-follow-mode)
+
+(defun my/marp--current-slide ()
+  "Return the 1-based slide number of the Marpit deck at point.
+Count `---' page separators before point, skipping the leading YAML
+frontmatter and any `---' inside fenced code blocks.  Point inside the
+frontmatter returns 1.  Fences are tracked by toggling on ``` / ~~~ lines
+so the result does not depend on font-lock/syntax-propertize state."
+  (save-excursion
+    (save-restriction
+      (widen)
+      (let ((target (line-beginning-position))
+            (page 1)
+            (in-code nil))
+        (goto-char (point-min))
+        ;; A `---' on the very first line opens YAML frontmatter; skip past
+        ;; its closing `---' so neither delimiter counts as a page break.
+        (when (looking-at-p "^---[ \t]*$")
+          (forward-line 1)
+          (while (and (not (eobp)) (not (looking-at-p "^---[ \t]*$")))
+            (forward-line 1))
+          (unless (eobp) (forward-line 1)))
+        (while (< (point) target)
+          (cond
+           ((looking-at-p "^[ \t]*\\(```\\|~~~\\)")
+            (setq in-code (not in-code)))
+           ((and (not in-code) (looking-at-p "^---[ \t]*$"))
+            (setq page (1+ page))))
+          (forward-line 1))
+        page))))
+
+(defvar-local my/marp-follow--xwidget nil
+  "The xwidget session showing this buffer's live preview.")
+
+(defvar-local my/marp-follow--last-slide nil
+  "Last slide number pushed to the preview, to skip redundant updates.")
+
+(defun my/marp-follow--sync ()
+  "Push the slide at point to the follow preview when it changes."
+  (when (and my/marp-follow-mode
+             (xwidget-live-p my/marp-follow--xwidget))
+    (let ((slide (my/marp--current-slide)))
+      (unless (eql slide my/marp-follow--last-slide)
+        (setq my/marp-follow--last-slide slide)
+        (xwidget-webkit-execute-script
+         my/marp-follow--xwidget
+         (format "location.hash = '%d';" slide))))))
+
+(defun my/marp-follow--enable ()
+  "Open the embedded preview and start following point."
+  (unless (featurep 'xwidget-internal)
+    (setq my/marp-follow-mode nil)
+    (user-error "Follow mode needs an xwidget-capable Emacs; use C-c m g instead"))
+  (unless buffer-file-name
+    (setq my/marp-follow-mode nil)
+    (user-error "Buffer is not visiting a file"))
+  (require 'xwidget)
+  ;; Ensure a server is running without also popping the external browser.
+  (unless (process-live-p (get-process my/marp--server-name))
+    (let ((my/marp-server-open-browser nil))
+      (my/marp-start-server)))
+  (let* ((src (current-buffer))
+         (editor-win (selected-window))
+         (url (format "%s/%s" (my/marp--preview-url)
+                      (file-name-nondirectory buffer-file-name)))
+         (sess nil))
+    (xwidget-webkit-browse-url url)
+    (setq sess (xwidget-webkit-current-session))
+    ;; Restore the editor in its window and dock the preview on the right.
+    (set-window-buffer editor-win src)
+    (select-window editor-win)
+    (display-buffer (xwidget-buffer sess)
+                    '(display-buffer-in-side-window
+                      (side . right) (window-width . 0.5)))
+    (with-current-buffer src
+      (setq my/marp-follow--xwidget sess
+            my/marp-follow--last-slide nil)
+      (add-hook 'post-command-hook #'my/marp-follow--sync nil t))
+    (my/marp-follow--sync)
+    (message "Marp follow on — preview tracks the cursor (C-c m f to stop)")))
+
+(defun my/marp-follow--disable ()
+  "Stop following and close the embedded preview."
+  (remove-hook 'post-command-hook #'my/marp-follow--sync t)
+  (when (and my/marp-follow--xwidget (xwidget-live-p my/marp-follow--xwidget))
+    (let ((buf (xwidget-buffer my/marp-follow--xwidget)))
+      (when (buffer-live-p buf)
+        (kill-buffer buf))))
+  (setq my/marp-follow--xwidget nil
+        my/marp-follow--last-slide nil)
+  (message "Marp follow off"))
+
+(define-minor-mode my/marp-follow-mode
+  "Track the cursor in a Marp live preview shown in an Emacs xwidget.
+As point moves between slides, the embedded WebKit preview navigates to
+the matching slide without reloading.  Requires an xwidget-capable build
+(macOS/Linux); on other platforms use \\[my/marp-goto-slide-in-browser]."
+  :lighter " MarpFollow"
+  (if my/marp-follow-mode
+      (my/marp-follow--enable)
+    (my/marp-follow--disable)))
+
+(defun my/marp-goto-slide-in-browser ()
+  "Open the slide at point in the external browser.
+A portable single-shot fallback for `my/marp-follow-mode' on builds
+without xwidget support.  Requires a running server (\\[my/marp-start-server])."
+  (interactive)
+  (unless buffer-file-name
+    (user-error "Buffer is not visiting a file"))
+  (unless (process-live-p (get-process my/marp--server-name))
+    (user-error "No Marp server running — start it first with C-c m s"))
+  (browse-url (format "%s/%s#%d"
+                      (my/marp--preview-url)
+                      (file-name-nondirectory buffer-file-name)
+                      (my/marp--current-slide))))
+
 (my/define-key
  (:map markdown-mode-map
        :after markdown-mode
@@ -184,7 +316,9 @@ Use this command to inspect server output on demand."
        "C-c m s" #'my/marp-start-server
        "C-c m k" #'my/marp-stop-server
        "C-c m l" #'my/marp-server-buffer
-       "C-c m e" #'my/marp-export))
+       "C-c m e" #'my/marp-export
+       "C-c m f" #'my/marp-follow-mode
+       "C-c m g" #'my/marp-goto-slide-in-browser))
 
 (provide 'my-app-marp)
 ;;; my-app-marp.el ends here

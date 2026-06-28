@@ -31,7 +31,7 @@
     (my/map-env my/frame-background "theme_variant")))
 
 (defcustom my/font-default
-  `(:family "PlemolJP Console NF"
+  `(:family "PlemolJP NF"
             :weight normal
             :height ,(if (eq system-type 'darwin) 140 130))
   "Default face font spec (plist of :family, :weight, :height)."
