@@ -56,9 +56,59 @@ fi
 echo ">> nerd glyph source: $sym_dir"
 
 cat > "$WORKDIR/merge.py" <<'PY'
-import fontforge, sys
+import fontforge, struct, sys
 base_path, sym_path, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
 NEWFAM = "PlemolJP NF"
+
+# --- OS/2 xAvgCharWidth preservation -----------------------------------------
+# fontforge.generate() RECOMPUTES OS/2.xAvgCharWidth by averaging glyph advances.
+# Our base is the non-Console PlemolJP, whose ~539 East-Asian *ambiguous* glyphs
+# are full width (1056), so the recomputed average balloons (~822 vs the source's
+# 528 = ASCII half-width). Windows GDI / Emacs use xAvgCharWidth to size the text
+# cell: an inflated value makes frame-char-width too large, so ASCII underfills
+# its column (frame goes wide) and CJK glyphs scale up ~1.5x. (macOS / Core Text
+# ignores xAvgCharWidth for cell metrics, which is why only Windows breaks.)
+# fontforge exposes no setter for this field, so we read the source's value and
+# patch the generated binary back to it, fixing the affected checksums.
+
+def _sum32(data):
+    if len(data) % 4:
+        data = data + b"\x00" * (4 - len(data) % 4)
+    s = 0
+    for i in range(0, len(data), 4):
+        s = (s + struct.unpack(">I", data[i:i+4])[0]) & 0xFFFFFFFF
+    return s
+
+def _read_xavg(path):
+    d = open(path, "rb").read()
+    for i in range(struct.unpack(">H", d[4:6])[0]):
+        e = 12 + 16 * i
+        if d[e:e+4] == b"OS/2":
+            o = struct.unpack(">I", d[e+8:e+12])[0]
+            return struct.unpack(">h", d[o+2:o+4])[0]
+    return None
+
+def _set_xavg(path, value):
+    d = bytearray(open(path, "rb").read())
+    os2_e = os2_o = os2_l = head_o = None
+    for i in range(struct.unpack(">H", d[4:6])[0]):
+        e = 12 + 16 * i
+        tag = bytes(d[e:e+4])
+        off = struct.unpack(">I", d[e+8:e+12])[0]
+        ln  = struct.unpack(">I", d[e+12:e+16])[0]
+        if tag == b"OS/2":  os2_e, os2_o, os2_l = e, off, ln
+        elif tag == b"head": head_o = off
+    if os2_o is None or head_o is None:
+        return
+    struct.pack_into(">h", d, os2_o + 2, value)                 # xAvgCharWidth
+    struct.pack_into(">I", d, os2_e + 4, _sum32(bytes(d[os2_o:os2_o+os2_l])))  # OS/2 checksum
+    struct.pack_into(">I", d, head_o + 8, 0)                    # zero checkSumAdjustment
+    struct.pack_into(">I", d, head_o + 8, (0xB1B0AFBA - _sum32(bytes(d))) & 0xFFFFFFFF)
+    open(path, "wb").write(d)
+
+src_xavg = _read_xavg(base_path)   # = 528 for PlemolJP; preserve, don't hard-code
+# -----------------------------------------------------------------------------
+
 base = fontforge.open(base_path)   # non-console PlemolJP (full-width arrows, no nerd)
 sym  = fontforge.open(sym_path)    # PlemolJP Console NF (perfect single-cell nerd glyphs)
 assert base.em == sym.em
@@ -89,6 +139,9 @@ base.fullname   = orig_fullname.replace("PlemolJP", NEWFAM)
 base.sfnt_names = tuple((lang, key, rename(val, key)) for (lang, key, val) in orig_sfnt)
 print("  %s -> copied %d nerd glyphs" % (out_path.split('/')[-1], copied))
 base.generate(out_path)
+# Restore OS/2.xAvgCharWidth to the source value (fontforge inflated it on generate).
+if src_xavg is not None:
+    _set_xavg(out_path, src_xavg)
 PY
 
 echo ">> merging styles: ${STYLES[*]}"
