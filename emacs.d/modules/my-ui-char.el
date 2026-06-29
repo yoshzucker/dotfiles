@@ -1,7 +1,7 @@
 ;;; my-ui-char.el --- Character width and glyph display settings -*- lexical-binding: t; -*-
 
 ;;; Commentary:
-;; Tweaks for CJK character width and glyph rendering in terminal and Windows.
+;; Tweaks for CJK ambiguous-width characters in terminal Emacs.
 
 ;; How to inspect the settings applied by `set-language-environment`:
 ;; 1. Evaluate `(get-language-info "Japanese" 'setup-function)`
@@ -41,16 +41,6 @@
   (use-cjk-char-width-table 'ja_JP)
   ;; Specific glyph fixes
   (aset char-width-table ?© 1))
-
-(when (eq system-type 'windows-nt)
-  (let ((table (or (default-value 'buffer-display-table)
-                   standard-display-table
-                   (make-display-table)))
-        (glyph (if (display-graphic-p)
-                   ?╲   ; GUI: diagonal slash
-                 ?∖))) ; Terminal: division slash
-    (setq-default buffer-display-table table)
-    (aset table ?\\ (vector glyph))))
 
 (provide 'my-ui-char)
 ;;; my-ui-char.el ends here

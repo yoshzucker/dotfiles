@@ -1,15 +1,21 @@
 # wsltty config
 
 # Looks
-Transparency=0
+Transparency=off
 CursorType=block
 CursorBlinks=no
 
 # Text
-Font=PlemolJP NF
+# Use the Console variant: its ambiguous-width glyphs (arrows, box-drawing) are
+# half width. Charwidth=ambig-narrow makes mintty count every East-Asian
+# *ambiguous* codepoint as 1 cell -- crucially this includes the Private Use
+# Area (Nerd Font icons + powerline slants are PUA, which UAX#11 classes as
+# ambiguous). ambig-wide would give those 2 cells and desync tmux/CLI (which
+# assume wcwidth narrow), bloating powerline slants. GUI Emacs is separate and
+# still uses the full-width "PlemolJP NF".
+Font=PlemolJP Console NF
 FontHeight=13
-# Render ambiguous-width chars (arrows, etc.) as full-width (2 cells)
-Charwidth=ambig-wide
+Charwidth=ambig-narrow
 
 BoldAsFont=no
 BoldAsColour=no
