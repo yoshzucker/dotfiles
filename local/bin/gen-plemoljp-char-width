@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+IFS=$'\n\t'
+
+# gen-plemoljp-char-width - regenerate the two char-width maps embedded in
+# emacs.d/modules/my-ui-plemoljp.el. Run manually after rebuilding/upgrading the
+# PlemolJP fonts; NOT wired into bootstrap.
+#
+#   gui map : char-width == PlemolJPNF-Regular.ttf glyph advance (half=ASCII 'A').
+#             emit codepoints where the font's cell-class differs from the Emacs
+#             Japanese-env char-width. Box-drawing U+2500-257F is excluded (it is
+#             drawn half-width via Console NF as an ASCII-art exception in the module).
+#   tty map : wcwidth ambig-narrow. emit the diff between Emacs Japanese-env and
+#             English-env char-width (English side = ambiguous-narrow value).
+#
+# Deps: emacs + fontforge (both already required by this repo). Scans U+00A0..U+2FFF.
+
+repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
+module="$repo_root/emacs.d/modules/my-ui-char.el"
+font="${PLEMOLJP_NF_TTF:-$HOME/Library/Fonts/PlemolJPNF-Regular.ttf}"
+
+[ -f "$module" ] || { echo "error: module not found: $module" >&2; exit 1; }
+[ -f "$font" ]   || { echo "error: font not found: $font (set PLEMOLJP_NF_TTF)" >&2; exit 1; }
+command -v emacs >/dev/null     || { echo "error: emacs not found" >&2; exit 1; }
+command -v fontforge >/dev/null || { echo "error: fontforge not found (brew install fontforge)" >&2; exit 1; }
+
+work="$(mktemp -d "${TMPDIR:-/tmp}/plemoljp-cw.XXXXXX")"
+trap 'rm -rf "$work"' EXIT
+
+echo ">> dumping Emacs char-width (Japanese / English)"
+emacs --batch --eval "(progn
+  (set-language-environment \"Japanese\")
+  (with-temp-file \"$work/ja.txt\"
+    (dolist (cp (number-sequence #x00A0 #x2FFF))
+      (insert (format \"%d %d\n\" cp (char-width cp)))))
+  (set-language-environment \"English\")
+  (with-temp-file \"$work/en.txt\"
+    (dolist (cp (number-sequence #x00A0 #x2FFF))
+      (insert (format \"%d %d\n\" cp (char-width cp))))))" 2>/dev/null
+
+echo ">> reading glyph advances from $font"
+cat > "$work/adv.py" <<'PY'
+import fontforge, sys
+# Access by codepoint (f[cp]) so cmap aliases resolve the same way Emacs renders
+# them (e.g. U+203E OVERLINE shares the uni0305 glyph). Iterating f.glyphs() and
+# reading g.unicode would only see each glyph's primary codepoint and miss aliases.
+f = fontforge.open(sys.argv[1]); f.encoding = 'UnicodeFull'
+for cp in [0x41] + list(range(0x00A0, 0x3000)):  # 0x41 = ASCII 'A' = half-width unit
+    try:
+        g = f[cp]
+    except Exception:
+        continue
+    if g is not None:
+        print(cp, g.width)
+PY
+fontforge -lang=py -script "$work/adv.py" "$font" 2>/dev/null > "$work/adv.txt"
+
+echo ">> building maps and splicing into $module"
+python3 - "$work" "$module" <<'PY'
+import re, sys
+work, module = sys.argv[1], sys.argv[2]
+
+def read_pairs(path):
+    d = {}
+    for ln in open(path):
+        ln = ln.split()
+        if len(ln) == 2:
+            d[int(ln[0])] = int(ln[1])
+    return d
+
+ja  = read_pairs(f"{work}/ja.txt")
+en  = read_pairs(f"{work}/en.txt")
+adv = read_pairs(f"{work}/adv.txt")
+half = adv.get(0x41)
+if not half:
+    sys.exit("error: no advance for U+0041 in font")
+
+def gclass(cp):
+    a = adv.get(cp)
+    if not a:            # missing glyph / zero advance
+        return None
+    return 1 if a < 1.5 * half else 2
+
+# --- GUI: font glyph class vs Japanese char-width, excluding box-drawing ---
+gui = []
+for cp in range(0x00A0, 0x3000):
+    if 0x2500 <= cp <= 0x257F:
+        continue
+    gc, w = gclass(cp), ja.get(cp)
+    if gc and w and gc != w:
+        gui.append((cp, gc))
+
+# --- TTY: Japanese vs English char-width (English = ambig-narrow target) ---
+tty = []
+for cp in range(0x00A0, 0x3000):
+    j, e = ja.get(cp), en.get(cp)
+    if j is not None and e is not None and j != e:
+        tty.append((cp, e))
+
+def runs(pairs):
+    out = []
+    if not pairs:
+        return out
+    s = pairs[0][0]; w = pairs[0][1]; prev = pairs[0][0]
+    for cp, val in pairs[1:] + [(None, None)]:
+        if cp != prev + 1 or val != w:
+            out.append((s, prev, w)); s = cp; w = val
+        prev = cp if cp is not None else prev
+    return out
+
+def fmt(runlist, per_line=5):
+    items = [f"(#x{lo:04X} #x{hi:04X} {w})" for lo, hi, w in runlist]
+    lines = []
+    for i in range(0, len(items), per_line):
+        lines.append("    " + " ".join(items[i:i + per_line]))
+    return "\n".join(lines)
+
+gui_body = f"""(defconst my/plemoljp-gui-char-width-ranges
+  '({fmt(runs(gui))[4:]})
+  "GUI correction runs (LO HI WIDTH): char-width == PlemolJP NF glyph advance.
+Box-drawing U+2500-257F is excluded (handled as a half-width exception).")"""
+
+tty_body = f"""(defconst my/char-width-ambig-narrow-ranges
+  '({fmt(runs(tty))[4:]})
+  "TTY correction runs (LO HI WIDTH): wcwidth ambiguous-narrow.
+Ambiguous -> 1, combining -> 0.  Font independent (matches the terminal).")"""
+
+text = open(module, encoding="utf-8").read()
+
+def splice(text, tag, body):
+    pat = re.compile(
+        r"(;; >>> AUTO-GENERATED " + tag + r".*?>>>\n).*?(\n;; <<< END " + tag + r" <<<)",
+        re.DOTALL)
+    if not pat.search(text):
+        sys.exit(f"error: markers for '{tag}' not found in module")
+    return pat.sub(lambda m: m.group(1) + body + m.group(2), text)
+
+text = splice(text, "gui map", gui_body)
+text = splice(text, "ambig-narrow map", tty_body)
+open(module, "w", encoding="utf-8").write(text)
+print(f">> gui: {len(gui)} codepoints / {len(runs(gui))} runs; "
+      f"tty: {len(tty)} codepoints / {len(runs(tty))} runs")
+PY
+
+echo ">> done: $module"
