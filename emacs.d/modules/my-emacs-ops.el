@@ -29,6 +29,9 @@
 
 (use-package immortal-scratch
   :config
+  (setq eval-expression-print-length nil
+        eval-expression-print-level nil)
+
   (immortal-scratch-mode 1))
 
 (provide 'my-emacs-ops)

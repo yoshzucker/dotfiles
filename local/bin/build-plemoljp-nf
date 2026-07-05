@@ -5,7 +5,9 @@ IFS=$'\n\t'
 
 # build-plemoljp-nf — build a single "PlemolJP NF" font: NON-Console PlemolJP
 # (East-Asian ambiguous-width glyphs such as arrows are FULL width) carrying the
-# Nerd Font icons taken from the official "PlemolJP Console NF".
+# Nerd Font icons taken from the official "PlemolJP Console NF".  Box-drawing
+# (U+2500-257F) is an exception: taken HALF width from Console NF so ASCII art /
+# TUI frames render single-cell (Emacs GUI can't reroute it per-range on macOS).
 #
 # Why: the official Nerd Fonts build of PlemolJP (PlemolJP_NF release) ships
 # Console variants only, which draw ambiguous-width glyphs (→ ★ ※ …) at half
@@ -124,6 +126,19 @@ for g in sym.glyphs():
     base.selection.none(); base.selection.select(("unicode",), u); base.paste()
     base[u].width = g.width
     copied += 1
+
+# Override box-drawing (U+2500-257F) with Console NF's HALF-width glyphs. In the
+# Emacs GUI a face's :family (PlemolJP NF) covers box-drawing, so a per-range
+# set-fontset-font override to the Console font is ignored on macOS; baking the
+# half-width glyphs into the font is what makes ASCII art / TUI frames render
+# single-cell (char-width is set to 1 to match in emacs.d/modules/my-ui-char.el).
+boxed = 0
+for u in range(0x2500, 0x2580):
+    if u in sym and u in base:
+        sym.selection.none(); sym.selection.select(("unicode",), u); sym.copy()
+        base.selection.none(); base.selection.select(("unicode",), u); base.paste()
+        base[u].width = sym[u].width
+        boxed += 1
 def rename(val, key):
     if not isinstance(val, str) or "PlemolJP" not in val:
         return val
@@ -137,7 +152,7 @@ base.familyname = NEWFAM
 base.fontname   = orig_fontname.replace("PlemolJP", "PlemolJPNF")
 base.fullname   = orig_fullname.replace("PlemolJP", NEWFAM)
 base.sfnt_names = tuple((lang, key, rename(val, key)) for (lang, key, val) in orig_sfnt)
-print("  %s -> copied %d nerd glyphs" % (out_path.split('/')[-1], copied))
+print("  %s -> copied %d nerd glyphs, %d box-drawing" % (out_path.split('/')[-1], copied, boxed))
 base.generate(out_path)
 # Restore OS/2.xAvgCharWidth to the source value (fontforge inflated it on generate).
 if src_xavg is not None:
