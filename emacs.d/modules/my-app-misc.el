@@ -4,11 +4,14 @@
 ;; This file handles integrations with external applications.
 
 ;;; Code:
+(use-package symon
+  :config
+  (symon-mode))
+
 (defcustom my/convert-pptx-program (expand-file-name "~/.local/bin/convert-pptx-to-pdf.ps1")
   "Path to the PowerShell script for pptx to pdf conversion using PowerPoint COM."
   :type 'string
   :group 'my)
-
 
 (defun my/convert-pptx-to-pdf ()
   "Convert selected pptx to PDF using PowerPoint COM. Result shown in echo area only."

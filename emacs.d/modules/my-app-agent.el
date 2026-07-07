@@ -51,9 +51,10 @@ Outside: pre-fills with the file at point in dired, or buffer-file-name for norm
     (interactive "P")
     (let* ((in-shell (derived-mode-p 'agent-shell-mode))
            (shell-buffer (when pick-shell
-                           (completing-read "Send to shell: "
-                                            (mapcar #'buffer-name (agent-shell-buffers))
-                                            nil t)))
+                           (completing-read
+                            "Send to shell: "
+                            (mapcar #'buffer-name (agent-shell-buffers))
+                            nil t)))
            (dir (if in-shell
                     (with-current-buffer (or shell-buffer (current-buffer))
                       default-directory)
@@ -85,7 +86,88 @@ Outside: pre-fills with the file at point in dired, or buffer-file-name for norm
     (unless (derived-mode-p 'agent-shell-mode)
       (error "Not in an agent-shell buffer"))
     (message "Quit agent and close buffer.")
-    (kill-buffer (current-buffer))))
+    (kill-buffer (current-buffer)))
+
+  ;; agent-shell inserts PNG/SVG icons at :height (frame-char-height), but
+  ;; frame-char-height is the full line-cell height sized for CJK glyphs and is
+  ;; noticeably larger than the ASCII cap-height.  That mismatch is what makes
+  ;; the icons look inflated next to plain ASCII text.  Shrink them to roughly
+  ;; the ASCII cap-height, which is around 60% of the full line-cell height.
+  (defun my/agent-shell-icon-height ()
+    "Return a pixel height matching the ASCII glyph size of the default face."
+    (round (* 0.6 (frame-char-height))))
+
+  (advice-add
+   'agent-shell--config-icon :around
+   (lambda (orig &rest args)
+     ;; Compute the shrunk height *before* rebinding `frame-char-height':
+     ;; `my/agent-shell-icon-height' itself calls `frame-char-height', so
+     ;; letting the rebound function call it would recurse infinitely.
+     (let ((height (my/agent-shell-icon-height)))
+       (cl-letf (((symbol-function 'frame-char-height)
+                  (lambda (&rest _) height)))
+         (apply orig args)))))
+
+  ;; agent-shell's header SVG receives the default face's device-pixel font
+  ;; size (via `font-get :size') and device-pixel line height (via
+  ;; `frame-char-height').  SVG bare numeric values are interpreted as CSS
+  ;; pixels (96-DPI reference), so on displays where the device DPI diverges
+  ;; from 96 (Windows display scaling > 100%, fractional Wayland scaling) the
+  ;; SVG text and icon render visibly larger than the surrounding buffer
+  ;; text.  Rewrite the header model to express both dimensions in CSS pixels
+  ;; derived from the face's point size, which is device-independent across
+  ;; Windows, macOS, and Linux.  The icon square scales together with the
+  ;; text because it is sized as `3 * :font-height'.
+  (defun my/agent-shell-header-model-normalize (model)
+    "Return MODEL with `:font-size' and `:font-height' in CSS pixels.
+Font size is the face's point size converted at 96 DPI.  Line height
+preserves the font's designed height:size ratio from the incoming
+model when both values are numeric, else falls back to 1.2."
+    (let* ((face-height (face-attribute 'default :height))
+           (pt-size (/ face-height 10.0))
+           (font-size (max 1 (round (* pt-size (/ 96.0 72)))))
+           (in-size (map-elt model :font-size))
+           (in-height (map-elt model :font-height))
+           (ratio (if (and (numberp in-size) (> in-size 0)
+                           (numberp in-height))
+                      (/ (float in-height) (float in-size))
+                    1.2))
+           (font-height (max 1 (round (* font-size ratio)))))
+      (mapcar (lambda (pair)
+                (pcase (car pair)
+                  (:font-size (cons :font-size font-size))
+                  (:font-height (cons :font-height font-height))
+                  (_ pair)))
+              model)))
+
+  (advice-add 'agent-shell--make-header-model :filter-return
+              #'my/agent-shell-header-model-normalize)
+
+  ;; agent-shell-ui pads every fragment block with a trailing "\n\n" and
+  ;; enforces 2 trailing newlines before the next block via
+  ;; `agent-shell-ui--required-newlines'.  That's what puts one blank line
+  ;; between blocks.  When the block is collapsed (label-only) the blank
+  ;; line is noise; when it's expanded the blank line lets the body
+  ;; breathe from the next label.  Squeeze the padding to a single
+  ;; newline only for collapsed insertions.
+  (defun my/agent-shell-ui-tighten-collapsed-block (orig model &rest args)
+    "Around-advice: for collapsed fragments, shrink block padding to \\n."
+    (if (plist-get args :expanded)
+        (apply orig model args)
+      (let ((orig-iro (symbol-function 'agent-shell-ui--insert-read-only))
+            (orig-req (symbol-function 'agent-shell-ui--required-newlines)))
+        (cl-letf (((symbol-function 'agent-shell-ui--insert-read-only)
+                   (lambda (s)
+                     (funcall orig-iro
+                              (if (and (stringp s)
+                                       (string-match-p "\\`\n+\\'" s))
+                                  "\n" s))))
+                  ((symbol-function 'agent-shell-ui--required-newlines)
+                   (lambda (desired) (funcall orig-req (min 1 desired)))))
+          (apply orig model args)))))
+
+  (advice-add 'agent-shell-ui-update-fragment :around
+              #'my/agent-shell-ui-tighten-collapsed-block))
 
 (use-package ob-agent-shell
   :straight (:host github :repo "eddof13/ob-agent-shell")
