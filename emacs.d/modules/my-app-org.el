@@ -1206,6 +1206,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
               (my/evil-ex-define-cmd-local "w[rite]" #'org-save-all-org-buffers))))
 
 (use-package activity-watch-mode
+  :diminish (activity-watch-mode " aw")
   :config
   (setopt activity-watch-org-clock-active t)
   (global-activity-watch-mode))

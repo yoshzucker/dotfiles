@@ -61,6 +61,7 @@
         (message "pyright in use: %s" pyright-path))))))
 
 (use-package apheleia
+  :diminish apheleia-mode
   :if (memq system-type '(darwin gnu/linux))
   :config
   (apheleia-global-mode +1))
