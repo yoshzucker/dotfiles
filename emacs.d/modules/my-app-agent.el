@@ -7,8 +7,16 @@
   :after evil
   :config
   (my/define-key
-   (:map agent-shell-mode-map :state insert normal :key "C-RET" #'my/shell-maker-submit-and-normal)
-   (:map agent-shell-mode-map :key "C-c C-q" #'my/agent-shell-sayoonara))
+   (:map global-map
+         :key
+         "C-c s n" #'agent-shell
+         "C-c s t" #'agent-shell-toggle)
+   (:map agent-shell-mode-map :state insert normal
+         :key "C-RET" #'my/shell-maker-submit-and-normal)
+   (:map agent-shell-mode-map
+         :key
+         "<backtab>" #'my/agent-shell-cycle-session-mode
+         "C-c C-q" #'my/agent-shell-sayoonara))
   
   (when (eq system-type 'windows-nt)
     (dolist (path (list (expand-file-name "~/scoop/apps/nodejs/current")
@@ -78,6 +86,48 @@ Outside: pre-fills with the file at point in dired, or buffer-file-name for norm
     (interactive)
     (let ((default-directory (project-root (project-current t))))
       (call-interactively #'agent-shell)))
+
+  (defun my/agent-shell-cycle-session-mode (&optional on-success)
+    "Cycle session modes, skipping any that the backend refuses.
+Some modes reported as available by claude-agent-acp (e.g. `auto',
+`bypassPermissions') can still be rejected by the Anthropic backend
+depending on the account plan or managed policy.  On failure, advance
+to the next mode instead of aborting."
+    (declare (modes agent-shell-mode))
+    (interactive)
+    (unless (derived-mode-p 'agent-shell-mode)
+      (user-error "Not in an agent-shell buffer"))
+    (unless (map-nested-elt (agent-shell--state) '(:session :id))
+      (user-error "No active session"))
+    (let* ((mode-ids (mapcar (lambda (m) (map-elt m :id))
+                             (agent-shell--get-available-modes
+                              (agent-shell--state))))
+           (start (or (seq-position
+                       mode-ids
+                       (agent-shell--current-mode-id (agent-shell--state))
+                       #'string=)
+                      -1))
+           (buffer (current-buffer)))
+      (unless mode-ids
+        (user-error "No session modes available"))
+      (cl-labels
+          ((try (step)
+             (when (>= step (length mode-ids))
+               (user-error "No selectable session mode available"))
+             (let ((next (nth (mod (+ start 1 step) (length mode-ids))
+                              mode-ids)))
+               (when (buffer-live-p buffer)
+                 (with-current-buffer buffer
+                   (agent-shell--config-option-set-mode-id
+                    :mode-id next
+                    :on-success on-success
+                    :on-failure
+                    (lambda (acp-error _raw)
+                      (message "Skipping %s: %s" next acp-error)
+                      (when (buffer-live-p buffer)
+                        (with-current-buffer buffer
+                          (try (1+ step)))))))))))
+        (try 0))))
 
   (defun my/agent-shell-sayoonara ()
     "Quit the current agent-shell session and kill its buffer."
@@ -186,7 +236,7 @@ model when both values are numeric, else falls back to 1.2."
   :straight (:host github :repo "jethrokuan/agent-shell-manager")
   :after agent-shell
   :config
-  (my/define-key (:map global-map :key "C-c m" #'agent-shell-manager-toggle)))
+  (my/define-key (:map global-map :key "C-c s m" #'agent-shell-manager-toggle)))
 
 (use-package knockknock
   :straight (:host github :repo "konrad1977/knockknock"))
