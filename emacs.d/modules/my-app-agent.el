@@ -13,6 +13,8 @@
          "C-c s t" #'agent-shell-toggle)
    (:map agent-shell-mode-map :state insert normal
          :key "C-RET" #'my/shell-maker-submit-and-normal)
+   (:map agent-shell-mode-map :state normal
+         :key "q" #'quit-window)
    (:map agent-shell-mode-map
          :key
          "<backtab>" #'my/agent-shell-cycle-session-mode

@@ -137,13 +137,22 @@
 
   (defcustom my/tabspaces-include-prefix '("*Org Agenda" "*Org Dayflow" "*straigt" "magit")
     "List of buffer name prefixes that should always be included in tabspaces.")
-  
+
+  (defcustom my/tabspaces-include-mode '(agent-shell-mode
+                                         agent-shell-viewport-edit-mode
+                                         agent-shell-viewport-view-mode)
+    "List of major modes whose buffers should always be included in tabspaces.
+Derived modes are matched via `provided-mode-derived-p'.")
+
   (defun my/tabspaces-include-prefix (orig-fn buffer)
-    (let ((name (buffer-name buffer)))
-      (if (seq-some (lambda (prefix) (string-prefix-p prefix name))
-                    my/tabspaces-include-prefix)
-          t
-        (funcall orig-fn buffer))))
+    (let ((name (buffer-name buffer))
+          (mode (buffer-local-value 'major-mode buffer)))
+      (cond ((seq-some (lambda (prefix) (string-prefix-p prefix name))
+                       my/tabspaces-include-prefix)
+             t)
+            ((apply #'provided-mode-derived-p mode my/tabspaces-include-mode)
+             t)
+            (t (funcall orig-fn buffer)))))
   
   (advice-add 'tabspaces--local-buffer-p :around #'my/tabspaces-include-prefix)
 
