@@ -6,13 +6,50 @@
 (use-package agent-shell
   :after evil
   :config
+  ;; Permission-button dispatch: when a permission dialog is present in
+  ;; the buffer, `y'/`n'/`!' must reach the button's text-property keymap
+  ;; regardless of where point sits.  The text-prop keymap approach that
+  ;; agent-shell uses is fragile under evil + shell-maker's asynchronous
+  ;; point behavior (point can end up on the prompt instead of the
+  ;; button when the dialog appears).  Route these keys through a
+  ;; menu-item :filter so we only intercept when a permission button
+  ;; actually exists; otherwise the binding falls through to
+  ;; evil-yank / evil-search-next / evil-shell-command (normal) or
+  ;; self-insert-command (insert) as before.
+  (defun my/agent-shell-permission-button-present-p ()
+    "Return non-nil if an unresolved permission button exists in this buffer."
+    (save-excursion
+      (goto-char (point-max))
+      (agent-shell-previous-permission-button)))
+
+  (defun my/agent-shell-permission-dispatch (char)
+    "Jump to the latest permission button and invoke CHAR's action.
+CHAR is a string like \"y\" / \"n\" / \"!\"."
+    (save-excursion
+      (agent-shell-jump-to-latest-permission-button-row)
+      (when-let* ((km (get-char-property (point) 'keymap))
+                  (action (lookup-key km char)))
+        (call-interactively action))))
+
+  (defun my/agent-shell-make-permission-filter (char)
+    "Return a keymap definition that dispatches CHAR only when a button exists."
+    `(menu-item ,(format "agent-shell-permission-%s" char)
+                (lambda () (interactive) (my/agent-shell-permission-dispatch ,char))
+                :filter (lambda (cmd)
+                          (when (my/agent-shell-permission-button-present-p)
+                            cmd))))
+
   (my/define-key
    (:map global-map
          :key
          "C-c s n" #'agent-shell
          "C-c s t" #'agent-shell-toggle)
    (:map agent-shell-mode-map :state insert normal
-         :key "C-RET" #'my/shell-maker-submit-and-normal)
+         :key
+         "C-RET" #'my/shell-maker-submit-and-normal
+         "y" (my/agent-shell-make-permission-filter "y")
+         "n" (my/agent-shell-make-permission-filter "n")
+         "!" (my/agent-shell-make-permission-filter "!"))
    (:map agent-shell-mode-map :state normal
          :key "q" #'quit-window)
    (:map agent-shell-mode-map
@@ -236,9 +273,94 @@ model when both values are numeric, else falls back to 1.2."
 
 (use-package agent-shell-manager
   :straight (:host github :repo "jethrokuan/agent-shell-manager")
-  :after agent-shell
+  :after (agent-shell evil)
+  :custom
+  ;; Route display through `display-buffer-alist' (configured below in
+  ;; :config) instead of the package's fixed 30%-of-frame side window.
+  (agent-shell-manager-side nil)
   :config
-  (my/define-key (:map global-map :key "C-c s m" #'agent-shell-manager-toggle)))
+  ;; agent-shell-manager-mode is a read-only tabulated-list buffer.
+  ;; Use evil `motion' state as the initial state: it preserves hjkl,
+  ;; g-prefix, and search bindings while leaving operator keys
+  ;; (`c'/`d'/`r'/`m'/`x' etc.) free for mode-specific commands.
+  ;; The mode-map's single-letter keys otherwise lose to evil.
+  (evil-set-initial-state 'agent-shell-manager-mode 'motion)
+
+  (defcustom my/agent-shell-manager-max-height 10
+    "Maximum body-line height for the *Agent-Shell Buffers* side window.
+Body lines exclude header-line, tab-line, and mode-line."
+    :type 'integer
+    :group 'agent-shell-manager)
+  (defcustom my/agent-shell-manager-min-height 2
+    "Minimum body-line height for the *Agent-Shell Buffers* side window.
+Body lines exclude header-line, tab-line, and mode-line.  Keeps
+the window from collapsing when the agent list is empty."
+    :type 'integer
+    :group 'agent-shell-manager)
+
+  (defun my/agent-shell-manager-fit (win)
+    "Fit WIN so its body shows one line per agent plus one blank row.
+Clamped to [`my/agent-shell-manager-min-height',
+`my/agent-shell-manager-max-height'] body lines.  Header-line,
+tab-line, and mode-line are added on top of the body target so
+`fit-window-to-buffer' (which sizes the total window) produces the
+intended body height."
+    (let* ((buf (window-buffer win))
+           (agent-lines (with-current-buffer buf
+                          (count-lines (point-min) (point-max))))
+           (decoration (with-current-buffer buf
+                         (+ (if header-line-format 1 0)
+                            (if mode-line-format 1 0)
+                            (if tab-line-format 1 0))))
+           (desired-body (max my/agent-shell-manager-min-height
+                              (min my/agent-shell-manager-max-height
+                                   (1+ agent-lines))))
+           (desired-total (+ desired-body decoration)))
+      (fit-window-to-buffer win desired-total desired-total)))
+
+  (add-to-list
+   'display-buffer-alist
+   '("\\*Agent-Shell Buffers\\*"
+     (display-buffer-in-side-window)
+     (side . bottom)
+     (slot . 0)
+     (window-height . my/agent-shell-manager-fit)
+     (window-parameters . ((no-delete-other-windows . t)))))
+
+  (defun my/agent-shell-manager-refit (&rest _)
+    "Re-fit the manager window height when its content grows/shrinks.
+The package refreshes the list every 2 seconds but does not
+recompute the window height; without this advice a newly added
+shell would either overflow or leave dead space."
+    (when-let* ((buf (get-buffer "*Agent-Shell Buffers*"))
+                (win (get-buffer-window buf)))
+      (my/agent-shell-manager-fit win)))
+  (advice-add 'agent-shell-manager-refresh :after
+              #'my/agent-shell-manager-refit)
+
+  (my/define-key
+   (:map global-map :key "C-c s m" #'agent-shell-manager-toggle)
+   (:map agent-shell-manager-mode-map
+         :state motion
+         :key
+         "RET" #'agent-shell-manager-goto
+         ;; g single is reserved as the user's g-prefix; use gr for
+         ;; refresh (evil-collection convention; gr is user-blacklisted
+         ;; from evil-collection so it is available).
+         "gr"  #'agent-shell-manager-refresh
+         "q"   #'quit-window
+         ;; Relocate keys that collide with fundamental motion:
+         ;;   k -> x (kill agent; k is up)
+         ;;   l -> L (toggle logging; l is right)
+         "x"   #'agent-shell-manager-kill
+         "c"   #'agent-shell-manager-new
+         "r"   #'agent-shell-manager-restart
+         "d"   #'agent-shell-manager-delete-killed
+         "m"   #'agent-shell-manager-set-mode
+         "M"   #'agent-shell-manager-set-model
+         "t"   #'agent-shell-manager-view-traffic
+         "L"   #'agent-shell-manager-toggle-logging
+         "C-c C-c" #'agent-shell-manager-interrupt)))
 
 (use-package knockknock
   :straight (:host github :repo "konrad1977/knockknock"))
