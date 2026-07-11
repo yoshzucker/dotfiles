@@ -29,13 +29,10 @@ export THEME_VARIANT="${THEME_VARIANT:-light}"      # dark | light
 
 # Truecolor — terminal-wide, not theme-specific.
 export COLORTERM=truecolor
-# Skip the costly `infocmp` fork (~0.25s/shell on Windows) by checking the
-# compiled entry directly. ncurses stores it under a hashed (78/) or letter
-# (x/) subdir depending on platform; the (N) nullglob qualifier matches either
-# without a subprocess. Array assignment (not [[ ]]) so filename generation runs.
-_ti24=($HOME/.terminfo/*/xterm-24bits(N))
-(( $#_ti24 )) || tic -x -o "$HOME/.terminfo" "$HOME/dotfiles/config/terminfo/24bit.src"
-unset _ti24
+# Ensure xterm-24bits terminfo entry exists (mintty's default xterm-256color
+# lacks the Tc capability). tic writes to ~/.terminfo/x/.
+[ -f "$HOME/.terminfo/x/xterm-24bits" ] || \
+  tic -x -o "$HOME/.terminfo" "$HOME/dotfiles/config/terminfo/24bit.src" 2>/dev/null
 # xterm-24bits is just xterm-256color + Tc; only needed where Tc is missing
 # (e.g. mintty default xterm-256color terminfo on Windows). Skip on terminals
 # whose own terminfo already advertises Tc (Ghostty, *-direct, tmux-256color),
