@@ -471,38 +471,71 @@
 
 (use-package org-attach
   :straight nil
-  :after org)
+  :after org
+  :config
+  (my/define-key
+   (:map org-mode-map :key "C-c h" #'my/org-attach-screenshot))
+
+  (defconst my/org-attach-screenshot-timestamp-format "%Y-%m-%dT%H-%M-%S-"
+    "`format-time-string' spec used as the attached PNG filename prefix.")
+
+  (defun my/org-attach-screenshot--capture (target)
+    "Invoke the platform screenshot backend and write the image to TARGET."
+    (pcase system-type
+      ('windows-nt
+       (let ((script (locate-file "save-clipboard-image" exec-path '(".ps1"))))
+         (unless script
+           (user-error "save-clipboard-image.ps1 not found on exec-path"))
+         (let ((code (call-process "powershell" nil nil nil
+                                   "-NoProfile" "-ExecutionPolicy" "Bypass"
+                                   "-File" script "-OutputPath" target)))
+           (unless (and (integerp code) (zerop code))
+             (user-error "powershell exited with %s" code)))))
+      ('darwin
+       (unless (zerop (call-process "screencapture" nil nil nil "-i" target))
+         (user-error "screencapture failed")))
+      ('gnu/linux
+       (with-temp-buffer
+         (set-buffer-multibyte nil)
+         (unless (zerop (call-process "flameshot" nil t nil "gui" "--raw"))
+           (user-error "flameshot failed"))
+         (let ((coding-system-for-write 'no-conversion))
+           (write-region (point-min) (point-max) target))))
+      (_
+       (user-error "No screenshot backend for system-type %s" system-type))))
+
+  (defun my/org-attach-screenshot ()
+    "Capture a screenshot and attach it to the current Org node.
+
+Writes directly into the attach directory instead of routing through
+`org-download-screenshot'. That path calls `org-attach-attach' with
+method \\='none on a file already at its destination, which fires a
+spurious overwrite prompt whose \"yes\" branch deletes the file
+without replacing it."
+    (interactive)
+    (unless (derived-mode-p 'org-mode)
+      (user-error "Not in an Org buffer"))
+    (org-id-get-create)
+    (let* ((attach-dir (org-attach-dir 'get-create))
+           (basename (concat (format-time-string
+                              my/org-attach-screenshot-timestamp-format)
+                             (make-temp-name "")
+                             ".png"))
+           (target (expand-file-name basename attach-dir)))
+      (my/org-attach-screenshot--capture target)
+      (unless (file-exists-p target)
+        (user-error "No image was saved (empty clipboard?)"))
+      (org-attach-tag)
+      (run-hook-with-args 'org-attach-after-change-hook attach-dir)
+      (insert (format "[[attachment:%s]]\n" (org-link-escape basename)))
+      (org-display-inline-images))))
 
 (use-package org-download
   :after org
   :init
-  (setq org-download-timestamp "%Y-%m-%dT%H-%M-%S-"
-        org-download-screenshot-basename (concat (make-temp-name "") ".png"))
+  (setq org-download-timestamp "%Y-%m-%dT%H-%M-%S-")
   :config
-  (my/define-key
-   (:map org-mode-map :key "C-c s" #'my/org-download-screenshot))
-  
-  (setq org-download-method 'attach)
-  
-  (defun my/org-download-screenshot ()
-    "Cross-platform screenshot handler for Org."
-    (interactive)
-    (pcase system-type
-      ('windows-nt
-       (let ((script (locate-file "save-clipboard-image" exec-path '(".ps1"))))
-         (if script
-             (let ((org-download-screenshot-method
-                    (format "powershell %s %%s" script)))
-               (org-download-screenshot))
-           (user-error "Cannot find %s in PATH" script))))
-      ('darwin
-       (let ((org-download-screenshot-method "screencapture -i %s"))
-         (org-download-screenshot)))
-      ('gnu/linux
-       (let ((org-download-screenshot-method "flameshot gui --raw > %s"))
-         (org-download-screenshot)))
-      (_
-       (user-error "No screenshot method defined for syste: %s" system-type)))))
+  (setq org-download-method 'attach))
 
 (use-package sxiv
   :if (eq system-type 'gnu/linux)
