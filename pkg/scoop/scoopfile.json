@@ -31,6 +31,14 @@
       "Source": "main"
     },
     {
+      "Name": "7zip",
+      "Source": "main"
+    },
+    {
+      "Name": "findutils",
+      "Source": "main"
+    },
+    {
       "Name": "pandoc",
       "Source": "main"
     },
@@ -75,8 +83,36 @@
       "Source": "extras"
     },
     {
+      "Name": "marktext",
+      "Source": "extras"
+    },
+    {
       "Name": "win32yank",
       "Source": "main"
+    },
+    {
+      "Name": "espanso",
+      "Source": "main"
+    },
+    {
+      "Name": "autohotkey",
+      "Source": "extras"
+    },
+    {
+      "Name": "everything",
+      "Source": "extras"
+    },
+    {
+      "Name": "flow-launcher",
+      "Source": "extras"
+    },
+    {
+      "Name": "quicklook",
+      "Source": "extras"
+    },
+    {
+      "Name": "winmerge",
+      "Source": "extras"
     }
   ]
 }

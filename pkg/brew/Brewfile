@@ -40,6 +40,7 @@ brew "weasyprint"               # for pandoc
 
 # --- Shell ergonomics --------------------------------------------------------
 brew "zoxide"                   # learning cd, exposed as `z`
+brew "espanso"                  # text expander / snippets
 
 # --- Dev tools ---------------------------------------------------------------
 brew "git"
