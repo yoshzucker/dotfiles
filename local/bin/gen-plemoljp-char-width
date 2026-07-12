@@ -28,14 +28,26 @@ command -v fontforge >/dev/null || { echo "error: fontforge not found (brew inst
 work="$(mktemp -d "${TMPDIR:-/tmp}/plemoljp-cw.XXXXXX")"
 trap 'rm -rf "$work"' EXIT
 
+# Windows-native paths for tools that don't parse MSYS2-style '/c/...' (Emacs,
+# fontforge, python3 on Windows are native Win32 builds and interpret those as
+# relative). cygpath -m yields mixed 'C:/...' form which forward-slash-tolerant
+# tools accept. On macOS/Linux `cygpath` is missing; POSIX paths work directly.
+if command -v cygpath >/dev/null; then
+    work_native="$(cygpath -m "$work")"
+    module_native="$(cygpath -m "$module")"
+    font_native="$(cygpath -m "$font")"
+else
+    work_native="$work"; module_native="$module"; font_native="$font"
+fi
+
 echo ">> dumping Emacs char-width (Japanese / English)"
 emacs --batch --eval "(progn
   (set-language-environment \"Japanese\")
-  (with-temp-file \"$work/ja.txt\"
+  (with-temp-file \"$work_native/ja.txt\"
     (dolist (cp (number-sequence #x00A0 #x2FFF))
       (insert (format \"%d %d\n\" cp (char-width cp)))))
   (set-language-environment \"English\")
-  (with-temp-file \"$work/en.txt\"
+  (with-temp-file \"$work_native/en.txt\"
     (dolist (cp (number-sequence #x00A0 #x2FFF))
       (insert (format \"%d %d\n\" cp (char-width cp))))))" 2>/dev/null
 
@@ -54,10 +66,10 @@ for cp in [0x41] + list(range(0x00A0, 0x3000)):  # 0x41 = ASCII 'A' = half-width
     if g is not None:
         print(cp, g.width)
 PY
-fontforge -lang=py -script "$work/adv.py" "$font" 2>/dev/null > "$work/adv.txt"
+fontforge -lang=py -script "$work_native/adv.py" "$font_native" 2>/dev/null > "$work/adv.txt"
 
 echo ">> building maps and splicing into $module"
-python3 - "$work" "$module" <<'PY'
+python3 - "$work_native" "$module_native" <<'PY'
 import re, sys
 work, module = sys.argv[1], sys.argv[2]
 

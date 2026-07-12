@@ -4,18 +4,24 @@ set -euo pipefail
 IFS=$'\n\t'
 
 # build-plemoljp-nf — build a single "PlemolJP NF" font: NON-Console PlemolJP
-# (East-Asian ambiguous-width glyphs such as arrows are FULL width) carrying the
-# Nerd Font icons taken from the official "PlemolJP Console NF".  Box-drawing
-# (U+2500-257F) is an exception: taken HALF width from Console NF so ASCII art /
-# TUI frames render single-cell (Emacs GUI can't reroute it per-range on macOS).
+# (East-Asian ambiguous glyphs valued in Japanese prose stay FULL width:
+# enclosed alphanumerics ①-⑳, math ∀ ∃ ∈ ∉, misc symbols ★ ⚠ ☑ ☒) carrying
+# the Nerd Font icons taken from the official "PlemolJP Console NF".
+# Ambiguous-width UI-decoration blocks (arrows → ← ⇒, box-drawing ─ │ ┌ ┐,
+# block elements ▀ ▄ █ ░ ▒ ▓, geometric shapes ▶ ▼ ■ ● ○ ◆, dingbats ✓ ✗ ❯,
+# misc symbols and arrows ⬆ ⬇ ⭐) are OVERRIDDEN with Console NF's HALF-width
+# glyphs so modern Emacs UI packages (agent-shell expand markers, magit,
+# transient, mode-line) that pad columns assuming these are single-cell keep
+# their alignment intact.
 #
 # Why: the official Nerd Fonts build of PlemolJP (PlemolJP_NF release) ships
 # Console variants only, which draw ambiguous-width glyphs (→ ★ ※ …) at half
 # width. Patching the non-Console PlemolJP directly with nerd-fonts' font-patcher
 # does not reproduce correct single-cell icon/powerline sizing for this
 # dual-width CJK font. Instead we copy the already-correct Nerd glyphs (PUA) out
-# of PlemolJP Console NF into the non-Console PlemolJP. Both share the same em
-# and design, so the icons drop in unchanged while the arrows stay full width.
+# of PlemolJP Console NF into the non-Console PlemolJP, plus overlay a curated
+# set of UI-decoration ambiguous blocks with Console NF's half-width glyphs.
+# Both share the same em and design, so the icons drop in unchanged.
 #
 # Result family: "PlemolJP NF"  (styles: Regular / Bold / Italic / BoldItalic)
 #
@@ -127,18 +133,39 @@ for g in sym.glyphs():
     base[u].width = g.width
     copied += 1
 
-# Override box-drawing (U+2500-257F) with Console NF's HALF-width glyphs. In the
-# Emacs GUI a face's :family (PlemolJP NF) covers box-drawing, so a per-range
-# set-fontset-font override to the Console font is ignored on macOS; baking the
-# half-width glyphs into the font is what makes ASCII art / TUI frames render
-# single-cell (char-width is set to 1 to match in emacs.d/modules/my-ui-char.el).
-boxed = 0
-for u in range(0x2500, 0x2580):
-    if u in sym and u in base:
-        sym.selection.none(); sym.selection.select(("unicode",), u); sym.copy()
-        base.selection.none(); base.selection.select(("unicode",), u); base.paste()
-        base[u].width = sym[u].width
-        boxed += 1
+# Override ambiguous-width UI-decoration blocks with Console NF's HALF-width
+# glyphs. Modern Emacs UI packages (agent-shell expand markers, magit,
+# transient, mode-line) pad on the assumption these render in a single cell;
+# keeping them full width breaks column alignment (e.g. an "▶ " expand prefix
+# vs an empty "  " prefix on the same visual column).
+# In the Emacs GUI a face's :family (PlemolJP NF) covers these ranges, so a
+# per-range set-fontset-font override to the Console font is ignored on macOS;
+# baking the half-width glyphs into the font itself is what makes them render
+# single-cell (char-width follows via emacs.d/modules/my-ui-char.el, whose GUI
+# map is regenerated from font glyph advances by local/bin/gen-plemoljp-char-width).
+#
+# Excluded from this list on purpose (Japanese prose still expects full width):
+#   U+2160-217F Roman Numerals           (Ⅰ Ⅱ Ⅲ)
+#   U+2200-22FF Mathematical Operators   (∀ ∃ ∈ ∉ ≠ ≦ ≧ ∴ ∵)
+#   U+2460-24FF Enclosed Alphanumerics   (① ⑳ ㊤ ㊥ ㊦)
+#   U+2600-26FF Miscellaneous Symbols    (☑ ☒ ☐ ★ ⚠ ☂ ♠ ♣ ♥ ♦) — used mostly
+#     as content in Org export / docstrings, rarely as column-aligned UI markers
+HALF_WIDTH_OVERRIDES = [
+    (0x2190, 0x21FF),  # Arrows                          (→ ← ↑ ↓ ↔ ⇒ ⇔)
+    (0x2500, 0x257F),  # Box Drawing                     (─ │ ┌ ┐ └ ┘ ├ ┼)
+    (0x2580, 0x259F),  # Block Elements                  (▀ ▄ █ ░ ▒ ▓)
+    (0x25A0, 0x25FF),  # Geometric Shapes                (▶ ▼ ◀ ▲ ■ ● ○ ◆)
+    (0x2700, 0x27BF),  # Dingbats                        (✓ ✗ ✔ ✘ ❯ ❮)
+    (0x2B00, 0x2BFF),  # Miscellaneous Symbols and Arrows (⬆ ⬇ ⬅ ➡ ⭐)
+]
+halved = 0
+for lo, hi in HALF_WIDTH_OVERRIDES:
+    for u in range(lo, hi + 1):
+        if u in sym and u in base:
+            sym.selection.none(); sym.selection.select(("unicode",), u); sym.copy()
+            base.selection.none(); base.selection.select(("unicode",), u); base.paste()
+            base[u].width = sym[u].width
+            halved += 1
 def rename(val, key):
     if not isinstance(val, str) or "PlemolJP" not in val:
         return val
@@ -152,7 +179,7 @@ base.familyname = NEWFAM
 base.fontname   = orig_fontname.replace("PlemolJP", "PlemolJPNF")
 base.fullname   = orig_fullname.replace("PlemolJP", NEWFAM)
 base.sfnt_names = tuple((lang, key, rename(val, key)) for (lang, key, val) in orig_sfnt)
-print("  %s -> copied %d nerd glyphs, %d box-drawing" % (out_path.split('/')[-1], copied, boxed))
+print("  %s -> copied %d nerd glyphs, %d half-width overrides" % (out_path.split('/')[-1], copied, halved))
 base.generate(out_path)
 # Restore OS/2.xAvgCharWidth to the source value (fontforge inflated it on generate).
 if src_xavg is not None:
