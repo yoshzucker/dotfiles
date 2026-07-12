@@ -13,7 +13,7 @@ setopt nobeep auto_pushd auto_cd interactive_comments prompt_subst
 # below and the correction prompt ends up invisible.
 
 # ----- Completion System -----
- -d ~/.grok/completions/zsh ] && fpath=(~/.grok/completions/zsh $fpath)
+[ -d ~/.grok/completions/zsh ] && fpath=(~/.grok/completions/zsh $fpath)
 zmodload zsh/complist
 zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'l:|=* r:|=*'
 zstyle ':completion:*' menu select=2  # 1 match → insert; 2+ → menu
