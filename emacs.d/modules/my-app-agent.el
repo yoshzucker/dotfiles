@@ -232,6 +232,62 @@ model when both values are numeric, else falls back to 1.2."
   (advice-add 'agent-shell--make-header-model :filter-return
               #'my/agent-shell-header-model-normalize)
 
+  ;; agent-shell paints its header text with `font-lock-variable-name-face'
+  ;; and friends on top of the `header-line' face background, which gensho-
+  ;; theme intentionally keeps low-contrast (chrome tone: `mono6' fg on
+  ;; `mono3' bg).  The font-lock foregrounds were designed for the *body*
+  ;; background, not for chrome, so the resulting pair is hard to read.
+  ;; Bumping the SVG text to `font-weight="bold"' recovers perceptual
+  ;; contrast via weight, without overriding either theme's colors.  The
+  ;; attribute lives on the `<text>' element and is inherited by every
+  ;; `<tspan>' child, so one attribute per top/bottom/bindings row is
+  ;; enough.  Idempotent: skips `<text>' tags that already carry a
+  ;; font-weight (agent-shell's fallback icon glyphs, `agent-shell.el:3879').
+  (defcustom my/agent-shell-header-bold t
+    "When non-nil, render agent-shell's graphical header text in bold.
+Toggle at runtime by customizing this variable and clearing
+`agent-shell--header-cache' so cached SVGs are regenerated."
+    :type 'boolean
+    :group 'agent-shell)
+
+  (defun my/agent-shell-header-boldize (result)
+    "Inject font-weight=\"bold\" into RESULT's embedded SVG image data.
+RESULT is what `agent-shell--make-header' returns: for the graphical
+style it is a propertized string whose glyph carries the header SVG
+as an Emacs image descriptor on the `display' text property, not as
+raw XML in the buffer text (`svg-insert-image' calls `insert-image',
+so the buffer only holds a placeholder character).  The XML lives in
+the image descriptor's :data plist entry, so mutate it there.  Text
+and none styles have no image and pass through untouched.  Idempotent
+via a font-weight= presence check."
+    (when (and my/agent-shell-header-bold
+               (stringp result)
+               (> (length result) 0))
+      (let* ((pos (if (get-text-property 0 'display result)
+                      0
+                    (next-single-property-change 0 'display result)))
+             (disp (and pos (get-text-property pos 'display result))))
+        (when (and (consp disp) (eq (car disp) 'image))
+          (let ((data (plist-get (cdr disp) :data)))
+            (when (and (stringp data)
+                       (string-match-p "<text " data)
+                       (not (string-match-p "<text[^>]*font-weight=" data)))
+              (let ((new-data (replace-regexp-in-string
+                               "<text " "<text font-weight=\"bold\" "
+                               data t t)))
+                (plist-put (cdr disp) :data new-data)
+                (image-flush disp)))))))
+    result)
+
+  (advice-add 'agent-shell--make-header :filter-return
+              #'my/agent-shell-header-boldize)
+
+  ;; Header SVGs are cached keyed on model fields (not on weight), so
+  ;; drop the cache once at load time to force regeneration with the
+  ;; new attribute.
+  (when (boundp 'agent-shell--header-cache)
+    (setq agent-shell--header-cache nil))
+
   ;; agent-shell-ui pads every fragment block with a trailing "\n\n" and
   ;; enforces 2 trailing newlines before the next block via
   ;; `agent-shell-ui--required-newlines'.  That's what puts one blank line
