@@ -64,7 +64,7 @@ fi
 echo ">> nerd glyph source: $sym_dir"
 
 cat > "$WORKDIR/merge.py" <<'PY'
-import fontforge, struct, sys
+import fontforge, psMat, struct, sys
 base_path, sym_path, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
 NEWFAM = "PlemolJP NF"
 
@@ -114,7 +114,7 @@ def _set_xavg(path, value):
     struct.pack_into(">I", d, head_o + 8, (0xB1B0AFBA - _sum32(bytes(d))) & 0xFFFFFFFF)
     open(path, "wb").write(d)
 
-src_xavg = _read_xavg(base_path)   # = 528 for PlemolJP; preserve, don't hard-code
+src_xavg = _read_xavg(base_path)   # = 528 for PlemolJP; preserve (scaled by S below)
 # -----------------------------------------------------------------------------
 
 base = fontforge.open(base_path)   # non-console PlemolJP (full-width arrows, no nerd)
@@ -179,6 +179,29 @@ base.familyname = NEWFAM
 base.fontname   = orig_fontname.replace("PlemolJP", "PlemolJPNF")
 base.fullname   = orig_fullname.replace("PlemolJP", NEWFAM)
 base.sfnt_names = tuple((lang, key, rename(val, key)) for (lang, key, val) in orig_sfnt)
+# --- Normalize width metrics so the full-width cell == 1 em ------------------
+# PlemolJP's advances are exactly 2:1 (528 half / 1056 full) but sit on a 1000
+# em, so the full-width cell is 1.056 em (not a whole em). Integer pixel rounding
+# then breaks the 2:1 at render time (e.g. at 14px: round(0.528*14)=7 ASCII but
+# round(1.056*14)=15 full, and 2*7 != 15), so ASCII and CJK columns drift in the
+# Emacs GUI. Rescale the whole font by S = em/full so the full-width advance
+# equals one em (1000) and the half-width equals em/2 (500): still 2:1, but the
+# CJK pixel cell is now an integer multiple of the ASCII cell whenever the pixel
+# size is even. PlemolJP is strictly dual-width, so every advance lands on a
+# clean integer (1056->1000, 528->500); only outline coords get sub-pixel rounding.
+FULL = base[0x3042].width                 # 'あ' full-width advance (1056)
+S = base.em / float(FULL)                 # 1000/1056; 1056->1000, 528->500 exactly
+if abs(S - 1.0) > 1e-9:
+    w0 = {g.glyphname: (g.width, g.vwidth) for g in base.glyphs()}
+    base.selection.all()
+    base.transform(psMat.scale(S))        # scales outlines
+    for g in base.glyphs():
+        ow, ovw = w0[g.glyphname]
+        g.width  = int(round(ow  * S))    # overwrite -> exact, double-scale-safe
+        g.vwidth = int(round(ovw * S))
+    if src_xavg is not None:
+        src_xavg = int(round(src_xavg * S))   # 528 -> 500, restored after generate
+
 print("  %s -> copied %d nerd glyphs, %d half-width overrides" % (out_path.split('/')[-1], copied, halved))
 base.generate(out_path)
 # Restore OS/2.xAvgCharWidth to the source value (fontforge inflated it on generate).
