@@ -19,7 +19,7 @@
 
 ;; ---- Auto-generated data (between markers) ---------------------------------
 
-;; >>> AUTO-GENERATED gui map: char-width == PlemolJPNF-Regular.ttf glyph advance (half=528). >>>
+;; >>> AUTO-GENERATED gui map: char-width == PlemolJPNF-Regular.ttf glyph advance (half=500). >>>
 (defconst my/plemoljp-gui-char-width-ranges
   '((#x00A1 #x00A3 1) (#x00A4 #x00A4 2) (#x00A9 #x00A9 2) (#x00AA #x00AA 1) (#x00AD #x00AE 1)
     (#x00AF #x00AF 2) (#x00B0 #x00B0 1) (#x00B2 #x00B3 1) (#x00B5 #x00B5 2) (#x00B9 #x00BA 1)
