@@ -179,7 +179,7 @@ base.familyname = NEWFAM
 base.fontname   = orig_fontname.replace("PlemolJP", "PlemolJPNF")
 base.fullname   = orig_fullname.replace("PlemolJP", NEWFAM)
 base.sfnt_names = tuple((lang, key, rename(val, key)) for (lang, key, val) in orig_sfnt)
-# --- Normalize width metrics so the full-width cell == 1 em ------------------
+# --- Normalize width & line-box metrics so the full-width cell == 1 em -------
 # PlemolJP's advances are exactly 2:1 (528 half / 1056 full) but sit on a 1000
 # em, so the full-width cell is 1.056 em (not a whole em). Integer pixel rounding
 # then breaks the 2:1 at render time (e.g. at 14px: round(0.528*14)=7 ASCII but
@@ -189,6 +189,14 @@ base.sfnt_names = tuple((lang, key, rename(val, key)) for (lang, key, val) in or
 # CJK pixel cell is now an integer multiple of the ASCII cell whenever the pixel
 # size is even. PlemolJP is strictly dual-width, so every advance lands on a
 # clean integer (1056->1000, 528->500); only outline coords get sub-pixel rounding.
+# The line-box metrics (OS/2 usWin*, hhea, OS/2 typo) were tuned pre-scale so
+# ascent+descent > em to absorb CJK vertical overhang. Scaling only the outlines
+# leaves the line box unchanged: glyphs that fill the em (box-drawing, block
+# elements) no longer reach the row edge, and Windows GDI (which derives line
+# height from usWinAscent+usWinDescent) opens a vertical gap between stacked
+# cells. Scale those fields by the same S so glyph vertical extent and line
+# height shrink in lockstep; font.ascent/descent are left untouched (they
+# always equal em by fontforge's contract).
 FULL = base[0x3042].width                 # 'あ' full-width advance (1056)
 S = base.em / float(FULL)                 # 1000/1056; 1056->1000, 528->500 exactly
 if abs(S - 1.0) > 1e-9:
@@ -199,6 +207,10 @@ if abs(S - 1.0) > 1e-9:
         ow, ovw = w0[g.glyphname]
         g.width  = int(round(ow  * S))    # overwrite -> exact, double-scale-safe
         g.vwidth = int(round(ovw * S))
+    for attr in ("hhea_ascent", "hhea_descent", "hhea_linegap",
+                 "os2_winascent", "os2_windescent",
+                 "os2_typoascent", "os2_typodescent", "os2_typolinegap"):
+        setattr(base, attr, int(round(getattr(base, attr) * S)))
     if src_xavg is not None:
         src_xavg = int(round(src_xavg * S))   # 528 -> 500, restored after generate
 
