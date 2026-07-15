@@ -168,6 +168,19 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
 
 ;; Tab-bar and mode-line visuals
 
+;; Emacs' default tab-bar close/new/menu SVG icons register through
+;; `tab-bar--load-buttons' with `:margin ,tab-bar-button-margin :ascent
+;; center'.  With the default margin of 1, the centered image's descent
+;; side exceeds the text descent by exactly one pixel, so the tab-bar
+;; row grows from frame-char-height to frame-char-height + 1.  The
+;; em-height Powerline slant glyphs used below then only fill the first
+;; `em' pixels, leaving the trailing pixel painted with the plain
+;; slant-face background -- visible as a hairline of `tab-bar' bg just
+;; under the trapezoid's lower edge, breaking its merge with the
+;; underlying chrome plane.  Zeroing the margin before the icons are
+;; first defined restores row height = em so the slant fills the row.
+(setq tab-bar-button-margin 0)
+
 ;; Trapezoidal active tab using Nerd Font lower-triangle glyphs
 ;; (powerline range U+E0B8 / U+E0BA), so the active tab visually
 ;; widens at the bottom and flows into the editing surface below.
