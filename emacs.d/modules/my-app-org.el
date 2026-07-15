@@ -411,16 +411,7 @@
         s
       (concat (truncate-string-to-width s (max (- maxlength 1) 0) 0) ".")))
   
-  (advice-add 'org-shorten-string :override #'my/org-shorten-string)
-
-  ;; Misc
-  (defun my/deadgrep-memex ()
-    (interactive)
-    (require 'deadgrep)
-    (let ((default-directory my/org-main-directory))
-      (call-interactively #'deadgrep)))
-
-  (evil-ex-define-cmd "memex" #'my/deadgrep-memex))
+  (advice-add 'org-shorten-string :override #'my/org-shorten-string))
 
 (use-package org-colview
   :straight nil

@@ -40,11 +40,44 @@
   (migemo-init))
 
 (use-package deadgrep
-  :defer t
+  :after evil
   :config
+  (setq deadgrep-executable "rgx")
+
   (when (eq system-type 'windows-nt)
     (add-to-list 'process-coding-system-alist
-                 '("rg" utf-8-dos . cp932-dos))))
+                 '("rg" utf-8-dos . cp932-dos)))
+
+  (defcustom my/deadgrep-reference-directory
+    (file-name-as-directory "~/Documents/reference/")
+    "Directory searched by `my/deadgrep-reference'."
+    :type 'directory
+    :group 'deadgrep)
+
+  (defcustom my/deadgrep-project-directory
+    (file-name-as-directory "~/Documents/project/")
+    "Directory searched by `my/deadgrep-project'."
+    :type 'directory
+    :group 'deadgrep)
+
+  (defun my/deadgrep-memex ()
+    (interactive)
+    (let ((default-directory my/org-main-directory))
+      (call-interactively #'deadgrep)))
+
+  (defun my/deadgrep-reference ()
+    (interactive)
+    (let ((default-directory my/deadgrep-reference-directory))
+      (call-interactively #'deadgrep)))
+
+  (defun my/deadgrep-project ()
+    (interactive)
+    (let ((default-directory my/deadgrep-project-directory))
+      (call-interactively #'deadgrep)))
+
+  (evil-ex-define-cmd "memex"       #'my/deadgrep-memex)
+  (evil-ex-define-cmd "ref[erence]" #'my/deadgrep-reference)
+  (evil-ex-define-cmd "pro[ject]"   #'my/deadgrep-project))
 
 (provide 'my-editor-search)
 ;;; my-editor-search.el ends here
