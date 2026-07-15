@@ -179,24 +179,17 @@ base.familyname = NEWFAM
 base.fontname   = orig_fontname.replace("PlemolJP", "PlemolJPNF")
 base.fullname   = orig_fullname.replace("PlemolJP", NEWFAM)
 base.sfnt_names = tuple((lang, key, rename(val, key)) for (lang, key, val) in orig_sfnt)
-# --- Normalize width & line-box metrics so the full-width cell == 1 em -------
+# --- Advance-width normalization: full-width cell == 1 em --------------------
 # PlemolJP's advances are exactly 2:1 (528 half / 1056 full) but sit on a 1000
-# em, so the full-width cell is 1.056 em (not a whole em). Integer pixel rounding
-# then breaks the 2:1 at render time (e.g. at 14px: round(0.528*14)=7 ASCII but
-# round(1.056*14)=15 full, and 2*7 != 15), so ASCII and CJK columns drift in the
-# Emacs GUI. Rescale the whole font by S = em/full so the full-width advance
-# equals one em (1000) and the half-width equals em/2 (500): still 2:1, but the
-# CJK pixel cell is now an integer multiple of the ASCII cell whenever the pixel
-# size is even. PlemolJP is strictly dual-width, so every advance lands on a
-# clean integer (1056->1000, 528->500); only outline coords get sub-pixel rounding.
-# The line-box metrics (OS/2 usWin*, hhea, OS/2 typo) were tuned pre-scale so
-# ascent+descent > em to absorb CJK vertical overhang. Scaling only the outlines
-# leaves the line box unchanged: glyphs that fill the em (box-drawing, block
-# elements) no longer reach the row edge, and Windows GDI (which derives line
-# height from usWinAscent+usWinDescent) opens a vertical gap between stacked
-# cells. Scale those fields by the same S so glyph vertical extent and line
-# height shrink in lockstep; font.ascent/descent are left untouched (they
-# always equal em by fontforge's contract).
+# em, so the full-width cell is 1.056 em (not a whole em). Integer pixel
+# rounding then breaks the 2:1 at render time (e.g. at 14 px: round(0.528*14)=7
+# ASCII but round(1.056*14)=15 full, and 2*7 != 15), drifting ASCII vs CJK
+# columns in the Emacs GUI. Rescale outlines by S = em/FULL so full advance =
+# em (1000) and half advance = em/2 (500): 2:1 stays exact and CJK pixel cell
+# is an integer multiple of ASCII cell at every even pixel size. Only outlines
+# are scaled here; line-box metrics are set explicitly below (independent of
+# advance width). font.ascent/descent are left untouched (they always equal em
+# by fontforge's contract).
 FULL = base[0x3042].width                 # 'あ' full-width advance (1056)
 S = base.em / float(FULL)                 # 1000/1056; 1056->1000, 528->500 exactly
 if abs(S - 1.0) > 1e-9:
@@ -207,14 +200,91 @@ if abs(S - 1.0) > 1e-9:
         ow, ovw = w0[g.glyphname]
         g.width  = int(round(ow  * S))    # overwrite -> exact, double-scale-safe
         g.vwidth = int(round(ovw * S))
-    for attr in ("hhea_ascent", "hhea_descent", "hhea_linegap",
-                 "os2_winascent", "os2_windescent",
-                 "os2_typoascent", "os2_typodescent", "os2_typolinegap"):
-        setattr(base, attr, int(round(getattr(base, attr) * S)))
     if src_xavg is not None:
         src_xavg = int(round(src_xavg * S))   # 528 -> 500, restored after generate
 
-print("  %s -> copied %d nerd glyphs, %d half-width overrides" % (out_path.split('/')[-1], copied, halved))
+# --- Line-box: intent-driven line-height from Nerd tile + JP glyph extents ---
+# Chosen deductively from the extents of the glyphs the font actually contains
+# after the outline S-scale above, not inherited from the upstream default.
+# Measured constraints (font units, post-S outlines):
+#   * Powerline slant peak      (U+E0BA lower-L triangle): ymax =  890
+#     Setting winAsc = 890 lets the slant fill the row edge-to-edge; a lower
+#     winAsc would leak the face bg through the slant tip (this was the
+#     Windows Emacs tab-bar hairline observed with an earlier 850/-200 box).
+#     Powerline dividers at ymax = 859 and slants at 890 vary within the
+#     Nerd Font design; the tile-glyph rescale below normalises everything
+#     to LINE_ASC exactly.
+#   * kana handakuten peak      (widest across hiragana/katakana): ず = 835
+#     55-unit clearance above -- comfortable for AA and hinting.
+#   * Latin lowercase descender (deepest ASCII descender):         g  = -196
+#     Sets winDesc >= 196; 210 gives 14-unit clearance.
+# Total = 890 + 210 = 1100 = 1.10 em -- "1 em + 1 wari (10%) leading", the
+# tight-but-safe line-height typical for JP-oriented monospace code fonts.
+# Rare stacked Latin Extended diacritics (Ǻ = 1028; combining marks in
+# U+03xx below -238) exceed this box; accepted as an intentional trade-off
+# for a JP-first, code-oriented design that keeps the row compact.
+# Reference: upstream 950/-225 = 1.175 em (comfortable but loose for code).
+LINE_ASC  = 890
+LINE_DESC = 210
+
+# --- Rescale tile-shape glyphs so they exactly fill the line-box -------------
+# Nerd/Console tile glyphs (Powerline slants, box-drawing verticals, block
+# elements) were designed against their own source line-box.  In our 890/-210
+# box the outlines fall short of the row edge (e.g. Console NF Powerline slant
+# reaches ymax = 890 but ymin = -202, so an 8-unit strip of face bg leaks
+# below every slant tab), producing sub-pixel hairlines at row boundaries.
+# Selection uses a two-stage filter:
+#   (1) whitelist by Unicode range -- only ranges of "tile shape" glyphs.
+#       Excludes all text glyphs (kana, kanji, Latin, punctuation, IPA) at
+#       range level so readable characters are never distorted, even when
+#       their descenders happen to overshoot the em box.
+#   (2) within the whitelist, require BOTH edges of the outline to sit near
+#       the source line-box (ymax > 800 AND ymin < -180).  This captures
+#       "full-tile" shapes (│ ┃ ┼ █ ░ Powerline slants) that need to fill
+#       the row edge-to-edge.  Half-tile shapes (corners like ┌, upper/lower
+#       half blocks like ▀ ▄) are intentionally skipped: proportional Y
+#       rescale would shift their mid-em ink (a corner's horizontal stroke
+#       would move away from mid-em), breaking alignment with adjacent
+#       single-line ─; leaving them intact lets their natural bottom (or
+#       top) overshoot get clipped at the row boundary, which visually tiles
+#       seamlessly with adjacent full-tile verticals.
+TILE_RANGES = [
+    (0x2500, 0x257F),  # Box Drawing
+    (0x2580, 0x259F),  # Block Elements
+    (0xE0A0, 0xE0D4),  # Powerline (branch/LN markers + separators + slants)
+]
+rescaled = 0
+for lo, hi in TILE_RANGES:
+    for u in range(lo, hi + 1):
+        if u not in base:
+            continue
+        g = base[u]
+        b = g.boundingBox()               # (xmin, ymin, xmax, ymax)
+        if not b:
+            continue
+        _, y_lo, _, y_hi = b
+        if not (y_hi > 800 and y_lo < -180):
+            continue                       # not full-tile; leave outline alone
+        if abs(y_hi - LINE_ASC) < 0.5 and abs(y_lo - (-LINE_DESC)) < 0.5:
+            continue                       # already at target
+        sy = (LINE_ASC - (-LINE_DESC)) / float(y_hi - y_lo)
+        m = psMat.compose(
+                psMat.compose(psMat.translate(0.0, -y_lo),
+                              psMat.scale(1.0, sy)),
+                psMat.translate(0.0, -LINE_DESC))
+        g.transform(m)
+        rescaled += 1
+
+base.os2_winascent   = LINE_ASC
+base.os2_windescent  = LINE_DESC
+base.os2_typoascent  = LINE_ASC
+base.os2_typodescent = -LINE_DESC
+base.os2_typolinegap = 0
+base.hhea_ascent     = LINE_ASC
+base.hhea_descent    = -LINE_DESC
+base.hhea_linegap    = 0
+
+print("  %s -> %d nerd, %d half-width, %d tile-rescaled" % (out_path.split('/')[-1], copied, halved, rescaled))
 base.generate(out_path)
 # Restore OS/2.xAvgCharWidth to the source value (fontforge inflated it on generate).
 if src_xavg is not None:
@@ -225,7 +295,7 @@ echo ">> merging styles: ${STYLES[*]}"
 for s in "${STYLES[@]}"; do
   fontforge -lang=py -script "$WORKDIR/merge.py" \
     "$base_dir/PlemolJP-$s.ttf" "$sym_dir/PlemolJPConsoleNF-$s.ttf" \
-    "$DISTDIR/PlemolJPNF-$s.ttf" 2>&1 | grep -E 'copied'
+    "$DISTDIR/PlemolJPNF-$s.ttf" 2>&1 | grep -E '  PlemolJPNF-' || true
 done
 
 case "$(uname -s)" in
