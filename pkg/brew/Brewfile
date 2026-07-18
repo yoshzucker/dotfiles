@@ -25,6 +25,7 @@ brew "coreutils"
 brew "diffutils"
 brew "findutils"
 brew "ripgrep"
+brew "ripgrep-all"              # rga: deadgrep document search (pdf/office via pandoc)
 brew "fd"
 brew "fzf"
 brew "cmigemo"
@@ -33,7 +34,7 @@ brew "eza"
 brew "bat"                      # cat replacement, also MANPAGER
 brew "git-delta"                # git diff pager
 brew "aspell"
-brew "poppler"                  # pdf-tools for Emacs, rgpipe etc.
+brew "poppler"                  # pdf-tools for Emacs, rga preprocessing etc.
 brew "automake"                 # pdf-tools for Emacs
 brew "pandoc"
 brew "weasyprint"               # for pandoc

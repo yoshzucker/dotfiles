@@ -42,7 +42,11 @@
 (use-package deadgrep
   :after evil
   :config
-  (setq deadgrep-executable "rgx")
+  (setq deadgrep-executable "rga")
+  (setq deadgrep-extra-arguments
+        (list "--no-config"
+              (format "--rga-config-file=%s"
+                      (expand-file-name "~/.config/ripgrep-all/config.jsonc"))))
 
   (when (eq system-type 'windows-nt)
     (add-to-list 'process-coding-system-alist

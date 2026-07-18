@@ -1,2 +1,0 @@
-#!/usr/bin/env sh
-exec rg --pre-glob '*.{pdf,xl[tas][bxm],xl[wsrta],do[ct],do[ct][xm],p[po]t[xm],p[op]t,html,htm,xhtm,xhtml}' --pre rgpipe "$@"
