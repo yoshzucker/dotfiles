@@ -387,6 +387,8 @@
            :clock-in t :clock-resume t)))
   
   ;; Babel
+  ;; Load R here.  agent-shell is registered later by `ob-agent-shell' in
+  ;; my-app-agent.el (which appends rather than clobbering this list).
   (org-babel-do-load-languages
    'org-babel-load-languages
    '((R . t)))
@@ -435,25 +437,17 @@
   :after org
   :diminish org-indent-mode)
 
+;; Structure templates via C-c C-, (no "<" → no electric-pair "<>").
+;; Keys: as = agent-shell, sr = R, srg = R graph.
 (use-package org-tempo
   :straight nil
   :after org
   :config
   (setq tempo-interactive nil)
-
-  (tempo-define-template "src-r"
-                         '("#+begin_src R :results output"
-                           n> p n>
-                           "#+end_src" >)
-                         "<r"
-                         "<r[TAB] in evil-insert-state.")
-
-  (tempo-define-template "src-r-graph"
-                         '("#+begin_src R :results output graphics :file" p ".png"
-                           n> n>
-                           "#+end_src" >)
-                         "<rg"
-                         "<rg[TAB] in evil-insert-state."))
+  (dolist (entry '(("as"  . "src agent-shell :results output drawer")
+                   ("sr"  . "src R :results output")
+                   ("srg" . "src R :results output graphics :file plot.png")))
+    (add-to-list 'org-structure-template-alist entry)))
 
 (use-package org-cliplink
   :after org
