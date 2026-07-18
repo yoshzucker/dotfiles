@@ -314,12 +314,30 @@ via a font-weight= presence check."
   (advice-add 'agent-shell-ui-update-fragment :around
               #'my/agent-shell-ui-tighten-collapsed-block))
 
+;; Org-babel backend: C-c C-c on #+begin_src agent-shell sends BODY to the
+;; active agent-shell session, waits for turn-complete, then returns the
+;; agent response so org-babel inserts it as #+RESULTS: under the block
+;; (same shape as R / shell babel blocks).  Default header args from the
+;; package are (:results . "output drawer") (:exports . "both").
 (use-package ob-agent-shell
   :straight (:host github :repo "eddof13/ob-agent-shell")
   :after (agent-shell org)
+  :custom
+  ;; Agent turns routinely exceed the package default of 30s (tool calls,
+  ;; permission prompts).  Raise the global wait; override per-block with
+  ;; :timeout N when needed.
+  (ob-agent-shell-timeout 120)
   :config
-  (add-to-list 'org-babel-load-languages '(agent-shell . t))
-  (add-to-list 'org-src-lang-modes '("agent-shell" . text)))  ;; Prevent font-lock errors
+  ;; Append rather than replace so R (registered in my-app-org) stays loaded.
+  ;; `org-babel-do-load-languages' both updates the variable and requires the
+  ;; backend; bare `add-to-list' alone does not force a require.
+  (org-babel-do-load-languages
+   'org-babel-load-languages
+   (cons '(agent-shell . t)
+         (assq-delete-all 'agent-shell org-babel-load-languages)))
+  ;; agent-shell is not a programming major mode; map to text to avoid
+  ;; "Org mode fontification error" on src blocks.
+  (add-to-list 'org-src-lang-modes '("agent-shell" . text)))
 
 (use-package agent-shell-org-transcript
   :straight (:host github :repo "lllShamanlll/agent-shell-org-transcript")
