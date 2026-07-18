@@ -826,26 +826,6 @@ update_r_packages() {
   print_line "$left_message" "Finished."
 }
 
-install_rgpipe() {
-  # Downloads and installs the rgpipe script into ~/.local/bin if not present.
-  # Used for ripgrep preprocessing on binary files (pdf, docx, etc.).
-  if command -v rgpipe >/dev/null 2>&1; then
-    return
-  fi
-
-  left_message="Installing rgpipe"
-  print_line "$left_message" "Started."
-
-  local rgpipe_path="$HOME/.local/bin/rgpipe"
-  local url="https://raw.githubusercontent.com/ColonelBuendia/rgpipe/master/rgpipe"
-
-  mkdir -p "$HOME/.local/bin"
-  curl -fsSL "$url" -o "$rgpipe_path"
-  chmod u+x "$rgpipe_path"
-
-  print_line "$left_message" "Finished."
-}
-
 install_fonts() {
   # Builds and installs the custom "PlemolJP NF" font (non-Console PlemolJP with
   # full-width arrows + Nerd Font icons) via local/bin/build-plemoljp-nf.
@@ -926,7 +906,6 @@ perform_full_bootstrap() {
   install_fonts
   install_pacman_packages
   install_r_packages
-  install_rgpipe
   install_zsh_plugins
   setup_links
 

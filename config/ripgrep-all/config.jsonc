@@ -1,0 +1,18 @@
+{
+  "$schema": "./config.v1.schema.json",
+  "custom_adapters": [
+    {
+      "name": "pandoc_office",
+      "version": 1,
+      "description": "Use pandoc to extract text from pptx and xlsx",
+      "extensions": ["pptx", "xlsx"],
+      "binary": "pandoc",
+      "args": [
+        "--from=$input_file_extension",
+        "--to=plain",
+        "--wrap=none",
+        "--markdown-headings=atx"
+      ]
+    }
+  ]
+}
