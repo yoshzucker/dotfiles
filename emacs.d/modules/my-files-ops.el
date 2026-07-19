@@ -20,6 +20,276 @@
   (let ((default-directory (expand-file-name my/base-directory)))
     (call-interactively #'find-file)))
 
+;; ---- File open policy (system / emacs / pandoc text) ----
+
+(defcustom my/open-with-system-extensions
+  '("app" "exe" "png" "svg" "lnk" "url" "docx" "xlsx" "pptx")
+  "File extensions opened with the OS default app under method `auto'.
+
+Used when FORCE is nil.  Plain C-u force prefers in-Emacs open instead
+\(see `my/open-as-text-extensions')."
+  :type '(repeat string)
+  :group 'my-config)
+
+(defcustom my/open-as-text-extensions
+  '("docx" "xlsx" "pptx")
+  "File extensions opened as pandoc-converted text under method `text'.
+
+Also used under method `auto' when FORCE is a plain C-u."
+  :type '(repeat string)
+  :group 'my-config)
+
+(defcustom my/open-as-text-pandoc-format
+  "markdown"
+  "Pandoc output format for `my/open--text' (e.g. \"markdown\", \"plain\")."
+  :type 'string
+  :group 'my-config)
+
+(defun my/open--extension (filename)
+  "Return the lower-case extension of FILENAME, or \"\"."
+  (downcase (or (file-name-extension filename) "")))
+
+(defun my/open-with-system-extension-p (filename)
+  "Return non-nil if FILENAME should open with the OS default app.
+
+Membership is tested against `my/open-with-system-extensions'."
+  (member (my/open--extension filename) my/open-with-system-extensions))
+
+(defun my/open-as-text-extension-p (filename)
+  "Return non-nil if FILENAME should open as pandoc text.
+
+Membership is tested against `my/open-as-text-extensions'."
+  (member (my/open--extension filename) my/open-as-text-extensions))
+
+(defun my/open--force-p (arg)
+  "Return non-nil if ARG is a plain C-u (raw prefix \\='(4)).
+
+Integer prefixes such as C-u 2 are not treated as force."
+  (equal arg '(4)))
+
+(defun my/open--resolve-method (path method force)
+  "Resolve open METHOD for PATH with FORCE flag.
+
+METHOD is `auto' (default), `emacs', `system', or `text'.
+FORCE is meaningful only for `auto' (plain C-u via `my/open--force-p')."
+  (let ((method (or method 'auto))
+        (force (my/open--force-p force)))
+    (pcase method
+      ((or 'emacs 'system 'text) method)
+      ('auto
+       (cond
+        ((and force (my/open-as-text-extension-p path)) 'text)
+        (force 'emacs)
+        ((my/open-with-system-extension-p path) 'system)
+        (t 'emacs)))
+      (_ (error "Unknown open method: %S" method)))))
+
+(defun my/open-system-command ()
+  "Return (PROGRAM . PATH-TRANSFORM) for the OS default open command."
+  (cond
+   (my/wsl-p
+    '("wsl-open" . identity))
+   ((eq system-type 'darwin)
+    '("open" . identity))
+   ((eq system-type 'gnu/linux)
+    '("xdg-open" . identity))
+   ((eq system-type 'windows-nt)
+    '("open" . (lambda (path)
+                 (replace-regexp-in-string "/" "\\" path t t))))
+   (t
+    (error "No system open command for %S" system-type))))
+
+(defun my/start-process (name buffer program &rest program-args)
+  "Start PROGRAM like `start-process', with a Windows shell-execute fallback."
+  (pcase system-type
+    ('windows-nt (w32-shell-execute program (car program-args)))
+    (_ (apply #'start-process name buffer program program-args))))
+
+(defun my/open--system (path)
+  "Open PATH with the OS default application.  Return nil."
+  (let ((path (expand-file-name path)))
+    (unless (file-exists-p path)
+      (user-error "Path %s does not exist" path))
+    (let* ((cmd (my/open-system-command))
+           (program (car cmd))
+           (arg-fn (cdr cmd))
+           (truepath (file-truename path)))
+      (my/start-process program nil program (funcall arg-fn truepath)))
+    nil))
+
+(defun my/open-system (path)
+  "Open PATH with the OS default application.
+
+Interactive and Embark-friendly (prompts for a file)."
+  (interactive
+   (list (read-file-name "Open with system app: " nil
+                         (or (buffer-file-name) default-directory) t)))
+  (my/open--system path))
+
+(defvar-local my/open-as-text-source-file nil
+  "Absolute path of the office file that produced this text buffer.")
+
+(defvar-local my/open-as-text-source-mtime nil
+  "Modification time of `my/open-as-text-source-file' at conversion.")
+
+(defun my/open--text-buffer-name (file)
+  "Buffer name for the pandoc text view of FILE."
+  (format "*office: %s*" (file-name-nondirectory file)))
+
+(defun my/open--text-reusable-buffer (file mtime)
+  "Return an existing text buffer for FILE if still valid for MTIME."
+  (let ((buf (get-buffer (my/open--text-buffer-name file))))
+    (when (and buf
+               (buffer-live-p buf)
+               (with-current-buffer buf
+                 (and (equal my/open-as-text-source-file file)
+                      (equal my/open-as-text-source-mtime mtime))))
+      buf)))
+
+(defun my/open--text (file &optional force-reload)
+  "Convert FILE with pandoc into a read-only buffer and return it.
+
+Does not set `buffer-file-name' to FILE (avoids overwriting the binary).
+Reuse an existing buffer when source mtime is unchanged, unless
+FORCE-RELOAD is non-nil."
+  (let* ((file (expand-file-name file))
+         (attrs (file-attributes file))
+         (mtime (and attrs (file-attribute-modification-time attrs)))
+         (ext (my/open--extension file))
+         existing)
+    (unless (and attrs (null (file-attribute-type attrs)))
+      (user-error "Not a regular file: %s" file))
+    (unless (executable-find "pandoc")
+      (user-error "pandoc not found; install pandoc to open office files as text"))
+    (setq existing (and (not force-reload)
+                        (my/open--text-reusable-buffer file mtime)))
+    (if existing
+        (progn
+          (pop-to-buffer-same-window existing)
+          existing)
+      (let ((buf (get-buffer-create (my/open--text-buffer-name file)))
+            (coding-system-for-read 'utf-8)
+            (coding-system-for-write 'utf-8)
+            exit)
+        (with-current-buffer buf
+          (let ((inhibit-read-only t))
+            (erase-buffer)
+            (setq exit
+                  (call-process
+                   "pandoc" nil t nil
+                   file
+                   (concat "--from=" ext)
+                   (concat "--to=" my/open-as-text-pandoc-format)
+                   "--wrap=none"))
+            (unless (eq exit 0)
+              (let ((err (string-trim (buffer-string))))
+                (erase-buffer)
+                (user-error "pandoc failed for %s (exit %s)%s"
+                            file exit
+                            (if (string-empty-p err) "" (concat ": " err)))))
+            (goto-char (point-min))
+            (insert (format "<!-- source: %s -->\n" file)
+                    (format "<!-- converted: %s -->\n\n"
+                            (format-time-string "%Y-%m-%d %H:%M:%S")))
+            (if (fboundp 'markdown-mode)
+                (markdown-mode)
+              (text-mode))
+            (setq-local my/open-as-text-source-file file
+                        my/open-as-text-source-mtime mtime
+                        buffer-read-only t
+                        buffer-undo-list t)
+            ;; Never bind buffer-file-name to the office path.
+            (setq buffer-file-name nil)
+            (set-buffer-modified-p nil)))
+        (pop-to-buffer-same-window buf)
+        buf))))
+
+(defun my/open-as-text (path &optional force-reload)
+  "Open PATH as pandoc text (interactive wrapper for `my/open--text').
+
+Interactive and Embark-friendly (prompts for a file)."
+  (interactive
+   (list (read-file-name "Open as text: " nil
+                         (or (buffer-file-name) default-directory) t)
+         current-prefix-arg))
+  (my/open--text path force-reload))
+
+(defun my/open-file (path &optional method force)
+  "Open PATH using METHOD (`auto', `emacs', `system', or `text').
+
+METHOD defaults to `auto'.  FORCE (plain C-u) affects `auto' only:
+prefer pandoc text for `my/open-as-text-extensions', else in-Emacs
+`find-file', instead of the OS default app.
+
+Return a buffer for `emacs'/`text', or nil for `system'.
+Interactive and Embark-friendly (prompts for a file)."
+  (interactive
+   (list (read-file-name "Open file: " nil
+                         (or (buffer-file-name) default-directory) t)
+         'auto
+         current-prefix-arg))
+  (let* ((path (expand-file-name path))
+         (resolved (my/open--resolve-method path method force)))
+    (pcase resolved
+      ('system
+       (when (fboundp 'recentf-push)
+         (recentf-push path))
+       (my/open--system path))
+      ('text
+       (when (fboundp 'recentf-push)
+         (recentf-push path))
+       (my/open--text path))
+      ('emacs
+       (find-file path)))))
+
+(defun my/open-file-in-emacs (path)
+  "Open PATH inside Emacs (same as plain C-u force open).
+
+For extensions in `my/open-as-text-extensions', convert with pandoc.
+Otherwise use normal `find-file'.  Interactive and Embark-friendly."
+  (interactive
+   (list (read-file-name "Open in Emacs: " nil
+                         (or (buffer-file-name) default-directory) t)))
+  (my/open-file path 'auto '(4)))
+
+(defun my/find-file-open-advice (orig filename &optional wildcards)
+  "Around advice for `find-file': honor `my/open-with-system-extensions'.
+
+Force (plain C-u) is not taken from `current-prefix-arg' here, because
+`find-file' already uses C-u for wildcards.  Use dired C-u RET or
+`my/open-file' for pandoc text open."
+  (pcase (my/open--resolve-method filename 'auto nil)
+    ('emacs (funcall orig filename wildcards))
+    ('system
+     (when (fboundp 'recentf-push)
+       (recentf-push filename))
+     (my/open--system filename)
+     nil)
+    ('text
+     (when (fboundp 'recentf-push)
+       (recentf-push filename))
+     (my/open--text filename))))
+
+(advice-add 'find-file :around #'my/find-file-open-advice)
+
+(defun my/embark-bind-file-open-actions ()
+  "Expose open-policy commands on `embark-file-map'.
+
+Bindings (also listed by `embark-completing-read-prompter'):
+  x  `my/open-system'        — OS default app (same path as dired C-c C-o)
+  t  `my/open-as-text'       — pandoc text buffer
+  E  `my/open-file-in-emacs' — force in-Emacs (C-u RET equivalent)
+
+Default RET/f remain `find-file', which already honors
+`my/open-with-system-extensions' via `my/find-file-open-advice'."
+  (when (boundp 'embark-file-map)
+    (define-key embark-file-map (kbd "x") #'my/open-system)
+    (define-key embark-file-map (kbd "t") #'my/open-as-text)
+    (define-key embark-file-map (kbd "E") #'my/open-file-in-emacs)))
+
+(with-eval-after-load 'embark
+  (my/embark-bind-file-open-actions))
+
 (use-package unify-opening)
 
 (use-package dired
@@ -45,7 +315,8 @@
          "V" #'my/dired-view-marked-files
          "RET" #'my/dired-find-marked-files
          "C-c C-o" #'my/dired-open-file-with-system
-         "C-c C-d" #'my/dired-open-dir-with-system))
+         "C-c C-d" #'my/dired-open-dir-with-system
+         "C-c =" #'my/dired-ediff-dwim))
   
   (my/define-key
    (:map dired-mode-map
@@ -54,7 +325,9 @@
    (:map dired-mode-map
          :state normal
          :after evil-collection
-         :key "<mouse-2>" #'dired-find-file))
+         :key
+         "<mouse-2>" #'dired-find-file
+         "RET" #'my/dired-find-marked-files))
   
   ;; Evil integration
   (dolist (key '("n" "N" "g" "G"))
@@ -98,79 +371,79 @@
           (forward-line 1)
           (sort-regexp-fields t "^.*$" "[ ]*[.]*$" (point) (point-max))))))
   (advice-add 'dired-readin :after #'my/dired-keep-dot-top)
-  
-  ;; Alist of (program . path-transform) per system
-  (defconst my/open-program-alist
-    (cond
-     (my/wsl-p
-      '("wsl-open" . identity))
-     ((eq system-type 'darwin)
-      '("open" . identity))
-     ((eq system-type 'gnu/linux)
-      '("xdg-open" . identity))
-     ((eq system-type 'windows-nt)
-      '("open" . (lambda (path)
-                   (replace-regexp-in-string "/" "\\" path t t))))))
-  
-  ;; Apply FUNC to marked files in Dired (or to file at point if none marked)
+
+  ;; Dired entry points for `my/open-file' policy
   (defun my/dired-mapc-marked-files (func &optional arg)
-    "Open marked files using MODE ('find-file or 'view-file)."
-    (let ((files (dired-get-marked-files nil arg)))
-      (mapc func files)))
-  
+    "Call FUNC on each marked file (or file at point).
+
+ARG is passed to `dired-get-marked-files'."
+    (mapc func (dired-get-marked-files nil arg)))
+
   (defun my/dired-find-marked-files (&optional arg)
+    "Open marked files via `my/open-file'.
+
+ARG is passed to `dired-get-marked-files' (plain C-u: current file only).
+A plain C-u also forces in-Emacs open: pandoc text for
+`my/open-as-text-extensions', otherwise `find-file'."
     (interactive "P")
-    (my/dired-mapc-marked-files #'find-file arg))
-  
+    (let ((force current-prefix-arg))
+      (dolist (f (dired-get-marked-files nil arg))
+        (my/open-file f 'auto force))))
+
   (defun my/dired-view-marked-files (&optional arg)
+    "View marked files; Office + plain C-u opens pandoc text instead.
+
+ARG is passed to `dired-get-marked-files'."
     (interactive "P")
-    (my/dired-mapc-marked-files #'view-file arg))
-  
-  ;; Start process depending on system
-  (defun my/start-process (name buffer program &rest program-args)
-    (pcase system-type
-      ('windows-nt (w32-shell-execute program (car program-args)))
-      (_ (apply #'start-process name buffer program program-args))))
-  
-  ;; Open file or directory with system default app
-  (defun my/open-with-system (&optional path)
-    "Open PATH with the system's default application."
-    (let ((path (expand-file-name (or path (buffer-file-name)))))
-      (cond
-       ((not (file-exists-p path))
-        (message "Path %s does not exist" path))
-       (t
-        (let ((program (car my/open-program-alist))
-              (arg-fn (cdr my/open-program-alist))
-              (truepath (file-truename path)))
-          (my/start-process program nil program (funcall arg-fn truepath)))))))
-  
+    (let ((force current-prefix-arg))
+      (dolist (f (dired-get-marked-files nil arg))
+        (pcase (my/open--resolve-method f 'auto force)
+          ('text (my/open--text f))
+          ('system
+           (when (fboundp 'recentf-push)
+             (recentf-push f))
+           (my/open--system f))
+          ('emacs (view-file f))))))
+
   (defun my/dired-open-file-with-system ()
-    "Open file at point in dired with the system's default application."
+    "Open file at point in dired with the OS default application."
     (interactive)
-    (my/open-with-system (dired-get-filename nil t)))
-  
+    (my/open--system (dired-get-filename nil t)))
+
   (defun my/dired-open-dir-with-system ()
-    "Open directory in dired with the system's default application."
+    "Open current dired directory with the OS default application."
     (interactive)
-    (my/open-with-system (dired-current-directory)))
-  
-  (defvar my/open-with-system-ext
-    '("app" "exe" "png" "svg" "lnk" "url" "docx" "xlsx" "pptx")
-    "List of file extensions to open with system apps.")
-  
-  (defun my/open-with-system-ext-p (filename)
-    "Return non-nil if FILE-OR-DIR should be opened externally based on its extension."
-    (member (downcase (or (file-name-extension filename) "")) my/open-with-system-ext))
-  
-  (defun my/find-file-maybe-external (f filename &optional wildcards)
-    "Open FILENAME externally if extension matches, otherwise call F."
-    (if (my/open-with-system-ext-p filename)
-        (progn (recentf-push filename) (my/open-with-system filename))
-      (funcall f filename wildcards)))
-  
-  (advice-add 'find-file :around #'my/find-file-maybe-external)
-  
+    (my/open--system (dired-current-directory)))
+
+  (defun my/dired-ediff-dwim ()
+    "Ediff two files from Dired.
+
+If both are in `my/open-as-text-extensions', convert with pandoc and
+run `ediff-buffers'.  Otherwise run `ediff-files'.
+
+With one marked file (or only file at point), prompt for the other."
+    (interactive)
+    (let* ((marked (dired-get-marked-files))
+           (files
+            (cond
+             ((= (length marked) 2) marked)
+             ((= (length marked) 1)
+              (list (car marked)
+                    (read-file-name
+                     (format "Ediff %s with: "
+                             (file-name-nondirectory (car marked)))
+                     (dired-dwim-target-directory)
+                     nil t)))
+             (t (user-error "Mark 1 or 2 files for ediff")))))
+      (let ((a (expand-file-name (car files)))
+            (b (expand-file-name (cadr files))))
+        (if (and (my/open-as-text-extension-p a)
+                 (my/open-as-text-extension-p b))
+            (let ((buf-a (my/open--text a))
+                  (buf-b (my/open--text b)))
+              (ediff-buffers buf-a buf-b))
+          (ediff-files a b)))))
+
   ;; Drag and drop support in dired
   (setq dired-dnd-protocol-alist
         '(("^file:///" . dired-dnd-handle-local-file-move)
