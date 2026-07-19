@@ -850,8 +850,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
            :target (file+head "%<%Y-%m-%d>.org" "#+title: %<%Y-%m-%d>\n"))))
 
   ;; "d" prompts for tags and keeps the buffer open; "r" is the fast
-  ;; fire-and-forget note.  The bibtex "b" template is appended later by
-  ;; `org-roam-bibtex' via `add-to-list', so it survives this `setq'.
+  ;; fire-and-forget note.
   (setq org-roam-capture-templates
         '(("d" "default (tags)" plain "%?"
            :target (file+head "complexbrain/%<%Y-%m-%dT%H-%M-%S>-${slug}.org"
@@ -960,136 +959,6 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
   (setq org-noter-always-create-frame nil
         org-noter-notes-search-path (list my/org-complexbrain-directory)
         org-noter-doc-property-in-notes t))
-
-(use-package citar
-  :after org
-  :init
-  (defcustom my/org-cite-directory
-    (file-name-as-directory (concat my/org-main-directory "bib/"))
-    "Directory where BibTeX files and related citation data are stored.")
-  :config
-  (my/define-key
-   (:map global-map
-         :key
-         "C-c n a" #'citar-open-notes)
-   (:map org-mode-map
-         :key
-         "C-c b" #'org-cite-insert))
-
-  (make-directory my/org-cite-directory t)
-
-  (defvar my/org-cite-data-directory
-    (file-name-as-directory (concat my/org-cite-directory "data/")))
-  (make-directory my/org-cite-data-directory t)
-
-  (defvar my/org-cite-file "references.bib")
-
-  (let ((bib-file (concat my/org-cite-directory my/org-cite-file)))
-    (unless (file-exists-p bib-file)
-      (with-temp-buffer (write-file bib-file))))
-
-  (add-hook 'org-mode-hook #'citar-capf-setup)
-
-  (setq org-cite-global-bibliography (list (concat my/org-cite-directory my/org-cite-file))
-        org-cite-insert-processor 'citar
-        org-cite-follow-processor 'citar
-        org-cite-activate-processor 'citar
-        citar-bibliography org-cite-global-bibliography
-        citar-library-paths (list my/org-cite-data-directory)))
-
-(use-package citar-embark
-  :after (citar embark)
-  :diminish citar-embark-mode
-  :config
-  (citar-embark-mode 1))
-
-(use-package citar-org-roam
-  :after (citar org-roam)
-  :diminish citar-org-roam-mode
-  :config
-  (setq citar-notes-source 'orb-citar-source
-        citar-org-roam-capture-template-key "b")
-
-  (citar-register-notes-source
-   'orb-citar-source
-   `(:name "Org-Roam Notes"
-           :category org-roam-node
-           :items ,#'citar-org-roam--get-candidates
-           :hasitems ,#'citar-org-roam-has-notes
-           :open ,#'citar-org-roam-open-note
-           :create ,#'orb-citar-edit-note
-           :annotate ,#'citar-org-roam--annotate))
-
-  (citar-org-roam-mode 1))
-
-(use-package org-roam-bibtex
-  :after citar org-roam
-  :config
-  (my/define-key 
-   (:map org-mode-map :key "C-c n b" #'orb-note-actions))
-
-  (setq bibtex-completion-bibliography citar-bibliography
-        orb-preformat-keywords
-        '("citekey" "title" "url" "author-or-editor" "keywords" "file" "eprint" "abstract")
-        orb-process-file-keyword nil
-        orb-file-field-extensions '("pdf"))
-
-  (defun my/orb-replace-colon (string)
-    (replace-regexp-in-string ":" "." string))
-
-  (defun my/orb-strip-bib-file (string)
-    (let ((rules '(("^:" . "") (":pdf$" . ""))))
-      (seq-reduce (lambda (s rule)
-                    (replace-regexp-in-string (car rule) (cdr rule) s))
-                  rules string)))
-
-  (defun my/orb-bib-file-relative (bib-file-field)
-    (file-relative-name (my/orb-strip-bib-file bib-file-field)
-                        my/org-cite-directory))
-
-  (defun my/orb-bib-ref-mv (bib-file-field)
-    (let ((file (my/orb-strip-bib-file bib-file-field)))
-      (org-attach-attach file nil 'mv)))
-
-  (add-to-list 'org-roam-capture-templates
-               '("b" "bibliography reference" plain "%?"
-                 :immediate-finish t
-                 :if-new
-                 (file+head "bib/%(my/orb-replace-colon \"${citekey}\").org"
-                            "#+title: ${title}\n- tags ::\n- keywords :: ${keywords}\n\n* ${title}\n:PROPERTIES:\n:URL: ${url}\n:AUTHOR: ${author-or-editor}\n:NOTER_DOCUMENT: %(my/orb-bib-file-relative \"${file}\")\n:CREATE: %U\n:END:\n- abstract\n  ${abstract}\n")))
-
-  (org-roam-bibtex-mode 1))
-
-(use-package arxiv-mode
-  :after citar
-  :config
-  (my/define-key
-   (:map arxiv-mode-map
-         :state normal
-         :key
-         "p" #'arxiv-prev-entry
-         "n" #'arxiv-next-entry
-         "d" #'arxiv-download-pdf
-         "e" #'arxiv-download-pdf-export-bibtex
-         "b" #'arxiv-export-bibtex
-         "B" #'arxiv-export-bibtex-to-buffer
-         "r" #'arxiv-refine-search
-         "q" #'arxiv-exit
-         "?" #'arxiv-help-menu/body
-         "RET" #'arxiv-open-current-url
-         "SPC" #'arxiv-SPC
-         "<mouse-1>" #'arxiv-click-select-entry))
-
-  (setq arxiv-pop-up-new-frame nil
-        arxiv-default-bibliography (car org-cite-global-bibliography)
-        arxiv-default-download-folder
-        (file-name-as-directory (concat my/org-cite-directory "data/"))))
-
-(use-package biblio
-  :after citar
-  :config
-  (setq biblio-download-directory
-        (file-name-as-directory (concat my/org-cite-directory "data/"))))
 
 (use-package deft
   :after evil
