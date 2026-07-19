@@ -61,6 +61,7 @@ This updates packages (brew/Scoop/apt) to latest per manifests + refreshes all s
 - `config/` → symlinked under `~/.config` (XDG)
 - `local/bin/` → individual scripts symlinked into real directory `~/.local/bin` (the directory itself is never a symlink)
 - `emacs.d/` → symlinked under `~/.emacs.d`
+- `claude/` → individual files symlinked into real directory `~/.claude` (currently `settings.json`; the directory itself is never a symlink, so Claude Code session state and `settings.local.json` stay untouched)
 
 **Conflict handling (XDG strict):**
 When a real file (not a symlink) exists at a target path, it is moved to:
@@ -97,6 +98,21 @@ Run `./bootstrap update` (or the explicit package commands) to apply.
 - **Linux (Debian/Ubuntu/WSL)**: APT base packages first, then Homebrew on top. `language-pack-ja` etc. for Japanese support.
 - **Windows**: Scoop (extras bucket included). Symlink support requires **Developer Mode** enabled (Settings → Update & Security → For developers) or running PowerShell as Administrator. First run after Scoop install usually requires terminal restart.
 - **Emacs**: The `emacs.d/` tree in the repo is linked under `~/.emacs.d` by bootstrap.
+
+## Claude Code + Org-roam (claude-orgmode)
+
+Claude Code can create/link/tag/search org-roam notes and inspect backlinks in the `~/Documents/memex` knowledge base via the [`majorgreys/claude-orgmode`](https://github.com/majorgreys/claude-orgmode) plugin, which talks to a running Emacs through `emacsclient`.
+
+- **Declarative bit**: `claude/settings.json` (linked to `~/.claude/settings.json`) enables the plugin via `enabledPlugins`.
+- **Fetch bit**: `./bootstrap` runs `install_claude_plugins` (idempotent), which adds the marketplace and installs the plugin into `~/.claude` state:
+
+  ```sh
+  claude plugin marketplace add majorgreys/claude-orgmode
+  claude plugin install claude-orgmode@claude-orgmode
+  ```
+
+- **Requirements**: a running Emacs server (started by `emacs.d` config) and `emacsclient` on `PATH` (provided by emacs-plus). Verify with `emacsclient --eval "t"`.
+- **Backend**: this setup stays on org-roam (no vulpea); the plugin auto-selects the org-roam backend. Usage is primarily from `agent-shell` inside Emacs.
 
 ## Requirements
 

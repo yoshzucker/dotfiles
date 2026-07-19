@@ -597,6 +597,12 @@ setup_links() {
   ensure_real_directory "$HOME/.local/bin"
   link_directory_contents "$dotfiles_root/local/bin" "$HOME/.local/bin"
 
+  # Claude Code user settings only: link the individual files under claude/
+  # into ~/.claude without symlinking the whole directory, which holds session
+  # state (sessions/, projects/, plugins/) and the untracked settings.local.json.
+  ensure_real_directory "$HOME/.claude"
+  link_directory_contents "$dotfiles_root/claude" "$HOME/.claude"
+
   print_line "$left_message" "Finished."
 }
 
@@ -890,6 +896,34 @@ install_zsh_plugins() {
   print_line "$left_message" "Finished."
 }
 
+install_claude_plugins() {
+  # Install Claude Code plugins used by this setup. Currently claude-orgmode,
+  # which drives org-roam note management (create/link/tag/search/backlinks)
+  # from Claude Code via emacsclient. enabledPlugins is tracked declaratively
+  # in claude/settings.json (linked by setup_links); this only fetches the
+  # marketplace + plugin files, which live in ~/.claude state.
+  # Idempotent: marketplace/plugin are added only when absent.
+  command -v claude >/dev/null 2>&1 || return
+
+  local plugins_dir="$HOME/.claude/plugins"
+  local known="$plugins_dir/known_marketplaces.json"
+  local installed="$plugins_dir/installed_plugins.json"
+
+  left_message="Installing Claude plugins"
+  print_line "$left_message" "Started."
+
+  if ! grep -q '"claude-orgmode"' "$known" 2>/dev/null; then
+    claude plugin marketplace add majorgreys/claude-orgmode \
+      || echo "⚠️  Could not add claude-orgmode marketplace"
+  fi
+  if ! grep -q '"claude-orgmode@claude-orgmode"' "$installed" 2>/dev/null; then
+    claude plugin install claude-orgmode@claude-orgmode \
+      || echo "⚠️  Could not install claude-orgmode"
+  fi
+
+  print_line "$left_message" "Finished."
+}
+
 
 
 perform_full_bootstrap() {
@@ -908,6 +942,7 @@ perform_full_bootstrap() {
   install_r_packages
   install_zsh_plugins
   setup_links
+  install_claude_plugins
 
   print_line "$left_message" "Finished."
 }
