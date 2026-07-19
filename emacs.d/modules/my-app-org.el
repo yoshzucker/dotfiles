@@ -10,9 +10,50 @@
   (defcustom my/org-main-directory
     (file-name-as-directory "~/Documents/memex/")
     "Top directory for org-mode system.")
-  (defcustom my/org-complexbrain-directory
-    (file-name-as-directory (concat my/org-main-directory "complexbrain/"))
-    "Directory for org-roam and other structured org files.")
+
+  ;; Agenda-file discovery lives in `:init' (not `:config') so it is available
+  ;; at startup: org is deferred via `:after evil', so its `:config' would not
+  ;; run until org first loads.  These helpers depend only on
+  ;; `my/org-main-directory', not on org itself.
+  (defun my/find-org-recursive (&rest dirs)
+    "Recursively find all .org files in DIRS."
+    (seq-mapcat (lambda (dir)
+                  (directory-files-recursively dir "\\.org\\'"))
+                dirs))
+
+  (defun my/find-todo-files (dir)
+    "List .org files under DIR with an open (NEXT/ONGO/WAIT) heading via rg.
+`.org_archive' files are excluded explicitly (the `*.org' rg type otherwise
+matches them).  Falls back to listing every .org file recursively when rg
+is unavailable."
+    (let ((abs (expand-file-name dir)))
+      (if (executable-find "rg")
+          (with-temp-buffer
+            (when (zerop (apply #'call-process
+                                "rg" nil t nil
+                                (append
+                                 '("--type-add" "org:*.org"
+                                   "-torg"
+                                   "--glob" "!*.org_archive"
+                                   "-l"
+                                   "--no-heading" "--no-config"
+                                   "^\\*+ (NEXT|ONGO|WAIT)\\b")
+                                 (list abs))))
+              (split-string (buffer-string) "\n" t)))
+        ;; fallback if rg is not available
+        (my/find-org-recursive abs))))
+
+  (defun my/org-agenda-files-refresh ()
+    "Rebuild `org-agenda-files' from open-task .org files under the main dir."
+    (interactive)
+    (setq org-agenda-files
+          (and (file-directory-p my/org-main-directory)
+               (my/find-todo-files my/org-main-directory))))
+
+  ;; Populate at startup after init finishes (PATH is set by then, org may
+  ;; still be unloaded).  Presetting `org-agenda-files' is safe: org.el's
+  ;; defcustom will not clobber an already-bound value.
+  (add-hook 'emacs-startup-hook #'my/org-agenda-files-refresh)
   :config
   (my/define-key
    (:map global-map
@@ -91,45 +132,15 @@
   
   (advice-add 'org-return :around #'my/org-return-in-evil-normal)
 
-  (setq org-directory my/org-complexbrain-directory)
-  (setq org-default-notes-file (concat org-directory "inbox.org"))
-  (setq org-agenda-files
-        (if (file-exists-p org-default-notes-file)
-            (list org-default-notes-file)
-          nil)) 
-  
+  (setq org-directory my/org-main-directory)
+  ;; Fallback target for capture templates whose file part is the empty string
+  ;; (see `org-capture-expand-file').  Every template here names its own file,
+  ;; so this is only a sane default; project.org is a flat (non-datetree) file.
+  (setq org-default-notes-file (concat org-directory "project.org"))
+
   (defvar org-project-file (concat org-directory "project.org"))
   (defvar org-journal-file (concat org-directory "journal.org"))
   (defvar org-memex-file (concat org-directory "memex.org"))
-
-  (defun my/find-org-recursive (&rest dirs)
-    "Recursively find all .org files in DIRS."
-    (seq-mapcat (lambda (dir)
-                  (directory-files-recursively dir "\\.org\\'"))
-                dirs))
-  
-  (defun my/find-todo-files (dir)
-    (let ((abs (expand-file-name dir)))
-      (if (executable-find "rg")
-          (with-temp-buffer
-            (apply #'call-process
-                   "rg" nil t nil
-                   (append
-                    '("--type-add" "org:*.org"
-                      "-torg"
-                      "-l"
-                      "--no-heading" "--no-config" "--max-columns" "300"
-                      "^*+ NEXT|ONGO|WAIT")
-                    (list abs)))
-            (split-string (buffer-string) "\n" t))
-        ;; fallback if rg is not available
-        (my/find-org-recursive abs))))
-
-  (when (file-directory-p my/org-complexbrain-directory)
-    (setq org-agenda-files
-          (cl-union org-agenda-files
-                    (my/find-todo-files my/org-complexbrain-directory)
-                    :test #'string=)))
 
   (setq org-return-follows-link t)
   
@@ -459,12 +470,11 @@
   :after org
   :config
   ;; Absolute central ID-keyed store.  With the default relative "data/", each
-  ;; note directory gets its own store, so moving a subtree between
-  ;; complexbrain/ and complexbrain/daily/ breaks `attachment:' links.  A single
-  ;; absolute store makes attachments resolve by ID regardless of note location.
-  ;; Existing attachments already live here, so no migration is needed.
+  ;; note directory gets its own store, so moving a subtree between the root and
+  ;; daily/ breaks `attachment:' links.  A single absolute store makes
+  ;; attachments resolve by ID regardless of note location.
   (setq org-attach-id-dir
-        (expand-file-name "complexbrain/data/" my/org-main-directory))
+        (expand-file-name "data/" my/org-main-directory))
 
   (my/define-key
    (:map org-mode-map :key "C-c h" #'my/org-attach-screenshot))
@@ -841,10 +851,10 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
 
   (org-roam-db-autosync-mode)
 
-  ;; Daily notes live under complexbrain/daily/ to share the single central
-  ;; attachment store (see `org-attach-id-dir'), so promoting a daily entry to
-  ;; a standalone note keeps its `attachment:' links valid.
-  (setq org-roam-dailies-directory "complexbrain/daily/")
+  ;; Daily notes live under daily/ but share the single central attachment store
+  ;; (see `org-attach-id-dir'), so promoting a daily entry to a standalone note
+  ;; keeps its `attachment:' links valid.
+  (setq org-roam-dailies-directory "daily/")
   (setq org-roam-dailies-capture-templates
         '(("d" "default" entry "* %?"
            :target (file+head "%<%Y-%m-%d>.org" "#+title: %<%Y-%m-%d>\n"))))
@@ -853,11 +863,11 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
   ;; fire-and-forget note.
   (setq org-roam-capture-templates
         '(("d" "default (tags)" plain "%?"
-           :target (file+head "complexbrain/%<%Y-%m-%dT%H-%M-%S>-${slug}.org"
+           :target (file+head "%<%Y-%m-%dT%H-%M-%S>-${slug}.org"
                               "#+title: ${title}\n#+filetags: %^{tags}\n")
            :unnarrowed t)
           ("r" "quick roam" plain "%?"
-           :target (file+head "complexbrain/%<%Y-%m-%dT%H-%M-%S>-${slug}.org"
+           :target (file+head "%<%Y-%m-%dT%H-%M-%S>-${slug}.org"
                               "#+title: ${title}\n")
            :unnarrowed t
            :immediate-finish t)))
@@ -879,7 +889,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
   :config
   (setq org-roam-capture-ref-templates
         '(("r" "ref" plain "%?"
-           :target (file+head "complexbrain/%<%Y-%m-%dT%H-%M-%S>-${slug}.org"
+           :target (file+head "%<%Y-%m-%dT%H-%M-%S>-${slug}.org"
                               "#+title: ${title}")
            :unnarrowed t))))
 
@@ -957,7 +967,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
          "TAB" #'org-noter-insert-note-toggle-no-questions))
 
   (setq org-noter-always-create-frame nil
-        org-noter-notes-search-path (list my/org-complexbrain-directory)
+        org-noter-notes-search-path (list my/org-main-directory)
         org-noter-doc-property-in-notes t))
 
 (use-package deft
@@ -997,7 +1007,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
 
   (add-hook 'deft-mode-hook #'my/clear-button-key)
 
-  (setq deft-directory my/org-complexbrain-directory
+  (setq deft-directory my/org-main-directory
         deft-archive-directory "archive/"
         deft-default-extension "org"
         deft-ignore-file-regexp (concat "\\(?:" "^$" "\\)" "\\|.#")
