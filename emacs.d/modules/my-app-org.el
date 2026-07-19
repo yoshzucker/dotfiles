@@ -636,10 +636,6 @@ without replacing it."
                                    (todo . "  %-8c %-7e")
                                    (tags . "  %i %-5c %-7e")
                                    (search . " %i %-12c"))
-        org-agenda-current-time-string
-        (if (and (display-graphic-p) (char-displayable-p ?←))
-            "← now -------------------------------------------------"
-          "now - - - - - - - - - - - - - - - - - - - - - - - - -")
         org-agenda-timegrid-use-ampm nil
         org-agenda-log-mode-items '(closed clock state)
         org-clock-report-include-clocking-task t
