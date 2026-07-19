@@ -343,7 +343,7 @@ via a font-weight= presence check."
   :straight (:host github :repo "lllShamanlll/agent-shell-org-transcript")
   :after (agent-shell org org-roam)
   :config
-  (setq agent-shell-org-transcript-directory my/org-main-directory))
+  (setq agent-shell-org-transcript-directory org-directory))
 
 (use-package agent-shell-manager
   :straight (:host github :repo "jethrokuan/agent-shell-manager")

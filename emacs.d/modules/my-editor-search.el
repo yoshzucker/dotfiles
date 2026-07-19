@@ -64,20 +64,18 @@
     :type 'directory
     :group 'deadgrep)
 
-  (defun my/deadgrep-memex ()
-    (interactive)
-    (let ((default-directory my/org-main-directory))
+  (defun my/deadgrep-in (dir)
+    "Run `deadgrep' rooted at DIR, ignoring any enclosing VC/project root.
+`deadgrep--project-root' otherwise walks up to a parent `.git' (e.g. ~/.git),
+so pin the search root to DIR explicitly."
+    (let* ((dir (expand-file-name dir))
+           (default-directory dir)
+           (deadgrep-project-root-function (lambda () dir)))
       (call-interactively #'deadgrep)))
 
-  (defun my/deadgrep-reference ()
-    (interactive)
-    (let ((default-directory my/deadgrep-reference-directory))
-      (call-interactively #'deadgrep)))
-
-  (defun my/deadgrep-project ()
-    (interactive)
-    (let ((default-directory my/deadgrep-project-directory))
-      (call-interactively #'deadgrep)))
+  (defun my/deadgrep-memex ()     (interactive) (my/deadgrep-in org-directory))
+  (defun my/deadgrep-reference () (interactive) (my/deadgrep-in my/deadgrep-reference-directory))
+  (defun my/deadgrep-project ()   (interactive) (my/deadgrep-in my/deadgrep-project-directory))
 
   (evil-ex-define-cmd "memex"       #'my/deadgrep-memex)
   (evil-ex-define-cmd "ref[erence]" #'my/deadgrep-reference)
