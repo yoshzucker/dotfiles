@@ -7,14 +7,14 @@
   :after evil
   :init
   (setq system-time-locale "C")
-  (defcustom my/org-main-directory
-    (file-name-as-directory "~/Documents/memex/")
-    "Top directory for org-mode system.")
+  ;; Set `org-directory' here in `:init' (not `:config') so it is bound at
+  ;; startup: org is deferred via `:after evil', and the startup agenda refresh
+  ;; below reads it before org loads.  Presetting this defcustom is safe --
+  ;; org.el will not clobber an already-bound value.
+  (setq org-directory (file-name-as-directory "~/Documents/memex/"))
 
-  ;; Agenda-file discovery lives in `:init' (not `:config') so it is available
-  ;; at startup: org is deferred via `:after evil', so its `:config' would not
-  ;; run until org first loads.  These helpers depend only on
-  ;; `my/org-main-directory', not on org itself.
+  ;; Agenda-file discovery also lives in `:init' so it is available at startup.
+  ;; These helpers depend only on `org-directory', not on org itself.
   (defun my/find-org-recursive (&rest dirs)
     "Recursively find all .org files in DIRS."
     (seq-mapcat (lambda (dir)
@@ -47,8 +47,8 @@ is unavailable."
     "Rebuild `org-agenda-files' from open-task .org files under the main dir."
     (interactive)
     (setq org-agenda-files
-          (and (file-directory-p my/org-main-directory)
-               (my/find-todo-files my/org-main-directory))))
+          (and (file-directory-p org-directory)
+               (my/find-todo-files org-directory))))
 
   ;; Populate at startup after init finishes (PATH is set by then, org may
   ;; still be unloaded).  Presetting `org-agenda-files' is safe: org.el's
@@ -132,15 +132,12 @@ is unavailable."
   
   (advice-add 'org-return :around #'my/org-return-in-evil-normal)
 
-  (setq org-directory my/org-main-directory)
   ;; Fallback target for capture templates whose file part is the empty string
   ;; (see `org-capture-expand-file').  Every template here names its own file,
   ;; so this is only a sane default; project.org is a flat (non-datetree) file.
   (setq org-default-notes-file (concat org-directory "project.org"))
 
-  (defvar org-project-file (concat org-directory "project.org"))
-  (defvar org-journal-file (concat org-directory "journal.org"))
-  (defvar org-memex-file (concat org-directory "memex.org"))
+  (defvar my/org-journal-file (concat org-directory "journal.org"))
 
   (setq org-return-follows-link t)
   
@@ -369,31 +366,31 @@ is unavailable."
           :func #'my/org-capture-update-clock-heading))
 
   (setq org-capture-templates
-        '(("a" "add task" entry (file+datetree org-journal-file)
+        '(("a" "add task" entry (file+datetree my/org-journal-file)
            "* NEXT %?\nSCHEDULED: %^t\n:LOGBOOK:\n- State \"NEXT\"       from              %U\n:END:")
-          ("i" "interrupt task" entry (file+datetree org-journal-file)
+          ("i" "interrupt task" entry (file+datetree my/org-journal-file)
            "* ONGO %?\n"
            :clock-in t :clock-resume t)
-          ("s" "switch task" entry (file+datetree org-journal-file)
+          ("s" "switch task" entry (file+datetree my/org-journal-file)
            "* ONGO %?\n"
            :clock-in t :clock-keep t :jump-to-captured t)
-          ("p" "appointment" entry (file+datetree org-journal-file)
+          ("p" "appointment" entry (file+datetree my/org-journal-file)
            "* %? %^T\n"
            :jump-to-captured t)
-          ("j" "journal" entry (file+datetree org-journal-file)
+          ("j" "journal" entry (file+datetree my/org-journal-file)
            "* %?\n- Note taken on %U \\\\\n"
            :jump-to-captured t)
-          ("c" "clocking journal" entry (file+datetree org-journal-file)
+          ("c" "clocking journal" entry (file+datetree my/org-journal-file)
            "* %?\n- Note taken on %U \\\\\n"
            :clock-in t :clock-keep t :jump-to-captured t)
           ("n" "clocking note" plain (clock)
            "- Note taken on %U \\\\\n  Annotation %a\n  %?"
            :jump-to-captured t)
-          ("l" "insert clock" entry (file+datetree org-journal-file)
+          ("l" "insert clock" entry (file+datetree my/org-journal-file)
            "* %?\n:LOGBOOK:\nCLOCK: %U--%U =>  0:00\n:END:")
-          ("d" "insert done" entry (file+datetree org-journal-file)
+          ("d" "insert done" entry (file+datetree my/org-journal-file)
            "* DONE %?\nCLOSED: %U\n:LOGBOOK:\nCLOCK: %U--%U =>  0:00\n:END:")
-          ("w" "weekly review" entry (file+datetree org-journal-file)
+          ("w" "weekly review" entry (file+datetree my/org-journal-file)
            "* ONGO %?\n Note taken on %U \\\\\ng>"
            :clock-in t :clock-resume t)))
   
@@ -474,7 +471,7 @@ is unavailable."
   ;; daily/ breaks `attachment:' links.  A single absolute store makes
   ;; attachments resolve by ID regardless of note location.
   (setq org-attach-id-dir
-        (expand-file-name "data/" my/org-main-directory))
+        (expand-file-name "data/" org-directory))
 
   (my/define-key
    (:map org-mode-map :key "C-c h" #'my/org-attach-screenshot))
@@ -839,7 +836,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
          :key
          "r" #'org-roam-refile))
 
-  (setq org-roam-directory (file-truename my/org-main-directory)
+  (setq org-roam-directory (file-truename org-directory)
         org-roam-db-location (concat org-roam-directory "org-roam.db")
         org-roam-file-exclude-regexp "/[Aa]rchive/"
         org-roam-completion-everywhere t)
@@ -967,7 +964,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
          "TAB" #'org-noter-insert-note-toggle-no-questions))
 
   (setq org-noter-always-create-frame nil
-        org-noter-notes-search-path (list my/org-main-directory)
+        org-noter-notes-search-path (list org-directory)
         org-noter-doc-property-in-notes t))
 
 (use-package deft
@@ -1007,7 +1004,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
 
   (add-hook 'deft-mode-hook #'my/clear-button-key)
 
-  (setq deft-directory my/org-main-directory
+  (setq deft-directory org-directory
         deft-archive-directory "archive/"
         deft-default-extension "org"
         deft-ignore-file-regexp (concat "\\(?:" "^$" "\\)" "\\|.#")
