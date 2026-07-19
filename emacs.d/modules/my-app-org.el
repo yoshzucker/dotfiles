@@ -458,6 +458,14 @@
   :straight nil
   :after org
   :config
+  ;; Absolute central ID-keyed store.  With the default relative "data/", each
+  ;; note directory gets its own store, so moving a subtree between
+  ;; complexbrain/ and complexbrain/daily/ breaks `attachment:' links.  A single
+  ;; absolute store makes attachments resolve by ID regardless of note location.
+  ;; Existing attachments already live here, so no migration is needed.
+  (setq org-attach-id-dir
+        (expand-file-name "complexbrain/data/" my/org-main-directory))
+
   (my/define-key
    (:map org-mode-map :key "C-c h" #'my/org-attach-screenshot))
 
@@ -811,7 +819,11 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
          "g" #'org-id-get-create
          "i" #'org-roam-node-insert
          "c" #'org-roam-capture
-         "z" #'org-roam-dailies-capture-today)
+         "z" #'org-roam-dailies-capture-today
+         "j" #'org-roam-dailies-goto-today
+         "t" #'org-roam-tag-add
+         "A" #'org-roam-alias-add
+         "R" #'org-roam-ref-add)
    (:map org-mode-map
          :prefix "C-c n"
          :key
@@ -822,10 +834,30 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
         org-roam-file-exclude-regexp "/[Aa]rchive/"
         org-roam-completion-everywhere t)
 
+  ;; Show tags alongside the title in `org-roam-node-find', so nodes are
+  ;; discoverable and filterable by tag instead of by filename alone.
+  (setq org-roam-node-display-template
+        (concat "${title:*} " (propertize "${tags:30}" 'face 'org-tag)))
+
   (org-roam-db-autosync-mode)
 
+  ;; Daily notes live under complexbrain/daily/ to share the single central
+  ;; attachment store (see `org-attach-id-dir'), so promoting a daily entry to
+  ;; a standalone note keeps its `attachment:' links valid.
+  (setq org-roam-dailies-directory "complexbrain/daily/")
+  (setq org-roam-dailies-capture-templates
+        '(("d" "default" entry "* %?"
+           :target (file+head "%<%Y-%m-%d>.org" "#+title: %<%Y-%m-%d>\n"))))
+
+  ;; "d" prompts for tags and keeps the buffer open; "r" is the fast
+  ;; fire-and-forget note.  The bibtex "b" template is appended later by
+  ;; `org-roam-bibtex' via `add-to-list', so it survives this `setq'.
   (setq org-roam-capture-templates
-        '(("r" "roam" plain "%?"
+        '(("d" "default (tags)" plain "%?"
+           :target (file+head "complexbrain/%<%Y-%m-%dT%H-%M-%S>-${slug}.org"
+                              "#+title: ${title}\n#+filetags: %^{tags}\n")
+           :unnarrowed t)
+          ("r" "quick roam" plain "%?"
            :target (file+head "complexbrain/%<%Y-%m-%dT%H-%M-%S>-${slug}.org"
                               "#+title: ${title}\n")
            :unnarrowed t
@@ -835,7 +867,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
   (add-to-list 'display-buffer-alist
                '("\\*org-roam\\*"
                  (display-buffer-in-side-window)
-                 (side . right) (slot . 0) (window-width . 20)
+                 (side . right) (slot . 0) (window-width . 0.33)
                  (window-parameters . ((no-other-window . t)
                                        (no-delete-other-windows . t)
                                        (mode-line-format . nome)
@@ -863,6 +895,30 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
         org-roam-ui-open-on-start nil)
   (unless org-roam-ui-mode
     (org-roam-ui-mode 1)))
+
+;; Stable, refreshable buffer of nodes matching a tag/link/backlink/date
+;; query.  Complements Deft (filename/full-text) rather than replacing it.
+(use-package org-roam-ql
+  :after org-roam
+  :config
+  (my/define-key
+   (:map global-map :prefix "C-c n" :key "q" #'org-roam-ql-search)))
+
+;; Minibuffer-driven full-text search and backlink navigation, on top of the
+;; existing consult/vertico stack.  Coexists with Deft and deadgrep.
+(use-package consult-org-roam
+  :after org-roam
+  :diminish consult-org-roam-mode
+  :config
+  (consult-org-roam-mode 1)
+  (setq consult-org-roam-grep-func #'consult-ripgrep)
+  (my/define-key
+   (:map global-map
+         :prefix "C-c n"
+         :key
+         "S" #'consult-org-roam-search
+         "B" #'consult-org-roam-backlinks
+         "F" #'consult-org-roam-forward-links)))
 
 (use-package pdf-tools
   :if (display-graphic-p)

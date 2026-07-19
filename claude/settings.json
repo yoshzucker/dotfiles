@@ -1,0 +1,18 @@
+{
+  "model": "opus",
+  "enabledPlugins": {
+    "swift-lsp@claude-plugins-official": true,
+    "claude-orgmode@claude-orgmode": true
+  },
+  "extraKnownMarketplaces": {
+    "claude-orgmode": {
+      "source": {
+        "source": "github",
+        "repo": "majorgreys/claude-orgmode"
+      }
+    }
+  },
+  "effortLevel": "high",
+  "tui": "fullscreen",
+  "theme": "dark-ansi"
+}
