@@ -671,7 +671,7 @@ without replacing it."
         org-agenda-log-mode-items '(closed clock state)
         org-clock-report-include-clocking-task t
         org-agenda-clockreport-parameter-plist
-        '(:maxlevel 5 :lang "en" :scope agenda :block today :wstart 1 :mstart 1 :tstart nil :tend nil :step nil :stepskip0 nil :fileskip0 t :tags nil :emphasize t :link t :narrow 26! :indent t :timestamp nil :level nil :tcolumns 1 :properties ("TAGS") :sort (4 . ?T) :file nil :formula "$1='(org-shorten-string $1 4)::$2='(org-shorten-string $2 5)::$5='(org-clock-time% @2$4 $4..$4);%.1f::$6='(orgtbl-ascii-draw $5 0 100 10)")
+        '(:maxlevel 5 :lang "en" :scope agenda :block today :wstart 1 :mstart 1 :tstart nil :tend nil :step nil :stepskip0 nil :fileskip0 t :tags nil :emphasize t :link t :narrow 26! :indent t :timestamp nil :level nil :tcolumns 1 :properties ("TAGS") :sort (4 . ?T) :file nil :formula "$1='(org-shorten-string $1 4)::$2='(org-shorten-string $2 5)::$5='(org-clock-time% @2$4 $4..$4);%.1f::$6='(orgtbl-ascii-draw $5 0 100 10 my/org-ascii-bar-chars)")
         org-clocktable-defaults org-agenda-clockreport-parameter-plist)
   
   ;; Override indent string for clocktable
@@ -741,7 +741,210 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
                         (org-agenda-entry-types '(:deadline))
                         (org-deadline-warning-days 0)
                         (org-agenda-compact-blocks t)
-                        (org-agenda-span 'month))))))))
+                        (org-agenda-span 'month)))))))
+
+  ;; ---- Daily time visualization appended to the agenda -------------------
+  ;; Two <=80-wide blocks after the existing clockreport (which is left
+  ;; untouched): planned-vs-actual (EFFORT vs today's clock, estimated tasks
+  ;; only) and ActivityWatch observed app/AFK time.  Field widths are budgeted
+  ;; with `truncate-string-to-width' so multibyte titles stay within 80 columns.
+
+  (defvar my/org-ascii-bar-chars " ▏▎▍▌▋▊▉█"
+    "Shades (empty..full) for `orgtbl-ascii-draw' bars; unicode block elements.
+Shared by the agenda clockreport formula and the two custom time-viz tables.")
+
+  ;; agent-shell-style two-segment badge (cf. `agent-shell--make-button'):
+  ;; a filled title chip followed by an outlined meaning chip, boxed.
+  (defface my/org-agenda-viz-title
+    '((t :inherit org-agenda-structure))
+    "Left badge (filled): muted agenda fg on a subtle bg.")
+  (defface my/org-agenda-viz-meaning
+    '((t :inherit (org-agenda-structure highlight)))
+    "Right badge (solid): `shadow' fg becomes the fill; text knocked out to
+the page background via inverse-video.")
+  ;; Right badge is a solid fill (inverse-video: `shadow' fg becomes the bg,
+  ;; text drops to the page bg).  Both badges share one box color (= `shadow'
+  ;; fg) so the left outline meets the right fill seamlessly (agent-shell
+  ;; style).  Set via `set-face-attribute' so a plain reload re-applies these
+  ;; (a bare `defface' would not touch an already-defined face).
+  (let ((frame (face-foreground 'shadow nil t)))
+    (set-face-attribute 'my/org-agenda-viz-title nil
+                        :inverse-video t
+                        :box (list :line-width -1 :color frame))
+    (set-face-attribute 'my/org-agenda-viz-meaning nil
+                        :box (list :line-width -1 :color frame)))
+
+  (defun my/org-agenda-viz-title-string (title meaning)
+    "Return a styled \"TITLE MEANING\" header as an agent-shell-like badge.
+GUI: adjacent filled + outlined boxed chips.  TUI: bracketed fallback."
+    (if (display-graphic-p)
+        (concat (propertize (concat " " title " ") 'face 'my/org-agenda-viz-title)
+                (propertize (concat " " meaning " ") 'face 'my/org-agenda-viz-meaning))
+      (concat "[" title "] " meaning)))
+
+  (defvar my/aw-base-url "http://localhost:5600/api/0"
+    "Base URL of the local ActivityWatch REST API.")
+  (defvar my/aw-cache nil
+    "Cons (FETCH-TIME . STRING) caching `my/aw-today-summary'.")
+  (defvar my/aw-cache-ttl 120
+    "Seconds to reuse `my/aw-cache' before refetching.")
+
+  (defun my/aw--get-json (path)
+    "GET PATH under `my/aw-base-url' and return parsed JSON, or nil on failure."
+    (condition-case nil
+        (let ((buf (url-retrieve-synchronously (concat my/aw-base-url path) t t 5)))
+          (when buf
+            (unwind-protect
+                (with-current-buffer buf
+                  (goto-char (if (bound-and-true-p url-http-end-of-headers)
+                                 url-http-end-of-headers (point-min)))
+                  (json-parse-buffer :object-type 'alist :array-type 'list))
+              (kill-buffer buf))))
+      (error nil)))
+
+  (defun my/aw--find-bucket (prefix)
+    "Return the id (string) of the first AW bucket whose id starts with PREFIX."
+    (let ((b (seq-find (lambda (kv) (string-prefix-p prefix (symbol-name (car kv))))
+                       (my/aw--get-json "/buckets/"))))
+      (and b (symbol-name (car b)))))
+
+  (defun my/aw--today-range ()
+    "Return (START . END) ISO8601 strings for local midnight..now."
+    (let* ((now (current-time))
+           (d (decode-time now))
+           (mid (encode-time 0 0 0 (nth 3 d) (nth 4 d) (nth 5 d))))
+      (cons (format-time-string "%Y-%m-%dT%H:%M:%S%:z" mid)
+            (format-time-string "%Y-%m-%dT%H:%M:%S%:z" now))))
+
+  (defun my/aw--events (bucket start end)
+    "Fetch BUCKET events between START and END (ISO8601 strings)."
+    (my/aw--get-json
+     (format "/buckets/%s/events?start=%s&end=%s&limit=20000"
+             bucket (url-hexify-string start) (url-hexify-string end))))
+
+  (defun my/aw--sum-by-app (events)
+    "Return alist (APP . SECONDS) for EVENTS, sorted descending."
+    (let ((h (make-hash-table :test 'equal)) out)
+      (dolist (e events)
+        (let ((app (or (alist-get 'app (alist-get 'data e)) "?"))
+              (dur (or (alist-get 'duration e) 0)))
+          (puthash app (+ dur (gethash app h 0)) h)))
+      (maphash (lambda (k v) (push (cons k v) out)) h)
+      (seq-sort-by #'cdr #'> out)))
+
+  (defun my/aw--afk-split (events)
+    "Return (ACTIVE-SECONDS . AFK-SECONDS) from afk EVENTS."
+    (let ((active 0) (afk 0))
+      (dolist (e events)
+        (let ((status (alist-get 'status (alist-get 'data e)))
+              (dur (or (alist-get 'duration e) 0)))
+          (cond ((equal status "not-afk") (setq active (+ active dur)))
+                ((equal status "afk") (setq afk (+ afk dur))))))
+      (cons active afk)))
+
+  (defun my/aw-today-summary ()
+    "Return today's ActivityWatch summary as a string (each line <=80 columns)."
+    (if (and my/aw-cache
+             (< (float-time (time-subtract (current-time) (car my/aw-cache)))
+                my/aw-cache-ttl))
+        (cdr my/aw-cache)
+      (let ((lines
+             (condition-case nil
+                 (let ((wb (my/aw--find-bucket "aw-watcher-window")))
+                   (if (not wb)
+                       "(ActivityWatch unavailable)"
+                     (let* ((ab (my/aw--find-bucket "aw-watcher-afk"))
+                            (rng (my/aw--today-range))
+                            (apps (my/aw--sum-by-app
+                                   (my/aw--events wb (car rng) (cdr rng))))
+                            (total (apply #'+ (mapcar #'cdr apps)))
+                            (afk (and ab (my/aw--afk-split
+                                          (my/aw--events ab (car rng) (cdr rng))))))
+                       (concat
+                        (format "active %.1fh / afk %.1fh"
+                                (/ (or (car afk) 0) 3600.0)
+                                (/ (or (cdr afk) 0) 3600.0))
+                        "\n"
+                        (mapconcat
+                         (lambda (kv)
+                           (format "| %s | %4.0fm | %s |"
+                                   (truncate-string-to-width
+                                    (replace-regexp-in-string "[|\n\r]" " " (car kv))
+                                    16 0 ?\s)
+                                   (/ (cdr kv) 60.0)
+                                   (truncate-string-to-width
+                                    (orgtbl-ascii-draw (cdr kv) 0 (max total 1) 24
+                                                       my/org-ascii-bar-chars)
+                                    24 0 ?\s)))
+                         (seq-take apps 8) "\n")))))
+               (error "(ActivityWatch unavailable)"))))
+        (setq lines (propertize lines 'face 'org-table))
+        (setq my/aw-cache (cons (current-time) lines))
+        lines)))
+
+  (defun my/org-agenda-planned-vs-actual ()
+    "Return today's EFFORT-vs-actual table (each line <=80) for estimated tasks."
+    (let (rows)
+      (dolist (file (org-agenda-files))
+        (let ((entries
+               (nth 2 (with-current-buffer (find-file-noselect file)
+                        (ignore-errors
+                          (org-clock-get-table-data
+                           file '(:block today :properties ("Effort")
+                                         :maxlevel 99)))))))
+          (dolist (e entries)
+            (let ((headline (nth 1 e))
+                  (time (nth 4 e))
+                  (effort (cdr (assoc "Effort" (nth 5 e)))))
+              (when (and effort (> (or time 0) 0))
+                (push (list headline (org-duration-to-minutes effort) time) rows))))))
+      (propertize
+       (if (null rows)
+           "(no estimated tasks clocked today)"
+         (mapconcat
+          (lambda (r)
+            (let ((plan (nth 1 r)) (act (nth 2 r)))
+              (format "| %s | %5s | %5s | %s |%4.0f%%"
+                      (truncate-string-to-width
+                       (replace-regexp-in-string "[|\n\r]" " " (nth 0 r)) 28 0 ?\s)
+                      (org-duration-from-minutes plan)
+                      (org-duration-from-minutes act)
+                      (truncate-string-to-width
+                       (orgtbl-ascii-draw (min act plan) 0 (max plan 1) 12
+                                          my/org-ascii-bar-chars)
+                       12 0 ?\s)
+                      (if (> plan 0) (* 100.0 (/ (float act) plan)) 0))))
+          (sort rows (lambda (a b) (> (nth 2 a) (nth 2 b))))
+          "\n")) 'face 'org-table)))
+
+  (defun my/org-agenda-append-time-viz ()
+    "Append planned-vs-actual and ActivityWatch blocks to an agenda view."
+    (when (and (derived-mode-p 'org-agenda-mode)
+               (bound-and-true-p org-agenda-clockreport-mode))
+      (condition-case nil
+          (let ((inhibit-read-only t))
+            ;; Title the native clockreport for consistency with the two blocks
+            ;; below.  Done before appending, so the first table row is the
+            ;; clockreport's (our own tables are not inserted yet).
+            (goto-char (point-min))
+            (when (re-search-forward "^[ \t]*|" nil t)
+              (beginning-of-line)
+              (insert "\n"
+                      (my/org-agenda-viz-title-string "Clocked" "time by area, today")
+                      "\n"))
+            (goto-char (point-max))
+            (insert "\n"
+                    (my/org-agenda-viz-title-string "Estimate" "planned vs actual")
+                    "\n"
+                    (my/org-agenda-planned-vs-actual)
+                    "\n\n"
+                    (my/org-agenda-viz-title-string "Observed" "apps & AFK · ActivityWatch")
+                    "\n"
+                    (my/aw-today-summary)
+                    "\n"))
+        (error nil))))
+
+  (add-hook 'org-agenda-finalize-hook #'my/org-agenda-append-time-viz))
 
 (use-package adaptive-wrap
   :after org-agenda
