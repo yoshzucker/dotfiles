@@ -815,8 +815,11 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
   :config
   (my/define-key
    (:map global-map
+         :prefix "C-c"
          :key
-         "C-c r" #'org-roam-node-find)
+         "f" #'org-roam-node-find
+         "j" #'org-roam-dailies-goto-today
+         "z" #'org-roam-dailies-capture-today)
    (:map global-map
          :prefix "C-c n"
          :key
@@ -1098,7 +1101,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
   (my/define-key
    (:map global-map
          :key
-         "C-c f" #'org-dayflow)
+         "C-c d" #'org-dayflow)
    (:map org-dayflow-mode-map
          :key
          my/backslash #'evil-avy-goto-char-timer))
