@@ -879,7 +879,14 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
    (:map org-mode-map
          :prefix "C-c n"
          :key
-         "r" #'org-roam-refile))
+         "r" #'org-roam-refile)
+   ;; Page through *existing* dailies (gaps skipped); `goto-yesterday'/`-tomorrow'
+   ;; instead step a fixed calendar day and create the note if missing.
+   (:map org-mode-map
+         :state normal motion
+         :key
+         "]d" #'org-roam-dailies-goto-next-note
+         "[d" #'org-roam-dailies-goto-previous-note))
 
   ;; `org-roam-db-location' is left to no-littering (var/org/org-roam.db).
   ;; The db is a regenerable cache of the .org files, so it stays machine-local
