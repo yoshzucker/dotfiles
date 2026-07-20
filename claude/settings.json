@@ -2,13 +2,20 @@
   "model": "opus",
   "enabledPlugins": {
     "swift-lsp@claude-plugins-official": true,
-    "claude-orgmode@claude-orgmode": true
+    "claude-orgmode@claude-orgmode": true,
+    "emacs-skills@xenodium-emacs-skills": true
   },
   "extraKnownMarketplaces": {
     "claude-orgmode": {
       "source": {
         "source": "github",
         "repo": "majorgreys/claude-orgmode"
+      }
+    },
+    "xenodium-emacs-skills": {
+      "source": {
+        "source": "github",
+        "repo": "xenodium/emacs-skills"
       }
     }
   },

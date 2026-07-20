@@ -607,6 +607,13 @@ function Setup-Links {
     Ensure-RealDirectory (Join-Path $HOME ".local\bin")
     Link-DirectoryContents (Join-Path $dotfilesRoot "local\bin") (Join-Path $HOME ".local\bin")
 
+    # Claude Code user settings only: link the individual files under claude/
+    # into ~/.claude without symlinking the whole directory, which holds session
+    # state (sessions/, projects/, plugins/) and the untracked settings.local.json.
+    # settings.json declares enabledPlugins, so this is what enables the plugins.
+    Ensure-RealDirectory (Join-Path $HOME ".claude")
+    Link-DirectoryContents (Join-Path $dotfilesRoot "claude") (Join-Path $HOME ".claude")
+
     Write-PrintLine $leftMessage "Finished."
 }
 
@@ -1068,6 +1075,50 @@ done < "$list"
     Write-PrintLine $leftMessage "Finished."
 }
 
+function Install-ClaudePlugins {
+    # Install Claude Code plugins used by this setup: claude-orgmode (org-roam
+    # note management) and emacs-skills (Emacs navigation/display/plot skills),
+    # both driven from Claude Code via emacsclient. Mirrors
+    # install_claude_plugins() in ./bootstrap. enabledPlugins is declared in
+    # claude/settings.json (linked by Setup-Links); this only fetches the
+    # marketplace + plugin files. Idempotent: added only when absent.
+    if (-not (Get-Command claude -ErrorAction SilentlyContinue)) { return }
+
+    $leftMessage = "Installing Claude plugins"
+    Write-PrintLine $leftMessage "Started."
+
+    $pluginsDir = Join-Path $HOME ".claude\plugins"
+    $known      = Join-Path $pluginsDir "known_marketplaces.json"
+    $installed  = Join-Path $pluginsDir "installed_plugins.json"
+
+    $plugins = @(
+        @{ Market = "claude-orgmode";        Add = "majorgreys/claude-orgmode"; Spec = "claude-orgmode@claude-orgmode" },
+        @{ Market = "xenodium-emacs-skills"; Add = "xenodium/emacs-skills";      Spec = "emacs-skills@xenodium-emacs-skills" }
+    )
+
+    foreach ($p in $plugins) {
+        $hasMarket = (Test-Path $known) -and
+            (Select-String -Path $known -SimpleMatch ('"' + $p.Market + '"') -Quiet)
+        if (-not $hasMarket) {
+            claude plugin marketplace add $p.Add
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "Warning: could not add $($p.Add) marketplace" -ForegroundColor Yellow
+            }
+        }
+
+        $hasPlugin = (Test-Path $installed) -and
+            (Select-String -Path $installed -SimpleMatch ('"' + $p.Spec + '"') -Quiet)
+        if (-not $hasPlugin) {
+            claude plugin install $p.Spec
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "Warning: could not install $($p.Spec)" -ForegroundColor Yellow
+            }
+        }
+    }
+
+    Write-PrintLine $leftMessage "Finished."
+}
+
 function Perform-FullBootstrap {
     $leftMessage = "Full bootstrap"
     Write-PrintLine $leftMessage "Started."
@@ -1079,6 +1130,7 @@ function Perform-FullBootstrap {
     Install-RPackages
     Install-ZshPlugins
     Setup-Links
+    Install-ClaudePlugins
 
     Write-PrintLine $leftMessage "Finished."
 }
