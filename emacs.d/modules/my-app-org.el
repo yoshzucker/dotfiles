@@ -164,10 +164,15 @@ is unavailable."
                              (symbol-value (cdr entry))
                            (cdr entry))))))
 
-  ;; Refile Settings
+  ;; Refile Settings.  A *static* target list (built from these files), so
+  ;; standard `org-refile' narrowing works with orderless+migemo -- unlike
+  ;; `org-ql-refile', which pre-filters via org-ql (no migemo) and defeats it.
+  ;; maxlevel 6 covers the deepest current heading (project.org/memex.org at 5)
+  ;; plus one level of headroom for sub-entries under journal datetree tasks
+  ;; (year/month/day = 1-3, captured entry = 4).
   (setq org-refile-targets
-        `((nil :maxlevel . 3)
-          (org-agenda-files :maxlevel . 4)))
+        `((nil :maxlevel . 6)
+          (org-agenda-files :maxlevel . 6)))
   
   (setq org-refile-use-outline-path 'file
         org-outline-path-complete-in-steps nil
