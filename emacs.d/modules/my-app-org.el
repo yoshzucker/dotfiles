@@ -63,7 +63,8 @@ is unavailable."
          "l" #'org-store-link
          "c" #'org-capture
          "a" #'org-agenda
-         "p" #'org-cliplink)
+         "p" #'org-cliplink
+         "]" #'my/consult-org-headings-all)
    (:map global-map
          :prefix "C-c C-x"
          :key
@@ -75,11 +76,14 @@ is unavailable."
          "C-z" #'org-resolve-clocks
          "C-e" #'org-clock-modify-effort-estimate)
    (:map org-mode-map
+         :prefix "C-c"
          :key
-         "C-c w"       #'org-refile-goto-last-stored
-         "C-c C-v C-b" #'org-dblocks-babel-execute-buffer
-         "C-RET"       #'org-insert-heading-respect-content
-         "C-c C-."     #'org-todo)
+         "w"       #'org-refile-goto-last-stored
+         "C-v C-b" #'org-dblocks-babel-execute-buffer
+         "C-."     #'org-todo)
+   (:map org-mode-map
+         :key
+         "C-RET" #'org-insert-heading-respect-content)
    (:map org-mode-map
          :state normal
          :key
@@ -414,6 +418,24 @@ is unavailable."
   ;; Export
   (setq org-export-preserve-breaks nil)
 
+  ;; Corpus heading nav: jump to any heading under `org-directory'.  The
+  ;; heading layer, vs `consult-org-roam-search' which searches body text.
+  (defun my/consult-org-headings-all (&optional archivep)
+    "Consult all headings under `org-directory` (archives directory excluded).
+With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_archive files."
+    (interactive "P")
+    (unless (and org-directory (file-directory-p org-directory))
+      (user-error "Please set a valid `org-directory`"))
+
+    (let* ((ext (if archivep "\\.org\\(_archive\\)?$" "\\.org$"))
+           (files (directory-files-recursively
+                   org-directory
+                   ext
+                   nil
+                   (lambda (d)
+                     (not (string-match-p "/archive/" d))))))
+      (consult-org-heading nil files)))
+
   ;; Shorten
   (defun my/org-shorten-string (s maxlength)
     "Shorten S to MAXLENGTH using string-width (multi-byte safe)."
@@ -473,8 +495,12 @@ is unavailable."
   (setq org-attach-id-dir
         (expand-file-name "data/" org-directory))
 
-  (my/define-key
-   (:map org-mode-map :key "C-c h" #'my/org-attach-screenshot))
+  ;; Expose screenshot capture as an entry in the `org-attach' dispatcher
+  ;; (C-c C-a) rather than a standalone key.  `my/org-attach-screenshot' is a
+  ;; forward reference here; the dispatcher only calls it when invoked.
+  (add-to-list 'org-attach-commands
+               '((?p) my/org-attach-screenshot
+                 "Capture and attach a screenshot"))
 
   (defconst my/org-attach-screenshot-timestamp-format "%Y-%m-%dT%H-%M-%S-"
     "`format-time-string' spec used as the attached PNG filename prefix.")
@@ -803,6 +829,18 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
 (use-package org-ql
   :after org
   :config
+  (my/define-key
+   (:map global-map
+         :prefix "C-c"
+         :key
+         "q" #'org-ql-search
+         "v" #'org-ql-view)
+   (:map global-map
+         :prefix "C-c n"
+         :key
+         "q" #'org-ql-search
+         "v" #'org-ql-view))
+
   (with-eval-after-load 'org-ql-view
     (dolist (key '("g"))
       (define-key org-ql-view-map (kbd key)
@@ -904,11 +942,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
 
 ;; Stable, refreshable buffer of nodes matching a tag/link/backlink/date
 ;; query.  Complements Deft (filename/full-text) rather than replacing it.
-(use-package org-roam-ql
-  :after org-roam
-  :config
-  (my/define-key
-   (:map global-map :prefix "C-c n" :key "q" #'org-roam-ql-search)))
+(use-package org-roam-ql :after org-roam)
 
 ;; Minibuffer-driven full-text search and backlink navigation, on top of the
 ;; existing consult/vertico stack.  Coexists with Deft and deadgrep.
@@ -919,6 +953,10 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
   (consult-org-roam-mode 1)
   (setq consult-org-roam-grep-func #'consult-ripgrep)
   (my/define-key
+   (:map global-map
+         :prefix "C-c"
+         :key
+         "s" #'consult-org-roam-search)
    (:map global-map
          :prefix "C-c n"
          :key

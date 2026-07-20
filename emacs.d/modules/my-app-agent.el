@@ -41,9 +41,10 @@ CHAR is a string like \"y\" / \"n\" / \"!\"."
 
   (my/define-key
    (:map global-map
+         :prefix "C-c"
          :key
-         "C-c s n" #'agent-shell
-         "C-c s t" #'agent-shell-toggle)
+         "x" #'agent-shell
+         "h" #'agent-shell-toggle)
    (:map agent-shell-mode-map :state insert normal
          :key
          "C-RET" #'my/shell-maker-submit-and-normal
