@@ -124,6 +124,10 @@
 
   (consult-customize consult-buffer :preview-key '(:debounce 0.5 any))
 
+  ;; Fire async searches (ripgrep/fd) at 2 chars instead of 3, so 2-char
+  ;; Japanese terms trigger a search.  Affects all consult async commands.
+  (setq consult-async-min-input 2)
+
   ;; Switch to file-file from consult-buffer
   (defun my/sanitize-ascii-japanese (s)
     "Remove unprintable characters, keeping ASCII, Latin, Japanese kana/kanji and symbols."
