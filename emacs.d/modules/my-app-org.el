@@ -919,7 +919,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
    (:map global-map
          :prefix "C-c n"
          :key
-         "S" #'consult-org-roam-search
+         "s" #'consult-org-roam-search
          "B" #'consult-org-roam-backlinks
          "F" #'consult-org-roam-forward-links)))
 
@@ -970,8 +970,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
   (my/define-key
    (:map global-map
          :key
-         "C-c n d" #'deft
-         "C-c n s" #'my/toggle-deft-sidebar)
+         "C-c n d" #'deft)
    (:map deft-mode-map
          :key
          "C-RET" #'deft-complete
@@ -1085,50 +1084,7 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
       (if deft-incremental-search
           (migemo-forward str nil t)
         (re-search-forward str nil t)))
-    (advice-add 'deft-search-forward :override #'my/deft-search-forward-migemo))
-
-  (defcustom my/deft-sidebar-width 20
-    "Default width (in columns) of the Deft sidebar window."
-    :type 'integer)
-
-  (defun my/deft-sidebar-open ()
-    "Open Deft in a left side window; widen frame if not already."
-    (interactive)
-    (save-window-excursion (deft))
-    (when-let ((buf (get-buffer "*Deft*")))
-      (let ((win (display-buffer
-                  buf `((display-buffer-in-side-window)
-                        (side . left)
-                        (slot . 0)
-                        (window-width . ,my/deft-sidebar-width)
-                        (window-parameters . ((no-delete-other-windows . t)
-                                              (window-size-fixed . width)))))))
-        (with-current-buffer buf
-          (setq-local deft-time-format "")
-          (setq-local deft-time-width 0)
-          (deft-refresh))
-        (when (window-live-p win)
-          (set-window-dedicated-p win t)
-          (set-window-parameter win 'window-size-fixed 'width)
-          (window-preserve-size win t my/deft-sidebar-width)
-          (select-window win)))))
-
-  (defun my/deft-sidebar-close ()
-    "Close Deft side window; shrink frame if expanded for it."
-    (interactive)
-    (when-let* ((win (get-buffer-window "*Deft*" t))
-                (side (window-parameter win 'window-side)))
-      (when side
-        (set-window-parameter win 'no-delete-other-windows nil)
-        (set-window-dedicated-p win nil)
-        (ignore-errors (delete-window win)))))
-
-  (defun my/toggle-deft-sidebar ()
-    "Toggle Deft sidebar, adjusting frame width accordingly."
-    (interactive)
-    (if (get-buffer-window "*Deft*" t)
-        (my/deft-sidebar-close)
-      (my/deft-sidebar-open))))
+    (advice-add 'deft-search-forward :override #'my/deft-search-forward-migemo)))
 
 (use-package org-dayflow
   :straight (:host github :repo "yoshzucker/org-dayflow")
