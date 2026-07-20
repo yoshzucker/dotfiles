@@ -849,6 +849,15 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
 
   (org-roam-db-autosync-mode)
 
+  ;; Single template, so neither `org-roam-capture' nor the create path of
+  ;; `org-roam-node-find' prompts for a template choice.  Prompts for tags and
+  ;; opens the note unnarrowed for editing.
+  (setq org-roam-capture-templates
+        '(("d" "default" plain "%?"
+           :target (file+head "%<%Y-%m-%d-%H-%M-%S>-${slug}.org"
+                              "#+title: ${title}\n#+filetags: %^{tags}\n")
+           :unnarrowed t)))
+
   ;; Daily notes live under daily/ but share the single central attachment store
   ;; (see `org-attach-id-dir'), so promoting a daily entry to a standalone note
   ;; keeps its `attachment:' links valid.
@@ -856,15 +865,6 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
   (setq org-roam-dailies-capture-templates
         '(("d" "default" entry "* %?"
            :target (file+head "%<%Y-%m-%d>.org" "#+title: %<%Y-%m-%d>\n"))))
-
-  ;; Single template, so neither `org-roam-capture' nor the create path of
-  ;; `org-roam-node-find' prompts for a template choice.  Prompts for tags and
-  ;; opens the note unnarrowed for editing.
-  (setq org-roam-capture-templates
-        '(("d" "default" plain "%?"
-           :target (file+head "%<%Y-%m-%dT%H-%M-%S>-${slug}.org"
-                              "#+title: ${title}\n#+filetags: %^{tags}\n")
-           :unnarrowed t)))
 
   ;; Display behavior
   (add-to-list 'display-buffer-alist
