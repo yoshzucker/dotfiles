@@ -815,15 +815,18 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
   :config
   (my/define-key
    (:map global-map
+         :key
+         "C-c r" #'org-roam-node-find)
+   (:map global-map
          :prefix "C-c n"
          :key
          "l" #'org-roam-buffer-toggle
          "f" #'org-roam-node-find
          "g" #'org-id-get-create
-         "i" #'org-roam-node-insert
          "c" #'org-roam-capture
-         "z" #'org-roam-dailies-capture-today
          "j" #'org-roam-dailies-goto-today
+         "z" #'org-roam-dailies-capture-today
+         "i" #'org-roam-node-insert
          "t" #'org-roam-tag-add
          "A" #'org-roam-alias-add
          "R" #'org-roam-ref-add)
@@ -832,8 +835,10 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
          :key
          "r" #'org-roam-refile))
 
+  ;; `org-roam-db-location' is left to no-littering (var/org/org-roam.db).
+  ;; The db is a regenerable cache of the .org files, so it stays machine-local
+  ;; and out of the synced notes dir; only the .org files (and data/) sync.
   (setq org-roam-directory (file-truename org-directory)
-        org-roam-db-location (concat org-roam-directory "org-roam.db")
         org-roam-file-exclude-regexp "/[Aa]rchive/"
         org-roam-completion-everywhere t)
 
@@ -852,18 +857,14 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
         '(("d" "default" entry "* %?"
            :target (file+head "%<%Y-%m-%d>.org" "#+title: %<%Y-%m-%d>\n"))))
 
-  ;; "d" prompts for tags and keeps the buffer open; "r" is the fast
-  ;; fire-and-forget note.
+  ;; Single template, so neither `org-roam-capture' nor the create path of
+  ;; `org-roam-node-find' prompts for a template choice.  Prompts for tags and
+  ;; opens the note unnarrowed for editing.
   (setq org-roam-capture-templates
-        '(("d" "default (tags)" plain "%?"
+        '(("d" "default" plain "%?"
            :target (file+head "%<%Y-%m-%dT%H-%M-%S>-${slug}.org"
                               "#+title: ${title}\n#+filetags: %^{tags}\n")
-           :unnarrowed t)
-          ("r" "quick roam" plain "%?"
-           :target (file+head "%<%Y-%m-%dT%H-%M-%S>-${slug}.org"
-                              "#+title: ${title}\n")
-           :unnarrowed t
-           :immediate-finish t)))
+           :unnarrowed t)))
 
   ;; Display behavior
   (add-to-list 'display-buffer-alist
