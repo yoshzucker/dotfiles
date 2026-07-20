@@ -897,9 +897,10 @@ install_zsh_plugins() {
 }
 
 install_claude_plugins() {
-  # Install Claude Code plugins used by this setup. Currently claude-orgmode,
-  # which drives org-roam note management (create/link/tag/search/backlinks)
-  # from Claude Code via emacsclient. enabledPlugins is tracked declaratively
+  # Install Claude Code plugins used by this setup: claude-orgmode (org-roam
+  # note management -- create/link/tag/search/backlinks) and emacs-skills
+  # (Emacs navigation/display/plot skills), both driven from Claude Code via
+  # emacsclient. enabledPlugins is tracked declaratively
   # in claude/settings.json (linked by setup_links); this only fetches the
   # marketplace + plugin files, which live in ~/.claude state.
   # Idempotent: marketplace/plugin are added only when absent.
@@ -919,6 +920,15 @@ install_claude_plugins() {
   if ! grep -q '"claude-orgmode@claude-orgmode"' "$installed" 2>/dev/null; then
     claude plugin install claude-orgmode@claude-orgmode \
       || echo "⚠️  Could not install claude-orgmode"
+  fi
+
+  if ! grep -q '"xenodium-emacs-skills"' "$known" 2>/dev/null; then
+    claude plugin marketplace add xenodium/emacs-skills \
+      || echo "⚠️  Could not add emacs-skills marketplace"
+  fi
+  if ! grep -q '"emacs-skills@xenodium-emacs-skills"' "$installed" 2>/dev/null; then
+    claude plugin install emacs-skills@xenodium-emacs-skills \
+      || echo "⚠️  Could not install emacs-skills"
   fi
 
   print_line "$left_message" "Finished."
