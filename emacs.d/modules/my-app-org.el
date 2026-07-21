@@ -782,8 +782,11 @@ GUI: adjacent filled + outlined boxed chips.  TUI: bracketed fallback."
                 (propertize (concat " " meaning " ") 'face 'my/org-agenda-viz-meaning))
       (concat "[" title "] " meaning)))
 
-  (defvar my/aw-base-url "http://localhost:5600/api/0"
-    "Base URL of the local ActivityWatch REST API.")
+  (defvar my/aw-base-url "http://127.0.0.1:5600/api/0"
+    "Base URL of the local ActivityWatch REST API.
+Use the IPv4 literal, not `localhost': on Windows `localhost' resolves to IPv6
+`::1' first while ActivityWatch binds 127.0.0.1 only, so each request pays a
+~2s connect-fallback before reaching the server.")
   (defvar my/aw-cache nil
     "Cons (FETCH-TIME . STRING) caching `my/aw-today-summary'.")
   (defvar my/aw-cache-ttl 120
@@ -918,30 +921,49 @@ GUI: adjacent filled + outlined boxed chips.  TUI: bracketed fallback."
           "\n")) 'face 'org-table)))
 
   (defun my/org-agenda-append-time-viz ()
-    "Append planned-vs-actual and ActivityWatch blocks to an agenda view."
+    "Append planned-vs-actual and ActivityWatch blocks to an agenda view.
+Runs on `org-agenda-finalize-hook'.  `org-agenda-change-all-lines' (used by
+`org-agenda-todo') calls `org-agenda-finalize' narrowed to the single changed
+line, and `org-agenda-finalize' does not widen before running the hook; the
+`point-max' insertion below would then land the blocks inline after that line.
+Skip unless the whole buffer is accessible, and remove any blocks left by a
+previous finalize first so a non-narrowed re-finalize (e.g. clearing a filter)
+replaces rather than accumulates."
     (when (and (derived-mode-p 'org-agenda-mode)
-               (bound-and-true-p org-agenda-clockreport-mode))
+               (bound-and-true-p org-agenda-clockreport-mode)
+               (not (buffer-narrowed-p)))
       (condition-case nil
-          (let ((inhibit-read-only t))
+          (let ((inhibit-read-only t)
+                (pos (point-min)))
+            ;; Drop blocks inserted by an earlier finalize (marked below).
+            (while (setq pos (text-property-any pos (point-max)
+                                                'my/org-agenda-viz t))
+              (delete-region
+               pos (or (next-single-property-change pos 'my/org-agenda-viz)
+                       (point-max))))
             ;; Title the native clockreport for consistency with the two blocks
             ;; below.  Done before appending, so the first table row is the
             ;; clockreport's (our own tables are not inserted yet).
             (goto-char (point-min))
             (when (re-search-forward "^[ \t]*|" nil t)
               (beginning-of-line)
-              (insert "\n"
-                      (my/org-agenda-viz-title-string "Clocked" "time by area, today")
-                      "\n"))
+              (let ((beg (point)))
+                (insert "\n"
+                        (my/org-agenda-viz-title-string "Clocked" "time by area, today")
+                        "\n")
+                (put-text-property beg (point) 'my/org-agenda-viz t)))
             (goto-char (point-max))
-            (insert "\n"
-                    (my/org-agenda-viz-title-string "Estimate" "planned vs actual")
-                    "\n"
-                    (my/org-agenda-planned-vs-actual)
-                    "\n\n"
-                    (my/org-agenda-viz-title-string "Observed" "apps & AFK · ActivityWatch")
-                    "\n"
-                    (my/aw-today-summary)
-                    "\n"))
+            (let ((beg (point)))
+              (insert "\n"
+                      (my/org-agenda-viz-title-string "Estimate" "planned vs actual")
+                      "\n"
+                      (my/org-agenda-planned-vs-actual)
+                      "\n\n"
+                      (my/org-agenda-viz-title-string "Observed" "apps & AFK · ActivityWatch")
+                      "\n"
+                      (my/aw-today-summary)
+                      "\n")
+              (put-text-property beg (point) 'my/org-agenda-viz t)))
         (error nil))))
 
   (add-hook 'org-agenda-finalize-hook #'my/org-agenda-append-time-viz))
