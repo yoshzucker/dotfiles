@@ -801,6 +801,10 @@ Use the IPv4 literal, not `localhost': on Windows `localhost' resolves to IPv6
     "Cons (FETCH-TIME . STRING) caching `my/aw-today-summary'.")
   (defvar my/aw-cache-ttl 120
     "Seconds to reuse `my/aw-cache' before refetching.")
+  (defvar my/aw-clamp-afk-to-activity t
+    "When non-nil, exclude overnight idle from today's afk total.
+The day is treated as starting at the first not-afk activity, so `away (afk)'
+counts only breaks within the active window, not pre-dawn idle time.")
 
   (defun my/aw--get-json (path)
     "GET PATH under `my/aw-base-url' and return parsed JSON, or nil on failure."
@@ -835,15 +839,34 @@ Use the IPv4 literal, not `localhost': on Windows `localhost' resolves to IPv6
      (format "/buckets/%s/events?start=%s&end=%s&limit=20000"
              bucket (url-hexify-string start) (url-hexify-string end))))
 
-  (defun my/aw--sum-by-app (events)
-    "Return alist (APP . SECONDS) for EVENTS, sorted descending."
-    (let ((h (make-hash-table :test 'equal)) out)
-      (dolist (e events)
-        (let ((app (or (alist-get 'app (alist-get 'data e)) "?"))
-              (dur (or (alist-get 'duration e) 0)))
-          (puthash app (+ dur (gethash app h 0)) h)))
-      (maphash (lambda (k v) (push (cons k v) out)) h)
-      (seq-sort-by #'cdr #'> out)))
+  (defvar my/aw-app-categories
+    '(("work" . ("Emacs" "Ghostty" "Terminal" "iTerm2" "Code" "Xcode"
+                 "プレビュー" "Preview" "Claude" "Grok" "ActivityWatch"))
+      ("comms" . ("メール" "Mail" "カレンダー" "Calendar" "Slack"
+                  "メッセージ" "Messages" "Zoom"))
+      ("distraction" . ("Safari" "Chrome" "Firefox" "YouTube" "X"
+                        "Twitter" "Discord")))
+    "Alist (CATEGORY . (APP-NAME...)) for the Observed table's Cat column.
+Matched case-insensitively against the AW window `app' name; unmatched apps
+fall into `other'.  Tune the app lists to taste.")
+
+  (defun my/aw--category (app)
+    "Return the category name for APP per `my/aw-app-categories', or \"other\"."
+    (let ((a (downcase (or app ""))))
+      (or (cl-loop for (cat . apps) in my/aw-app-categories
+                   when (member a (mapcar #'downcase apps)) return cat)
+          "other")))
+
+  (defun my/aw--cat-abbrev (cat)
+    "Return a 4-column display code for category CAT."
+    (cond ((equal cat "comms") "comm")
+          ((equal cat "distraction") "dist")
+          ((equal cat "other") "misc")
+          (t (truncate-string-to-width cat 4 0 ?\s))))
+
+  (defun my/aw--parse-ts (s)
+    "Parse an ActivityWatch ISO8601 timestamp S into an Emacs time value."
+    (parse-iso8601-time-string s))
 
   (defun my/aw--afk-split (events)
     "Return (ACTIVE-SECONDS . AFK-SECONDS) from afk EVENTS."
@@ -855,11 +878,111 @@ Use the IPv4 literal, not `localhost': on Windows `localhost' resolves to IPv6
                 ((equal status "afk") (setq afk (+ afk dur))))))
       (cons active afk)))
 
+  (defun my/aw--afk-after (afk-events day-start)
+    "Sum afk-status seconds in AFK-EVENTS occurring at/after DAY-START.
+The event straddling DAY-START is counted only for its post-DAY-START part."
+    (let ((sum 0.0))
+      (dolist (e afk-events sum)
+        (when (equal (alist-get 'status (alist-get 'data e)) "afk")
+          (let* ((s (my/aw--parse-ts (alist-get 'timestamp e)))
+                 (dur (or (alist-get 'duration e) 0))
+                 (end (time-add s (seconds-to-time dur)))
+                 (cs (if (time-less-p s day-start) day-start s)))
+            (when (time-less-p cs end)
+              (setq sum (+ sum (float-time (time-subtract end cs))))))))))
+
+  (defun my/aw--notafk-intervals (afk-events)
+    "Return sorted list of (START . END) Emacs-time conses for not-afk periods."
+    (let (ivs)
+      (dolist (e afk-events)
+        (when (equal (alist-get 'status (alist-get 'data e)) "not-afk")
+          (let ((s (my/aw--parse-ts (alist-get 'timestamp e)))
+                (dur (or (alist-get 'duration e) 0)))
+            (push (cons s (time-add s (seconds-to-time dur))) ivs))))
+      (sort ivs (lambda (a b) (time-less-p (car a) (car b))))))
+
+  (defun my/aw--overlap-seconds (s e intervals)
+    "Seconds of [S,E] covered by sorted disjoint INTERVALS (list of (A . B))."
+    (let ((sum 0.0))
+      (dolist (iv intervals sum)
+        (let ((a (car iv)) (b (cdr iv)))
+          (when (and (time-less-p s b) (time-less-p a e))
+            (let ((os (if (time-less-p s a) a s))
+                  (oe (if (time-less-p e b) e b)))
+              (setq sum (+ sum (float-time (time-subtract oe os))))))))))
+
+  (defun my/aw--sum-active-by (events intervals key)
+    "Return alist (VALUE . SECONDS) desc: each EVENTS duration clipped to
+INTERVALS (not-afk), grouped by KEY (\\='app or \\='project) of its data."
+    (let ((h (make-hash-table :test 'equal)) out)
+      (dolist (e events)
+        (let* ((s (my/aw--parse-ts (alist-get 'timestamp e)))
+               (dur (or (alist-get 'duration e) 0))
+               (ov (my/aw--overlap-seconds
+                    s (time-add s (seconds-to-time dur)) intervals)))
+          (when (> ov 0)
+            (let ((v (or (alist-get key (alist-get 'data e)) "?")))
+              (puthash v (+ ov (gethash v h 0)) h)))))
+      (maphash (lambda (k v) (push (cons k v) out)) h)
+      (seq-sort-by #'cdr #'> out)))
+
+  (defun my/aw--binned-active (intervals)
+    "Return a 48-element vector of active seconds per local half-hour bin."
+    (let ((v (make-vector 48 0.0)))
+      (dolist (iv intervals v)
+        (let ((a (float-time (car iv)))
+              (b (float-time (cdr iv))))
+          (while (< a b)
+            (let* ((dt (decode-time (seconds-to-time a)))
+                   (min (nth 1 dt))
+                   (bin (+ (* 2 (nth 2 dt)) (if (>= min 30) 1 0)))
+                   ;; seconds elapsed into the current half-hour bin
+                   (into (+ (* 60 (mod min 30)) (nth 0 dt)))
+                   (bin-end (+ a (- 1800 into)))
+                   (seg-end (min b bin-end)))
+              (aset v bin (+ (aref v bin) (- seg-end a)))
+              ;; guard against a zero-length step at an exact boundary
+              (setq a (if (> seg-end a) seg-end (+ a 1800)))))))))
+
+  (defvar my/aw--spark-chars "▁▂▃▄▅▆▇█"
+    "Vertical bar glyphs (U+2581..U+2588) for `my/aw--sparkline'.
+Unlike `my/org-ascii-bar-chars' (horizontal fill, for table bars), these stack
+from the baseline so per-cell height encodes intensity — a real sparkline.")
+
+  (defun my/aw--sparkline (binned)
+    "Return a 48-char active-intensity sparkline for BINNED (active sec per
+half-hour).  Each cell is normalized by the fixed 30-minute (1800s) bin length."
+    (let ((n (1- (length my/aw--spark-chars)))
+          (out (make-string 48 ?\s t)))
+      (dotimes (i 48 out)
+        (let ((frac (min 1.0 (max 0.0 (/ (aref binned i) 1800.0)))))
+          (aset out i (if (<= frac 0.0) ?·
+                        (aref my/aw--spark-chars
+                              (max 0 (min n (round (* frac n)))))))))))
+
+  (defun my/aw--hour-axis ()
+    "Return a 48-char axis line (30-min cells) with hour ticks at 0/6/12/18/23."
+    (let ((s (make-string 48 ?\s)))
+      (dolist (h '(0 6 12 18 23) s)
+        (let* ((lbl (number-to-string h))
+               (start (min (* 2 h) (- 48 (length lbl)))))
+          (dotimes (i (length lbl)) (aset s (+ start i) (aref lbl i)))))))
+
+  (defun my/aw--switch-count (window-events)
+    "Count app transitions across WINDOW-EVENTS (order-independent)."
+    (let ((prev nil) (n 0))
+      (dolist (e window-events n)
+        (let ((app (alist-get 'app (alist-get 'data e))))
+          (when (and prev (not (equal app prev))) (setq n (1+ n)))
+          (setq prev app)))))
+
   (defun my/aw-today-data ()
     "Return today's parsed ActivityWatch data as a plist, or nil on failure.
-Keys: :apps (ALIST APP . SECONDS, desc) :total SECONDS :active SECONDS
-:afk SECONDS.  Cached for `my/aw-cache-ttl' seconds and shared by the
-clocked-by-category coverage metric and the observed-apps summary."
+Keys: :active :afk SECONDS ; :active-apps :emacs-projects ALIST (NAME . SEC)
+of window/emacs time intersected with not-afk ; :binned 48-vector of active
+sec per half-hour ; :first :last not-afk boundary times ; :switches count.
+Cached for `my/aw-cache-ttl' seconds; shared by the ① coverage metric
+\(uses :active) and the ③ Observed table."
     (if (and my/aw-cache
              (< (float-time (time-subtract (current-time) (car my/aw-cache)))
                 my/aw-cache-ttl))
@@ -869,44 +992,91 @@ clocked-by-category coverage metric and the observed-apps summary."
                  (let ((wb (my/aw--find-bucket "aw-watcher-window")))
                    (when wb
                      (let* ((ab (my/aw--find-bucket "aw-watcher-afk"))
+                            (eb (my/aw--find-bucket "aw-watcher-emacs"))
                             (rng (my/aw--today-range))
-                            (apps (my/aw--sum-by-app
-                                   (my/aw--events wb (car rng) (cdr rng))))
-                            (total (apply #'+ (mapcar #'cdr apps)))
-                            (afk (and ab (my/aw--afk-split
-                                          (my/aw--events ab (car rng) (cdr rng))))))
-                       (list :apps apps :total total
-                             :active (or (car afk) 0) :afk (or (cdr afk) 0)))))
+                            (win (my/aw--events wb (car rng) (cdr rng)))
+                            (afk-ev (and ab (my/aw--events ab (car rng) (cdr rng))))
+                            (em (and eb (my/aw--events eb (car rng) (cdr rng))))
+                            (split (my/aw--afk-split afk-ev))
+                            (ivs (my/aw--notafk-intervals afk-ev))
+                            (day-start (and ivs (car (car ivs))))
+                            (afk-sec (if (and my/aw-clamp-afk-to-activity day-start)
+                                         (my/aw--afk-after afk-ev day-start)
+                                       (cdr split))))
+                       (list :active (car split) :afk afk-sec
+                             :active-apps (my/aw--sum-active-by win ivs 'app)
+                             :emacs-projects (and em (my/aw--sum-active-by
+                                                      em ivs 'project))
+                             :binned (my/aw--binned-active ivs)
+                             :first (and ivs (car (car ivs)))
+                             :last (and ivs (cdr (car (last ivs))))
+                             :switches (my/aw--switch-count win)))))
                (error nil))))
         (setq my/aw-cache (cons (current-time) data))
         data)))
 
   (defun my/aw-today-summary ()
-    "Return today's ActivityWatch summary as a string (each line <=80 columns)."
+    "Return today's ActivityWatch \"reality & rhythm\" block (lines <=80 cols).
+Header (boundaries/active/afk/switches) + hourly active sparkline + a table
+partitioning the observed day into active apps (with a category tag) plus an
+away(afk) row (% over active+afk), then an emacs-project detail line."
     (let ((data (my/aw-today-data)))
-      (propertize
-       (if (not data)
-           "(ActivityWatch unavailable)"
-         (let ((apps (plist-get data :apps))
-               (total (plist-get data :total)))
+      (if (not data)
+          (propertize "(ActivityWatch unavailable)" 'face 'org-table)
+        (let* ((active (plist-get data :active))
+               (afk (plist-get data :afk))
+               (full (max 1.0 (+ active afk)))
+               (apps (plist-get data :active-apps))
+               (top (seq-take apps 8))
+               (rest-sum (apply #'+ (mapcar #'cdr (seq-drop apps 8))))
+               (rows (append
+                      (mapcar (lambda (kv)
+                                (list (my/aw--category (car kv)) (car kv) (cdr kv)))
+                              top)
+                      (when (> rest-sum 60)
+                        (list (list "other" "other apps" rest-sum)))
+                      (list (list "idle" "away (afk)" (float afk)))))
+               (rows (seq-filter (lambda (r) (> (nth 2 r) 0)) rows))
+               (rows (sort rows (lambda (a b) (> (nth 2 a) (nth 2 b)))))
+               (maxrow (if rows (apply #'max (mapcar (lambda (r) (nth 2 r)) rows)) 1))
+               (first (plist-get data :first))
+               (last (plist-get data :last)))
+          (propertize
            (concat
-            (format "active %.1fh / afk %.1fh"
-                    (/ (plist-get data :active) 3600.0)
-                    (/ (plist-get data :afk) 3600.0))
-            "\n"
+            (format "Screen %s–%s · active %.1fh · afk %.1fh · %d switches"
+                    (if first (format-time-string "%H:%M" first) "—")
+                    (if last (format-time-string "%H:%M" last) "—")
+                    (/ active 3600.0) (/ afk 3600.0) (plist-get data :switches))
+            "\n" (my/aw--hour-axis)
+            "\n" (my/aw--sparkline (plist-get data :binned))
+            "\n" (format "| %s | %s | %5s | %5s | %s |"
+                         (truncate-string-to-width "Cat" 4 0 ?\s)
+                         (truncate-string-to-width "Activity" 12 0 ?\s)
+                         "Time" "%" (truncate-string-to-width "Share" 14 0 ?\s))
+            "\n|------+--------------+-------+-------+----------------|"
             (mapconcat
-             (lambda (kv)
-               (format "| %s | %4.0fm | %s |"
-                       (truncate-string-to-width
-                        (replace-regexp-in-string "[|\n\r]" " " (car kv))
-                        16 0 ?\s)
-                       (/ (cdr kv) 60.0)
-                       (truncate-string-to-width
-                        (orgtbl-ascii-draw (cdr kv) 0 (max total 1) 24
-                                           my/org-ascii-bar-chars)
-                        24 0 ?\s)))
-             (seq-take apps 8) "\n"))))
-       'face 'org-table)))
+             (lambda (r)
+               (let ((cat (nth 0 r)) (name (nth 1 r)) (sec (nth 2 r)))
+                 (format "\n| %s | %s | %5s | %5.1f | %s |"
+                         (truncate-string-to-width (my/aw--cat-abbrev cat) 4 0 ?\s)
+                         (truncate-string-to-width
+                          (replace-regexp-in-string "[|\n\r]" " " name) 12 0 ?\s)
+                         (org-duration-from-minutes (/ sec 60.0))
+                         (* 100.0 (/ sec full))
+                         (truncate-string-to-width
+                          (orgtbl-ascii-draw sec 0 (max maxrow 1) 14
+                                             my/org-ascii-bar-chars)
+                          14 0 ?\s))))
+             rows "")
+            (let ((em (plist-get data :emacs-projects)))
+              (if em
+                  (concat "\nemacs: "
+                          (mapconcat
+                           (lambda (kv)
+                             (format "%s %.0f" (or (car kv) "?") (/ (cdr kv) 60.0)))
+                           (seq-take em 5) " · "))
+                "")))
+           'face 'org-table)))))
 
   (defun my/org-clock--day-start (&optional day-offset)
     "Return the Emacs time value for local midnight, DAY-OFFSET days back."
@@ -1070,7 +1240,7 @@ replaces rather than accumulates."
                       "\n"
                       (my/org-agenda-planned-vs-actual)
                       "\n\n"
-                      (my/org-agenda-viz-title-string "Observed" "apps & AFK · ActivityWatch")
+                      (my/org-agenda-viz-title-string "Observed" "reality & rhythm · ActivityWatch")
                       "\n"
                       (my/aw-today-summary)
                       "\n")
