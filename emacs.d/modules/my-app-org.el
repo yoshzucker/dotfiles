@@ -639,7 +639,7 @@ without replacing it."
         org-agenda-span 'day
         org-agenda-start-on-weekday 0
         org-agenda-start-with-log-mode '(state)
-        org-agenda-start-with-clockreport-mode t
+        org-agenda-start-with-clockreport-mode nil
         org-agenda-start-with-entry-text-mode nil
         org-agenda-start-with-follow-mode nil
         org-agenda-view-columns-initially nil
@@ -670,8 +670,13 @@ without replacing it."
         org-agenda-timegrid-use-ampm nil
         org-agenda-log-mode-items '(closed clock state)
         org-clock-report-include-clocking-task t
+        ;; The daily agenda's own "time by area" view is now rendered by the
+        ;; custom CATEGORY block (`my/org-agenda-clocked-by-category'), so the
+        ;; native agenda clockreport is off by default.  This plist only shapes
+        ;; interactive clocktables (`C-c C-x C-r', `v c'): tag-free, indented,
+        ;; sorted by clocked time.
         org-agenda-clockreport-parameter-plist
-        '(:maxlevel 5 :lang "en" :scope agenda :block today :wstart 1 :mstart 1 :tstart nil :tend nil :step nil :stepskip0 nil :fileskip0 t :tags nil :emphasize t :link t :narrow 26! :indent t :timestamp nil :level nil :tcolumns 1 :properties ("TAGS") :sort (4 . ?T) :file nil :formula "$1='(org-shorten-string $1 4)::$2='(org-shorten-string $2 5)::$5='(org-clock-time% @2$4 $4..$4);%.1f::$6='(orgtbl-ascii-draw $5 0 100 10 my/org-ascii-bar-chars)")
+        '(:maxlevel 5 :lang "en" :scope agenda :block today :fileskip0 t :emphasize t :link t :narrow 40! :indent t :tcolumns 1 :sort (3 . ?T))
         org-clocktable-defaults org-agenda-clockreport-parameter-plist)
   
   ;; Override indent string for clocktable
@@ -751,7 +756,12 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
 
   (defvar my/org-ascii-bar-chars " ▏▎▍▌▋▊▉█"
     "Shades (empty..full) for `orgtbl-ascii-draw' bars; unicode block elements.
-Shared by the agenda clockreport formula and the two custom time-viz tables.")
+Shared by the three custom agenda time-viz tables.")
+
+  (defvar my/org-agenda-time-viz-enabled t
+    "When non-nil, append the three time-viz blocks to agenda views.
+Replaces the old `org-agenda-clockreport-mode' gate now that the daily
+\"time by area\" view is the custom CATEGORY block, not the native clockreport.")
 
   ;; agent-shell-style two-segment badge (cf. `agent-shell--make-button'):
   ;; a filled title chip followed by an outlined meaning chip, boxed.
@@ -845,17 +855,19 @@ Use the IPv4 literal, not `localhost': on Windows `localhost' resolves to IPv6
                 ((equal status "afk") (setq afk (+ afk dur))))))
       (cons active afk)))
 
-  (defun my/aw-today-summary ()
-    "Return today's ActivityWatch summary as a string (each line <=80 columns)."
+  (defun my/aw-today-data ()
+    "Return today's parsed ActivityWatch data as a plist, or nil on failure.
+Keys: :apps (ALIST APP . SECONDS, desc) :total SECONDS :active SECONDS
+:afk SECONDS.  Cached for `my/aw-cache-ttl' seconds and shared by the
+clocked-by-category coverage metric and the observed-apps summary."
     (if (and my/aw-cache
              (< (float-time (time-subtract (current-time) (car my/aw-cache)))
                 my/aw-cache-ttl))
         (cdr my/aw-cache)
-      (let ((lines
+      (let ((data
              (condition-case nil
                  (let ((wb (my/aw--find-bucket "aw-watcher-window")))
-                   (if (not wb)
-                       "(ActivityWatch unavailable)"
+                   (when wb
                      (let* ((ab (my/aw--find-bucket "aw-watcher-afk"))
                             (rng (my/aw--today-range))
                             (apps (my/aw--sum-by-app
@@ -863,27 +875,132 @@ Use the IPv4 literal, not `localhost': on Windows `localhost' resolves to IPv6
                             (total (apply #'+ (mapcar #'cdr apps)))
                             (afk (and ab (my/aw--afk-split
                                           (my/aw--events ab (car rng) (cdr rng))))))
-                       (concat
-                        (format "active %.1fh / afk %.1fh"
-                                (/ (or (car afk) 0) 3600.0)
-                                (/ (or (cdr afk) 0) 3600.0))
-                        "\n"
-                        (mapconcat
-                         (lambda (kv)
-                           (format "| %s | %4.0fm | %s |"
-                                   (truncate-string-to-width
-                                    (replace-regexp-in-string "[|\n\r]" " " (car kv))
-                                    16 0 ?\s)
-                                   (/ (cdr kv) 60.0)
-                                   (truncate-string-to-width
-                                    (orgtbl-ascii-draw (cdr kv) 0 (max total 1) 24
-                                                       my/org-ascii-bar-chars)
-                                    24 0 ?\s)))
-                         (seq-take apps 8) "\n")))))
-               (error "(ActivityWatch unavailable)"))))
-        (setq lines (propertize lines 'face 'org-table))
-        (setq my/aw-cache (cons (current-time) lines))
-        lines)))
+                       (list :apps apps :total total
+                             :active (or (car afk) 0) :afk (or (cdr afk) 0)))))
+               (error nil))))
+        (setq my/aw-cache (cons (current-time) data))
+        data)))
+
+  (defun my/aw-today-summary ()
+    "Return today's ActivityWatch summary as a string (each line <=80 columns)."
+    (let ((data (my/aw-today-data)))
+      (propertize
+       (if (not data)
+           "(ActivityWatch unavailable)"
+         (let ((apps (plist-get data :apps))
+               (total (plist-get data :total)))
+           (concat
+            (format "active %.1fh / afk %.1fh"
+                    (/ (plist-get data :active) 3600.0)
+                    (/ (plist-get data :afk) 3600.0))
+            "\n"
+            (mapconcat
+             (lambda (kv)
+               (format "| %s | %4.0fm | %s |"
+                       (truncate-string-to-width
+                        (replace-regexp-in-string "[|\n\r]" " " (car kv))
+                        16 0 ?\s)
+                       (/ (cdr kv) 60.0)
+                       (truncate-string-to-width
+                        (orgtbl-ascii-draw (cdr kv) 0 (max total 1) 24
+                                           my/org-ascii-bar-chars)
+                        24 0 ?\s)))
+             (seq-take apps 8) "\n"))))
+       'face 'org-table)))
+
+  (defun my/org-clock--day-start (&optional day-offset)
+    "Return the Emacs time value for local midnight, DAY-OFFSET days back."
+    (let ((d (decode-time (current-time))))
+      (encode-time 0 0 0 (- (nth 3 d) (or day-offset 0)) (nth 4 d) (nth 5 d))))
+
+  (defun my/org-clock-today-by-category ()
+    "Aggregate clocked minutes by inherited CATEGORY across `org-agenda-files'.
+Return a plist:
+  :rows     ALIST (CATEGORY . MINUTES) for today, sorted descending
+  :total    today's total clocked minutes
+  :segments today's clock-segment count (fragmentation)
+  :avg7     mean daily clocked minutes over the last 7 days (incl. today)
+Each closed clock segment is attributed once to its heading's CATEGORY, so
+the today rows partition the day (their minutes sum to :total).  The org
+hierarchy depth is irrelevant: CATEGORY is inherited, so a GTD project marked
+with `:CATEGORY:' at any level collects all descendant clocks."
+    (let ((table (make-hash-table :test 'equal))
+          (total 0) (segments 0) (week 0)
+          (today0 (my/org-clock--day-start 0))
+          (today1 (time-add (my/org-clock--day-start 0) (days-to-time 1)))
+          (week0 (my/org-clock--day-start 6))
+          (re (concat "^[ \t]*" org-clock-string
+                      "[ \t]*\\(\\[[^]\n]+\\]\\)\\(?:--\\[[^]\n]+\\]\\)?"
+                      "[ \t]*=>[ \t]*\\([0-9]+:[0-9][0-9]\\)")))
+      (dolist (file (org-agenda-files))
+        (with-current-buffer (find-file-noselect file)
+          (org-with-wide-buffer
+           (goto-char (point-min))
+           (while (re-search-forward re nil t)
+             ;; Read both groups first: `org-time-string-to-time' runs
+             ;; `string-match' internally and would clobber the match data
+             ;; before we could read group 2.
+             (let* ((ts-str (match-string-no-properties 1))
+                    (dur-str (match-string-no-properties 2))
+                    (ts (org-time-string-to-time ts-str))
+                    (dur (org-duration-to-minutes dur-str)))
+               (when (and (time-less-p week0 ts) (time-less-p ts today1))
+                 (setq week (+ week dur))
+                 (unless (time-less-p ts today0)
+                   (setq total (+ total dur)
+                         segments (1+ segments))
+                   (let ((cat (or (org-entry-get (point) "CATEGORY" t)
+                                  (org-get-category (point))
+                                  "?")))
+                     (puthash cat (+ dur (gethash cat table 0)) table)))))))))
+      (let (rows)
+        (maphash (lambda (k v) (push (cons k v) rows)) table)
+        (list :rows (seq-sort-by #'cdr #'> rows)
+              :total total :segments segments :avg7 (/ week 7.0)))))
+
+  (defun my/org-agenda-clocked-by-category ()
+    "Return today's CATEGORY-share table with a focus-budget header (<=80 cols).
+The bar column is scaled to the largest project; the % column carries the
+exact share of today's clocked total (so the % values sum to 100)."
+    (let* ((data (my/org-clock-today-by-category))
+           (rows (plist-get data :rows))
+           (total (plist-get data :total))
+           (segments (plist-get data :segments))
+           (avg7 (plist-get data :avg7))
+           (aw (my/aw-today-data))
+           (active-min (and aw (/ (plist-get aw :active) 60.0)))
+           (maxmin (if rows (apply #'max (mapcar #'cdr rows)) 1))
+           (budget
+            (concat
+             (format "Focus %s" (org-duration-from-minutes total))
+             (when (and active-min (> active-min 0))
+               (format " · %.0f%% of active" (* 100.0 (/ total active-min))))
+             (when (> segments 0)
+               (format " · avg %.0fm ×%d" (/ (float total) segments) segments))
+             (when (> avg7 0)
+               (format " · vs7d %+.0f%%" (* 100.0 (/ (- total avg7) avg7)))))))
+      (concat
+       budget "\n"
+       (propertize
+        (if (null rows)
+            "(no clocked time today)"
+          (concat
+           (format "| %-14s | %5s | %5s | %-18s |" "Project" "Time" "%" "Share")
+           "\n|----------------+-------+-------+--------------------|\n"
+           (mapconcat
+            (lambda (r)
+              (let ((cat (car r)) (min (cdr r)))
+                (format "| %-14s | %5s | %5.1f | %s |"
+                        (truncate-string-to-width
+                         (replace-regexp-in-string "[|\n\r]" " " cat) 14 0 ?\s)
+                        (org-duration-from-minutes min)
+                        (if (> total 0) (* 100.0 (/ (float min) total)) 0)
+                        (truncate-string-to-width
+                         (orgtbl-ascii-draw min 0 (max maxmin 1) 18
+                                            my/org-ascii-bar-chars)
+                         18 0 ?\s))))
+            rows "\n")))
+        'face 'org-table))))
 
   (defun my/org-agenda-planned-vs-actual ()
     "Return today's EFFORT-vs-actual table (each line <=80) for estimated tasks."
@@ -921,7 +1038,8 @@ Use the IPv4 literal, not `localhost': on Windows `localhost' resolves to IPv6
           "\n")) 'face 'org-table)))
 
   (defun my/org-agenda-append-time-viz ()
-    "Append planned-vs-actual and ActivityWatch blocks to an agenda view.
+    "Append the three time-viz blocks (clocked-by-category, planned-vs-actual,
+ActivityWatch) to an agenda view.
 Runs on `org-agenda-finalize-hook'.  `org-agenda-change-all-lines' (used by
 `org-agenda-todo') calls `org-agenda-finalize' narrowed to the single changed
 line, and `org-agenda-finalize' does not widen before running the hook; the
@@ -930,7 +1048,7 @@ Skip unless the whole buffer is accessible, and remove any blocks left by a
 previous finalize first so a non-narrowed re-finalize (e.g. clearing a filter)
 replaces rather than accumulates."
     (when (and (derived-mode-p 'org-agenda-mode)
-               (bound-and-true-p org-agenda-clockreport-mode)
+               my/org-agenda-time-viz-enabled
                (not (buffer-narrowed-p)))
       (condition-case nil
           (let ((inhibit-read-only t)
@@ -941,20 +1059,13 @@ replaces rather than accumulates."
               (delete-region
                pos (or (next-single-property-change pos 'my/org-agenda-viz)
                        (point-max))))
-            ;; Title the native clockreport for consistency with the two blocks
-            ;; below.  Done before appending, so the first table row is the
-            ;; clockreport's (our own tables are not inserted yet).
-            (goto-char (point-min))
-            (when (re-search-forward "^[ \t]*|" nil t)
-              (beginning-of-line)
-              (let ((beg (point)))
-                (insert "\n"
-                        (my/org-agenda-viz-title-string "Clocked" "time by area, today")
-                        "\n")
-                (put-text-property beg (point) 'my/org-agenda-viz t)))
             (goto-char (point-max))
             (let ((beg (point)))
               (insert "\n"
+                      (my/org-agenda-viz-title-string "Clocked" "share of focus today")
+                      "\n"
+                      (my/org-agenda-clocked-by-category)
+                      "\n\n"
                       (my/org-agenda-viz-title-string "Estimate" "planned vs actual")
                       "\n"
                       (my/org-agenda-planned-vs-actual)
