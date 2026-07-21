@@ -1075,6 +1075,54 @@ done < "$list"
     Write-PrintLine $leftMessage "Finished."
 }
 
+function Get-ClaudePluginInstalledEntry {
+    # Returns the recorded installPath for a plugin spec from
+    # installed_plugins.json, or "" if the spec is not recorded. The metadata is
+    # written up front for the whole enabled set, so a recorded entry does NOT
+    # prove the files landed on disk (see Test-ClaudePluginInstalledOnDisk).
+    param(
+        [string]$InstalledJsonPath,
+        [string]$Spec
+    )
+
+    if (-not (Test-Path -LiteralPath $InstalledJsonPath)) {
+        return ""
+    }
+
+    try {
+        $data = Get-Content -LiteralPath $InstalledJsonPath -Raw | ConvertFrom-Json
+    } catch {
+        return ""
+    }
+
+    $entry = $data.plugins.$Spec
+    if (-not $entry) {
+        return ""
+    }
+
+    # The value is an array of install records; the first holds the installPath.
+    $first = @($entry)[0]
+    if ($first -and $first.installPath) {
+        return "$($first.installPath)"
+    }
+    return ""
+}
+
+function Test-ClaudePluginInstalledOnDisk {
+    # A plugin counts as installed only when its recorded installPath actually
+    # exists on disk. installed_plugins.json can record a plugin as installed
+    # while the files never landed (a Windows MoveFileEx/EPERM failure during the
+    # temp_local -> cache\<market>\<plugin>\<sha> rename leaves metadata written
+    # but the directory absent), so trusting the JSON alone would skip the repair.
+    param(
+        [string]$InstalledJsonPath,
+        [string]$Spec
+    )
+
+    $installPath = Get-ClaudePluginInstalledEntry $InstalledJsonPath $Spec
+    return $installPath -and (Test-Path -LiteralPath $installPath)
+}
+
 function Install-ClaudePlugins {
     # Install Claude Code plugins used by this setup: claude-orgmode (org-roam
     # note management) and emacs-skills (Emacs navigation/display/plot skills),
@@ -1082,6 +1130,11 @@ function Install-ClaudePlugins {
     # install_claude_plugins() in ./bootstrap. enabledPlugins is declared in
     # claude/settings.json (linked by Setup-Links); this only fetches the
     # marketplace + plugin files. Idempotent: added only when absent.
+    #
+    # Best run non-elevated and with no other Claude Code session active: Claude
+    # syncs enabledPlugins on every startup, so a concurrent process (or a
+    # realtime AV scan) can hold a handle on the freshly-extracted temp_local
+    # tree and make the confirming directory rename fail with EPERM.
     if (-not (Get-Command claude -ErrorAction SilentlyContinue)) { return }
 
     $leftMessage = "Installing Claude plugins"
@@ -1090,6 +1143,16 @@ function Install-ClaudePlugins {
     $pluginsDir = Join-Path $HOME ".claude\plugins"
     $known      = Join-Path $pluginsDir "known_marketplaces.json"
     $installed  = Join-Path $pluginsDir "installed_plugins.json"
+    $cacheDir   = Join-Path $pluginsDir "cache"
+
+    # Sweep temp_local_* left behind by a rename that failed mid-install, so they
+    # do not accumulate and cannot be mistaken for real plugin content.
+    if (Test-Path -LiteralPath $cacheDir) {
+        Get-ChildItem -LiteralPath $cacheDir -Filter "temp_local_*" -Force -ErrorAction SilentlyContinue |
+            ForEach-Object {
+                Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
+            }
+    }
 
     $plugins = @(
         @{ Market = "claude-orgmode";        Add = "majorgreys/claude-orgmode"; Spec = "claude-orgmode@claude-orgmode" },
@@ -1106,11 +1169,35 @@ function Install-ClaudePlugins {
             }
         }
 
-        $hasPlugin = (Test-Path $installed) -and
-            (Select-String -Path $installed -SimpleMatch ('"' + $p.Spec + '"') -Quiet)
-        if (-not $hasPlugin) {
+        if (Test-ClaudePluginInstalledOnDisk $installed $p.Spec) {
+            continue
+        }
+
+        # Metadata may claim it is installed while the files are missing. Clear
+        # the stale record first, otherwise a reinstall short-circuits and the
+        # broken state never heals.
+        if (Get-ClaudePluginInstalledEntry $installed $p.Spec) {
+            claude plugin uninstall $p.Spec | Out-Null
+        }
+
+        # Retry to ride out transient handle locks (AV scan / concurrent Claude)
+        # that fail the confirming directory rename with EPERM.
+        $maxAttempts = 3
+        for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
             claude plugin install $p.Spec
-            if ($LASTEXITCODE -ne 0) {
+            if ($LASTEXITCODE -eq 0 -and (Test-ClaudePluginInstalledOnDisk $installed $p.Spec)) {
+                break
+            }
+            if ($attempt -lt $maxAttempts) {
+                Start-Sleep -Seconds 2
+                # Drop any temp_local_* from the failed attempt before retrying.
+                if (Test-Path -LiteralPath $cacheDir) {
+                    Get-ChildItem -LiteralPath $cacheDir -Filter "temp_local_*" -Force -ErrorAction SilentlyContinue |
+                        ForEach-Object {
+                            Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
+                        }
+                }
+            } else {
                 Write-Host "Warning: could not install $($p.Spec)" -ForegroundColor Yellow
             }
         }
