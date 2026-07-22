@@ -1,0 +1,5 @@
+# espanso default configuration
+# Docs: https://espanso.org/docs/configuration/basics/
+#
+# Global options live here (backend, toggle key, clipboard behaviour, etc.).
+# Keep the defaults unless a specific tweak is needed.

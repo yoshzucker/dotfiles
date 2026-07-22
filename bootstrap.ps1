@@ -327,6 +327,52 @@ function Link-DirectoryContents {
     }
 }
 
+function Link-SingleDir {
+    # Symlink a single directory Dest -> Source (used for OS-native config paths
+    # that must redirect to an XDG location, e.g. espanso on Windows).
+    # Idempotent: leaves an already-correct link alone, replaces a stale link,
+    # and backs up a real conflicting file/directory before linking.
+    param(
+        [string]$Source,
+        [string]$Dest
+    )
+
+    if (-not (Test-Path -LiteralPath $Source)) {
+        return
+    }
+
+    $destItem = Get-PathItem $Dest
+    if ($destItem -and (Test-SamePath $Source $Dest)) {
+        Write-Host "Skipping existing correct link: $Dest"
+        return
+    }
+
+    if ($destItem -and $destItem.LinkType -eq "SymbolicLink") {
+        $destTarget = Get-LinkTargetPath $Dest
+        if ($destTarget -and (Test-SamePath $destTarget $Source)) {
+            return
+        }
+
+        Write-Host "Replacing link: $Dest"
+        Remove-Item -LiteralPath $Dest -Force
+    } elseif ($destItem) {
+        Backup-ConflictingFile $Dest
+    }
+
+    $parent = Split-Path -Parent $Dest
+    if ($parent -and -not (Test-Path -LiteralPath $parent)) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    }
+
+    try {
+        New-Item -ItemType SymbolicLink -Path $Dest -Target $Source -Force -ErrorAction Stop | Out-Null
+        Write-Host "Linked: $Dest -> $Source"
+    } catch {
+        Write-Host "Failed to create symlink: $Dest -> $Source" -ForegroundColor Yellow
+        Write-Host "Windows may require Developer Mode or Admin rights for symlinks." -ForegroundColor Yellow
+    }
+}
+
 function Link-Tree {
     param(
         [string]$SourceDir,
@@ -602,6 +648,11 @@ function Setup-Links {
     Link-Tree (Join-Path $dotfilesRoot "home") $HOME
     Link-Tree (Join-Path $dotfilesRoot "config") (Join-Path $HOME ".config")
     Link-Tree (Join-Path $dotfilesRoot "emacs.d") (Join-Path $HOME ".emacs.d")
+
+    # espanso does not read ~/.config on Windows (it defaults to %APPDATA%\espanso).
+    # Redirect the native path to the XDG location so ~/.config\espanso is the
+    # single source of truth.
+    Link-SingleDir (Join-Path $HOME ".config\espanso") (Join-Path $env:APPDATA "espanso")
 
     Ensure-RealDirectory (Join-Path $HOME ".local")
     Ensure-RealDirectory (Join-Path $HOME ".local\bin")

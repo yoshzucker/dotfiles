@@ -1,0 +1,24 @@
+# espanso match file
+# Docs: https://espanso.org/docs/matches/basics/
+
+matches:
+  # Simple text replacement
+  - trigger: ":espanso"
+    replace: "Hi there!"
+
+  # Dynamic match: today's date
+  - trigger: ":date"
+    replace: "{{mydate}}"
+    vars:
+      - name: mydate
+        type: date
+        params:
+          format: "%Y-%m-%d"
+
+  # Office URI scheme: open a file for editing in the desktop app
+  - trigger: ":po"
+    replace: "ms-powerpoint:ofe|u|"
+  - trigger: ":wo"
+    replace: "ms-word:ofe|u|"
+  - trigger: ":ex"
+    replace: "ms-excel:ofe|u|"
