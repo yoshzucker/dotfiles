@@ -6,6 +6,15 @@
 ;;; Code:
 (use-package symon
   :config
+  (defvar my/symon--last-message nil
+    "Last echo-area string symon produced, to tell its own output from foreign messages.")
+  (define-advice symon--display-update (:around (orig) my/yield-echo-area)
+    "Let real echo-area messages and y/n prompts win over symon.
+Only draw when the echo area is empty or still shows symon's own last output."
+    (let ((cur (current-message)))
+      (when (or (null cur) (equal cur my/symon--last-message))
+        (funcall orig)
+        (setq my/symon--last-message (current-message)))))
   (symon-mode))
 
 (defcustom my/convert-pptx-program (expand-file-name "~/.local/bin/convert-pptx-to-pdf.ps1")
