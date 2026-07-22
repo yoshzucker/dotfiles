@@ -819,10 +819,11 @@ counts only breaks within the active window, not pre-dawn idle time.")
               (kill-buffer buf))))
       (error nil)))
 
-  (defun my/aw--find-bucket (prefix)
-    "Return the id (string) of the first AW bucket whose id starts with PREFIX."
+  (defun my/aw--find-bucket (buckets prefix)
+    "Return the id (string) of the first bucket in BUCKETS whose id starts
+with PREFIX.  BUCKETS is the parsed `/buckets/' alist."
     (let ((b (seq-find (lambda (kv) (string-prefix-p prefix (symbol-name (car kv))))
-                       (my/aw--get-json "/buckets/"))))
+                       buckets)))
       (and b (symbol-name (car b)))))
 
   (defun my/aw--today-range ()
@@ -989,10 +990,11 @@ Cached for `my/aw-cache-ttl' seconds; shared by the ① coverage metric
         (cdr my/aw-cache)
       (let ((data
              (condition-case nil
-                 (let ((wb (my/aw--find-bucket "aw-watcher-window")))
+                 (let* ((buckets (my/aw--get-json "/buckets/"))
+                        (wb (my/aw--find-bucket buckets "aw-watcher-window")))
                    (when wb
-                     (let* ((ab (my/aw--find-bucket "aw-watcher-afk"))
-                            (eb (my/aw--find-bucket "aw-watcher-emacs"))
+                     (let* ((ab (my/aw--find-bucket buckets "aw-watcher-afk"))
+                            (eb (my/aw--find-bucket buckets "aw-watcher-emacs"))
                             (rng (my/aw--today-range))
                             (win (my/aw--events wb (car rng) (cdr rng)))
                             (afk-ev (and ab (my/aw--events ab (car rng) (cdr rng))))
