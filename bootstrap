@@ -319,6 +319,32 @@ ensure_real_directory() {
   mkdir -p "$path"
 }
 
+link_single_dir() {
+  # Symlink a single directory dest -> src (used for OS-native config paths
+  # that must redirect to an XDG location, e.g. espanso on macOS).
+  # Idempotent: leaves an already-correct link alone, replaces a stale link,
+  # and backs up a real conflicting file/directory before linking.
+  local src="$1"
+  local dest="$2"
+
+  [ -e "$src" ] || return 0
+
+  if [ -L "$dest" ]; then
+    if [ "$(realpath "$dest" 2>/dev/null)" = "$(realpath "$src" 2>/dev/null)" ]; then
+      echo "↔️ Skipping existing correct link: $dest"
+      return 0
+    fi
+    echo "🔁 Replacing link: $dest"
+    rm -f "$dest"
+  elif [ -e "$dest" ]; then
+    backup_conflicting_file "$dest"
+  fi
+
+  mkdir -p "$(dirname "$dest")"
+  ln -s "$src" "$dest"
+  echo "✅ Linked: $dest → $src"
+}
+
 link_directory_contents() {
   local src_dir="$1"
   local dest_dir="$2"
@@ -592,6 +618,13 @@ setup_links() {
   link_tree "$dotfiles_root/home" "$HOME"
   link_tree "$dotfiles_root/config" "$HOME/.config"
   link_tree "$dotfiles_root/emacs.d" "$HOME/.emacs.d"
+
+  # espanso does not read ~/.config on macOS (it defaults to
+  # ~/Library/Application Support/espanso). Redirect the native path to the
+  # XDG location so ~/.config/espanso is the single source of truth.
+  if [[ "$os" == "darwin" ]]; then
+    link_single_dir "$HOME/.config/espanso" "$HOME/Library/Application Support/espanso"
+  fi
 
   ensure_real_directory "$HOME/.local"
   ensure_real_directory "$HOME/.local/bin"
