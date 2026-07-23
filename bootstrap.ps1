@@ -138,11 +138,14 @@ function Main {
 
     if ($script:MainMode -eq "update") {
         Update-Scoop
+        Set-UserEnvironment
         Update-ScoopPackages
         Update-MSYS2Packages
         Update-RPackages
         Install-ZshPlugins
         Setup-Links
+        Install-Cmigemo
+        Setup-StartupShortcuts
         Show-RestartNotice
     }
 }
@@ -691,6 +694,10 @@ function Unlink-Dotfiles {
     }
 
     Write-Host ""
+    Write-Host "=== Startup shortcuts ==="
+    Remove-StartupShortcuts
+
+    Write-Host ""
     Write-PrintLine $leftMessage "Finished."
 }
 
@@ -1038,6 +1045,216 @@ exec "$repo/local/bin/build-plemoljp-nf"
     Write-PrintLine $leftMessage "Finished."
 }
 
+function Set-UserEnvironment {
+    # Persist the user-scope environment variables Emacs and cmigemo rely on:
+    #   HOME  -> so Emacs resolves ~ to the Windows user profile
+    #   PATH  += <HOME>\.local\bin -> so cmigemo (and other ~/.local/bin shims)
+    #           are found by executable-find
+    # Idempotent: writes only when a value is missing or wrong. .NET's
+    # SetEnvironmentVariable at User scope broadcasts WM_SETTINGCHANGE, so new
+    # processes pick up the change without a logout.
+    $leftMessage = "Configuring user environment variables"
+    Write-PrintLine $leftMessage "Started."
+
+    $homeValue = $HOME
+    $currentHome = [System.Environment]::GetEnvironmentVariable("HOME", "User")
+    if ($currentHome -ne $homeValue) {
+        Write-Host "Setting user HOME = $homeValue"
+        [System.Environment]::SetEnvironmentVariable("HOME", $homeValue, "User")
+    } else {
+        Write-Host "User HOME already set: $homeValue"
+    }
+    $env:HOME = $homeValue
+
+    $localBin = Join-Path $HOME ".local\bin"
+    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    if (-not $userPath) { $userPath = "" }
+    $entries = @($userPath -split ";" | Where-Object { $_ -ne "" })
+    $already = @($entries | Where-Object { $_.TrimEnd('\') -ieq $localBin.TrimEnd('\') })
+    if ($already.Count -eq 0) {
+        Write-Host "Adding to user PATH: $localBin"
+        $trimmed = $userPath.TrimEnd(';')
+        $newPath = if ($trimmed) { "$trimmed;$localBin" } else { $localBin }
+        [System.Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+    } else {
+        Write-Host "User PATH already contains: $localBin"
+    }
+
+    # Reflect in the current session so later steps see it.
+    $sessionEntries = @($env:Path -split ";" | Where-Object { $_.TrimEnd('\') -ieq $localBin.TrimEnd('\') })
+    if ($sessionEntries.Count -eq 0) {
+        $env:Path = $env:Path.TrimEnd(';') + ";" + $localBin
+    }
+
+    Write-PrintLine $leftMessage "Finished."
+}
+
+function Install-Cmigemo {
+    # cmigemo is not available via Scoop, so fetch the KaoriYa Windows build and
+    # lay it out exactly where emacs.d/modules/my-editor-search.el expects it:
+    #   ~/.local/share/cmigemo/                        (migemo-directory)
+    #   ~/.local/share/cmigemo/cmigemo.exe + migemo.dll
+    #   ~/.local/share/cmigemo/dict/cp932/migemo-dict  (migemo-dictionary)
+    # and expose the CLI on PATH via a symlink:
+    #   ~/.local/bin/cmigemo.exe -> ~/.local/share/cmigemo/cmigemo.exe
+    # cmigemo.exe loads migemo.dll from its own (real) directory, so a single
+    # symlink to the exe is enough: Windows resolves the launched symlink to its
+    # target, making the target directory the application directory used for the
+    # default DLL search. Idempotent: no-op once both the exe and the link exist.
+    $shareDir = Join-Path $HOME ".local\share\cmigemo"
+    $exe      = Join-Path $shareDir "cmigemo.exe"
+    $binLink  = Join-Path $HOME ".local\bin\cmigemo.exe"
+
+    if ((Test-Path -LiteralPath $exe) -and (Test-Path -LiteralPath $binLink)) {
+        return
+    }
+
+    $leftMessage = "Installing cmigemo (KaoriYa win64 build)"
+    Write-PrintLine $leftMessage "Started."
+
+    # KaoriYa's HTTPS certificate is expired; the plain-HTTP direct URL serves
+    # the same file with no redirect. A pinned SHA-256 guards against a corrupted
+    # or tampered archive over the unauthenticated transport.
+    $url    = "http://files.kaoriya.net/cmigemo/cmigemo-default-win64-20110227.zip"
+    $sha256 = "80adcf55848b46f8eb006ff4f73c5b840e7e322529d5d4e534be235ff0bb4ad0"
+
+    $work = Join-Path $env:TEMP "cmigemo-install"
+    if (Test-Path -LiteralPath $work) {
+        Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    New-Item -ItemType Directory -Path $work -Force | Out-Null
+    $zip = Join-Path $work "cmigemo.zip"
+
+    try {
+        $oldProgress = $ProgressPreference
+        $ProgressPreference = "SilentlyContinue"
+        Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+        $ProgressPreference = $oldProgress
+
+        $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
+        if ($actual -ne $sha256) {
+            Write-Host "cmigemo download checksum mismatch; skipping." -ForegroundColor Yellow
+            Write-Host "    expected $sha256" -ForegroundColor Yellow
+            Write-Host "    actual   $actual" -ForegroundColor Yellow
+            return
+        }
+
+        Expand-Archive -LiteralPath $zip -DestinationPath $work -Force
+        $extracted = Join-Path $work "cmigemo-default-win64"
+        if (-not (Test-Path -LiteralPath $extracted -PathType Container)) {
+            Write-Host "cmigemo archive layout unexpected (no cmigemo-default-win64/); skipping." -ForegroundColor Yellow
+            return
+        }
+
+        # Flatten cmigemo-default-win64/ into ~/.local/share/cmigemo/ by copying
+        # the extracted tree onto that exact path. Rebuild from scratch so a
+        # partial previous install does not leave stale files behind.
+        Ensure-RealDirectory (Join-Path $HOME ".local\share")
+        if (Test-Path -LiteralPath $shareDir) {
+            Remove-Item -LiteralPath $shareDir -Recurse -Force
+        }
+        Copy-Item -LiteralPath $extracted -Destination $shareDir -Recurse -Force
+
+        Ensure-RealDirectory (Join-Path $HOME ".local\bin")
+        if (Test-Path -LiteralPath $binLink) {
+            Remove-Item -LiteralPath $binLink -Force
+        }
+        try {
+            New-Item -ItemType SymbolicLink -Path $binLink -Target $exe -Force -ErrorAction Stop | Out-Null
+            Write-Host "Linked: $binLink -> $exe"
+        } catch {
+            Write-Host "Failed to create symlink: $binLink -> $exe" -ForegroundColor Yellow
+            Write-Host "Windows may require Developer Mode or Admin rights for symlinks." -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "cmigemo install failed: $($_.Exception.Message)" -ForegroundColor Yellow
+    } finally {
+        Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    Write-PrintLine $leftMessage "Finished."
+}
+
+function Setup-StartupShortcuts {
+    # Register the repo's AutoHotkey scripts (etc/ahk/*.ahk) to launch at login
+    # by placing a <name>.ahk.lnk shortcut in the current user's Startup folder.
+    # The shortcut targets the .ahk file directly; AutoHotkey (installed via
+    # Scoop) runs it through the .ahk file association. Mirrors the manual
+    # setup previously done by hand on configured machines. Idempotent: a
+    # shortcut already pointing at the same target is left alone.
+    $ahkDir = Join-Path (Join-Path $script:ScriptDir "etc") "ahk"
+    if (-not (Test-Path -LiteralPath $ahkDir -PathType Container)) {
+        return
+    }
+
+    $scripts = @(Get-ChildItem -LiteralPath $ahkDir -Filter "*.ahk" -File -ErrorAction SilentlyContinue)
+    if ($scripts.Count -eq 0) {
+        return
+    }
+
+    $leftMessage = "Registering AHK startup shortcuts"
+    Write-PrintLine $leftMessage "Started."
+
+    $startup = [System.Environment]::GetFolderPath("Startup")
+    $ws = New-Object -ComObject WScript.Shell
+
+    foreach ($ahk in $scripts) {
+        $target  = $ahk.FullName
+        $lnkPath = Join-Path $startup ($ahk.Name + ".lnk")
+
+        if (Test-Path -LiteralPath $lnkPath) {
+            $existingTarget = $ws.CreateShortcut($lnkPath).TargetPath
+            if (Test-SamePath $existingTarget $target) {
+                Write-Host "Skipping existing correct shortcut: $lnkPath"
+                continue
+            }
+            Write-Host "Replacing shortcut: $lnkPath"
+        }
+
+        $shortcut = $ws.CreateShortcut($lnkPath)
+        $shortcut.TargetPath = $target
+        $shortcut.WorkingDirectory = $ahk.DirectoryName
+        $shortcut.Save()
+        Write-Host "Created startup shortcut: $lnkPath -> $target"
+    }
+
+    Write-PrintLine $leftMessage "Finished."
+}
+
+function Remove-StartupShortcuts {
+    # Remove only the Startup-folder .lnk shortcuts that point back into this
+    # repository (the AHK shortcuts created by Setup-StartupShortcuts). Shortcuts
+    # placed by other apps (espanso, ActivityWatch, QuickLook, ...) are left
+    # alone. Mirrors Is-ManagedLink's "managed = points into the repo" test, done
+    # for .lnk shortcuts (the symlink helpers assume a reparse point).
+    $startup = [System.Environment]::GetFolderPath("Startup")
+    if (-not (Test-Path -LiteralPath $startup -PathType Container)) {
+        return
+    }
+
+    $repo = Get-CanonicalPath $script:ScriptDir
+    $ws = New-Object -ComObject WScript.Shell
+    $removed = 0
+
+    foreach ($lnk in (Get-ChildItem -LiteralPath $startup -Filter "*.lnk" -File -ErrorAction SilentlyContinue)) {
+        $target = $ws.CreateShortcut($lnk.FullName).TargetPath
+        if (-not $target) {
+            continue
+        }
+
+        $resolved = Get-CanonicalPath $target
+        if ($resolved.StartsWith($repo, [System.StringComparison]::OrdinalIgnoreCase)) {
+            Write-Host "Removing managed startup shortcut: $($lnk.FullName) -> $target"
+            Remove-Item -LiteralPath $lnk.FullName -Force
+            $removed++
+        }
+    }
+
+    if ($removed -eq 0) {
+        Write-Host "  (no managed startup shortcuts found)"
+    }
+}
+
 function Install-RPackages {
     if (-not (Get-Command Rscript -ErrorAction SilentlyContinue)) {
         return
@@ -1262,12 +1479,15 @@ function Perform-FullBootstrap {
     Write-PrintLine $leftMessage "Started."
 
     Install-Scoop
+    Set-UserEnvironment
     Install-ScoopPackages
     Install-MSYS2Packages
     Install-Fonts
     Install-RPackages
     Install-ZshPlugins
     Setup-Links
+    Install-Cmigemo
+    Setup-StartupShortcuts
     Install-ClaudePlugins
 
     Write-PrintLine $leftMessage "Finished."
