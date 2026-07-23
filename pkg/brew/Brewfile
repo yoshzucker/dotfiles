@@ -82,6 +82,7 @@ brew "emacs" if OS.linux?
 cask "ghostty"            if OS.mac?
 cask "karabiner-elements" if OS.mac?
 cask "battery"            if OS.mac?
+cask "activitywatch@beta" if OS.mac?   # time tracker (Rust/Tauri: aw-server-rust)
 
 # --- Cleanup hint ------------------------------------------------------------
 # After changes: brew bundle --file pkg/brew/Brewfile
