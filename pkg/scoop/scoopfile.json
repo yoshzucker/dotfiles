@@ -12,7 +12,7 @@
   "apps": [
     {
       "Name": "msys2",
-      "Source": "extras"
+      "Source": "main"
     },
     {
       "Name": "ripgrep",
@@ -76,7 +76,7 @@
     },
     {
       "Name": "sbcl",
-      "Source": "extras"
+      "Source": "main"
     },
     {
       "Name": "emacs",
@@ -112,6 +112,10 @@
     },
     {
       "Name": "winmerge",
+      "Source": "extras"
+    },
+    {
+      "Name": "activitywatch",
       "Source": "extras"
     }
   ]
