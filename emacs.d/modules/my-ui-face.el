@@ -13,13 +13,13 @@
   "Custom theme settings."
   :group 'my/ui)
 
-(defcustom my/theme-name 'rustcity
+(defcustom my/theme-name 'gensho
   "Theme to use."
   :type 'symbol
-  :options '(nord rustcity)
+  :options '(nord rustcity gensho)
   :group 'my/ui)
 
-(defcustom my/frame-background 'dark
+(defcustom my/frame-background 'light
   "Background variant."
   :type 'symbol
   :options '(light dark)
