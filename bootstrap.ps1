@@ -146,6 +146,7 @@ function Main {
         Setup-Links
         Install-Cmigemo
         Setup-StartupShortcuts
+        Setup-ActivityWatchStartup
         Show-RestartNotice
     }
 }
@@ -656,6 +657,13 @@ function Setup-Links {
     # Redirect the native path to the XDG location so ~/.config\espanso is the
     # single source of truth.
     Link-SingleDir (Join-Path $HOME ".config\espanso") (Join-Path $env:APPDATA "espanso")
+
+    # ActivityWatch (aw-qt) reads its config from %LOCALAPPDATA%, not ~/.config.
+    # Redirect the native aw-qt config dir to the XDG location so the repo stays
+    # the single source of truth. The tracked aw-qt.toml sets autostart_modules
+    # to aw-server-rust instead of the Python aw-server, matching the macOS
+    # Tauri/Rust build.
+    Link-SingleDir (Join-Path $HOME ".config\activitywatch\aw-qt") (Join-Path $env:LOCALAPPDATA "activitywatch\activitywatch\aw-qt")
 
     Ensure-RealDirectory (Join-Path $HOME ".local")
     Ensure-RealDirectory (Join-Path $HOME ".local\bin")
@@ -1221,6 +1229,53 @@ function Setup-StartupShortcuts {
     Write-PrintLine $leftMessage "Finished."
 }
 
+function Setup-ActivityWatchStartup {
+    # Register ActivityWatch (aw-qt) to launch at login by placing an
+    # ActivityWatch.lnk shortcut in the current user's Startup folder, targeting
+    # the Scoop-installed aw-qt.exe. The official installer normally creates this
+    # entry, but the Scoop bundle only unpacks the app, so it is set up here.
+    # aw-qt then autostarts the modules listed in aw-qt.toml (aw-server-rust plus
+    # the watchers). Idempotent: a shortcut already pointing at the same target is
+    # left alone. No-op when Scoop or ActivityWatch is unavailable.
+    if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
+        return
+    }
+
+    $prefix = (scoop prefix activitywatch 2>$null | Select-Object -First 1)
+    if (-not $prefix) {
+        return
+    }
+    $target = Join-Path $prefix "aw-qt.exe"
+    if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+        return
+    }
+
+    $leftMessage = "Registering ActivityWatch startup shortcut"
+    Write-PrintLine $leftMessage "Started."
+
+    $startup = [System.Environment]::GetFolderPath("Startup")
+    $lnkPath = Join-Path $startup "ActivityWatch.lnk"
+    $ws = New-Object -ComObject WScript.Shell
+
+    if (Test-Path -LiteralPath $lnkPath) {
+        $existingTarget = $ws.CreateShortcut($lnkPath).TargetPath
+        if (Test-SamePath $existingTarget $target) {
+            Write-Host "Skipping existing correct shortcut: $lnkPath"
+            Write-PrintLine $leftMessage "Finished."
+            return
+        }
+        Write-Host "Replacing shortcut: $lnkPath"
+    }
+
+    $shortcut = $ws.CreateShortcut($lnkPath)
+    $shortcut.TargetPath = $target
+    $shortcut.WorkingDirectory = (Split-Path -Parent $target)
+    $shortcut.Save()
+    Write-Host "Created startup shortcut: $lnkPath -> $target"
+
+    Write-PrintLine $leftMessage "Finished."
+}
+
 function Remove-StartupShortcuts {
     # Remove only the Startup-folder .lnk shortcuts that point back into this
     # repository (the AHK shortcuts created by Setup-StartupShortcuts). Shortcuts
@@ -1488,6 +1543,7 @@ function Perform-FullBootstrap {
     Setup-Links
     Install-Cmigemo
     Setup-StartupShortcuts
+    Setup-ActivityWatchStartup
     Install-ClaudePlugins
 
     Write-PrintLine $leftMessage "Finished."
