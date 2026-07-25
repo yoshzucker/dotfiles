@@ -746,7 +746,15 @@ Added buffer-locally to `after-change-functions' in org buffers."
                                    (tags . "  %i %-5c %-7e")
                                    (search . " %i %-12c"))
         org-agenda-timegrid-use-ampm nil
-        org-agenda-log-mode-items '(closed clock state)
+        ;; The agenda `v' log menu now reads as three meaningful levels:
+        ;;   default (`org-agenda-start-with-log-mode' below) . state changes only
+        ;;   v l  (Log)      . closed + state          (this variable)
+        ;;   v L  (Log all)  . + clock                 (all item types)
+        ;;   v c  (Clock check) . clock + consistency audit (gaps/overlaps/…)
+        ;; `clock' is deliberately dropped from `l' so time-tracking detail lives
+        ;; in the end-of-agenda viz tables and `L'.  Add it back (e.g. '(state
+        ;; clock)) to taste.
+        org-agenda-log-mode-items '(closed state)
         org-clock-report-include-clocking-task t
         ;; The daily agenda's own "time by area" view is now rendered by the
         ;; custom CATEGORY block (`my/org-agenda-clocked-by-category'), so the
@@ -801,30 +809,31 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
   
   ;; Custom agenda commands
   (setq org-agenda-custom-commands
-        '(("r" "Agenda for review"
-           ((agenda "" ((org-agenda-overriding-header "Review")
+        '(("r" "Weekly review — past 7 days"
+           ((agenda "" ((org-agenda-overriding-header "Clock check · past week")
                         (org-agenda-span 'week)
                         (org-agenda-start-day "-1w")
                         (org-agenda-start-on-weekday nil)
-                        (org-agenda-show-log t)
-                        (org-agenda-log-mode-items '(clock))
+                        (org-agenda-show-log 'clockcheck) ; clock lines + consistency audit
                         (org-agenda-todo-ignore-scheduled t)
                         (org-habit-show-habits nil)
-                        (org-super-agenda-groups nil)))))
-          
+                        (org-super-agenda-groups nil)))
+            ;; Roughly the "n" command below; kept here so review is one stop.
+            (todo "" ((org-agenda-overriding-header "Unscheduled / stuck TODOs")
+                      (org-agenda-todo-ignore-with-date t)
+                      (org-super-agenda-groups nil))))
+           ;; General settings apply during `org-agenda-finalize' (see
+           ;; `org-agenda-run-series'), so binding the viz mode here switches the
+           ;; finalize append (`my/org-agenda-append-time-viz') from the daily
+           ;; three tables to the week-by-area review table.
+           ;; `compact-blocks' is off here (unlike the daily `a') so each block's
+           ;; orientation header is shown in the review.
+           ((my/org-agenda-viz-mode 'review)
+            (org-agenda-compact-blocks nil)))
+
           ("n" "TODO without timestamp"
            ((todo "" ((org-agenda-overriding-header "TODO without timestamp. Scatter tasks in weekdays by m... C-u B S")
-                      (org-agenda-todo-ignore-with-date t)))))
-          
-          ("o" "ONGO only"
-           ((todo "ONGO" ((org-agenda-overriding-header "Ongoing tasks only")))))
-          
-          ("d" "Agenda for deadline"
-           ((agenda "" ((org-agenda-overriding-header "Deadlines")
-                        (org-agenda-entry-types '(:deadline))
-                        (org-deadline-warning-days 0)
-                        (org-agenda-compact-blocks t)
-                        (org-agenda-span 'month)))))))
+                      (org-agenda-todo-ignore-with-date t)))))))
 
   ;; ---- Daily time visualization appended to the agenda -------------------
   ;; Two <=80-wide blocks after the existing clockreport (which is left
@@ -836,10 +845,13 @@ Top-level (1) entries have no indent. Deeper levels are indented by spaces."
     "Shades (empty..full) for `orgtbl-ascii-draw' bars; unicode block elements.
 Shared by the three custom agenda time-viz tables.")
 
-  (defvar my/org-agenda-time-viz-enabled t
-    "When non-nil, append the three time-viz blocks to agenda views.
-Replaces the old `org-agenda-clockreport-mode' gate now that the daily
-\"time by area\" view is the custom CATEGORY block, not the native clockreport.")
+  (defvar my/org-agenda-viz-mode 'daily
+    "Which time-viz block `my/org-agenda-append-time-viz' appends on finalize:
+  `daily'  the three today tables (Clocked / Estimate / Observed)
+  `review' the week-by-area review table (`my/org-agenda-week-review-clocked')
+  nil      nothing.
+Bound to `review' in the \"r\" command's general settings; defaults to `daily'
+for the plain `a' agenda.")
 
   ;; agent-shell-style two-segment badge (cf. `agent-shell--make-button'):
   ;; a filled title chip followed by an outlined meaning chip, boxed.
@@ -1291,9 +1303,128 @@ exact share of today's clocked total (so the % values sum to 100)."
            (sort rows (lambda (a b) (> (nth 2 a) (nth 2 b))))
            "\n"))) 'face 'org-table)))
 
+  (defun my/org-clock-week-by-category (&optional days)
+    "Aggregate clocked minutes by inherited CATEGORY over the last DAYS days
+\(default 7, including today) across `org-agenda-files'.
+Return a plist:
+  :rows        ALIST (CATEGORY . MINUTES), sorted descending
+  :total       total clocked minutes in the window
+  :byday       VECTOR of per-day minutes, index 0 = oldest day
+  :days        DAYS
+  :active-days number of days with any clocked time
+  :peak        cons (DAY-INDEX . MINUTES) of the busiest day.
+Independent of `my/org-clock-today-by-category' (which mixes today/7-day
+concerns) so the daily table stays untouched."
+    (let* ((days (or days 7))
+           (from (my/org-clock--day-start (1- days)))
+           (to (time-add (my/org-clock--day-start 0) (days-to-time 1)))
+           (table (make-hash-table :test 'equal))
+           (byday (make-vector days 0))
+           (total 0)
+           (re (concat "^[ \t]*" org-clock-string
+                       "[ \t]*\\(\\[[^]\n]+\\]\\)\\(?:--\\[[^]\n]+\\]\\)?"
+                       "[ \t]*=>[ \t]*\\([0-9]+:[0-9][0-9]\\)")))
+      (dolist (file (org-agenda-files))
+        (with-current-buffer (find-file-noselect file)
+          (org-with-wide-buffer
+           (goto-char (point-min))
+           (while (re-search-forward re nil t)
+             (let* ((ts-str (match-string-no-properties 1))
+                    (dur-str (match-string-no-properties 2))
+                    (ts (org-time-string-to-time ts-str))
+                    (dur (org-duration-to-minutes dur-str)))
+               (when (and (time-less-p from ts) (time-less-p ts to))
+                 (setq total (+ total dur))
+                 (let ((cat (or (org-entry-get (point) "CATEGORY" t)
+                                (org-get-category (point))
+                                "?"))
+                       (idx (min (1- days)
+                                 (floor (/ (float-time (time-subtract ts from))
+                                           86400)))))
+                   (puthash cat (+ dur (gethash cat table 0)) table)
+                   (aset byday idx (+ dur (aref byday idx))))))))))
+      (let (rows (active 0) (peak 0) (peakmin 0))
+        (maphash (lambda (k v) (push (cons k v) rows)) table)
+        (dotimes (i days)
+          (when (> (aref byday i) 0) (setq active (1+ active)))
+          (when (> (aref byday i) peakmin)
+            (setq peakmin (aref byday i) peak i)))
+        (list :rows (seq-sort-by #'cdr #'> rows)
+              :total total :byday byday :days days
+              :active-days active :peak (cons peak peakmin)))))
+
+  (defun my/org-agenda-week-review-clocked ()
+    "Return a week-by-CATEGORY review table with a rhythm header (<=80 cols).
+Mirrors the daily `my/org-agenda-clocked-by-category' layout (Area/Time/%/Share)
+but aggregates the past 7 days, and leads with weekly-review insight: total,
+daily average, active-day count, and the busiest day."
+    (let* ((data (my/org-clock-week-by-category 7))
+           (rows (plist-get data :rows))
+           (total (plist-get data :total))
+           (days (plist-get data :days))
+           (active (plist-get data :active-days))
+           (peak (plist-get data :peak))
+           (maxmin (if rows (apply #'max (mapcar #'cdr rows)) 1))
+           (peak-label (format-time-string
+                        "%a" (my/org-clock--day-start (- days 1 (car peak))))))
+      (if (null rows)
+          (concat "Week 0:00\n"
+                  (propertize "(no clocked time this week)" 'face 'org-table))
+        (concat
+         (format "Week %s · avg %s/day · %d/%d active · peak %s %s"
+                 (org-duration-from-minutes total)
+                 (org-duration-from-minutes (/ (float total) days))
+                 active days peak-label
+                 (org-duration-from-minutes (cdr peak)))
+         "\n"
+         (propertize
+          (concat
+           (format "| %-14s | %5s | %5s | %-18s |" "Area" "Time" "%" "Share")
+           "\n|----------------+-------+-------+--------------------|\n"
+           (mapconcat
+            (lambda (r)
+              (let ((cat (car r)) (min (cdr r)))
+                (format "| %-14s | %5s | %5.1f | %s |"
+                        (truncate-string-to-width
+                         (replace-regexp-in-string "[|\n\r]" " " cat) 14 0 ?\s)
+                        (org-duration-from-minutes min)
+                        (if (> total 0) (* 100.0 (/ (float min) total)) 0)
+                        (truncate-string-to-width
+                         (orgtbl-ascii-draw min 0 (max maxmin 1) 18
+                                            my/org-ascii-bar-chars)
+                         18 0 ?\s))))
+            rows "\n"))
+          'face 'org-table)))))
+
+  (defun my/org-agenda-viz-body ()
+    "Return the time-viz text for the current `my/org-agenda-viz-mode'.
+`daily' = the three today tables; `review' = the week-by-area table."
+    (pcase my/org-agenda-viz-mode
+      ('daily
+       (concat "\n"
+               (my/org-agenda-viz-title-string "Clocked" "share of focus today")
+               "\n"
+               (my/org-agenda-clocked-by-category)
+               "\n\n"
+               (my/org-agenda-viz-title-string "Estimate" "planned vs actual")
+               "\n"
+               (my/org-agenda-planned-vs-actual)
+               "\n\n"
+               (my/org-agenda-viz-title-string "Observed" "reality & rhythm · ActivityWatch")
+               "\n"
+               (my/aw-today-summary)
+               "\n"))
+      ('review
+       (concat "\n"
+               (my/org-agenda-viz-title-string "Clocked" "by area · last 7 days")
+               "\n"
+               (my/org-agenda-week-review-clocked)
+               "\n"))))
+
   (defun my/org-agenda-append-time-viz ()
-    "Append the three time-viz blocks (clocked-by-category, planned-vs-actual,
-ActivityWatch) to an agenda view.
+    "Append the current mode's time-viz block to an agenda view.
+The block rendered is chosen by `my/org-agenda-viz-mode' (daily three tables /
+review week table / nil none).
 Runs on `org-agenda-finalize-hook'.  `org-agenda-change-all-lines' (used by
 `org-agenda-todo') calls `org-agenda-finalize' narrowed to the single changed
 line, and `org-agenda-finalize' does not widen before running the hook; the
@@ -1302,7 +1433,7 @@ Skip unless the whole buffer is accessible, and remove any blocks left by a
 previous finalize first so a non-narrowed re-finalize (e.g. clearing a filter)
 replaces rather than accumulates."
     (when (and (derived-mode-p 'org-agenda-mode)
-               my/org-agenda-time-viz-enabled
+               my/org-agenda-viz-mode
                (not (buffer-narrowed-p)))
       (condition-case nil
           (let ((inhibit-read-only t)
@@ -1315,19 +1446,7 @@ replaces rather than accumulates."
                        (point-max))))
             (goto-char (point-max))
             (let ((beg (point)))
-              (insert "\n"
-                      (my/org-agenda-viz-title-string "Clocked" "share of focus today")
-                      "\n"
-                      (my/org-agenda-clocked-by-category)
-                      "\n\n"
-                      (my/org-agenda-viz-title-string "Estimate" "planned vs actual")
-                      "\n"
-                      (my/org-agenda-planned-vs-actual)
-                      "\n\n"
-                      (my/org-agenda-viz-title-string "Observed" "reality & rhythm · ActivityWatch")
-                      "\n"
-                      (my/aw-today-summary)
-                      "\n")
+              (insert (my/org-agenda-viz-body))
               (put-text-property beg (point) 'my/org-agenda-viz t)))
         (error nil))))
 
