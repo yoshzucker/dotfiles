@@ -311,7 +311,7 @@ cascade into spurious clock-ins on ancestor tasks.")
 
   (defvar my/org-todo-cycle-commands
     '(org-todo org-agenda-todo org-shiftright org-shiftleft
-      org-agenda-todo-nextset org-agenda-todo-previousset)
+               org-agenda-todo-nextset org-agenda-todo-previousset)
     "Commands that count as the user manually changing a TODO state.
 Only these let `my/org-clock-in-if-ongo' auto-clock-in; extend as needed.")
 
@@ -1271,21 +1271,25 @@ exact share of today's clocked total (so the % values sum to 100)."
       (propertize
        (if (null rows)
            "(no estimated tasks clocked today)"
-         (mapconcat
-          (lambda (r)
-            (let ((plan (nth 1 r)) (act (nth 2 r)))
-              (format "| %s | %5s | %5s | %s |%4.0f%%"
-                      (truncate-string-to-width
-                       (replace-regexp-in-string "[|\n\r]" " " (nth 0 r)) 28 0 ?\s)
-                      (org-duration-from-minutes plan)
-                      (org-duration-from-minutes act)
-                      (truncate-string-to-width
-                       (orgtbl-ascii-draw (min act plan) 0 (max plan 1) 12
-                                          my/org-ascii-bar-chars)
-                       12 0 ?\s)
-                      (if (> plan 0) (* 100.0 (/ (float act) plan)) 0))))
-          (sort rows (lambda (a b) (> (nth 2 a) (nth 2 b))))
-          "\n")) 'face 'org-table)))
+         (concat
+          (format "| %-28s | %5s | %5s | %-12s |%5s" "Task" "Plan" "Act" "Progress" "%")
+          "\n|" (make-string 30 ?-) "+" (make-string 7 ?-) "+" (make-string 7 ?-)
+          "+" (make-string 14 ?-) "+" (make-string 5 ?-) "\n"
+          (mapconcat
+           (lambda (r)
+             (let ((plan (nth 1 r)) (act (nth 2 r)))
+               (format "| %s | %5s | %5s | %s |%4.0f%%"
+                       (truncate-string-to-width
+                        (replace-regexp-in-string "[|\n\r]" " " (nth 0 r)) 28 0 ?\s)
+                       (org-duration-from-minutes plan)
+                       (org-duration-from-minutes act)
+                       (truncate-string-to-width
+                        (orgtbl-ascii-draw (min act plan) 0 (max plan 1) 12
+                                           my/org-ascii-bar-chars)
+                        12 0 ?\s)
+                       (if (> plan 0) (* 100.0 (/ (float act) plan)) 0))))
+           (sort rows (lambda (a b) (> (nth 2 a) (nth 2 b))))
+           "\n"))) 'face 'org-table)))
 
   (defun my/org-agenda-append-time-viz ()
     "Append the three time-viz blocks (clocked-by-category, planned-vs-actual,
