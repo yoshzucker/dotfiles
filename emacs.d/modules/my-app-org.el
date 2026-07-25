@@ -303,18 +303,39 @@ is unavailable."
                       tab-bar-format-global)))))
 
   ;; State and Clock
+  (defvar my/org-inhibit-auto-clock-in nil
+    "When non-nil, `my/org-clock-in-if-ongo' does not auto-clock-in.
+Bound around `org-clock-in' (whose switch-to-state already clocks in) and
+around the recursive parent-state promotion, so a single clock-in cannot
+cascade into spurious clock-ins on ancestor tasks.")
+
+  (defvar my/org-todo-cycle-commands
+    '(org-todo org-agenda-todo org-shiftright org-shiftleft
+      org-agenda-todo-nextset org-agenda-todo-previousset)
+    "Commands that count as the user manually changing a TODO state.
+Only these let `my/org-clock-in-if-ongo' auto-clock-in; extend as needed.")
+
   (defun my/org-parent-ongo-if-needed ()
     "If the current task is ONGO/WAIT/DONE/DELEG, update parent TODO to ONGO if it's NEXT."
     (when (member org-state '("ONGO" "WAIT" "DONE" "DELEG"))
       (save-excursion
         (when (org-up-heading-safe)
           (when (member (org-entry-get nil "TODO") '("NEXT"))
-            (org-todo "ONGO"))))))
+            ;; Promotion is a side effect, not a user clock request: never let
+            ;; it auto-clock the ancestor.  The state change still re-fires this
+            ;; hook, so promotion keeps cascading up the NEXT chain.
+            (let ((my/org-inhibit-auto-clock-in t))
+              (org-todo "ONGO")))))))
 
   (defun my/org-clock-in-if-ongo ()
-    "Clock in if the current task is ONGO and not already clocked in."
-    (when (and (equal org-state "ONGO")
-               (equal (point) (point-at-bol)) ;; only for direct clock-in
+    "Clock in when the user manually switches a task to ONGO.
+Skipped during `org-clock-in' and parent promotion (guarded by
+`my/org-inhibit-auto-clock-in'), and only for genuine user state-cycling
+commands (`my/org-todo-cycle-commands'), so cascaded/automated ONGO
+transitions never spawn a clock-in on a different task."
+    (when (and (not my/org-inhibit-auto-clock-in)
+               (memq this-command my/org-todo-cycle-commands)
+               (equal org-state "ONGO")
                (not (equal org-clock-current-task (org-entry-get (point) "ITEM"))))
       (org-clock-in)))
   
@@ -329,11 +350,15 @@ is unavailable."
                     (org-set-effort)))))
   
   (defun my/org-clock-in-continuously-reverse-by-prefix (f &optional select start-time)
-    "Toggle `org-clock-continuously` when called with C-u (prefix 64)."
-    (if (equal select '(64))
-        (let ((org-clock-continuously (not org-clock-continuously)))
-          (apply f nil start-time))
-      (apply f select start-time)))
+    "Toggle `org-clock-continuously` when called with C-u (prefix 64).
+Also inhibit `my/org-clock-in-if-ongo' for the whole call: `org-clock-in'
+already inserts the clock, and its `org-clock-in-switch-to-state' fires
+`org-after-todo-state-change-hook', which must not re-enter clock-in."
+    (let ((my/org-inhibit-auto-clock-in t))
+      (if (equal select '(64))
+          (let ((org-clock-continuously (not org-clock-continuously)))
+            (apply f nil start-time))
+        (apply f select start-time))))
   (advice-add 'org-clock-in :around #'my/org-clock-in-continuously-reverse-by-prefix)
   
   ;; Clock heading
@@ -616,19 +641,72 @@ without replacing it."
          "k" #'org-agenda-previous-line
          "l" #'right-char
          "@" #'org-agenda-columns
-         "gr" #'org-agenda-redo
          "[" #'org-agenda-filter
          "]" #'org-agenda-filter-by-tag
          my/backslash #'evil-avy-goto-char-timer
          "C-f" #'evil-scroll-page-down
          "C-b" #'evil-scroll-page-up
-         "C-w" #'evil-window-map))
+         "C-w" #'evil-window-map)
+   ;; `gr' must go through an evil mode-aux keymap: the `g' prefix is provided
+   ;; by the global `evil-motion-state-map' (which binds `g r' elsewhere, e.g.
+   ;; to xref), and that shadows `org-agenda-mode-map'.  An evil per-mode
+   ;; binding outranks the global state map, so `g r' reliably redoes here.
+   (:map org-agenda-mode-map
+         :state motion
+         :key
+         "gr" #'org-agenda-redo))
 
   ;; Ex command in agenda-mode
   (add-hook 'org-agenda-mode-hook
             (lambda ()
               (my/evil-ex-define-cmd-local "w[rite]" #'org-save-all-org-buffers)))
-  
+
+  ;; --- Keep sticky agenda markers fresh (idle background redo) ------------
+  ;; With `org-agenda-sticky', an agenda buffer keeps `org-marker' text
+  ;; properties pointing into the org files.  When an entry shown in the
+  ;; agenda is *deleted/moved* (archive, refile, cut, hand-edit), its marker
+  ;; floats onto the neighbouring heading while the displayed line stays
+  ;; stale -- so acting on that line (clock-in, todo, goto) hits the wrong,
+  ;; often unrelated, entry.  A plain `org-agenda-redo' rebuilds fresh
+  ;; markers and cures it.  Rather than redo at the moment of use (a lock
+  ;; exactly when you want the agenda), redo lazily in the background: any
+  ;; change to an org buffer (re)arms one idle timer that redoes live agenda
+  ;; buffers once you pause typing, so the agenda is already fresh before you
+  ;; touch it.  No per-file snapshots and no enumeration of the (dynamic)
+  ;; `org-agenda-files' list -- just react to "some org buffer changed".
+  (defvar my/org-agenda-refresh-idle 1.5
+    "Idle seconds to debounce the sticky-agenda auto-redo.")
+
+  (defvar my/org-agenda-refresh-timer nil
+    "The single pending idle timer armed by `my/org-agenda--arm-refresh'.")
+
+  (defun my/org-agenda--refresh-agendas ()
+    "Redo every live `org-agenda-mode' buffer to refresh stale markers.
+`org-agenda-redo' does not modify the org source buffers, so this cannot
+re-trigger `after-change-functions' there (the arming hook is installed on
+org buffers only), and `org-agenda-persistent-filter' keeps any active
+filter across the redo."
+    (setq my/org-agenda-refresh-timer nil)
+    (dolist (buf (buffer-list))
+      (when (buffer-live-p buf)
+        (with-current-buffer buf
+          (when (derived-mode-p 'org-agenda-mode)
+            (ignore-errors (org-agenda-redo t)))))))
+
+  (defun my/org-agenda--arm-refresh (&rest _)
+    "Debounced trigger: (re)arm the idle auto-redo after an org edit.
+Added buffer-locally to `after-change-functions' in org buffers."
+    (when (timerp my/org-agenda-refresh-timer)
+      (cancel-timer my/org-agenda-refresh-timer))
+    (setq my/org-agenda-refresh-timer
+          (run-with-idle-timer my/org-agenda-refresh-idle nil
+                               #'my/org-agenda--refresh-agendas)))
+
+  (add-hook 'org-mode-hook
+            (lambda ()
+              (add-hook 'after-change-functions
+                        #'my/org-agenda--arm-refresh nil t)))
+
   ;; Agenda settings
   (setq calendar-holidays nil
         org-deadline-warning-days 4
