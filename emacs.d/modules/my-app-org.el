@@ -593,10 +593,6 @@ without replacing it."
   :config
   (setq org-download-method 'attach))
 
-(use-package sxiv
-  :if (eq system-type 'gnu/linux)
-  :after org)
-
 (use-package org-pomodoro
   :after (org org-clock)
   :config

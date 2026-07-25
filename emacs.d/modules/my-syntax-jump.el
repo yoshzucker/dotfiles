@@ -25,10 +25,7 @@
   
   (defun my/xref-backend-eglot ()
     (when (bound-and-true-p eglot--managed-mode) 'eglot))
-  
-  (defun my/xref-backend-ggtags ()
-    (when (bound-and-true-p ggtags-mode) 'ggtags))
-  
+
   (defun my/xref-backend-dumb-jump ()
     (when (require 'dumb-jump nil t)
       (dumb-jump-xref-activate)
@@ -41,9 +38,6 @@
    (:hook lisp-mode-hook
           :func
           (lambda () (my/xref-add #'my/xref-backend-slime t)))
-   (:hook c-mode-common-hook c-ts-mode c++-ts-mode
-          :func
-          (lambda () (my/xref-add #'my/xref-backend-ggtags t)))
    (:hook python-mode-hook python-ts-mode
           :func
           (lambda () (my/xref-add #'my/xref-backend-eglot t)))
@@ -55,7 +49,6 @@
   ;;   "Set up prioritized xref backends for the current buffer."
   ;;   (dolist (backend '(my/xref-backend-slime
   ;;                      my/xref-backend-eglot
-  ;;                      my/xref-backend-ggtags
   ;;                      my/xref-backend-dumb-jump))
   ;;     (add-hook 'xref-backend-functions backend t t)))
   
