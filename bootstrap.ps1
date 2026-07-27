@@ -957,13 +957,15 @@ function Install-Fonts {
     # Builds the custom "PlemolJP NF" font (non-Console PlemolJP with full-width
     # arrows + Nerd Font icons) by running local/bin/build-plemoljp-nf inside the
     # Scoop-installed MSYS2 (which provides fontforge), then registers the built
-    # TTFs for the current user so mintty can use them. Mirrors install_fonts()
-    # in the Unix 'bootstrap'. Idempotent; non-fatal on failure.
-    $fontName    = "PlemolJP NF"
+    # TTFs for the current user. Also registers "PlemolJP Console NF" (staged into
+    # the build's dist dir) so mintty can use it -- unlike macOS (brew cask), it is
+    # not otherwise installed on Windows. Mirrors install_fonts() in the Unix
+    # 'bootstrap'. Idempotent; non-fatal on failure.
     $userFontDir = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts"
     $regPath     = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts"
 
-    if (Test-Path -LiteralPath (Join-Path $userFontDir "PlemolJPNF-Regular.ttf")) {
+    if ((Test-Path -LiteralPath (Join-Path $userFontDir "PlemolJPNF-Regular.ttf")) -and
+        (Test-Path -LiteralPath (Join-Path $userFontDir "PlemolJPConsoleNF-Regular.ttf"))) {
         return
     }
 
@@ -1018,7 +1020,7 @@ exec "$repo/local/bin/build-plemoljp-nf"
     }
 
     $distDir = Join-Path $work "dist"
-    $ttfs = Get-ChildItem -LiteralPath $distDir -Filter "PlemolJPNF-*.ttf" -ErrorAction SilentlyContinue
+    $ttfs = Get-ChildItem -LiteralPath $distDir -Filter "PlemolJP*NF-*.ttf" -ErrorAction SilentlyContinue
     if (-not $ttfs) {
         Write-Host "No built fonts found in $distDir; skipping registration." -ForegroundColor Yellow
         return
@@ -1033,6 +1035,13 @@ exec "$repo/local/bin/build-plemoljp-nf"
         $dest = Join-Path $userFontDir $ttf.Name
         Copy-Item -LiteralPath $ttf.FullName -Destination $dest -Force
 
+        # Derive the display family from the file name: the merge output is
+        # "PlemolJP NF"; the staged Console glyph source is "PlemolJP Console NF".
+        if ($ttf.Name -like "PlemolJPConsoleNF-*") {
+            $family = "PlemolJP Console NF"
+        } else {
+            $family = "PlemolJP NF"
+        }
         $style = switch -regex ($ttf.Name) {
             "BoldItalic" { "Bold Italic"; break }
             "Bold"       { "Bold"; break }
@@ -1040,9 +1049,9 @@ exec "$repo/local/bin/build-plemoljp-nf"
             default      { "Regular" }
         }
         if ($style -eq "Regular") {
-            $valueName = "$fontName (TrueType)"
+            $valueName = "$family (TrueType)"
         } else {
-            $valueName = "$fontName $style (TrueType)"
+            $valueName = "$family $style (TrueType)"
         }
         # Per-user registered fonts store the full file path as the value data.
         New-ItemProperty -Path $regPath -Name $valueName -Value $dest -PropertyType String -Force | Out-Null
