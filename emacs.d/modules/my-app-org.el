@@ -113,6 +113,16 @@ is unavailable."
         org-indent-indentation-per-level 1
         org-hide-leading-stars nil
         org-hide-block-startup t
+        ;; Disable disk PERSISTENCE of the org-element cache.  Our org files live
+        ;; under ~/Documents/memex, a junction to ~/some-cloud.../memex, so the
+        ;; same file is reachable via two paths; org-persist then stores/reloads
+        ;; TWO element-cache entries for it (one per path) and a stale one can
+        ;; survive restarts -- making `org-agenda-redo' show old TODO state or
+        ;; miss newly added tasks until `org-element-cache-reset'.  Keep the
+        ;; in-memory cache (`org-element-use-cache' t) for speed; only stop
+        ;; persisting it, so every session starts from a clean, correctly
+        ;; invalidated cache.
+        org-element-cache-persistent nil
         org-id-link-to-org-use-id t
         org-attach-store-link-p nil
         org-blank-before-new-entry '((heading . auto)
@@ -643,12 +653,8 @@ without replacing it."
          "C-f" #'evil-scroll-page-down
          "C-b" #'evil-scroll-page-up
          "C-w" #'evil-window-map)
-   ;; `gr' must go through an evil mode-aux keymap: the `g' prefix is provided
-   ;; by the global `evil-motion-state-map' (which binds `g r' elsewhere, e.g.
-   ;; to xref), and that shadows `org-agenda-mode-map'.  An evil per-mode
-   ;; binding outranks the global state map, so `g r' reliably redoes here.
    (:map org-agenda-mode-map
-         :state motion
+         :state emacs
          :key
          "gr" #'org-agenda-redo))
 
