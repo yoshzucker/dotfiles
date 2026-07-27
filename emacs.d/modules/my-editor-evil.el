@@ -180,7 +180,10 @@
   :after evil
   :config
   (setopt evil-collection-key-blacklist '("gs" "gr"))
-  (let ((excludes '(agent-shell comint)))
+  ;; org-agenda: keep evil's built-in emacs state; the agenda keymap in
+  ;; my-app-org.el is built for emacs state, so don't let evil-collection
+  ;; take it over (newer evil-collection moves it to normal state).
+  (let ((excludes '(agent-shell comint org-agenda)))
     (dolist (mode excludes)
       (setq evil-collection-mode-list (remove mode evil-collection-mode-list))))
   (evil-collection-init)
