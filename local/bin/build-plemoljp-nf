@@ -308,6 +308,10 @@ if [ -n "$dest" ]; then
   cp -f "$DISTDIR"/*.ttf "$dest"/
   command -v fc-cache >/dev/null && fc-cache -f "$dest" >/dev/null 2>&1 || true
 else
+  # Windows/MSYS2: also stage the Console NF glyph source into dist so
+  # bootstrap.ps1 registers "PlemolJP Console NF" for mintty (it is not a
+  # separately installed font on Windows, unlike the macOS brew cask).
+  cp -f "$sym_dir"/PlemolJPConsoleNF-*.ttf "$DISTDIR"/
   echo ">> built fonts in $DISTDIR (install them manually / via bootstrap.ps1)"
 fi
 
