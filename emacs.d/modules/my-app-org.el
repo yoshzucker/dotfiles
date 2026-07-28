@@ -1004,6 +1004,72 @@ The event straddling DAY-START is counted only for its post-DAY-START part."
                   (oe (if (time-less-p e b) e b)))
               (setq sum (+ sum (float-time (time-subtract oe os))))))))))
 
+  ;; --- Interval set algebra (return intervals, not just seconds) ----------
+  ;; `my/aw--overlap-seconds' above only totals coverage; the coverage/leak
+  ;; view needs the resulting intervals themselves (to bin per half-hour), so
+  ;; these produce (START . END) time-cons lists.  Inputs need not be sorted or
+  ;; disjoint -- each op normalizes first.
+
+  (defun my/aw--intervals-normalize (ivs)
+    "Sort IVS (list of (START . END) time conses) and merge overlaps/adjacencies.
+Returns a fresh, sorted, disjoint list; never mutates IVS."
+    (let ((sorted (sort (mapcar (lambda (iv) (cons (car iv) (cdr iv))) ivs)
+                        (lambda (a b) (time-less-p (car a) (car b)))))
+          out)
+      (dolist (iv sorted (nreverse out))
+        (if (and out (not (time-less-p (cdar out) (car iv))))
+            ;; prev-end >= cur-start: overlap/touch -> extend prev end if longer
+            (when (time-less-p (cdar out) (cdr iv))
+              (setcdr (car out) (cdr iv)))
+          (push iv out)))))
+
+  (defun my/aw--intervals-intersect (a b)
+    "Return intervals covered by BOTH A and B (normalized internally)."
+    (let ((a (my/aw--intervals-normalize a))
+          (b (my/aw--intervals-normalize b))
+          out)
+      (while (and a b)
+        (let* ((ae (cdar a)) (be (cdar b))
+               (lo (if (time-less-p (caar a) (caar b)) (caar b) (caar a)))
+               (hi (if (time-less-p ae be) ae be)))
+          (when (time-less-p lo hi) (push (cons lo hi) out))
+          (if (time-less-p ae be) (setq a (cdr a)) (setq b (cdr b)))))
+      (nreverse out)))
+
+  (defun my/aw--intervals-subtract (a b)
+    "Return the parts of A not covered by B (normalized internally)."
+    (let ((a (my/aw--intervals-normalize a))
+          (b (my/aw--intervals-normalize b))
+          out)
+      (dolist (iv a (nreverse out))
+        (let ((cur (car iv)) (end (cdr iv)) (bs b))
+          ;; drop b-intervals ending at/before cur
+          (while (and bs (not (time-less-p cur (cdar bs)))) (setq bs (cdr bs)))
+          (while (and bs (time-less-p (caar bs) end))
+            (let ((os (caar bs)) (oe (cdar bs)))
+              (when (time-less-p cur os)
+                (push (cons cur (if (time-less-p os end) os end)) out))
+              (setq cur (if (time-less-p oe cur) cur oe))
+              (setq bs (cdr bs))))
+          (when (time-less-p cur end) (push (cons cur end) out))))))
+
+  (defun my/aw--intervals-seconds (ivs)
+    "Total seconds covered by interval list IVS."
+    (let ((sum 0.0))
+      (dolist (iv ivs sum)
+        (setq sum (+ sum (float-time (time-subtract (cdr iv) (car iv))))))))
+
+  (defun my/aw--afk-intervals (afk-events)
+    "Return sorted (START . END) conses for afk-status periods in AFK-EVENTS.
+Mirror of `my/aw--notafk-intervals' for the complementary status."
+    (let (ivs)
+      (dolist (e afk-events)
+        (when (equal (alist-get 'status (alist-get 'data e)) "afk")
+          (let ((s (my/aw--parse-ts (alist-get 'timestamp e)))
+                (dur (or (alist-get 'duration e) 0)))
+            (push (cons s (time-add s (seconds-to-time dur))) ivs))))
+      (sort ivs (lambda (a b) (time-less-p (car a) (car b))))))
+
   (defun my/aw--sum-active-by (events intervals key)
     "Return alist (VALUE . SECONDS) desc: each EVENTS duration clipped to
 INTERVALS (not-afk), grouped by KEY (\\='app or \\='project) of its data."
@@ -1073,7 +1139,8 @@ half-hour).  Each cell is normalized by the fixed 30-minute (1800s) bin length."
     "Return today's parsed ActivityWatch data as a plist, or nil on failure.
 Keys: :active :afk SECONDS ; :active-apps :emacs-projects ALIST (NAME . SEC)
 of window/emacs time intersected with not-afk ; :binned 48-vector of active
-sec per half-hour ; :first :last not-afk boundary times ; :switches count.
+sec per half-hour ; :first :last not-afk boundary times ; :switches count ;
+:window-events :afk-events the raw AW events (reused by the coverage view).
 Cached for `my/aw-cache-ttl' seconds; shared by the ① coverage metric
 \(uses :active) and the ③ Observed table."
     (if (and my/aw-cache
@@ -1104,7 +1171,10 @@ Cached for `my/aw-cache-ttl' seconds; shared by the ① coverage metric
                              :binned (my/aw--binned-active ivs)
                              :first (and ivs (car (car ivs)))
                              :last (and ivs (cdr (car (last ivs))))
-                             :switches (my/aw--switch-count win)))))
+                             :switches (my/aw--switch-count win)
+                             ;; Raw events retained so the coverage/leak view
+                             ;; reuses this single cached fetch (no extra HTTP).
+                             :window-events win :afk-events afk-ev))))
                (error nil))))
         (setq my/aw-cache (cons (current-time) data))
         data)))
@@ -1137,10 +1207,12 @@ away(afk) row (% over active+afk), then an emacs-project detail line."
                (last (plist-get data :last)))
           (propertize
            (concat
-            (format "Screen %s–%s · active %.1fh · afk %.1fh · %d switches"
+            (format "Screen %s–%s · active %s · afk %s · %d switches"
                     (if first (format-time-string "%H:%M" first) "—")
                     (if last (format-time-string "%H:%M" last) "—")
-                    (/ active 3600.0) (/ afk 3600.0) (plist-get data :switches))
+                    (org-duration-from-minutes (/ active 60.0))
+                    (org-duration-from-minutes (/ afk 60.0))
+                    (plist-get data :switches))
             "\n" (my/aw--hour-axis)
             "\n" (my/aw--sparkline (plist-get data :binned))
             "\n" (format "| %s | %s | %5s | %5s | %s |"
@@ -1172,10 +1244,225 @@ away(afk) row (% over active+afk), then an emacs-project detail line."
                 "")))
            'face 'org-table)))))
 
+  ;; --- Coverage / leak view -----------------------------------------------
+  ;; Partition the active window into 4 disjoint classes by `clocked?' (inside
+  ;; an org CLOCK segment) x `active/afk' (ActivityWatch).  Answers "when I was
+  ;; NOT clocked in but active, which apps ate the time?" -- the leak that is
+  ;; either forgotten-clock work (work-category apps) or distraction.
+
+  (defface my/aw-tl-clocked-active '((t :inherit success))
+    "Timeline fill for clocked & active (declared focus).")
+  (defface my/aw-tl-clocked-afk '((t :inherit shadow))
+    "Timeline fill for clocked & afk (clock running while away).")
+  (defface my/aw-tl-unclocked-active '((t :inherit warning))
+    "Timeline fill for unclocked & active (on-PC leak -- the actionable one).")
+  (defface my/aw-tl-unclocked-afk '((t :inherit font-lock-comment-face))
+    "Timeline fill for unclocked & afk (off-PC leak).")
+
+  (defun my/aw--leak-by-category (leak-apps off-pc-sec)
+    "Fold LEAK-APPS ((APP . SEC)) into (CATEGORY . SEC) desc via `my/aw--category',
+appending an \"off-PC\" row for OFF-PC-SEC when positive."
+    (let ((h (make-hash-table :test 'equal)) out)
+      (dolist (kv leak-apps)
+        (let ((c (my/aw--category (car kv))))
+          (puthash c (+ (cdr kv) (gethash c h 0)) h)))
+      (maphash (lambda (k v) (push (cons k v) out)) h)
+      (when (> off-pc-sec 0) (push (cons "unc-afk" off-pc-sec) out))
+      (seq-sort-by #'cdr #'> out)))
+
+  (defun my/aw-coverage-data ()
+    "Return today's clocked/leak coverage as a plist, or nil when AW is down.
+Reuses `my/aw-today-data' (single cached fetch) and `my/org-clock-today-intervals'.
+Keys:
+  :active-sec :clocked-sec :leak-sec  totals (seconds)
+  :ca :cf :ua :uf  48-vectors (active sec per half-hour) for
+     clocked-active / clocked-afk / unclocked-active / unclocked-afk
+  :leak-apps  ALIST (APP . SEC) desc over the unclocked-active window.
+The header's unc-act category split is derived on demand via
+`my/aw--leak-by-category' from :leak-apps."
+    (let ((data (my/aw-today-data)))
+      (when data
+        (let ((first (plist-get data :first))
+              (last (plist-get data :last)))
+          (when (and first last)
+            (let* ((win (plist-get data :window-events))
+                   (afk-ev (plist-get data :afk-events))
+                   (window (list (cons first last)))
+                   (active (my/aw--intervals-intersect
+                            (my/aw--notafk-intervals afk-ev) window))
+                   (afk (my/aw--intervals-intersect
+                         (my/aw--afk-intervals afk-ev) window))
+                   (clocked (my/aw--intervals-intersect
+                             (my/org-clock-today-intervals) window))
+                   (ca (my/aw--intervals-intersect clocked active))
+                   (cf (my/aw--intervals-intersect clocked afk))
+                   (ua (my/aw--intervals-subtract active clocked))
+                   (uf (my/aw--intervals-subtract afk clocked))
+                   (leak-apps (my/aw--sum-active-by win ua 'app))
+                   (off-pc (my/aw--intervals-seconds uf)))
+              (list :active-sec (my/aw--intervals-seconds active)
+                    :clocked-sec (my/aw--intervals-seconds clocked)
+                    :leak-sec (+ (my/aw--intervals-seconds ua) off-pc)
+                    :ca (my/aw--binned-active ca)
+                    :cf (my/aw--binned-active cf)
+                    :ua (my/aw--binned-active ua)
+                    :uf (my/aw--binned-active uf)
+                    :leak-apps leak-apps)))))))
+
+  (defun my/aw--timeline-row (label binned face &optional suffix)
+    "Return a 48-cell colored timeline row.
+LABEL is a fixed-width row tag; BINNED a 48-vector of seconds; FACE the fill
+face; each cell height (via `my/aw--spark-chars') encodes the half-hour's
+active fraction.  SUFFIX is an optional trailing annotation."
+    (let* ((n (1- (length my/aw--spark-chars)))
+           (cells (mapconcat
+                   (lambda (i)
+                     (let ((frac (min 1.0 (max 0.0 (/ (aref binned i) 1800.0)))))
+                       (if (<= frac 0.0)
+                           (propertize "·" 'face 'shadow)
+                         (propertize (char-to-string
+                                      (aref my/aw--spark-chars
+                                            (max 0 (min n (round (* frac n))))))
+                                     'face face))))
+                   (number-sequence 0 47) "")))
+      (concat (format "%-7s " label) cells
+              (if (and suffix (> (length suffix) 0)) (concat "  " suffix) ""))))
+
+  (defun my/aw--coverage-leak-table (leak-apps)
+    "Return the unc-act (unclocked-active) apps table -- the per-app breakdown of
+the `unc-act' timeline row (% is over the unc-act total).  Top 6 apps plus a
+folded \"other apps\" row when the tail exceeds a minute.  The Share bar is drawn
+in the SAME face as the `unc-act' timeline row so the table reads as that row's
+detail; other cells use `org-table' (a plain outer wrap would clobber the bar
+face, so each piece is propertized separately)."
+    (let* ((total (apply #'+ 0.0 (mapcar #'cdr leak-apps)))
+           (top (seq-take leak-apps 6))
+           (rest (apply #'+ 0.0 (mapcar #'cdr (seq-drop leak-apps 6))))
+           (rows (append top (when (> rest 60) (list (cons "other apps" rest)))))
+           (maxsec (if rows (apply #'max (mapcar #'cdr rows)) 1)))
+      (if (or (null rows) (<= total 0))
+          (propertize "(no unc-act apps)" 'face 'org-table)
+        (concat
+         (propertize
+          (concat
+           (format "| %s | %s | %5s | %5s | %s |"
+                   (truncate-string-to-width "Cat" 4 0 ?\s)
+                   (truncate-string-to-width "unc-act app" 12 0 ?\s)
+                   "Time" "%" (truncate-string-to-width "Share" 14 0 ?\s))
+           "\n|------+--------------+-------+-------+----------------|")
+          'face 'org-table)
+         (mapconcat
+          (lambda (kv)
+            (let ((cat (my/aw--category (car kv))) (name (car kv)) (sec (cdr kv)))
+              (concat
+               (propertize
+                (format "\n| %s | %s | %5s | %5.1f | "
+                        (truncate-string-to-width (my/aw--cat-abbrev cat) 4 0 ?\s)
+                        (truncate-string-to-width
+                         (replace-regexp-in-string "[|\n\r]" " " name) 12 0 ?\s)
+                        (org-duration-from-minutes (/ sec 60.0))
+                        (* 100.0 (/ sec total)))
+                'face 'org-table)
+               (propertize
+                (truncate-string-to-width
+                 (orgtbl-ascii-draw sec 0 (max maxsec 1) 14 my/org-ascii-bar-chars)
+                 14 0 ?\s)
+                'face 'my/aw-tl-unclocked-active)
+               (propertize " |" 'face 'org-table))))
+          rows "")))))
+
+  (defun my/aw-coverage-summary ()
+    "Return today's clocked-vs-leak coverage block (lines <=80 cols).
+Three nested parent = sum-of-children header identities (clocked / unclocked /
+unc-act-by-category, all in the timeline's own tokens), then a 4-row timeline
+sharing `my/aw--hour-axis', then the `unc-act' apps table -- the per-app detail
+of the unc-act row (same fill face)."
+    (let ((cov (my/aw-coverage-data)))
+      (if (not cov)
+          (propertize "(ActivityWatch unavailable)" 'face 'org-table)
+        (let* ((leak-apps (plist-get cov :leak-apps))
+               (mins (lambda (sec) (org-duration-from-minutes (/ sec 60.0))))
+               (vsum (lambda (v) (seq-reduce #'+ v 0.0)))
+               ;; The 4 disjoint cells (clocked/leak x act/afk).  Binning
+               ;; conserves seconds, so the timeline vectors' sums ARE the cell
+               ;; totals.  The header nests three parent = sum-of-children
+               ;; identities, all in the SAME tokens as the timeline rows:
+               ;;   clocked         = clk-act + clk-afk
+               ;;   unclocked(leak) = unc-act + unc-afk
+               ;;   unc-act(leak)   = <app categories>   (unc-afk has no app,
+               ;;                     so it stays in the leak line only).
+               (clk-act (funcall vsum (plist-get cov :ca)))
+               (clk-afk (funcall vsum (plist-get cov :cf)))
+               (unc-act (funcall vsum (plist-get cov :ua)))
+               (unc-afk (funcall vsum (plist-get cov :uf)))
+               ;; unc-act split by app-category; drop sub-30s terms (they render
+               ;; as "0:00" and contribute nothing to the visible h:mm sum).
+               (uac-str (mapconcat
+                         (lambda (kv) (format "%s %s" (car kv) (funcall mins (cdr kv))))
+                         (seq-filter (lambda (kv) (>= (cdr kv) 30))
+                                     (my/aw--leak-by-category leak-apps 0))
+                         " + ")))
+          (concat
+           (propertize
+            (format "clocked %s = clk-act %s + clk-afk %s"
+                    (funcall mins (+ clk-act clk-afk))
+                    (funcall mins clk-act) (funcall mins clk-afk))
+            'face 'org-table)
+           "\n" (propertize
+                 (format "unclocked(leak) %s = unc-act %s + unc-afk %s"
+                         (funcall mins (+ unc-act unc-afk))
+                         (funcall mins unc-act) (funcall mins unc-afk))
+                 'face 'org-table)
+           "\n" (propertize
+                 (if (> (length uac-str) 0)
+                     (format "unc-act(leak) %s = %s" (funcall mins unc-act) uac-str)
+                   (format "unc-act(leak) %s" (funcall mins unc-act)))
+                 'face 'org-table)
+           "\n" (propertize (concat "        " (my/aw--hour-axis)) 'face 'org-table)
+           "\n" (my/aw--timeline-row "clk-act" (plist-get cov :ca)
+                                     'my/aw-tl-clocked-active)
+           "\n" (my/aw--timeline-row "clk-afk" (plist-get cov :cf)
+                                     'my/aw-tl-clocked-afk)
+           "\n" (my/aw--timeline-row "unc-act" (plist-get cov :ua)
+                                     'my/aw-tl-unclocked-active)
+           "\n" (my/aw--timeline-row "unc-afk" (plist-get cov :uf)
+                                     'my/aw-tl-unclocked-afk)
+           "\n" (my/aw--coverage-leak-table leak-apps))))))
+
   (defun my/org-clock--day-start (&optional day-offset)
     "Return the Emacs time value for local midnight, DAY-OFFSET days back."
     (let ((d (decode-time (current-time))))
       (encode-time 0 0 0 (- (nth 3 d) (or day-offset 0)) (nth 4 d) (nth 5 d))))
+
+  (defun my/org-clock-today-intervals ()
+    "Return today's org clock segments as a list of (START . END) time conses.
+Scans `org-agenda-files' LOGBOOK CLOCK lines.  A running clock (no end) is
+closed at `current-time'.  Each segment is clipped to today's window."
+    (let* ((today0 (my/org-clock--day-start 0))
+           (today1 (time-add today0 (days-to-time 1)))
+           (now (current-time))
+           ;; Like the by-category regex but also captures the END timestamp;
+           ;; the whole `--[end]' part is optional so a running clock matches.
+           (re (concat "^[ \t]*" org-clock-string
+                       "[ \t]*\\(\\[[^]\n]+\\]\\)"
+                       "\\(?:--\\(\\[[^]\n]+\\]\\)\\)?"))
+           out)
+      (dolist (file (org-agenda-files) out)
+        (with-current-buffer (find-file-noselect file)
+          (org-with-wide-buffer
+           (goto-char (point-min))
+           (while (re-search-forward re nil t)
+             ;; Read both groups before converting: `org-time-string-to-time'
+             ;; runs `string-match' internally and would clobber match data.
+             (let* ((s-str (match-string-no-properties 1))
+                    (e-str (match-string-no-properties 2))
+                    (s (org-time-string-to-time s-str))
+                    (e (if e-str (org-time-string-to-time e-str) now)))
+               (when (time-less-p s e)
+                 (let ((cs (if (time-less-p s today0) today0 s))
+                       (ce (if (time-less-p today1 e) today1 e)))
+                   (when (time-less-p cs ce)
+                     (push (cons cs ce) out)))))))))))
 
   (defun my/org-clock-today-by-category ()
     "Aggregate clocked minutes by inherited CATEGORY across `org-agenda-files'.
@@ -1411,6 +1698,10 @@ daily average, active-day count, and the busiest day."
                (my/org-agenda-viz-title-string "Estimate" "planned vs actual")
                "\n"
                (my/org-agenda-planned-vs-actual)
+               "\n\n"
+               (my/org-agenda-viz-title-string "Coverage" "clocked vs leak · ActivityWatch")
+               "\n"
+               (my/aw-coverage-summary)
                "\n\n"
                (my/org-agenda-viz-title-string "Observed" "reality & rhythm · ActivityWatch")
                "\n"
