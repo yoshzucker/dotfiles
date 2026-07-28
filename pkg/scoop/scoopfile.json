@@ -15,6 +15,10 @@
       "Source": "main"
     },
     {
+      "Name": "gcc",
+      "Source": "main"
+    },
+    {
       "Name": "ripgrep",
       "Source": "main"
     },
