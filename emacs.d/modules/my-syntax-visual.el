@@ -48,14 +48,15 @@
   ;; Define language grammar sources
   (setq treesit-language-source-alist
         (append
-         '((bash . (https://github.com/tree-sitter/tree-sitter-bash))
-           (c . (https://github.com/tree-sitter/tree-sitter-c))
-           (cpp . (https://github.com/tree-sitter/tree-sitter-cpp))
-           (python . (https://github.com/tree-sitter/tree-sitter-python))
-           (json . (https://github.com/tree-sitter/tree-sitter-json))
-           (javascript . (https://github.com/tree-sitter/tree-sitter-javascript "master" "src"))
-           (tsx . (https://github.com/tree-sitter/tree-sitter-typescript "master" "tsx/src"))
-           (yaml . (https://github.com/ikatyang/tree-sitter-yaml)))
+         '((bash . ("https://github.com/tree-sitter/tree-sitter-bash"))
+           (c . ("https://github.com/tree-sitter/tree-sitter-c"))
+           (cpp . ("https://github.com/tree-sitter/tree-sitter-cpp"))
+           (python . ("https://github.com/tree-sitter/tree-sitter-python"))
+           (json . ("https://github.com/tree-sitter/tree-sitter-json"))
+           (javascript . ("https://github.com/tree-sitter/tree-sitter-javascript" "master" "src"))
+           (typescript . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "typescript/src"))
+           (tsx . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src"))
+           (yaml . ("https://github.com/ikatyang/tree-sitter-yaml")))
          (let ((path (expand-file-name "var/treesit/tree-sitter-swift" user-emacs-directory)))
            ;; https://github.com/alex-pinkus/tree-sitter-swift#where-is-your-parserc
            (when (file-directory-p path)
@@ -69,7 +70,8 @@
           (python-mode . python-ts-mode)
           (json-mode   . json-ts-mode)
           (js-mode     . js-ts-mode)
-          (tsx-mode    . tsx-ts-mode)
+          ;; .ts/.tsx are registered in `auto-mode-alist' by typescript-ts-mode
+          ;; itself once the grammars are available -- no remap needed.
           (yaml-mode   . yaml-ts-mode)))
 
   ;; Add gcc
@@ -87,17 +89,21 @@
       (setq major-mode-remap-alist
             (assq-delete-all src major-mode-remap-alist))))
 
-  ;; Install grammars if not already available
-  (dolist (lang (mapcar #'car treesit-language-source-alist))
-    (unless (treesit-language-available-p lang)
-      (treesit-install-language-grammar lang)))
+  ;; Install grammars if not already available.  Skip entirely without a C
+  ;; compiler, otherwise every startup warns once per language.  Same probe
+  ;; list `treesit--install-language-grammar-1' uses.
+  (when (seq-find #'executable-find '("cc" "gcc" "c99"))
+    (dolist (lang (mapcar #'car treesit-language-source-alist))
+      (unless (treesit-language-available-p lang)
+        (treesit-install-language-grammar lang))))
 
-  ;; Optional: Define a helper to reinstall all grammars
   (defun my/treesit-reinstall-all-grammars ()
     "Force reinstall all Tree-sitter language grammars."
     (interactive)
     (dolist (lang (mapcar #'car treesit-language-source-alist))
-      (treesit-install-language-grammar lang t))))
+      ;; No force flag exists: the 2nd arg is OUT-DIR, and a plain reinstall
+      ;; already overwrites the existing library.
+      (treesit-install-language-grammar lang))))
 
 (provide 'my-syntax-visual)
 ;;; my-syntax-visual.el ends here

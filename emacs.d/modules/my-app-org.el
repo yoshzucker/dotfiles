@@ -654,7 +654,7 @@ without replacing it."
          "C-b" #'evil-scroll-page-up
          "C-w" #'evil-window-map)
    (:map org-agenda-mode-map
-         :state emacs
+         :state emacs motion normal
          :key
          "gr" #'org-agenda-redo))
 
