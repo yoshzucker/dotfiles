@@ -63,10 +63,7 @@ CHAR is a string like \"y\" / \"n\" / \"!\"."
                         (expand-file-name "~/scoop/apps/nodejs/current/bin")
                         (expand-file-name "~/scoop/apps/msys2/current/usr/bin")))
       (add-to-list 'exec-path path)
-      (setenv "PATH" (concat path ";" (getenv "PATH"))))
-    
-    (add-to-list 'process-coding-system-alist
-                 '("claude-agent-acp" utf-8-dos . cp932-dos)))
+      (setenv "PATH" (concat path ";" (getenv "PATH")))))
   
   (let ((packages
          (append
