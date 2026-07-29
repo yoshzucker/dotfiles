@@ -15,6 +15,9 @@
 
 # --- Logs ---------------------------------------------------------------------
 *.log
+
+# --- Claude Code --------------------------------------------------------------
+# Claude-owned, runtime-mutated state; never track it in any repo.
 .claude/
 
 # --- macOS --------------------------------------------------------------------
@@ -27,4 +30,3 @@ __MACOSX/
 desktop.ini
 Thumbs.db
 *.exe
-**/.claude/settings.local.json

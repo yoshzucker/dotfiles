@@ -169,16 +169,18 @@ FORCE-RELOAD is non-nil."
           existing)
       (let ((buf (get-buffer-create (my/open--text-buffer-name file)))
             (coding-system-for-read 'utf-8)
-            (coding-system-for-write 'utf-8)
+            ;; Feed the office file's raw bytes to pandoc's stdin unmodified; this
+            ;; keeps the (non-ASCII) filename off the child's command line, where
+            ;; Windows would otherwise mis-encode it via the ANSI code page.
+            (coding-system-for-write 'binary)
             exit)
         (with-current-buffer buf
           (let ((inhibit-read-only t))
             (erase-buffer)
             (setq exit
                   (call-process
-                   "pandoc" nil t nil
-                   file
-                   (concat "--from=" ext)
+                   "pandoc" file t nil ; FILE as stdin, not as an argv element
+                   (concat "--from=" ext) ; explicit input format required for stdin
                    (concat "--to=" my/open-as-text-pandoc-format)
                    "--wrap=none"))
             (unless (eq exit 0)
@@ -272,6 +274,24 @@ Force (plain C-u) is not taken from `current-prefix-arg' here, because
 
 (advice-add 'find-file :around #'my/find-file-open-advice)
 
+(defun my/ediff-files-pandoc-advice (orig file-a file-b &optional startup-hooks)
+  "Around advice for `ediff-files': diff Office files as pandoc text.
+
+When both FILE-A and FILE-B are in `my/open-as-text-extensions', convert
+them with `my/open--text' and diff the resulting text buffers via
+`ediff-buffers'.  Otherwise diff the files unchanged with ORIG.
+
+This makes `ediff'/`ediff-files' (and every caller, including
+`my/dired-ediff-dwim') Office-aware, mirroring dired C-u RET."
+  (if (and (my/open-as-text-extension-p file-a)
+           (my/open-as-text-extension-p file-b))
+      (ediff-buffers (my/open--text file-a)
+                     (my/open--text file-b)
+                     startup-hooks)
+    (funcall orig file-a file-b startup-hooks)))
+
+(advice-add 'ediff-files :around #'my/ediff-files-pandoc-advice)
+
 (defun my/embark-bind-file-open-actions ()
   "Expose open-policy commands on `embark-file-map'.
 
@@ -316,7 +336,8 @@ Default RET/f remain `find-file', which already honors
          "RET" #'my/dired-find-marked-files
          "C-c C-o" #'my/dired-open-file-with-system
          "C-c C-d" #'my/dired-open-dir-with-system
-         "C-c =" #'my/dired-ediff-dwim))
+         "C-c =" #'my/dired-ediff-dwim
+         "=" #'my/dired-ediff-dwim))
   
   (my/define-key
    (:map dired-mode-map
@@ -327,7 +348,8 @@ Default RET/f remain `find-file', which already honors
          :after evil-collection
          :key
          "<mouse-2>" #'dired-find-file
-         "RET" #'my/dired-find-marked-files))
+         "RET" #'my/dired-find-marked-files
+         "=" #'my/dired-ediff-dwim))
   
   ;; Evil integration
   (dolist (key '("n" "N" "g" "G"))
@@ -416,10 +438,11 @@ ARG is passed to `dired-get-marked-files'."
     (my/open--system (dired-current-directory)))
 
   (defun my/dired-ediff-dwim ()
-    "Ediff two files from Dired.
+    "Ediff two files chosen from Dired via `ediff-files'.
 
-If both are in `my/open-as-text-extensions', convert with pandoc and
-run `ediff-buffers'.  Otherwise run `ediff-files'.
+Office files are diffed as pandoc-converted text and others directly;
+that policy lives in `my/ediff-files-pandoc-advice', so this command just
+selects the two files and delegates to `ediff-files'.
 
 With one marked file (or only file at point), prompt for the other."
     (interactive)
@@ -435,14 +458,8 @@ With one marked file (or only file at point), prompt for the other."
                      (dired-dwim-target-directory)
                      nil t)))
              (t (user-error "Mark 1 or 2 files for ediff")))))
-      (let ((a (expand-file-name (car files)))
-            (b (expand-file-name (cadr files))))
-        (if (and (my/open-as-text-extension-p a)
-                 (my/open-as-text-extension-p b))
-            (let ((buf-a (my/open--text a))
-                  (buf-b (my/open--text b)))
-              (ediff-buffers buf-a buf-b))
-          (ediff-files a b)))))
+      (ediff-files (expand-file-name (car files))
+                   (expand-file-name (cadr files)))))
 
   ;; Drag and drop support in dired
   (setq dired-dnd-protocol-alist

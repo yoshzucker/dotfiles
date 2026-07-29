@@ -5,6 +5,10 @@ custom.el
 # --- leakseek -----------------------------------------------------------------
 .leakseek_keyword
 
+# --- Claude Code --------------------------------------------------------------
+# Claude-owned, runtime-mutated state (settings.json, session/plugin state).
+.claude/
+
 # --- Windows ------------------------------------------------------------------
 desktop.ini
 *.exe

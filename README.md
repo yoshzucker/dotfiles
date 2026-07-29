@@ -61,7 +61,7 @@ This updates packages (brew/Scoop/apt) to latest per manifests + refreshes all s
 - `config/` → symlinked under `~/.config` (XDG)
 - `local/bin/` → individual scripts symlinked into real directory `~/.local/bin` (the directory itself is never a symlink)
 - `emacs.d/` → symlinked under `~/.emacs.d`
-- `claude/` → individual files symlinked into real directory `~/.claude` (currently `settings.json`; the directory itself is never a symlink, so Claude Code session state and `settings.local.json` stay untouched)
+- `~/.claude/` → **not** managed by symlink. `settings.json` is Claude-owned and rewritten at runtime (model/theme/effortLevel), so tracking it only produces diff noise. Plugins are provisioned via `install_claude_plugins` (see below); `.claude/` is gitignored everywhere.
 
 **Conflict handling (XDG strict):**
 When a real file (not a symlink) exists at a target path, it is moved to:
@@ -103,8 +103,7 @@ Run `./bootstrap update` (or the explicit package commands) to apply.
 
 Claude Code can create/link/tag/search org-roam notes and inspect backlinks in the `~/Documents/memex` knowledge base via the [`majorgreys/claude-orgmode`](https://github.com/majorgreys/claude-orgmode) plugin, which talks to a running Emacs through `emacsclient`.
 
-- **Declarative bit**: `claude/settings.json` (linked to `~/.claude/settings.json`) enables the plugin via `enabledPlugins`.
-- **Fetch bit**: `./bootstrap` runs `install_claude_plugins` (idempotent), which adds the marketplace and installs the plugin into `~/.claude` state:
+- **Provisioning**: `./bootstrap` runs `install_claude_plugins` (idempotent), which adds the marketplace and installs the plugin. `claude plugin install` writes `enabledPlugins` into the Claude-owned `~/.claude/settings.json` (untracked), so this command is the single source of truth — no declarative copy in the repo:
 
   ```sh
   claude plugin marketplace add majorgreys/claude-orgmode
