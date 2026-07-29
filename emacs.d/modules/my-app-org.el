@@ -1924,13 +1924,10 @@ replaces rather than accumulates."
   ;; Display behavior
   (add-to-list 'display-buffer-alist
                '("\\*org-roam\\*"
-                 (display-buffer-in-side-window)
-                 (side . right) (slot . 0) (window-width . 0.33)
-                 (window-parameters . ((no-other-window . t)
-                                       (no-delete-other-windows . t)
-                                       (mode-line-format . nome)
-                                       (window-size-fixed . width)
-                                       (dedicated . t))))))
+                 (display-buffer-in-direction)
+                 (direction . right)
+                 (window-width . 0.33)
+                 (window-height . fit-window-to-buffer))))
 
 (use-package org-roam-protocol
   :straight nil
