@@ -669,12 +669,10 @@ function Setup-Links {
     Ensure-RealDirectory (Join-Path $HOME ".local\bin")
     Link-DirectoryContents (Join-Path $dotfilesRoot "local\bin") (Join-Path $HOME ".local\bin")
 
-    # Claude Code user settings only: link the individual files under claude/
-    # into ~/.claude without symlinking the whole directory, which holds session
-    # state (sessions/, projects/, plugins/) and the untracked settings.local.json.
-    # settings.json declares enabledPlugins, so this is what enables the plugins.
-    Ensure-RealDirectory (Join-Path $HOME ".claude")
-    Link-DirectoryContents (Join-Path $dotfilesRoot "claude") (Join-Path $HOME ".claude")
+    # ~/.claude is intentionally not managed here: settings.json is Claude-owned
+    # and rewritten at runtime (model/theme/effortLevel), so symlinking it into the
+    # repo produces perpetual diff noise. Claude Code creates ~/.claude itself, and
+    # plugins are provisioned by Install-ClaudePlugins.
 
     Write-PrintLine $leftMessage "Finished."
 }
@@ -1459,9 +1457,10 @@ function Install-ClaudePlugins {
     # Install Claude Code plugins used by this setup: claude-orgmode (org-roam
     # note management) and emacs-skills (Emacs navigation/display/plot skills),
     # both driven from Claude Code via emacsclient. Mirrors
-    # install_claude_plugins() in ./bootstrap. enabledPlugins is declared in
-    # claude/settings.json (linked by Setup-Links); this only fetches the
-    # marketplace + plugin files. Idempotent: added only when absent.
+    # install_claude_plugins() in ./bootstrap. `claude plugin install` writes
+    # enabledPlugins into the Claude-owned ~/.claude/settings.json (untracked),
+    # so this command is the source of truth for plugin provisioning and creates
+    # ~/.claude on first run. Idempotent: added only when absent.
     #
     # Best run non-elevated and with no other Claude Code session active: Claude
     # syncs enabledPlugins on every startup, so a concurrent process (or a
