@@ -57,6 +57,33 @@
   :type 'string
   :group 'my/org-calendar)
 
+(defcustom my/outlook-compose-script
+  (expand-file-name "outlook-compose.ps1" "~/.local/bin/")
+  "Path to the PowerShell helper that opens an Outlook compose with an attachment."
+  :type 'string
+  :group 'my/org-calendar)
+
+(defcustom my/org-calendar-busy-file-name "busy.ics"
+  "Basename (under `org-directory') of the abstracted busy ics for the phone."
+  :type 'string
+  :group 'my/org-calendar)
+
+(defcustom my/org-calendar-busy-label "予定あり"
+  "SUMMARY used for every event in the busy ics -- the only text it carries.
+No title, location, notes or attendees are exported (confidentiality)."
+  :type 'string
+  :group 'my/org-calendar)
+
+(defcustom my/org-calendar-busy-days 60
+  "Forward window in days for `my/org-calendar-export-busy'."
+  :type 'integer
+  :group 'my/org-calendar)
+
+(defcustom my/org-calendar-busy-exclude-categories nil
+  "Categories excluded from the busy ics (e.g. events already on the phone)."
+  :type '(repeat string)
+  :group 'my/org-calendar)
+
 (defun my/org-calendar-file ()
   "Absolute path to the aggregated calendar file.
 Resolved lazily so it tracks `org-directory', which is bound by my-app-org.el
@@ -399,6 +426,142 @@ importing separately.  With a prefix arg, prompt for DAYS ahead."
               (my/org-agenda-files-refresh))
             (message "Outlook sync: +%d ~%d -%d skip %d" a u r s)))
       (when (file-exists-p out) (delete-file out)))))
+
+;; ---- export: abstracted "busy" ics for the private phone -----------------
+
+(defun my/org-calendar-busy-file ()
+  "Absolute path of the abstracted busy ics."
+  (expand-file-name my/org-calendar-busy-file-name
+                    (or (bound-and-true-p org-directory) "~/Documents/memex/")))
+
+(defun my/org-ics--ts-rrule (ts)
+  "Return an ical RRULE line for org timestamp TS's repeater, or nil."
+  (let ((val (or (org-element-property :repeater-value ts) 1)))
+    (pcase (org-element-property :repeater-unit ts)
+      ('day   (format "RRULE:FREQ=DAILY;INTERVAL=%d" val))
+      ('week  (format "RRULE:FREQ=WEEKLY;INTERVAL=%d" val))
+      ('month (format "RRULE:FREQ=MONTHLY;INTERVAL=%d" val))
+      ('year  (format "RRULE:FREQ=YEARLY;INTERVAL=%d" val)))))
+
+(defun my/org-ics--ts->ics (ts)
+  "Return a plist (:all-day BOOL :dtstart STR :dtend STR) for org timestamp TS.
+All-day DTEND is the exclusive next day; a timed event with no end time gets a
+zero-length end."
+  (let ((ys (org-element-property :year-start ts))
+        (ms (org-element-property :month-start ts))
+        (ds (org-element-property :day-start ts))
+        (hs (org-element-property :hour-start ts))
+        (mns (org-element-property :minute-start ts))
+        (ye (org-element-property :year-end ts))
+        (me (org-element-property :month-end ts))
+        (de (org-element-property :day-end ts))
+        (he (org-element-property :hour-end ts))
+        (mne (org-element-property :minute-end ts)))
+    (if (null hs)
+        (let ((end+1 (time-add (encode-time 0 0 0 de me ye) 86400)))
+          (list :all-day t
+                :dtstart (format "%04d%02d%02d" ys ms ds)
+                :dtend (format-time-string "%Y%m%d" end+1)))
+      (list :all-day nil
+            :dtstart (format "%04d%02d%02dT%02d%02d00" ys ms ds hs (or mns 0))
+            :dtend (if he
+                       (format "%04d%02d%02dT%02d%02d00" ye me de he (or mne 0))
+                     (format "%04d%02d%02dT%02d%02d00" ys ms ds hs (or mns 0)))))))
+
+(defun my/org-ics--entry-timestamp ()
+  "Parse the entry's first active timestamp into an org timestamp element, or nil.
+Point must be at the heading."
+  (save-excursion
+    (org-back-to-heading t)
+    (let ((end (save-excursion (org-end-of-subtree t t) (point))))
+      (org-end-of-meta-data t)
+      (when (re-search-forward org-tsr-regexp end t)
+        (org-timestamp-from-string (match-string 0))))))
+
+(defun my/org-ics--busy-vevent (uid ts label stamp)
+  "Return an abstracted VEVENT string (only LABEL + time) for UID and TS."
+  (let ((d (my/org-ics--ts->ics ts))
+        (rrule (my/org-ics--ts-rrule ts)))
+    (concat
+     "BEGIN:VEVENT\r\n"
+     (format "UID:%s\r\n" uid)
+     (format "DTSTAMP:%s\r\n" stamp)
+     (if (plist-get d :all-day)
+         (format "DTSTART;VALUE=DATE:%s\r\nDTEND;VALUE=DATE:%s\r\n"
+                 (plist-get d :dtstart) (plist-get d :dtend))
+       (format "DTSTART:%s\r\nDTEND:%s\r\n"
+               (plist-get d :dtstart) (plist-get d :dtend)))
+     (if rrule (concat rrule "\r\n") "")
+     (format "SUMMARY:%s\r\n" label)
+     "END:VEVENT\r\n")))
+
+(defun my/org-calendar--outlook-compose (attachment)
+  "On Windows, open an Outlook compose window with ATTACHMENT via COM."
+  (let ((script (expand-file-name my/outlook-compose-script)))
+    (if (not (file-exists-p script))
+        (message "Busy ics written: %s (compose script missing: %s)" attachment script)
+      (call-process "powershell" nil "*outlook-compose*" nil
+                    "-NoProfile" "-ExecutionPolicy" "Bypass" "-File" script
+                    "-Attachment" attachment
+                    "-Subject" my/org-calendar-busy-label)
+      (message "Busy ics written; Outlook compose opened: %s" attachment))))
+
+(defun my/org-calendar-export-busy ()
+  "Write an abstracted \"busy\" ics of calendar events, then open the mailer.
+Every event becomes a `my/org-calendar-busy-label' block carrying only its time
+-- no title, location, notes or attendees -- so it is safe to send to a private
+device.  Covers the next `my/org-calendar-busy-days' days plus any repeating
+events; `my/org-calendar-busy-exclude-categories' are skipped.  On Windows the
+default mailer (Outlook) opens with the ics attached; elsewhere the path is
+reported.  Reuses each event's `:UID:' (a synthesized one for UID-less manual
+entries) so re-importing on the phone updates rather than duplicates."
+  (interactive)
+  (require 'org)
+  (require 'org-element)
+  (let* ((src (my/org-calendar-file))
+         (out (my/org-calendar-busy-file))
+         (label my/org-calendar-busy-label)
+         (now (current-time))
+         (dnow (decode-time now))
+         (today (encode-time 0 0 0 (nth 3 dnow) (nth 4 dnow) (nth 5 dnow)))
+         (win-end (time-add now (* my/org-calendar-busy-days 24 60 60)))
+         (stamp (format-time-string "%Y%m%dT%H%M%SZ" now t))
+         (events '()))
+    (unless (file-exists-p src)
+      (user-error "No calendar file: %s" src))
+    (with-current-buffer (find-file-noselect src)
+      (org-with-wide-buffer
+       (org-map-entries
+        (lambda ()
+          (unless (member (org-entry-get nil "CATEGORY")
+                          my/org-calendar-busy-exclude-categories)
+            (let ((ts (my/org-ics--entry-timestamp)))
+              (when ts
+                (let ((start (encode-time
+                              0 (or (org-element-property :minute-start ts) 0)
+                              (or (org-element-property :hour-start ts) 0)
+                              (org-element-property :day-start ts)
+                              (org-element-property :month-start ts)
+                              (org-element-property :year-start ts))))
+                  (when (or (org-element-property :repeater-type ts)
+                            (and (not (time-less-p start today))
+                                 (time-less-p start win-end)))
+                    (let ((uid (or (org-entry-get nil "UID")
+                                   (concat "busy-"
+                                           (md5 (concat (org-get-heading t t t t)
+                                                        (or (org-element-property :raw-value ts) "")))))))
+                      (push (my/org-ics--busy-vevent uid ts label stamp) events))))))))
+        nil)))
+    (let ((ics (concat "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
+                       "PRODID:-//dotfiles//busy-export//EN\r\n"
+                       (apply #'concat (nreverse events))
+                       "END:VCALENDAR\r\n"))
+          (coding-system-for-write 'utf-8-unix))
+      (write-region ics nil out))
+    (if (eq system-type 'windows-nt)
+        (my/org-calendar--outlook-compose out)
+      (message "Busy ics written: %s" out))
+    out))
 
 (provide 'my-app-calendar)
 ;;; my-app-calendar.el ends here
