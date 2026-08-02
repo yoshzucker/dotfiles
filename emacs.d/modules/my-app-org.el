@@ -44,11 +44,21 @@ is unavailable."
         (my/find-org-recursive abs))))
 
   (defun my/org-agenda-files-refresh ()
-    "Rebuild `org-agenda-files' from open-task .org files under the main dir."
+    "Rebuild `org-agenda-files' from open-task .org files under the main dir.
+The aggregated calendar file (`my/org-calendar-file', imported ics/Outlook
+events that carry no TODO keyword) is always included -- `my/find-todo-files'
+matches only NEXT/ONGO/WAIT and would otherwise skip it -- so calendar events
+reach both `org-agenda' and `org-dayflow' (both read `org-agenda-files')."
     (interactive)
-    (setq org-agenda-files
-          (and (file-directory-p org-directory)
-               (my/find-todo-files org-directory))))
+    (let ((todo-files (and (file-directory-p org-directory)
+                           (my/find-todo-files org-directory)))
+          ;; `my/org-calendar-file' lives in my-app-calendar.el; guard with
+          ;; `fboundp' so a not-yet-linked/missing module never breaks startup.
+          (calendar (and (fboundp 'my/org-calendar-file) (my/org-calendar-file))))
+      (setq org-agenda-files
+            (if (and calendar (file-exists-p calendar))
+                (cons calendar (delete calendar todo-files))
+              todo-files))))
 
   ;; Populate at startup after init finishes (PATH is set by then, org may
   ;; still be unloaded).  Presetting `org-agenda-files' is safe: org.el's
@@ -437,7 +447,22 @@ called with C-u (prefix 64)."
            "* DONE %?\nCLOSED: %U\n:LOGBOOK:\nCLOCK: %U--%U =>  0:00\n:END:")
           ("w" "weekly review" entry (file+datetree my/org-journal-file)
            "* ONGO %?\n Note taken on %U \\\\\ng>"
-           :clock-in t :clock-resume t)))
+           :clock-in t :clock-resume t)
+          ;; Delegation: capture a brand-new task already handed off.  DELEG is a
+          ;; done-type keyword, so it stays off the daily agenda; the "d" custom
+          ;; command ("Delegation board") surfaces it, grouped by :DELEGATED_TO:.
+          ;; SCHEDULED is the follow-up/check-in date.  For a task you are already
+          ;; looking at, just change its state to DELEG -- the hook
+          ;; `my/org-delegate-on-state-change' prompts for the same metadata.
+          ("e" "delegate task" entry (file+datetree my/org-journal-file)
+           "* DELEG %?\nSCHEDULED: %^t\n:PROPERTIES:\n:DELEGATED_TO: %^{Delegate to}\n:END:\n:LOGBOOK:\n- State \"DELEG\"      from              %U\n:END:")
+          ;; Person log: append a dated entry under a chosen `person' node's "Log"
+          ;; heading (1on1, chat, observation, feedback -- any granularity).
+          ;; `my/org-roam-person-log-target' (in the org-roam block) resolves the
+          ;; report via a person-filtered node prompt, keeping the log
+          ;; consolidated in that person's node.
+          ("o" "person log / やりとり" entry (function my/org-roam-person-log-target)
+           "* %<%Y-%m-%d %a> %?")))
   
   ;; Babel
   ;; Load R here.  agent-shell is registered later by `ob-agent-shell' in
@@ -766,7 +791,30 @@ org's existing key table stays the single source of truth."
 
   ;; Custom agenda commands
   (setq org-agenda-custom-commands
-        '(("r" "Weekly review — past 7 days"
+        '(("b" "Before leaving · 席を立つ前"
+           ;; One-glance "is anything left undone?" before stepping away.  Since
+           ;; Phase 1 put calendar/meeting/child events into `org-agenda-files',
+           ;; the first block shows work + private together (both worlds).
+           ((agenda "" ((org-agenda-overriding-header "Today + tomorrow · 予定/締切(両世界)")
+                        (org-agenda-span 2)
+                        (org-agenda-start-day "+0d")
+                        (org-agenda-start-on-weekday nil)
+                        (org-agenda-start-with-log-mode nil) ; forward-looking, not a log
+                        (org-super-agenda-groups nil)))
+            (todo "NEXT" ((org-agenda-overriding-header "Unscheduled NEXT · 未スケジュール(取りこぼし)")
+                          (org-agenda-todo-ignore-with-date t) ; only undated, i.e. stuck
+                          (org-super-agenda-groups nil)))
+            (todo "WAIT" ((org-agenda-overriding-header "WAIT · 他者待ち(要ナッジ?)")
+                          (org-super-agenda-groups nil)))
+            ;; DELEG is a done-type keyword ("|" ... DELEG); an explicit keyword
+            ;; match still lists it, so delegated work stays visible for follow-up.
+            (todo "DELEG" ((org-agenda-overriding-header "DELEG · 委譲済み(要フォロー?)")
+                           (org-super-agenda-groups nil))))
+           ;; A status check, not a time-tracking review: suppress the finalize
+           ;; time-viz tables (viz-mode nil) and keep per-block headers visible.
+           ((my/org-agenda-viz-mode nil)
+            (org-agenda-compact-blocks nil)))
+          ("r" "Weekly review — past 7 days"
            ((agenda "" ((org-agenda-overriding-header "Clock check · past week")
                         (org-agenda-span 'week)
                         (org-agenda-start-day "-1w")
@@ -786,7 +834,51 @@ org's existing key table stays the single source of truth."
            ;; `compact-blocks' is off here (unlike the daily `a') so each block's
            ;; orientation header is shown in the review.
            ((my/org-agenda-viz-mode 'review)
-            (org-agenda-compact-blocks nil)))))
+            (org-agenda-compact-blocks nil)))
+          ("d" "Delegation board · 委譲・待ち板"
+           ;; Everything out with someone, grouped by person: WAIT (I'm blocked
+           ;; on them) + DELEG (I handed it off).  DELEG is a done-type keyword
+           ;; so the `tags' type is used (it lists done entries, unlike `todo');
+           ;; sorted by SCHEDULED (the follow-up date) so overdue check-ins float
+           ;; to the top of each person's group.
+           ((tags "TODO=\"WAIT\"|TODO=\"DELEG\""
+                  ((org-agenda-overriding-header "委譲・他者待ち — 人別 (DELEGATED_TO)")
+                   (org-super-agenda-groups '((:auto-property "DELEGATED_TO")))
+                   (org-agenda-sorting-strategy '(scheduled-up priority-down)))))
+           ((my/org-agenda-viz-mode nil)))))
+
+  (defun my/org-agenda-before-leaving ()
+    "Open the pre-departure check (the \"b\" custom command).
+Shows today+tomorrow across both worlds plus stuck NEXT / WAIT / DELEG, so
+\"is anything left undone?\" is answered in one keystroke before stepping away."
+    (interactive)
+    (org-agenda nil "b"))
+
+  (my/define-key
+   (:map global-map :prefix "C-c" :key "b" #'my/org-agenda-before-leaving))
+
+  (defun my/org-delegate-on-state-change ()
+    "When a task enters the DELEG state, capture the delegation metadata.
+Runs from `org-after-todo-state-change-hook': prompts for who the task went to
+and a follow-up (check-in) date, then records the `:DELEGATED_TO:' property and
+SCHEDULEs the follow-up -- so the entry shows up, grouped by person, in the
+\"d\" Delegation board.  The existing DELEG(e@) note still records why.
+
+`:DELEGATED_TO:' defaults to any current value, so re-entering DELEG never
+loses it.  The follow-up SCHEDULE is set with logging suppressed so it does not
+interleave with the pending state-change note.  No-op when non-interactive, so
+scripted state changes (and capture, which inserts DELEG text without a state
+change) are unaffected."
+    (when (and (equal org-state "DELEG") (not noninteractive))
+      (let ((who (read-string "Delegate to: " (org-entry-get nil "DELEGATED_TO")))
+            (followup (org-read-date nil nil nil "Follow-up date")))
+        (unless (string-empty-p who)
+          (org-set-property "DELEGATED_TO" who))
+        (when (and followup (not (string-empty-p followup)))
+          (let ((org-log-reschedule nil))
+            (org-schedule nil followup))))))
+
+  (add-hook 'org-after-todo-state-change-hook #'my/org-delegate-on-state-change)
 
   ;; ---- Daily time visualization appended to the agenda -------------------
   ;; Two <=80-wide blocks after the existing clockreport (which is left
@@ -1736,13 +1828,69 @@ finished header layout regardless of hook ordering."
 
   (org-roam-db-autosync-mode)
 
-  ;; Single template, so neither `org-roam-capture' nor the create path of
-  ;; `org-roam-node-find' prompts for a template choice.  Prompts for tags and
-  ;; opens the note unnarrowed for editing.
+  ;; People/delegation management via generic Org mechanisms (a custom dynamic
+  ;; block + capture templates + tags), not bespoke commands.
+  (defun org-dblock-write:delegated (params)
+    "Dynamic block listing WAIT/DELEG tasks whose `:DELEGATED_TO:' is :who.
+Unlike the built-in `org-ql' dynamic block (current-buffer only), this searches
+`org-agenda-files', so a `person' node can show everything currently out with
+that person.  Header: `#+BEGIN: delegated :who \"名前\"'.  Refresh with C-c C-c
+on the block or `org-update-all-dblocks'."
+    (require 'org-ql)
+    (let* ((who (or (plist-get params :who) ""))
+           (items (ignore-errors
+                    (org-ql-select (org-agenda-files)
+                      `(and (todo "WAIT" "DELEG") (property "DELEGATED_TO" ,who))
+                      :sort 'scheduled
+                      :action (lambda ()
+                                (format "- %s %s%s"
+                                        (org-get-todo-state)
+                                        (org-get-heading t t t t)
+                                        (let ((s (org-entry-get nil "SCHEDULED")))
+                                          (if s (format "  %s" s) ""))))))))
+      (insert (if items (string-join items "\n") "- (none)"))))
+
+  (defun my/org-roam-person-log-target ()
+    "Capture target: the end of a chosen `person' node's \"Log\" subtree.
+Prompts (within the generic capture flow) for the report, so a dated log entry
+-- a 1on1, a hallway chat, an observation, feedback, at any granularity -- stays
+consolidated in that person's node.  The task themselves are NOT refiled here;
+the `delegated' block already shows what is out with them (a live query)."
+    (require 'org-roam)
+    (let* ((node (org-roam-node-read
+                  nil
+                  (lambda (n) (member "person" (org-roam-node-tags n)))
+                  nil t "Log for: "))
+           (file (org-roam-node-file node)))
+      (unless (and file (file-exists-p file))
+        (user-error "No person node selected"))
+      (set-buffer (org-capture-target-buffer file))
+      (widen)
+      (goto-char (point-min))
+      ;; Leave point ON the "Log" heading: org-capture then files the entry as
+      ;; its child (re-leveling the "* " template to level 2), like file+headline.
+      (unless (re-search-forward "^\\* Log[ \t]*$" nil t)
+        (goto-char (point-max))
+        (unless (bolp) (insert "\n"))
+        (insert "* Log"))
+      (goto-char (line-beginning-position))))
+
+  ;; Two node-creation templates, so `org-roam-capture'/`org-roam-node-find' now
+  ;; offer a chooser: [d]efault note and [p]erson (a direct report).  A person
+  ;; node carries the `:person:' tag (discoverable via `org-roam-node-find'), a
+  ;; live `delegated' block (what is currently out with them), and a free-form
+  ;; "Log" (any interaction, any granularity).  Log *entries* are appended by the
+  ;; plain org-capture "o" template (org-roam's `:target' has no `function' type;
+  ;; appending to an existing node is org-capture's job, not org-roam-capture's).
   (setq org-roam-capture-templates
         '(("d" "default" plain "%?"
            :target (file+head "%<%Y-%m-%d-%H-%M-%S>-${slug}.org"
                               "#+title: ${title}\n#+filetags: %^{tags}\n")
+           :unnarrowed t)
+          ("p" "person / 部下" plain "%?"
+           :target (file+head
+                    "%<%Y-%m-%d-%H-%M-%S>-${slug}.org"
+                    "#+title: ${title}\n#+filetags: :person:\n\n- Role ::\n- Since ::\n\n* Objectives / 期待\n\n* Delegated / Waiting\n#+BEGIN: delegated :who \"${title}\"\n#+END:\n\n* Log\n")
            :unnarrowed t)))
 
   ;; Daily notes live under daily/ but share the single central attachment store
