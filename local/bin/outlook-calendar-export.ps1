@@ -4,10 +4,10 @@
 
 .DESCRIPTION
   Reads the default Outlook calendar via COM -- entirely local, no cloud -- and
-  writes an .ics of concrete occurrences in a rolling window into the org inbox
-  (~/Documents/memex/inbox by default). In Emacs, `my/org-import-ics-inbox'
-  (C-c k I) folds it into calendar.org, idempotently by UID, so the meetings
-  appear in org-agenda and org-dayflow alongside tasks and the child's schedule.
+  writes an .ics of concrete occurrences in a rolling window.  In Emacs,
+  `my/org-outlook-sync' runs this into a temporary file and imports it into
+  calendar.org (idempotently by UID), so the meetings appear in org-agenda and
+  org-dayflow alongside tasks and the child's schedule.
 
   Recurring meetings are expanded to one VEVENT per occurrence (IncludeRecurrences)
   so exceptions and cancellations are reflected accurately; each occurrence gets a
@@ -21,8 +21,8 @@
   Days backward from today to include (default 1).
 
 .PARAMETER OutFile
-  Output .ics path (default ~/Documents/memex/inbox/outlook.ics). The basename
-  (\"outlook\") becomes the org :CATEGORY: of imported events.
+  Output .ics path (default ~/Documents/memex/outlook.ics).  Normally supplied by
+  `my/org-outlook-sync' as a temporary file.
 
 .EXAMPLE
   .\outlook-calendar-export.ps1 -Days 45
@@ -41,7 +41,7 @@ if ($env:OS -ne 'Windows_NT') {
 }
 
 if (-not $OutFile) {
-    $OutFile = Join-Path $HOME 'Documents\memex\inbox\outlook.ics'
+    $OutFile = Join-Path $HOME 'Documents\memex\outlook.ics'
 }
 $dir = Split-Path -Parent $OutFile
 if (-not (Test-Path $dir)) {
