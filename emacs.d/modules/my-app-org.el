@@ -844,9 +844,6 @@ Shows today+tomorrow across both worlds plus stuck NEXT / WAIT / DELEG, so
     (interactive)
     (org-agenda nil "b"))
 
-  (my/define-key
-   (:map global-map :prefix "C-c" :key "b" #'my/org-agenda-before-leaving))
-
   (defun my/org-roam-person-names ()
     "Titles of all `:person:'-tagged org-roam nodes.
 Used as completion candidates when delegating.  Free text is still accepted at
