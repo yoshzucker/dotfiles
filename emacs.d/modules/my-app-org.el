@@ -44,21 +44,11 @@ is unavailable."
         (my/find-org-recursive abs))))
 
   (defun my/org-agenda-files-refresh ()
-    "Rebuild `org-agenda-files' from open-task .org files under the main dir.
-The aggregated calendar file (`my/org-calendar-file', imported ics/Outlook
-events that carry no TODO keyword) is always included -- `my/find-todo-files'
-matches only NEXT/ONGO/WAIT and would otherwise skip it -- so calendar events
-reach both `org-agenda' and `org-dayflow' (both read `org-agenda-files')."
+    "Rebuild `org-agenda-files' from open-task .org files under the main dir."
     (interactive)
-    (let ((todo-files (and (file-directory-p org-directory)
-                           (my/find-todo-files org-directory)))
-          ;; `my/org-calendar-file' lives in my-app-calendar.el; guard with
-          ;; `fboundp' so a not-yet-linked/missing module never breaks startup.
-          (calendar (and (fboundp 'my/org-calendar-file) (my/org-calendar-file))))
-      (setq org-agenda-files
-            (if (and calendar (file-exists-p calendar))
-                (cons calendar (delete calendar todo-files))
-              todo-files))))
+    (setq org-agenda-files
+          (and (file-directory-p org-directory)
+               (my/find-todo-files org-directory))))
 
   ;; Populate at startup after init finishes (PATH is set by then, org may
   ;; still be unloaded).  Presetting `org-agenda-files' is safe: org.el's
@@ -792,9 +782,9 @@ org's existing key table stays the single source of truth."
   ;; Custom agenda commands
   (setq org-agenda-custom-commands
         '(("b" "Before leaving · 席を立つ前"
-           ;; One-glance "is anything left undone?" before stepping away.  Since
-           ;; Phase 1 put calendar/meeting/child events into `org-agenda-files',
-           ;; the first block shows work + private together (both worlds).
+           ;; One-glance "is anything left undone?" before stepping away.  When
+           ;; calendar/meeting events are present in `org-agenda-files', the first
+           ;; block shows work + private together (both worlds).
            ((agenda "" ((org-agenda-overriding-header "Today + tomorrow · 予定/締切(両世界)")
                         (org-agenda-span 2)
                         (org-agenda-start-day "+0d")
@@ -857,6 +847,21 @@ Shows today+tomorrow across both worlds plus stuck NEXT / WAIT / DELEG, so
   (my/define-key
    (:map global-map :prefix "C-c" :key "b" #'my/org-agenda-before-leaving))
 
+  (defun my/org-roam-person-names ()
+    "Titles of all `:person:'-tagged org-roam nodes.
+Used as completion candidates when delegating.  Free text is still accepted at
+the prompt, so delegating to someone without a person node also works."
+    (when (require 'org-roam nil t)
+      (seq-uniq
+       (seq-keep (lambda (n)
+                   ;; File-level nodes only: the `:person:' filetag is inherited
+                   ;; by sub-headings, so without this the headings inside a
+                   ;; person node (Log, Delegated/Waiting, ...) leak in as names.
+                   (and (= 0 (org-roam-node-level n))
+                        (member "person" (org-roam-node-tags n))
+                        (org-roam-node-title n)))
+                 (org-roam-node-list)))))
+
   (defun my/org-delegate-on-state-change ()
     "When a task enters the DELEG state, capture the delegation metadata.
 Runs from `org-after-todo-state-change-hook': prompts for who the task went to
@@ -864,13 +869,18 @@ and a follow-up (check-in) date, then records the `:DELEGATED_TO:' property and
 SCHEDULEs the follow-up -- so the entry shows up, grouped by person, in the
 \"d\" Delegation board.  The existing DELEG(e@) note still records why.
 
+The \"Delegate to\" prompt completes over `:person:' node titles (so names stay
+consistent with those nodes, which keeps the per-person `delegated' block
+matching) but accepts free text too -- delegation is not limited to reports.
 `:DELEGATED_TO:' defaults to any current value, so re-entering DELEG never
 loses it.  The follow-up SCHEDULE is set with logging suppressed so it does not
 interleave with the pending state-change note.  No-op when non-interactive, so
 scripted state changes (and capture, which inserts DELEG text without a state
 change) are unaffected."
     (when (and (equal org-state "DELEG") (not noninteractive))
-      (let ((who (read-string "Delegate to: " (org-entry-get nil "DELEGATED_TO")))
+      (let ((who (completing-read "Delegate to: " (my/org-roam-person-names)
+                                  nil nil nil nil
+                                  (org-entry-get nil "DELEGATED_TO")))
             (followup (org-read-date nil nil nil "Follow-up date")))
         (unless (string-empty-p who)
           (org-set-property "DELEGATED_TO" who))
