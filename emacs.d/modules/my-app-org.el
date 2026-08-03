@@ -2130,6 +2130,10 @@ the `delegated' block already shows what is out with them (a live query)."
   :after (org evil)
   :load-path "site-lisp/org-dayflow"
   :config
+  ;; Personal category coloring for the timeline.  Category names live ONLY here
+  ;; (never in the org-dayflow package); adjust to match your calendar sources.
+  (setq org-dayflow-category-faces
+        '(("outlook" . font-lock-keyword-face)))
   (dolist (key '("z" "g" "/" "n" "N" ":"))
     (define-key org-dayflow-mode-map (kbd key)
                 (lookup-key evil-motion-state-map (kbd key))))
@@ -2146,6 +2150,17 @@ the `delegated' block already shows what is out with them (a live query)."
   (add-hook 'org-dayflow-mode-hook
             (lambda ()
               (my/evil-ex-define-cmd-local "w[rite]" #'org-save-all-org-buffers))))
+
+(use-package org-timeblock
+  :straight (:host github :repo "ichernyshovvv/org-timeblock")
+  :after (org evil)
+  :config
+  ;; `org-timeblock-files' defaults to `(org-agenda-files)', which includes
+  ;; calendar.org (via the advice in my-app-calendar.el), so meetings and
+  ;; scheduled tasks appear as time blocks.  SVG-rendered -- needs an Emacs built
+  ;; with SVG support; open with M-x org-timeblock.
+  (evil-set-initial-state 'org-timeblock-mode 'emacs)
+  (evil-set-initial-state 'org-timeblock-list-mode 'emacs))
 
 (use-package activity-watch-mode
   :diminish (activity-watch-mode " aw")
