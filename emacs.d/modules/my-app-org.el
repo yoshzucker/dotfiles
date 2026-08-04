@@ -2158,9 +2158,23 @@ the `delegated' block already shows what is out with them (a live query)."
   ;; `org-timeblock-files' defaults to `(org-agenda-files)', which includes
   ;; calendar.org (via the advice in my-app-calendar.el), so meetings and
   ;; scheduled tasks appear as time blocks.  SVG-rendered -- needs an Emacs built
-  ;; with SVG support; open with M-x org-timeblock.
+  ;; with SVG support.
   (evil-set-initial-state 'org-timeblock-mode 'emacs)
-  (evil-set-initial-state 'org-timeblock-list-mode 'emacs))
+  (evil-set-initial-state 'org-timeblock-list-mode 'emacs)
+
+  ;; Same hour range for every column so days line up (the default hides past
+  ;; hours per day, giving each column a different start/end).
+  (setq org-timeblock-scale-options '(6 . 24))
+
+  ;; Blocks otherwise get a *random* color per title (a rainbow); calm that to a
+  ;; single hue -- time position and borders already separate blocks, and the
+  ;; work/private distinction lives in org-dayflow's category coloring.  Give a
+  ;; tag a color via `org-timeblock-tag-colors' to opt specific tags back in.
+  (advice-add 'org-timeblock--random-color :override
+              (lambda () 'org-timeblock-blue))
+
+  (my/define-key
+   (:map global-map :key "C-c b" #'org-timeblock)))
 
 (use-package activity-watch-mode
   :diminish (activity-watch-mode " aw")
