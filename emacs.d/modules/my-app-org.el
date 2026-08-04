@@ -2163,15 +2163,9 @@ the `delegated' block already shows what is out with them (a live query)."
   (evil-set-initial-state 'org-timeblock-list-mode 'emacs)
 
   ;; Same hour range for every column so days line up (the default hides past
-  ;; hours per day, giving each column a different start/end).
-  (setq org-timeblock-scale-options '(6 . 24))
-
-  ;; Blocks otherwise get a *random* color per title (a rainbow); calm that to a
-  ;; single hue -- time position and borders already separate blocks, and the
-  ;; work/private distinction lives in org-dayflow's category coloring.  Give a
-  ;; tag a color via `org-timeblock-tag-colors' to opt specific tags back in.
-  (advice-add 'org-timeblock--random-color :override
-              (lambda () 'org-timeblock-blue))
+  ;; hours per day, giving each column a different start/end).  Integer hours
+  ;; only -- org-timeblock renders on whole-hour lines.
+  (setq org-timeblock-scale-options '(6 . 23))
 
   (my/define-key
    (:map global-map :key "C-c b" #'org-timeblock)))
