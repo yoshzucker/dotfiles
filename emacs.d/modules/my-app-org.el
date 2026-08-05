@@ -597,20 +597,30 @@ without replacing it."
     (interactive)
     (unless (derived-mode-p 'org-mode)
       (user-error "Not in an Org buffer"))
-    (org-id-get-create)
-    (let* ((attach-dir (org-attach-dir 'get-create))
-           (basename (concat (format-time-string
-                              my/org-attach-screenshot-timestamp-format)
-                             (make-temp-name "")
-                             ".png"))
-           (target (expand-file-name basename attach-dir)))
-      (my/org-attach-screenshot--capture target)
-      (unless (file-exists-p target)
-        (user-error "No image was saved (empty clipboard?)"))
-      (org-attach-tag)
-      (run-hook-with-args 'org-attach-after-change-hook attach-dir)
-      (insert (format "[[attachment:%s]]\n" (org-link-escape basename)))
-      (org-display-inline-images))))
+    ;; Remember the caller's position before `org-id-get-create' and
+    ;; `org-attach-tag' move point onto the headline.  A marker follows any
+    ;; ID drawer inserted below the heading, so the link still lands at the
+    ;; character the cursor was on.
+    (let ((origin (copy-marker (point))))
+      (org-id-get-create)
+      (let* ((attach-dir (org-attach-dir 'get-create))
+             (basename (concat (format-time-string
+                                my/org-attach-screenshot-timestamp-format)
+                               (make-temp-name "")
+                               ".png"))
+             (target (expand-file-name basename attach-dir)))
+        (my/org-attach-screenshot--capture target)
+        (unless (file-exists-p target)
+          (user-error "No image was saved (empty clipboard?)"))
+        (org-attach-tag)
+        (run-hook-with-args 'org-attach-after-change-hook attach-dir)
+        (goto-char origin)
+        (set-marker origin nil)
+        ;; Insert to the right of the character under the (block) cursor, so
+        ;; placing the cursor on the last glyph appends at end of line.
+        (unless (eolp) (forward-char 1))
+        (insert (format "[[attachment:%s]]" (org-link-escape basename)))
+        (org-display-inline-images)))))
 
 (use-package org-download
   :after org
