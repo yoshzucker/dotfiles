@@ -1,6 +1,69 @@
 ;;; my-app-org.el --- Org-mode configuration -*- lexical-binding: t; -*- ;;; Commentary:
 ;; Configuration for org-mode including keybindings, clocking, and general behaviors.
+;;
+;; Recording model.  Two structures carry everything:
+;;
+;;   headline -- a *subject*.  Addressable: it takes an ID, a TODO state, tags,
+;;               properties, SCHEDULED/DEADLINE, a LOGBOOK; it can be refiled,
+;;               archived, linked to, surfaced in the agenda, indexed as a node.
+;;   note     -- *what happened to* a subject: a plain list item carrying an
+;;               inactive timestamp (`org-add-note', C-c C-z).  Not addressable,
+;;               no state, never in the agenda.
+;;
+;; The test is one question: will this be looked up, moved, or given a state on
+;; its own later?  Yes -> headline.  "More about something that already exists"
+;; -> note.  Notes are cheap and headlines are expensive, so high-frequency
+;; recording goes through notes; only things needing an identity become
+;; headlines.
+;;
+;; Time is recorded at two levels of commitment.  `journal.org' feeds
+;; `org-agenda-files' (see `my/find-todo-files'), clock reports and the weekly
+;; review, so writing there carries weight -- that is by design.  The daily
+;; notes under `org-roam-dailies-directory' carry none: fleeting thoughts,
+;; feelings, questions, fragments.  Whatever grows there gets promoted, either
+;; to a node (`org-roam-refile') or to a task in journal.org (`org-refile').
+;;
+;; What to record, where it goes, how to get there:
+;;
+;;   a task (has a state, a date)       journal.org datetree   C-c c a / i / s / e
+;;   a settled appointment or clock     journal.org datetree   C-c c p / l / d
+;;   a thought, feeling, fragment       today's daily note     C-c z n / m
+;;   a subject inside today             today's daily note     C-c z d
+;;   more about the clocked task        that task              C-c c n
+;;   more about the entry at point      that entry             C-c C-z
+;;   more about a distant node          that node's Log        C-c c g
+;;   more about a person                that person's Log      C-c c o
+;;   a new subject                      a new node             C-c f / C-c n c
+;;
 ;;; Code:
+
+;; Shared by the capture templates below, the org-roam person template and
+;; `my/org-roam-node-log-target'.  Defined at top level so every use-package
+;; block can see them regardless of load order.
+
+;; Every node accumulates its notes under one heading of this name -- daily
+;; notes, person nodes and subject nodes alike -- so there is a single word to
+;; remember.  It is also a structural requirement: an `item' capture whose
+;; target is not a heading searches the *whole buffer* for a list to join (see
+;; `org-capture-place-item'), which would let a note land under an unrelated
+;; heading.  A container heading makes the destination deterministic.
+(defconst my/org-log-heading "Log")
+
+;; Same shape `org-store-log-note' produces, so capture-written notes and
+;; C-c C-z notes are indistinguishable in the file.  The bare prefix is for
+;; templates that place the cursor elsewhere and leave the note to be typed.
+(defconst my/org-note-prefix "- Note taken on %U \\\\\n  ")
+(defconst my/org-note-template (concat my/org-note-prefix "%?"))
+
+;; Notes filed onto a node from somewhere else: keep the link back to wherever
+;; the thought occurred, and pull in the region if one is active.  `%i' repeats
+;; the characters leading up to it on every line (see `org-capture-fill-template'),
+;; so a multi-line region stays indented as item continuation.
+(defconst my/org-node-note-template (concat my/org-note-prefix "%a\n  %i%?"))
+
+;; The daily file is already the date, by name and by title; a date heading
+;; inside it would only repeat that.
+(defconst my/org-daily-head "#+title: %<%Y-%m-%d>\n")
 
 (use-package org
   :straight org-contrib
@@ -214,6 +277,12 @@ is unavailable."
   (setq org-log-done 'note
         org-treat-insert-todo-heading-as-state-change t
         org-log-state-notes-insert-after-drawers t)
+
+  ;; Read an entry top to bottom in the order things happened: notes appended
+  ;; by C-c C-z land below the previous ones rather than above, matching how
+  ;; the `item' capture templates append.  Applies to LOGBOOK state and clock
+  ;; lines too.
+  (setq org-log-states-order-reversed nil)
   
   (setq org-log-redeadline 'time
         org-log-reschedule 'time
@@ -410,8 +479,14 @@ called with C-u (prefix 64)."
    (:hook org-capture-before-finalize-hook
           :func #'my/org-capture-update-clock-heading))
 
+  ;; Two kinds of template live here, distinguished by capture type rather than
+  ;; by key: `entry' ones create a subject (a task, a dated journal entry, a
+  ;; clock repair), while `item' ones append a note to a subject that already
+  ;; exists.  The `item' ones are the cheap, high-frequency half -- use them
+  ;; freely.  C-c C-z (`org-add-note') is the same act performed in place; the
+  ;; templates here exist for adding to a subject you are *not* looking at.
   (setq org-capture-templates
-        '(("a" "add task" entry (file+datetree my/org-journal-file)
+        `(("a" "add task" entry (file+datetree my/org-journal-file)
            "* NEXT %?\nSCHEDULED: %^t\n:LOGBOOK:\n- State \"NEXT\"       from              %U\n:END:")
           ("i" "interrupt task" entry (file+datetree my/org-journal-file)
            "* ONGO %?\n"
@@ -423,21 +498,15 @@ called with C-u (prefix 64)."
            "* %? %^T\n"
            :jump-to-captured t)
           ("j" "journal" entry (file+datetree my/org-journal-file)
-           "* %?\n- Note taken on %U \\\\\n"
+           ,(concat "* %?\n" my/org-note-prefix)
            :jump-to-captured t)
           ("c" "clocking journal" entry (file+datetree my/org-journal-file)
-           "* %?\n- Note taken on %U \\\\\n"
+           ,(concat "* %?\n" my/org-note-prefix)
            :clock-in t :clock-keep t :jump-to-captured t)
-          ("n" "clocking note" plain (clock)
-           "- Note taken on %U \\\\\n  Annotation %a\n  %?"
-           :jump-to-captured t)
           ("l" "insert clock" entry (file+datetree my/org-journal-file)
            "* %?\n:LOGBOOK:\nCLOCK: %U--%U =>  0:00\n:END:")
           ("d" "insert done" entry (file+datetree my/org-journal-file)
            "* DONE %?\nCLOSED: %U\n:LOGBOOK:\nCLOCK: %U--%U =>  0:00\n:END:")
-          ("w" "weekly review" entry (file+datetree my/org-journal-file)
-           "* ONGO %?\n Note taken on %U \\\\\ng>"
-           :clock-in t :clock-resume t)
           ;; Delegation: capture a brand-new task already handed off.  DELEG is a
           ;; done-type keyword, so it stays off the daily agenda; the "d" custom
           ;; command ("Delegation board") surfaces it, grouped by :DELEGATED_TO:.
@@ -446,13 +515,21 @@ called with C-u (prefix 64)."
           ;; `my/org-delegate-on-state-change' prompts for the same metadata.
           ("e" "delegate task" entry (file+datetree my/org-journal-file)
            "* DELEG %?\nSCHEDULED: %^t\n:PROPERTIES:\n:DELEGATED_TO: %^{Delegate to}\n:END:\n:LOGBOOK:\n- State \"DELEG\"      from              %U\n:END:")
-          ;; Person log: append a dated entry under a chosen `person' node's "Log"
-          ;; heading (1on1, chat, observation, feedback -- any granularity).
-          ;; `my/org-roam-person-log-target' (in the org-roam block) resolves the
-          ;; report via a person-filtered node prompt, keeping the log
-          ;; consolidated in that person's node.
-          ("o" "person log / やりとり" entry (function my/org-roam-person-log-target)
-           "* %<%Y-%m-%d %a> %?")))
+          ;; Note onto the task being clocked.  The `clock' target leaves
+          ;; `:target-entry-p' at its default t, so the item joins the note list
+          ;; in that entry's own body and never reaches into its children.
+          ("n" "note on clocked task" item (clock)
+           ,(concat my/org-note-prefix "Annotation %a\n  %?")
+           :jump-to-captured t)
+          ;; Note onto a node chosen by name.  "o" is the same template with the
+          ;; candidate list narrowed to people -- the only difference is the
+          ;; filter, so a note reads the same wherever it lands.  Anything that
+          ;; later deserves to be looked up on its own (a 1on1 worth scheduling
+          ;; follow-ups against) gets promoted to a headline then, not now.
+          ("g" "note on a node" item (function my/org-roam-node-log-target)
+           ,my/org-node-note-template)
+          ("o" "note on a person" item (function my/org-roam-person-log-target)
+           ,my/org-node-note-template)))
   
   ;; Babel
   ;; Load R here.  agent-shell is registered later by `ob-agent-shell' in
@@ -1867,56 +1944,97 @@ on the block or `org-update-all-dblocks'."
                                           (if s (format "  %s" s) ""))))))))
       (insert (if items (string-join items "\n") "- (none)"))))
 
-  (defun my/org-roam-person-log-target ()
-    "Capture target: the end of a chosen `person' node's \"Log\" subtree.
-Prompts (within the generic capture flow) for the report, so a dated log entry
--- a 1on1, a hallway chat, an observation, feedback, at any granularity -- stays
-consolidated in that person's node.  The task themselves are NOT refiled here;
-the `delegated' block already shows what is out with them (a live query)."
+  (defun my/org-roam-node-log-target (&optional filter prompt)
+    "Capture target: the `my/org-log-heading' subtree of a node read from PROMPT.
+FILTER narrows the candidates the way `org-roam-node-read' expects; without one,
+every node is offered.  Creates the heading when the node does not have it yet,
+so any node can receive notes without being prepared for them in advance."
     (require 'org-roam)
-    (let* ((node (org-roam-node-read
-                  nil
-                  (lambda (n) (member "person" (org-roam-node-tags n)))
-                  nil t "Log for: "))
+    (let* ((node (org-roam-node-read nil filter nil t (or prompt "Log on: ")))
            (file (org-roam-node-file node)))
       (unless (and file (file-exists-p file))
-        (user-error "No person node selected"))
+        (user-error "No node selected"))
       (set-buffer (org-capture-target-buffer file))
       (widen)
       (goto-char (point-min))
-      ;; Leave point ON the "Log" heading: org-capture then files the entry as
-      ;; its child (re-leveling the "* " template to level 2), like file+headline.
-      (unless (re-search-forward "^\\* Log[ \t]*$" nil t)
+      ;; Leave point ON the heading rather than inside it.  `org-capture' reads
+      ;; `org-at-heading-p' here to set `:target-entry-p', which is what confines
+      ;; an `item' to this entry's own body -- and what lets an `entry' template
+      ;; file itself as a child, should one ever target this.
+      (unless (re-search-forward
+               (format "^\\* %s[ \t]*$" (regexp-quote my/org-log-heading)) nil t)
         (goto-char (point-max))
         (unless (bolp) (insert "\n"))
-        (insert "* Log"))
+        (insert "* " my/org-log-heading))
       (goto-char (line-beginning-position))))
 
-  ;; Two node-creation templates, so `org-roam-capture'/`org-roam-node-find' now
-  ;; offer a chooser: [d]efault note and [p]erson (a direct report).  A person
-  ;; node carries the `:person:' tag (discoverable via `org-roam-node-find'), a
-  ;; live `delegated' block (what is currently out with them), and a free-form
-  ;; "Log" (any interaction, any granularity).  Log *entries* are appended by the
-  ;; plain org-capture "o" template (org-roam's `:target' has no `function' type;
-  ;; appending to an existing node is org-capture's job, not org-roam-capture's).
+  (defun my/org-roam-person-log-target ()
+    "Capture target: the log heading of a node tagged `person'.
+`my/org-roam-node-log-target' with the candidates narrowed to direct reports --
+a 1on1, a hallway chat, an observation, feedback, at any granularity, all
+consolidated in that person's node.  Tasks are NOT refiled here; the `delegated'
+block already shows what is out with them, as a live query."
+    (my/org-roam-node-log-target
+     (lambda (n) (member "person" (org-roam-node-tags n)))
+     "Log on person: "))
+
+  ;; These templates create *nodes*; they are what `org-roam-capture' and
+  ;; `org-roam-node-find' offer when a title does not resolve to an existing
+  ;; node.  Appending to a node that already exists is a separate act, handled
+  ;; by the org-capture "g"/"o" templates -- org-roam's `:target' has no
+  ;; `function' type, and choosing an existing entry to add to is org-capture's
+  ;; job.  The two axes pair up: [d]efault/[p]erson create, "g"/"o" append.
+  ;;
+  ;; No tag prompt on the default template: forcing a tag at creation time is
+  ;; friction paid on every note, and an empty answer leaves a bare
+  ;; `#+filetags:' line behind.  Tags are added later, once a note has enough
+  ;; shape to deserve one, with `org-roam-tag-add' (C-c n t).
+  ;;
+  ;; Of what the person template lays out, only the `delegated' block is
+  ;; person-specific -- it queries :DELEGATED_TO:, and you cannot hand work to
+  ;; something that is not an agent.  Role/Since, Objectives and the log heading
+  ;; are generic, and `:person:' is just the label the candidate filter reads.
+  ;; Another category of node (a place, a system) needs no new machinery: create
+  ;; it with [d] and append to it with "g".
   (setq org-roam-capture-templates
-        '(("d" "default" plain "%?"
+        `(("d" "default" plain "%?"
            :target (file+head "%<%Y-%m-%d-%H-%M-%S>-${slug}.org"
-                              "#+title: ${title}\n#+filetags: %^{tags}\n")
+                              "#+title: ${title}\n")
            :unnarrowed t)
           ("p" "person / 部下" plain "%?"
            :target (file+head
                     "%<%Y-%m-%d-%H-%M-%S>-${slug}.org"
-                    "#+title: ${title}\n#+filetags: :person:\n\n- Role ::\n- Since ::\n\n* Objectives / 期待\n\n* Delegated / Waiting\n#+BEGIN: delegated :who \"${title}\"\n#+END:\n\n* Log\n")
+                    ,(concat "#+title: ${title}\n#+filetags: :person:\n\n- Role ::\n- Since ::\n\n* Objectives / 期待\n\n* Delegated / Waiting\n#+BEGIN: delegated :who \"${title}\"\n#+END:\n\n* " my/org-log-heading "\n"))
            :unnarrowed t)))
 
   ;; Daily notes live under daily/ but share the single central attachment store
   ;; (see `org-attach-id-dir'), so promoting a daily entry to a standalone note
   ;; keeps its `attachment:' links valid.
   (setq org-roam-dailies-directory "daily/")
+
+  ;; The pressure-free half of the time axis.  journal.org feeds the agenda and
+  ;; the clock reports, so an entry there is a commitment; here nothing is, which
+  ;; is the point -- fragments, questions and moods go in without deserving to.
+  ;; What grows gets promoted afterwards, with `org-roam-refile' or `org-refile'.
+  ;;
+  ;; `file+head+olp' creates the file, its ID, its title and the log heading on
+  ;; its own (see `org-roam-capture-find-or-create-olp'), so notes land in the
+  ;; same place C-c c g puts them with no target function of our own.
   (setq org-roam-dailies-capture-templates
-        '(("d" "default" entry "* %?"
-           :target (file+head "%<%Y-%m-%d>.org" "#+title: %<%Y-%m-%d>\n"))))
+        `(("d" "subject in today" entry "* %?"
+           :target (file+head "%<%Y-%m-%d>.org" ,my/org-daily-head))
+          ("n" "note" item ,my/org-note-template
+           :target (file+head+olp "%<%Y-%m-%d>.org" ,my/org-daily-head
+                                  (,my/org-log-heading)))
+          ;; Recorded as `mood :: value' so a description list carries it: greppable,
+          ;; and reachable by org-ql without a schema.  A table would aggregate
+          ;; better, but a table per daily file aggregates nothing -- that is a
+          ;; question for one shared table, on the day trends actually matter.
+          ("m" "mood / 気分" item
+           ,(concat my/org-note-prefix
+                    "気分 :: %^{気分|快調|良い|ふつう|もやもや|しんどい}\n  %?")
+           :target (file+head+olp "%<%Y-%m-%d>.org" ,my/org-daily-head
+                                  (,my/org-log-heading)))))
 
   ;; Display behavior
   (add-to-list 'display-buffer-alist
