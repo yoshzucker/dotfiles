@@ -78,6 +78,23 @@
 
   ;; Agenda-file discovery also lives in `:init' so it is available at startup.
   ;; These helpers depend only on `org-directory', not on org itself.
+  (defvar my/org-agenda-exclude-regexps
+    '("/archive/" "-fixture\\.org\\'")
+    "Regexps that disqualify a file from `org-agenda-files'.
+Matched against each candidate's absolute path; any match drops the file.
+
+Archived trees and test fixtures carry real TODO keywords, so without this
+they are discovered by `my/find-todo-files' and then silently skew every
+agenda, clock report and scheduling decision built on `org-agenda-files'.
+The surrounding slashes in \"/archive/\" anchor it to a whole directory
+component, so a file merely named `archive.org' is still included.")
+
+  (defun my/org-agenda-file-excluded-p (file)
+    "Non-nil when FILE matches any regexp in `my/org-agenda-exclude-regexps'."
+    (let ((path (expand-file-name file)))
+      (seq-some (lambda (re) (string-match-p re path))
+                my/org-agenda-exclude-regexps)))
+
   (defun my/find-org-recursive (&rest dirs)
     "Recursively find all .org files in DIRS."
     (seq-mapcat (lambda (dir)
@@ -86,25 +103,31 @@
 
   (defun my/find-todo-files (dir)
     "List .org files under DIR with an open (NEXT/ONGO/WAIT) heading via rg.
-`.org_archive' files are excluded explicitly (the `*.org' rg type otherwise
-matches them).  Falls back to listing every .org file recursively when rg
-is unavailable."
-    (let ((abs (expand-file-name dir)))
-      (if (executable-find "rg")
-          (with-temp-buffer
-            (when (zerop (apply #'call-process
-                                "rg" nil t nil
-                                (append
-                                 '("--type-add" "org:*.org"
-                                   "-torg"
-                                   "--glob" "!*.org_archive"
-                                   "-l"
-                                   "--no-heading" "--no-config"
-                                   "^\\*+ (NEXT|ONGO|WAIT)\\b")
-                                 (list abs))))
-              (split-string (buffer-string) "\n" t)))
-        ;; fallback if rg is not available
-        (my/find-org-recursive abs))))
+`.org_archive' files are excluded by rg explicitly (the `*.org' rg type
+otherwise matches them).  Falls back to listing every .org file recursively
+when rg is unavailable.
+
+Both paths end in the same `my/org-agenda-file-excluded-p' filter, so the
+agenda file set does not depend on whether rg is installed -- rg's own
+`--glob' stays a cheap pre-filter, not a second source of truth."
+    (let* ((abs (expand-file-name dir))
+           (files
+            (if (executable-find "rg")
+                (with-temp-buffer
+                  (when (zerop (apply #'call-process
+                                      "rg" nil t nil
+                                      (append
+                                       '("--type-add" "org:*.org"
+                                         "-torg"
+                                         "--glob" "!*.org_archive"
+                                         "-l"
+                                         "--no-heading" "--no-config"
+                                         "^\\*+ (NEXT|ONGO|WAIT)\\b")
+                                       (list abs))))
+                    (split-string (buffer-string) "\n" t)))
+              ;; fallback if rg is not available
+              (my/find-org-recursive abs))))
+      (seq-remove #'my/org-agenda-file-excluded-p files)))
 
   (defun my/org-agenda-files-refresh ()
     "Rebuild `org-agenda-files' from open-task .org files under the main dir."
@@ -816,7 +839,7 @@ without replacing it."
         org-agenda-log-mode-items '(closed state)
         org-clock-report-include-clocking-task t
         ;; The daily agenda's own "time by area" view is now rendered by the
-        ;; custom CATEGORY block (`my/org-agenda-clocked-by-category'), so the
+        ;; custom CATEGORY block (`org-foresight-report-clocked'), so the
         ;; native agenda clockreport is off by default.  This plist only shapes
         ;; interactive clocktables (`C-c C-x C-r', `v c'): tag-free, indented,
         ;; sorted by clocked time.
@@ -876,20 +899,16 @@ org's existing key table stays the single source of truth."
                         (org-agenda-span 2)
                         (org-agenda-start-day "+0d")
                         (org-agenda-start-on-weekday nil)
-                        (org-agenda-start-with-log-mode nil) ; forward-looking, not a log
-                        (org-super-agenda-groups nil)))
+                        (org-agenda-start-with-log-mode nil))) ; forward-looking, not a log
             (todo "NEXT" ((org-agenda-overriding-header "Unscheduled NEXT · 未スケジュール(取りこぼし)")
-                          (org-agenda-todo-ignore-with-date t) ; only undated, i.e. stuck
-                          (org-super-agenda-groups nil)))
-            (todo "WAIT" ((org-agenda-overriding-header "WAIT · 他者待ち(要ナッジ?)")
-                          (org-super-agenda-groups nil)))
+                          (org-agenda-todo-ignore-with-date t))) ; only undated, i.e. stuck
+            (todo "WAIT" ((org-agenda-overriding-header "WAIT · 他者待ち(要ナッジ?)")))
             ;; DELEG is a done-type keyword ("|" ... DELEG); an explicit keyword
             ;; match still lists it, so delegated work stays visible for follow-up.
-            (todo "DELEG" ((org-agenda-overriding-header "DELEG · 委譲済み(要フォロー?)")
-                           (org-super-agenda-groups nil))))
+            (todo "DELEG" ((org-agenda-overriding-header "DELEG · 委譲済み(要フォロー?)"))))
            ;; A status check, not a time-tracking review: suppress the finalize
-           ;; time-viz tables (viz-mode nil) and keep per-block headers visible.
-           ((my/org-agenda-viz-mode nil)
+           ;; time-viz tables and keep per-block headers visible.
+           ((org-foresight-report-style nil)
             (org-agenda-compact-blocks nil)))
           ("r" "Weekly review — past 7 days"
            ((agenda "" ((org-agenda-overriding-header "Clock check · past week")
@@ -898,31 +917,26 @@ org's existing key table stays the single source of truth."
                         (org-agenda-start-on-weekday nil)
                         (org-agenda-show-log 'clockcheck) ; clock lines + consistency audit
                         (org-agenda-todo-ignore-scheduled t)
-                        (org-habit-show-habits nil)
-                        (org-super-agenda-groups nil)))
+                        (org-habit-show-habits nil)))
             ;; Roughly the "n" command below; kept here so review is one stop.
             (todo "" ((org-agenda-overriding-header "Unscheduled / stuck TODOs")
-                      (org-agenda-todo-ignore-with-date t)
-                      (org-super-agenda-groups nil))))
+                      (org-agenda-todo-ignore-with-date t))))
            ;; General settings apply during `org-agenda-finalize' (see
-           ;; `org-agenda-run-series'), so binding the viz mode here switches the
-           ;; finalize append (`my/org-agenda-append-time-viz') from the daily
-           ;; three tables to the week-by-area review table.
-           ;; `compact-blocks' is off here (unlike the daily `a') so each block's
-           ;; orientation header is shown in the review.
-           ((my/org-agenda-viz-mode 'review)
+           ;; `org-agenda-run-series'), so binding the report style here switches
+           ;; the finalize append from the daily tables to the week-by-area
+           ;; review table.  `compact-blocks' is off here (unlike the daily `a')
+           ;; so each block's orientation header is shown in the review.
+           ((org-foresight-report-style 'review)
             (org-agenda-compact-blocks nil)))
           ("d" "Delegation board · 委譲・待ち板"
-           ;; Everything out with someone, grouped by person: WAIT (I'm blocked
-           ;; on them) + DELEG (I handed it off).  DELEG is a done-type keyword
-           ;; so the `tags' type is used (it lists done entries, unlike `todo');
-           ;; sorted by SCHEDULED (the follow-up date) so overdue check-ins float
-           ;; to the top of each person's group.
+           ;; Everything out with someone: WAIT (I'm blocked on them) + DELEG
+           ;; (I handed it off).  DELEG is a done-type keyword so the `tags'
+           ;; type is used (it lists done entries, unlike `todo'); sorted by
+           ;; SCHEDULED (the follow-up date) so overdue check-ins float to the top.
            ((tags "TODO=\"WAIT\"|TODO=\"DELEG\""
                   ((org-agenda-overriding-header "委譲・他者待ち — 人別 (DELEGATED_TO)")
-                   (org-super-agenda-groups '((:auto-property "DELEGATED_TO")))
                    (org-agenda-sorting-strategy '(scheduled-up priority-down)))))
-           ((my/org-agenda-viz-mode nil)))))
+           ((org-foresight-report-style nil)))))
 
   (defun my/org-agenda-before-leaving ()
     "Open the pre-departure check (the \"b\" custom command).
@@ -972,759 +986,7 @@ change) are unaffected."
           (let ((org-log-reschedule nil))
             (org-schedule nil followup))))))
 
-  (add-hook 'org-after-todo-state-change-hook #'my/org-delegate-on-state-change)
-
-  ;; ---- Daily time visualization appended to the agenda -------------------
-  ;; Two <=80-wide blocks after the existing clockreport (which is left
-  ;; untouched): planned-vs-actual (EFFORT vs today's clock, estimated tasks
-  ;; only) and ActivityWatch observed app/AFK time.  Field widths are budgeted
-  ;; with `truncate-string-to-width' so multibyte titles stay within 80 columns.
-
-  (defvar my/org-ascii-bar-chars " ▏▎▍▌▋▊▉█"
-    "Shades (empty..full) for `orgtbl-ascii-draw' bars; unicode block elements.
-Shared by the three custom agenda time-viz tables.")
-
-  (defvar my/org-agenda-viz-mode 'daily
-    "Which time-viz block `my/org-agenda-append-time-viz' appends on finalize:
-  `daily'  the three today tables (Clocked / Estimate / Observed)
-  `review' the week-by-area review table (`my/org-agenda-week-review-clocked')
-  nil      nothing.
-Bound to `review' in the \"r\" command's general settings; defaults to `daily'
-for the plain `a' agenda.")
-
-  ;; agent-shell-style two-segment badge (cf. `agent-shell--make-button'):
-  ;; a filled title chip followed by an outlined meaning chip, boxed.
-  (defface my/org-agenda-viz-title
-    '((t :inherit org-agenda-structure))
-    "Left badge (filled): muted agenda fg on a subtle bg.")
-  (defface my/org-agenda-viz-meaning
-    '((t :inherit (org-agenda-structure highlight)))
-    "Right badge (solid): `shadow' fg becomes the fill; text knocked out to
-the page background via inverse-video.")
-  ;; Right badge is a solid fill (inverse-video: `shadow' fg becomes the bg,
-  ;; text drops to the page bg).  Both badges share one box color (= `shadow'
-  ;; fg) so the left outline meets the right fill seamlessly (agent-shell
-  ;; style).  Set via `set-face-attribute' so a plain reload re-applies these
-  ;; (a bare `defface' would not touch an already-defined face).
-  (let ((frame (face-foreground 'shadow nil t)))
-    (set-face-attribute 'my/org-agenda-viz-title nil
-                        :inverse-video t
-                        :box (list :line-width -1 :color frame))
-    (set-face-attribute 'my/org-agenda-viz-meaning nil
-                        :box (list :line-width -1 :color frame)))
-
-  (defun my/org-agenda-viz-title-string (title meaning)
-    "Return a styled \"TITLE MEANING\" header as an agent-shell-like badge.
-GUI: adjacent filled + outlined boxed chips.  TUI: bracketed fallback."
-    (if (display-graphic-p)
-        (concat (propertize (concat " " title " ") 'face 'my/org-agenda-viz-title)
-                (propertize (concat " " meaning " ") 'face 'my/org-agenda-viz-meaning))
-      (concat "[" title "] " meaning)))
-
-  (defvar my/aw-base-url "http://127.0.0.1:5600/api/0"
-    "Base URL of the local ActivityWatch REST API.
-Use the IPv4 literal, not `localhost': on Windows `localhost' resolves to IPv6
-`::1' first while ActivityWatch binds 127.0.0.1 only, so each request pays a
-~2s connect-fallback before reaching the server.")
-  (defvar my/aw-cache nil
-    "Cons (FETCH-TIME . STRING) caching `my/aw-today-summary'.")
-  (defvar my/aw-cache-ttl 120
-    "Seconds to reuse `my/aw-cache' before refetching.")
-  (defvar my/aw-clamp-afk-to-activity t
-    "When non-nil, exclude overnight idle from today's afk total.
-The day is treated as starting at the first not-afk activity, so `away (afk)'
-counts only breaks within the active window, not pre-dawn idle time.")
-
-  (defun my/aw--get-json (path)
-    "GET PATH under `my/aw-base-url' and return parsed JSON, or nil on failure."
-    (condition-case nil
-        (let ((buf (url-retrieve-synchronously (concat my/aw-base-url path) t t 5)))
-          (when buf
-            (unwind-protect
-                (with-current-buffer buf
-                  (goto-char (if (bound-and-true-p url-http-end-of-headers)
-                                 url-http-end-of-headers (point-min)))
-                  (json-parse-buffer :object-type 'alist :array-type 'list))
-              (kill-buffer buf))))
-      (error nil)))
-
-  (defun my/aw--find-bucket (buckets prefix)
-    "Return the id (string) of the first bucket in BUCKETS whose id starts
-with PREFIX.  BUCKETS is the parsed `/buckets/' alist."
-    (let ((b (seq-find (lambda (kv) (string-prefix-p prefix (symbol-name (car kv))))
-                       buckets)))
-      (and b (symbol-name (car b)))))
-
-  (defun my/aw--today-range ()
-    "Return (START . END) ISO8601 strings for local midnight..now."
-    (let* ((now (current-time))
-           (d (decode-time now))
-           (mid (encode-time 0 0 0 (nth 3 d) (nth 4 d) (nth 5 d))))
-      (cons (format-time-string "%Y-%m-%dT%H:%M:%S%:z" mid)
-            (format-time-string "%Y-%m-%dT%H:%M:%S%:z" now))))
-
-  (defun my/aw--events (bucket start end)
-    "Fetch BUCKET events between START and END (ISO8601 strings)."
-    (my/aw--get-json
-     (format "/buckets/%s/events?start=%s&end=%s&limit=20000"
-             bucket (url-hexify-string start) (url-hexify-string end))))
-
-  (defvar my/aw-app-categories
-    '(("work" . ("Emacs" "Ghostty" "Terminal" "iTerm2" "Code" "Xcode"
-                 "プレビュー" "Preview" "Claude" "Grok" "ActivityWatch"))
-      ("comms" . ("メール" "Mail" "カレンダー" "Calendar" "Slack"
-                  "メッセージ" "Messages" "Zoom"))
-      ("distraction" . ("Safari" "Chrome" "Firefox" "YouTube" "X"
-                        "Twitter" "Discord")))
-    "Alist (CATEGORY . (APP-NAME...)) for the Observed table's Cat column.
-Matched case-insensitively against the AW window `app' name; unmatched apps
-fall into `other'.  Tune the app lists to taste.")
-
-  (defun my/aw--category (app)
-    "Return the category name for APP per `my/aw-app-categories', or \"other\"."
-    (let ((a (downcase (or app ""))))
-      (or (cl-loop for (cat . apps) in my/aw-app-categories
-                   when (member a (mapcar #'downcase apps)) return cat)
-          "other")))
-
-  (defun my/aw--cat-abbrev (cat)
-    "Return a 4-column display code for category CAT."
-    (cond ((equal cat "comms") "comm")
-          ((equal cat "distraction") "dist")
-          ((equal cat "other") "misc")
-          (t (truncate-string-to-width cat 4 0 ?\s))))
-
-  (defun my/aw--parse-ts (s)
-    "Parse an ActivityWatch ISO8601 timestamp S into an Emacs time value."
-    (parse-iso8601-time-string s))
-
-  (defun my/aw--afk-split (events)
-    "Return (ACTIVE-SECONDS . AFK-SECONDS) from afk EVENTS."
-    (let ((active 0) (afk 0))
-      (dolist (e events)
-        (let ((status (alist-get 'status (alist-get 'data e)))
-              (dur (or (alist-get 'duration e) 0)))
-          (cond ((equal status "not-afk") (setq active (+ active dur)))
-                ((equal status "afk") (setq afk (+ afk dur))))))
-      (cons active afk)))
-
-  (defun my/aw--afk-after (afk-events day-start)
-    "Sum afk-status seconds in AFK-EVENTS occurring at/after DAY-START.
-The event straddling DAY-START is counted only for its post-DAY-START part."
-    (let ((sum 0.0))
-      (dolist (e afk-events sum)
-        (when (equal (alist-get 'status (alist-get 'data e)) "afk")
-          (let* ((s (my/aw--parse-ts (alist-get 'timestamp e)))
-                 (dur (or (alist-get 'duration e) 0))
-                 (end (time-add s (seconds-to-time dur)))
-                 (cs (if (time-less-p s day-start) day-start s)))
-            (when (time-less-p cs end)
-              (setq sum (+ sum (float-time (time-subtract end cs))))))))))
-
-  (defun my/aw--status-intervals (events status)
-    "Return sorted (START . END) Emacs-time conses for STATUS periods in EVENTS.
-STATUS is \"afk\" or \"not-afk\"."
-    (let (ivs)
-      (dolist (e events)
-        (when (equal (alist-get 'status (alist-get 'data e)) status)
-          (let ((s (my/aw--parse-ts (alist-get 'timestamp e)))
-                (dur (or (alist-get 'duration e) 0)))
-            (push (cons s (time-add s (seconds-to-time dur))) ivs))))
-      (sort ivs (lambda (a b) (time-less-p (car a) (car b))))))
-
-  (defun my/aw--overlap-seconds (s e intervals)
-    "Seconds of [S,E] covered by sorted disjoint INTERVALS (list of (A . B))."
-    (let ((sum 0.0))
-      (dolist (iv intervals sum)
-        (let ((a (car iv)) (b (cdr iv)))
-          (when (and (time-less-p s b) (time-less-p a e))
-            (let ((os (if (time-less-p s a) a s))
-                  (oe (if (time-less-p e b) e b)))
-              (setq sum (+ sum (float-time (time-subtract oe os))))))))))
-
-  ;; --- Interval set algebra (return intervals, not just seconds) ----------
-  ;; `my/aw--overlap-seconds' above only totals coverage; the coverage/leak
-  ;; view needs the resulting intervals themselves (to bin per half-hour), so
-  ;; these produce (START . END) time-cons lists.  Inputs need not be sorted or
-  ;; disjoint -- each op normalizes first.
-
-  (defun my/aw--intervals-normalize (ivs)
-    "Sort IVS (list of (START . END) time conses) and merge overlaps/adjacencies.
-Returns a fresh, sorted, disjoint list; never mutates IVS."
-    (let ((sorted (sort (mapcar (lambda (iv) (cons (car iv) (cdr iv))) ivs)
-                        (lambda (a b) (time-less-p (car a) (car b)))))
-          out)
-      (dolist (iv sorted (nreverse out))
-        (if (and out (not (time-less-p (cdar out) (car iv))))
-            ;; prev-end >= cur-start: overlap/touch -> extend prev end if longer
-            (when (time-less-p (cdar out) (cdr iv))
-              (setcdr (car out) (cdr iv)))
-          (push iv out)))))
-
-  (defun my/aw--intervals-intersect (a b)
-    "Return intervals covered by BOTH A and B (normalized internally)."
-    (let ((a (my/aw--intervals-normalize a))
-          (b (my/aw--intervals-normalize b))
-          out)
-      (while (and a b)
-        (let* ((ae (cdar a)) (be (cdar b))
-               (lo (if (time-less-p (caar a) (caar b)) (caar b) (caar a)))
-               (hi (if (time-less-p ae be) ae be)))
-          (when (time-less-p lo hi) (push (cons lo hi) out))
-          (if (time-less-p ae be) (setq a (cdr a)) (setq b (cdr b)))))
-      (nreverse out)))
-
-  (defun my/aw--intervals-subtract (a b)
-    "Return the parts of A not covered by B (normalized internally)."
-    (let ((a (my/aw--intervals-normalize a))
-          (b (my/aw--intervals-normalize b))
-          out)
-      (dolist (iv a (nreverse out))
-        (let ((cur (car iv)) (end (cdr iv)) (bs b))
-          ;; drop b-intervals ending at/before cur
-          (while (and bs (not (time-less-p cur (cdar bs)))) (setq bs (cdr bs)))
-          (while (and bs (time-less-p (caar bs) end))
-            (let ((os (caar bs)) (oe (cdar bs)))
-              (when (time-less-p cur os)
-                (push (cons cur (if (time-less-p os end) os end)) out))
-              (setq cur (if (time-less-p oe cur) cur oe))
-              (setq bs (cdr bs))))
-          (when (time-less-p cur end) (push (cons cur end) out))))))
-
-  (defun my/aw--intervals-seconds (ivs)
-    "Total seconds covered by interval list IVS."
-    (let ((sum 0.0))
-      (dolist (iv ivs sum)
-        (setq sum (+ sum (float-time (time-subtract (cdr iv) (car iv))))))))
-
-  (defun my/aw--sum-active-by (events intervals key)
-    "Return alist (VALUE . SECONDS) desc: each EVENTS duration clipped to
-INTERVALS (not-afk), grouped by KEY (\\='app or \\='project) of its data."
-    (let ((h (make-hash-table :test 'equal)) out)
-      (dolist (e events)
-        (let* ((s (my/aw--parse-ts (alist-get 'timestamp e)))
-               (dur (or (alist-get 'duration e) 0))
-               (ov (my/aw--overlap-seconds
-                    s (time-add s (seconds-to-time dur)) intervals)))
-          (when (> ov 0)
-            (let ((v (or (alist-get key (alist-get 'data e)) "?")))
-              (puthash v (+ ov (gethash v h 0)) h)))))
-      (maphash (lambda (k v) (push (cons k v) out)) h)
-      (seq-sort-by #'cdr #'> out)))
-
-  (defun my/aw--binned-active (intervals)
-    "Return a 48-element vector of active seconds per local half-hour bin."
-    (let ((v (make-vector 48 0.0)))
-      (dolist (iv intervals v)
-        (let ((a (float-time (car iv)))
-              (b (float-time (cdr iv))))
-          (while (< a b)
-            (let* ((dt (decode-time (seconds-to-time a)))
-                   (min (nth 1 dt))
-                   (bin (+ (* 2 (nth 2 dt)) (if (>= min 30) 1 0)))
-                   ;; seconds elapsed into the current half-hour bin
-                   (into (+ (* 60 (mod min 30)) (nth 0 dt)))
-                   (bin-end (+ a (- 1800 into)))
-                   (seg-end (min b bin-end)))
-              (aset v bin (+ (aref v bin) (- seg-end a)))
-              ;; guard against a zero-length step at an exact boundary
-              (setq a (if (> seg-end a) seg-end (+ a 1800)))))))))
-
-  (defvar my/aw--spark-chars "▁▂▃▄▅▆▇█"
-    "Vertical bar glyphs (U+2581..U+2588) for `my/aw--sparkline'.
-Unlike `my/org-ascii-bar-chars' (horizontal fill, for table bars), these stack
-from the baseline so per-cell height encodes intensity — a real sparkline.")
-
-  (defun my/aw--spark-char (frac)
-    "Return the `my/aw--spark-chars' glyph for FRAC (0.0-1.0), or ?· if <=0."
-    (if (<= frac 0.0) ?·
-      (let ((n (1- (length my/aw--spark-chars))))
-        (aref my/aw--spark-chars (max 0 (min n (round (* frac n))))))))
-
-  (defun my/aw--bin-frac (binned i)
-    "Active fraction (0.0-1.0) of half-hour bin I in BINNED (sec per bin)."
-    (min 1.0 (max 0.0 (/ (aref binned i) 1800.0))))
-
-  (defun my/aw--sparkline (binned)
-    "Return a 48-char active-intensity sparkline for BINNED (active sec per
-half-hour).  Each cell is normalized by the fixed 30-minute (1800s) bin length."
-    (let ((out (make-string 48 ?\s t)))
-      (dotimes (i 48 out)
-        (aset out i (my/aw--spark-char (my/aw--bin-frac binned i))))))
-
-  (defun my/aw--dominant-face (ca cf ua uf i)
-    "Face for half-hour bin I: whichever of CA/CF/UA/UF (clocked×active/afk
-48-vectors from `my/aw-coverage-data') has the most seconds there."
-    (let ((best-v (aref ca i)) (best-f 'my/aw-tl-clocked-active))
-      (when (> (aref cf i) best-v) (setq best-v (aref cf i) best-f 'my/aw-tl-clocked-afk))
-      (when (> (aref ua i) best-v) (setq best-v (aref ua i) best-f 'my/aw-tl-unclocked-active))
-      (when (> (aref uf i) best-v) (setq best-f 'my/aw-tl-unclocked-afk))
-      best-f))
-
-  (defun my/aw--sparkline-colored (binned ca cf ua uf)
-    "Like `my/aw--sparkline' but each cell's face shows whichever of
-CA/CF/UA/UF (clocked×active/afk 48-vectors from `my/aw-coverage-data')
-dominates that half-hour, so one row shows both activity density and
-clocked-vs-unclocked status."
-    (mapconcat
-     (lambda (i)
-       (propertize (char-to-string
-                    (my/aw--spark-char (my/aw--bin-frac binned i)))
-                   'face (my/aw--dominant-face ca cf ua uf i)))
-     (number-sequence 0 47) ""))
-
-  (defun my/aw--hour-axis ()
-    "Return a 48-char axis line (30-min cells) with hour ticks at 0/6/12/18/23."
-    (let ((s (make-string 48 ?\s)))
-      (dolist (h '(0 6 12 18 23) s)
-        (let* ((lbl (number-to-string h))
-               (start (min (* 2 h) (- 48 (length lbl)))))
-          (dotimes (i (length lbl)) (aset s (+ start i) (aref lbl i)))))))
-
-  (defun my/aw--switch-count (window-events)
-    "Count app transitions across WINDOW-EVENTS (order-independent)."
-    (let ((prev nil) (n 0))
-      (dolist (e window-events n)
-        (let ((app (alist-get 'app (alist-get 'data e))))
-          (when (and prev (not (equal app prev))) (setq n (1+ n)))
-          (setq prev app)))))
-
-  (defun my/aw-today-data ()
-    "Return today's parsed ActivityWatch data as a plist, or nil on failure.
-Keys: :active :afk SECONDS ; :active-apps :emacs-projects ALIST (NAME . SEC)
-of window/emacs time intersected with not-afk ; :binned 48-vector of active
-sec per half-hour ; :first :last not-afk boundary times ; :switches count ;
-:window-events :afk-events the raw AW events (reused by the coverage view).
-Cached for `my/aw-cache-ttl' seconds; shared by the ① coverage metric
-\(uses :active) and the ③ Observed table."
-    (if (and my/aw-cache
-             (< (float-time (time-subtract (current-time) (car my/aw-cache)))
-                my/aw-cache-ttl))
-        (cdr my/aw-cache)
-      (let ((data
-             (condition-case nil
-                 (let* ((buckets (my/aw--get-json "/buckets/"))
-                        (wb (my/aw--find-bucket buckets "aw-watcher-window")))
-                   (when wb
-                     (let* ((ab (my/aw--find-bucket buckets "aw-watcher-afk"))
-                            (eb (my/aw--find-bucket buckets "aw-watcher-emacs"))
-                            (rng (my/aw--today-range))
-                            (win (my/aw--events wb (car rng) (cdr rng)))
-                            (afk-ev (and ab (my/aw--events ab (car rng) (cdr rng))))
-                            (em (and eb (my/aw--events eb (car rng) (cdr rng))))
-                            (split (my/aw--afk-split afk-ev))
-                            (ivs (my/aw--status-intervals afk-ev "not-afk"))
-                            (day-start (and ivs (car (car ivs))))
-                            (afk-sec (if (and my/aw-clamp-afk-to-activity day-start)
-                                         (my/aw--afk-after afk-ev day-start)
-                                       (cdr split))))
-                       (list :active (car split) :afk afk-sec
-                             :active-apps (my/aw--sum-active-by win ivs 'app)
-                             :emacs-projects (and em (my/aw--sum-active-by
-                                                      em ivs 'project))
-                             :binned (my/aw--binned-active ivs)
-                             :first (and ivs (car (car ivs)))
-                             :last (and ivs (cdr (car (last ivs))))
-                             :switches (my/aw--switch-count win)
-                             ;; Raw events retained so the coverage/leak view
-                             ;; reuses this single cached fetch (no extra HTTP).
-                             :window-events win :afk-events afk-ev))))
-               (error nil))))
-        (setq my/aw-cache (cons (current-time) data))
-        data)))
-
-  ;; --- Coverage (clocked vs leak) -----------------------------------------
-  ;; Partition the active window into 4 disjoint classes by `clocked?' (inside
-  ;; an org CLOCK segment) x `active/afk' (ActivityWatch).  Answers "when I was
-  ;; NOT clocked in but active, which apps ate the time?" -- the leak that is
-  ;; either forgotten-clock work (work-category apps) or distraction.  Folded
-  ;; into `my/aw-today-summary' below: one sparkline colored by clocked-status
-  ;; instead of a second 4-row timeline, and a "Leak" column on the same
-  ;; per-app table instead of a second leak-only table.
-
-  (defface my/aw-tl-clocked-active '((t :inherit success))
-    "Sparkline fill for clocked & active (declared focus).")
-  (defface my/aw-tl-clocked-afk '((t :inherit shadow))
-    "Sparkline fill for clocked & afk (clock running while away).")
-  (defface my/aw-tl-unclocked-active '((t :inherit warning))
-    "Sparkline fill for unclocked & active (on-PC leak -- the actionable one).")
-  (defface my/aw-tl-unclocked-afk '((t :inherit font-lock-comment-face))
-    "Sparkline fill for unclocked & afk (off-PC leak).")
-
-  (defun my/aw-coverage-data (clock)
-    "Return today's clocked/leak coverage as a plist, or nil when AW is down.
-Reuses `my/aw-today-data' (single cached fetch) and CLOCK's :today-intervals
-(the plist from `my/org-clock-scan').
-Keys:
-  :active-sec :clocked-sec :leak-sec  totals (seconds)
-  :ca :cf :ua :uf  48-vectors (active sec per half-hour) for
-     clocked-active / clocked-afk / unclocked-active / unclocked-afk
-  :leak-apps  ALIST (APP . SEC) desc over the unclocked-active window."
-    (let ((data (my/aw-today-data)))
-      (when data
-        (let ((first (plist-get data :first))
-              (last (plist-get data :last)))
-          (when (and first last)
-            (let* ((win (plist-get data :window-events))
-                   (afk-ev (plist-get data :afk-events))
-                   (window (list (cons first last)))
-                   (active (my/aw--intervals-intersect
-                            (my/aw--status-intervals afk-ev "not-afk") window))
-                   (afk (my/aw--intervals-intersect
-                         (my/aw--status-intervals afk-ev "afk") window))
-                   (clocked (my/aw--intervals-intersect
-                             (plist-get clock :today-intervals) window))
-                   (ca (my/aw--intervals-intersect clocked active))
-                   (cf (my/aw--intervals-intersect clocked afk))
-                   (ua (my/aw--intervals-subtract active clocked))
-                   (uf (my/aw--intervals-subtract afk clocked))
-                   (leak-apps (my/aw--sum-active-by win ua 'app))
-                   (off-pc (my/aw--intervals-seconds uf)))
-              (list :active-sec (my/aw--intervals-seconds active)
-                    :clocked-sec (my/aw--intervals-seconds clocked)
-                    :leak-sec (+ (my/aw--intervals-seconds ua) off-pc)
-                    :ca (my/aw--binned-active ca)
-                    :cf (my/aw--binned-active cf)
-                    :ua (my/aw--binned-active ua)
-                    :uf (my/aw--binned-active uf)
-                    :leak-apps leak-apps)))))))
-
-  (defun my/aw-today-summary (clock)
-    "Return today's ActivityWatch \"reality & rhythm\" block (lines <=80 cols).
-Header (boundaries/active/afk/switches/clocked/leak) + hourly sparkline
-(colored by clocked-status when CLOCK's coverage data is available) + a table
-partitioning the observed day into active apps (with a category tag and, when
-available, the unclocked/leak portion of that app's time) plus an away(afk)
-row, then an emacs-project detail line.  CLOCK is the plist from
-`my/org-clock-scan', passed through to `my/aw-coverage-data'."
-    (let ((data (my/aw-today-data)))
-      (if (not data)
-          (propertize "(ActivityWatch unavailable)" 'face 'org-table)
-        (let* ((active (plist-get data :active))
-               (afk (plist-get data :afk))
-               (full (max 1.0 (+ active afk)))
-               (cov (my/aw-coverage-data clock))
-               (leak-by-app (and cov
-                                  (let ((h (make-hash-table :test 'equal)))
-                                    (dolist (kv (plist-get cov :leak-apps))
-                                      (puthash (car kv) (cdr kv) h))
-                                    h)))
-               (apps (plist-get data :active-apps))
-               (top (seq-take apps 8))
-               (rest-sum (apply #'+ (mapcar #'cdr (seq-drop apps 8))))
-               (rows (append
-                      (mapcar (lambda (kv)
-                                (list (my/aw--category (car kv)) (car kv) (cdr kv)
-                                      (and leak-by-app (gethash (car kv) leak-by-app))))
-                              top)
-                      (when (> rest-sum 60)
-                        (list (list "other" "other apps" rest-sum nil)))
-                      (list (list "idle" "away (afk)" (float afk) nil))))
-               (rows (seq-filter (lambda (r) (> (nth 2 r) 0)) rows))
-               (rows (sort rows (lambda (a b) (> (nth 2 a) (nth 2 b)))))
-               (maxrow (if rows (apply #'max (mapcar (lambda (r) (nth 2 r)) rows)) 1))
-               (first (plist-get data :first))
-               (last (plist-get data :last)))
-          (propertize
-           (concat
-            (format "Screen %s–%s · active %s · afk %s · %d switches%s"
-                    (if first (format-time-string "%H:%M" first) "—")
-                    (if last (format-time-string "%H:%M" last) "—")
-                    (org-duration-from-minutes (/ active 60.0))
-                    (org-duration-from-minutes (/ afk 60.0))
-                    (plist-get data :switches)
-                    (if cov
-                        (format " · clocked %s · leak %s"
-                                (org-duration-from-minutes (/ (plist-get cov :clocked-sec) 60.0))
-                                (org-duration-from-minutes (/ (plist-get cov :leak-sec) 60.0)))
-                      ""))
-            "\n" (my/aw--hour-axis)
-            "\n" (if cov
-                     (my/aw--sparkline-colored (plist-get data :binned)
-                                                (plist-get cov :ca) (plist-get cov :cf)
-                                                (plist-get cov :ua) (plist-get cov :uf))
-                   (my/aw--sparkline (plist-get data :binned)))
-            "\n" (format "| %s | %s | %5s | %5s | %6s | %s |"
-                         (truncate-string-to-width "Cat" 4 0 ?\s)
-                         (truncate-string-to-width "Activity" 12 0 ?\s)
-                         "Time" "%" "Leak" (truncate-string-to-width "Share" 14 0 ?\s))
-            "\n|------+--------------+-------+-------+--------+----------------|"
-            (mapconcat
-             (lambda (r)
-               (let ((cat (nth 0 r)) (name (nth 1 r)) (sec (nth 2 r)) (leak (nth 3 r)))
-                 (format "\n| %s | %s | %5s | %5.1f | %6s | %s |"
-                         (truncate-string-to-width (my/aw--cat-abbrev cat) 4 0 ?\s)
-                         (truncate-string-to-width
-                          (replace-regexp-in-string "[|\n\r]" " " name) 12 0 ?\s)
-                         (org-duration-from-minutes (/ sec 60.0))
-                         (* 100.0 (/ sec full))
-                         (if (and leak (> leak 0)) (org-duration-from-minutes (/ leak 60.0)) "")
-                         (truncate-string-to-width
-                          (orgtbl-ascii-draw sec 0 (max maxrow 1) 14
-                                             my/org-ascii-bar-chars)
-                          14 0 ?\s))))
-             rows "")
-            (let ((em (plist-get data :emacs-projects)))
-              (if em
-                  (concat "\nemacs: "
-                          (mapconcat
-                           (lambda (kv)
-                             (format "%s %.0f" (or (car kv) "?") (/ (cdr kv) 60.0)))
-                           (seq-take em 5) " · "))
-                "")))
-           'face 'org-table)))))
-
-  (defun my/org-clock--day-start (&optional day-offset)
-    "Return the Emacs time value for local midnight, DAY-OFFSET days back."
-    (let ((d (decode-time (current-time))))
-      (encode-time 0 0 0 (- (nth 3 d) (or day-offset 0)) (nth 4 d) (nth 5 d))))
-
-  (defun my/org-clock-scan (days)
-    "Scan `org-agenda-files' LOGBOOK CLOCK lines over the last DAYS days
-\(today inclusive) in one pass.  A running clock (no end timestamp) is
-closed at `current-time', so its elapsed-so-far time always counts -- every
-consumer built on this plist agrees on whether \"now\" is included, unlike
-the three separate hand-rolled scans this replaces.  Return a plist:
-  :rows           (CATEGORY . MINUTES) alist for the whole window, desc
-  :total          whole-window total minutes
-  :byday          DAYS-length vector of per-day minutes, index 0 = oldest
-  :days           DAYS
-  :today-rows     (CATEGORY . MINUTES) alist for today only, desc
-  :today-total    today's total minutes
-  :today-segments today's clock-segment count (fragmentation)
-  :today-intervals  today's (START . END) time conses.
-Each segment is attributed once to its heading's inherited CATEGORY, so
-:rows/:today-rows partition their window (minutes sum to :total/:today-total).
-The org hierarchy depth is irrelevant: CATEGORY is inherited, so a GTD
-project marked with `:CATEGORY:' at any level collects all descendant clocks."
-    (let* ((today0 (my/org-clock--day-start 0))
-           (today1 (time-add today0 (days-to-time 1)))
-           (from (my/org-clock--day-start (1- days)))
-           (now (current-time))
-           (table (make-hash-table :test 'equal))
-           (today-table (make-hash-table :test 'equal))
-           (byday (make-vector days 0))
-           (total 0) (today-total 0) (today-segments 0)
-           today-intervals
-           (re (concat "^[ \t]*" org-clock-string
-                       "[ \t]*\\(\\[[^]\n]+\\]\\)\\(?:--\\(\\[[^]\n]+\\]\\)\\)?")))
-      (dolist (file (org-agenda-files))
-        (with-current-buffer (find-file-noselect file)
-          (org-with-wide-buffer
-           (goto-char (point-min))
-           (while (re-search-forward re nil t)
-             ;; Read both groups before converting: `org-time-string-to-time'
-             ;; runs `string-match' internally and would clobber match data.
-             (let* ((s-str (match-string-no-properties 1))
-                    (e-str (match-string-no-properties 2))
-                    (s (org-time-string-to-time s-str))
-                    (e (if e-str (org-time-string-to-time e-str) now)))
-               (when (and (time-less-p s e) (time-less-p from e) (time-less-p s today1))
-                 (let* ((cs (if (time-less-p s from) from s))
-                        (ce (if (time-less-p today1 e) today1 e))
-                        (dur (/ (float-time (time-subtract ce cs)) 60.0))
-                        (cat (or (org-entry-get (point) "CATEGORY" t)
-                                 (org-get-category (point))
-                                 "?"))
-                        (idx (min (1- days)
-                                  (floor (/ (float-time (time-subtract cs from)) 86400)))))
-                   (setq total (+ total dur))
-                   (puthash cat (+ dur (gethash cat table 0)) table)
-                   (aset byday idx (+ dur (aref byday idx)))
-                   ;; The portion of this segment (if any) inside today.
-                   (when (time-less-p today0 ce)
-                     (let ((ts (if (time-less-p cs today0) today0 cs)))
-                       (when (time-less-p ts ce)
-                         (let ((today-dur (/ (float-time (time-subtract ce ts)) 60.0)))
-                           (setq today-total (+ today-total today-dur)
-                                 today-segments (1+ today-segments))
-                           (puthash cat (+ today-dur (gethash cat today-table 0))
-                                    today-table)
-                           (push (cons ts ce) today-intervals))))))))))))
-      (let (rows today-rows)
-        (maphash (lambda (k v) (push (cons k v) rows)) table)
-        (maphash (lambda (k v) (push (cons k v) today-rows)) today-table)
-        (list :rows (seq-sort-by #'cdr #'> rows)
-              :total total :byday byday :days days
-              :today-rows (seq-sort-by #'cdr #'> today-rows)
-              :today-total today-total :today-segments today-segments
-              :today-intervals (nreverse today-intervals)))))
-
-  (defun my/org-agenda--category-table (rows total maxmin col2-label)
-    "Return a CATEGORY/Time/%/Share ASCII table (<=80 cols), shared by the
-daily and weekly Clocked views.  ROWS is a (CATEGORY . MINUTES) alist; TOTAL
-and MAXMIN scale the % and bar columns; COL2-LABEL names the category column
-\(e.g. \"Project\" or \"Area\")."
-    (if (null rows)
-        (propertize "(no clocked time)" 'face 'org-table)
-      (propertize
-       (concat
-        (format "| %-14s | %5s | %5s | %-18s |" col2-label "Time" "%" "Share")
-        "\n|" (make-string 16 ?-) "+" (make-string 7 ?-) "+" (make-string 7 ?-)
-        "+" (make-string 20 ?-) "|\n"
-        (mapconcat
-         (lambda (r)
-           (let ((cat (car r)) (min (cdr r)))
-             (format "| %-14s | %5s | %5.1f | %s |"
-                     (truncate-string-to-width
-                      (replace-regexp-in-string "[|\n\r]" " " cat) 14 0 ?\s)
-                     (org-duration-from-minutes min)
-                     (if (> total 0) (* 100.0 (/ (float min) total)) 0)
-                     (truncate-string-to-width
-                      (orgtbl-ascii-draw min 0 (max maxmin 1) 18
-                                         my/org-ascii-bar-chars)
-                      18 0 ?\s))))
-         rows "\n"))
-       'face 'org-table)))
-
-  (defun my/org-agenda-clocked-by-category (clock)
-    "Return today's CATEGORY-share table with a focus-budget header (<=80 cols).
-The bar column is scaled to the largest project; the % column carries the
-exact share of today's clocked total (so the % values sum to 100).
-CLOCK is the plist from `my/org-clock-scan' (called with DAYS large enough
-to also cover the :vs7d comparison below)."
-    (let* ((rows (plist-get clock :today-rows))
-           (total (plist-get clock :today-total))
-           (segments (plist-get clock :today-segments))
-           (avg7 (/ (plist-get clock :total) 7.0))
-           (aw (my/aw-today-data))
-           (active-min (and aw (/ (plist-get aw :active) 60.0)))
-           (maxmin (if rows (apply #'max (mapcar #'cdr rows)) 1))
-           (budget
-            (concat
-             (format "Focus %s" (org-duration-from-minutes total))
-             (when (and active-min (> active-min 0))
-               (format " · %.0f%% of active" (* 100.0 (/ total active-min))))
-             (when (> segments 0)
-               (format " · avg %.0fm ×%d" (/ (float total) segments) segments))
-             (when (> avg7 0)
-               (format " · vs7d %+.0f%%" (* 100.0 (/ (- total avg7) avg7)))))))
-      (concat budget "\n" (my/org-agenda--category-table rows total maxmin "Project"))))
-
-  (defun my/org-agenda-planned-vs-actual ()
-    "Return today's EFFORT-vs-actual table (each line <=80) for estimated tasks."
-    (let (rows)
-      (dolist (file (org-agenda-files))
-        (let ((entries
-               (nth 2 (with-current-buffer (find-file-noselect file)
-                        (ignore-errors
-                          (org-clock-get-table-data
-                           file '(:block today :properties ("Effort")
-                                         :maxlevel 99)))))))
-          (dolist (e entries)
-            (let ((headline (nth 1 e))
-                  (time (nth 4 e))
-                  (effort (cdr (assoc "Effort" (nth 5 e)))))
-              (when (and effort (> (or time 0) 0))
-                (push (list headline (org-duration-to-minutes effort) time) rows))))))
-      (propertize
-       (if (null rows)
-           "(no estimated tasks clocked today)"
-         (concat
-          (format "| %-28s | %5s | %5s | %-12s |%5s" "Task" "Plan" "Act" "Progress" "%")
-          "\n|" (make-string 30 ?-) "+" (make-string 7 ?-) "+" (make-string 7 ?-)
-          "+" (make-string 14 ?-) "+" (make-string 5 ?-) "\n"
-          (mapconcat
-           (lambda (r)
-             (let ((plan (nth 1 r)) (act (nth 2 r)))
-               (format "| %s | %5s | %5s | %s |%4.0f%%"
-                       (truncate-string-to-width
-                        (replace-regexp-in-string "[|\n\r]" " " (nth 0 r)) 28 0 ?\s)
-                       (org-duration-from-minutes plan)
-                       (org-duration-from-minutes act)
-                       (truncate-string-to-width
-                        (orgtbl-ascii-draw (min act plan) 0 (max plan 1) 12
-                                           my/org-ascii-bar-chars)
-                        12 0 ?\s)
-                       (if (> plan 0) (* 100.0 (/ (float act) plan)) 0))))
-           (sort rows (lambda (a b) (> (nth 2 a) (nth 2 b))))
-           "\n"))) 'face 'org-table)))
-
-  (defun my/org-agenda-week-review-clocked (clock)
-    "Return a week-by-CATEGORY review table with a rhythm header (<=80 cols).
-Mirrors the daily `my/org-agenda-clocked-by-category' layout (Area/Time/%/Share)
-but aggregates the past 7 days, and leads with weekly-review insight: total,
-daily average, active-day count, and the busiest day.
-CLOCK is the plist from `my/org-clock-scan'."
-    (let* ((rows (plist-get clock :rows))
-           (total (plist-get clock :total))
-           (days (plist-get clock :days))
-           (byday (plist-get clock :byday))
-           (maxmin (if rows (apply #'max (mapcar #'cdr rows)) 1))
-           (active 0) (peak 0) (peakmin 0))
-      (dotimes (i days)
-        (when (> (aref byday i) 0) (setq active (1+ active)))
-        (when (> (aref byday i) peakmin) (setq peakmin (aref byday i) peak i)))
-      (if (null rows)
-          (concat "Week 0:00\n"
-                  (propertize "(no clocked time this week)" 'face 'org-table))
-        (concat
-         (format "Week %s · avg %s/day · %d/%d active · peak %s %s"
-                 (org-duration-from-minutes total)
-                 (org-duration-from-minutes (/ (float total) days))
-                 active days
-                 (format-time-string "%a" (my/org-clock--day-start (- days 1 peak)))
-                 (org-duration-from-minutes peakmin))
-         "\n" (my/org-agenda--category-table rows total maxmin "Area")))))
-
-  (defun my/org-agenda-viz-body ()
-    "Return the time-viz text for the current `my/org-agenda-viz-mode'.
-`daily' = the today tables; `review' = the week-by-area table.  Either mode
-scans clock data once via `my/org-clock-scan' and threads the result to
-every table that needs it, rather than each table re-scanning independently."
-    (pcase my/org-agenda-viz-mode
-      ('daily
-       (let ((clock (my/org-clock-scan 7)))
-         (concat "\n"
-                 (my/org-agenda-viz-title-string "Clocked" "share of focus today")
-                 "\n"
-                 (my/org-agenda-clocked-by-category clock)
-                 "\n\n"
-                 (my/org-agenda-viz-title-string "Estimate" "planned vs actual")
-                 "\n"
-                 (my/org-agenda-planned-vs-actual)
-                 "\n\n"
-                 (my/org-agenda-viz-title-string "Observed" "reality & rhythm, clocked vs leak · ActivityWatch")
-                 "\n"
-                 (my/aw-today-summary clock)
-                 "\n")))
-      ('review
-       (concat "\n"
-               (my/org-agenda-viz-title-string "Clocked" "by area · last 7 days")
-               "\n"
-               (my/org-agenda-week-review-clocked (my/org-clock-scan 7))
-               "\n"))))
-
-  (defun my/org-agenda-append-time-viz ()
-    "Append the current mode's time-viz block to an agenda view.
-The block rendered is chosen by `my/org-agenda-viz-mode' (daily three tables /
-review week table / nil none).
-Runs on `org-agenda-finalize-hook'.  `org-agenda-change-all-lines' (used by
-`org-agenda-todo') calls `org-agenda-finalize' narrowed to the single changed
-line, and `org-agenda-finalize' does not widen before running the hook; the
-`point-max' insertion below would then land the blocks inline after that line.
-Skip unless the whole buffer is accessible, and remove any blocks left by a
-previous finalize first so a non-narrowed re-finalize (e.g. clearing a filter)
-replaces rather than accumulates."
-    (when (and (derived-mode-p 'org-agenda-mode)
-               my/org-agenda-viz-mode
-               (not (buffer-narrowed-p)))
-      (condition-case nil
-          (let ((inhibit-read-only t)
-                (pos (point-min)))
-            ;; Drop blocks inserted by an earlier finalize (marked below).
-            (while (setq pos (text-property-any pos (point-max)
-                                                'my/org-agenda-viz t))
-              (delete-region
-               pos (or (next-single-property-change pos 'my/org-agenda-viz)
-                       (point-max))))
-            (goto-char (point-max))
-            (let ((beg (point)))
-              (insert (my/org-agenda-viz-body))
-              (put-text-property beg (point) 'my/org-agenda-viz t)))
-        (error nil))))
-
-  (add-hook 'org-agenda-finalize-hook #'my/org-agenda-append-time-viz t))
+  (add-hook 'org-after-todo-state-change-hook #'my/org-delegate-on-state-change))
 
 (use-package adaptive-wrap
   :after org-agenda
@@ -1747,84 +1009,6 @@ replaces rather than accumulates."
                     (calendar-absolute-from-gregorian
                      (list month (- day (1- calendar-week-start-day)) year)))))
           'font-lock-face 'my/calendar-iso-week-header)))
-
-(use-package org-super-agenda
-  :after org-agenda
-  :config
-  (my/define-key
-   (:map org-super-agenda-header-map
-         :key
-         "j" #'org-agenda-next-line
-         "k" #'org-agenda-previous-line
-         "v" (lookup-key org-agenda-mode-map "v")
-         "w" (lookup-key org-agenda-mode-map "w")
-         "d" (lookup-key org-agenda-mode-map "d")))
-
-  (defun my/org-super-agenda-propagate-header-type ()
-    "Copy `org-agenda-type' from each entry onto its org-super-agenda header.
-`org-super-agenda' inserts group header lines that carry no
-`org-agenda-type' text property (only real entry lines do).  Since
-`org-agenda-update-agenda-type' recomputes the buffer-local
-`org-agenda-type' from point's text property on every command, point
-resting on a header line turns it nil, and any command gated by
-`org-agenda-check-type' errors with \"No Org agenda currently displayed\".
-Grouping itself runs via a `:filter-return' advice on
-`org-agenda-finalize-entries' (see `org-super-agenda-mode'), which
-completes before `org-agenda-finalize-hook' runs, so this always sees the
-finished header layout regardless of hook ordering."
-    (save-excursion
-      (goto-char (point-min))
-      (let (pos)
-        (while (setq pos (text-property-not-all (point) (point-max)
-                                                 'org-super-agenda-header nil))
-          (goto-char pos)
-          (unless (get-text-property pos 'org-agenda-type)
-            (let ((type (get-text-property
-                         (next-single-property-change pos 'org-agenda-type
-                                                       nil (point-max))
-                         'org-agenda-type)))
-              (when type
-                (put-text-property pos (1+ (line-end-position)) 'org-agenda-type type))))
-          (goto-char (or (next-single-property-change pos 'org-super-agenda-header)
-                         (point-max)))))))
-
-  (add-hook 'org-agenda-finalize-hook #'my/org-super-agenda-propagate-header-type t)
-
-  (org-super-agenda-mode 1)
-
-  (setq org-super-agenda-groups
-        '((:name "By-Today" :and (:scheduled today :log state) :order 100)
-          (:name "State-Change" :log state :order 99)
-          (:name "First" :tag "first" :order 10)
-          (:name "Time-Grid" :time-grid t :log t :order 40)
-          (:name "Dash" :and (:tag "dash") :order 20)
-          (:name "Habit/Daily-Task-List" :habit t :order 30)
-          (:auto-group t :order 90))))
-
-(use-package origami
-  :after org-super-agenda
-  :config
-  (my/define-key
-   (:map org-super-agenda-header-map :key "TAB" #'origami-toggle-node))
-  
-  (defvar org-super-agenda-auto-fold-groups
-    '("Habit/Daily-Task-List" "State-Change"))
-
-  (defvar my/org-super-agenda-auto-fold-regexp
-    (rx-to-string `(seq bol " " (or ,@org-super-agenda-auto-fold-groups)))
-    "Compiled once from `org-super-agenda-auto-fold-groups' (a static list).")
-
-  (defun my/org-super-agenda-origami-fold ()
-    "Fold pre-defined groups in Org Super Agenda buffer."
-    (goto-char (point-min))
-    (while (re-search-forward my/org-super-agenda-auto-fold-regexp nil t)
-      (origami-forward-toggle-node (current-buffer) (point))))
-
-  (my/add-hook
-   (:hook org-agenda-mode-hook
-          :func #'origami-mode))
-
-  (add-hook 'org-agenda-finalize-hook #'my/org-super-agenda-origami-fold t))
 
 (use-package org-clock-split
   :after org)
