@@ -316,6 +316,19 @@ change) are unaffected."
         org-foresight-workday-end   "17:30"
         org-foresight-workdays      '(1 2 3 4 5))
 
+  ;; This machine's desktop, in the names macOS actually reports for a
+  ;; Japanese locale.  Shared across the dotfiles, so it describes the personal
+  ;; machine; the work machine's own list belongs in its `custom-file', which
+  ;; is not committed.  What matters beyond the Observed table is that surge
+  ;; learning counts only work and comms as displaced work.
+  (setq org-foresight-app-categories
+        '(("work" . ("Emacs" "Ghostty" "Terminal" "iTerm2" "Code" "Xcode"
+                     "プレビュー" "Preview" "Claude" "Grok" "ActivityWatch"))
+          ("comms" . ("メール" "Mail" "カレンダー" "Calendar" "Slack"
+                      "メッセージ" "Messages" "Zoom"))
+          ("distraction" . ("Safari" "Chrome" "Firefox" "YouTube" "X"
+                            "Twitter" "Discord"))))
+
   ;; Every imported meeting carries a Teams link, so a LOCATION alone cannot
   ;; say where the body has to be.  Only these say it; anything else leaves me
   ;; where I already was.
@@ -367,7 +380,10 @@ change) are unaffected."
   (my/define-key
    (:map org-agenda-mode-map
          :key
-         "P" #'org-foresight-plan-fill))
+         "P" #'org-foresight-plan-fill
+         ;; Whether a meeting needs all of the hour or will share it is
+         ;; decided while looking at the day, so it is set from here.
+         "A" #'org-foresight-set-attention))
 
   (add-hook 'org-agenda-finalize-hook #'org-foresight-report-render t))
 
