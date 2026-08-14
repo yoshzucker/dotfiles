@@ -167,7 +167,19 @@ org's existing key table stays the single source of truth."
 
   ;; Custom agenda commands
   (setq org-agenda-custom-commands
-        '(("b" "Before leaving · 席を立つ前"
+        '(("p" "Plan for current day"
+           ;; An ordinary agenda block, because the day being rearranged has to
+           ;; be the real day: org-foresight adds journeys, gaps and the edges
+           ;; of the working span to it, and everything else the agenda knows
+           ;; -- logs, habits, tags, blocked dimming -- comes along for free.
+           ;; The `plan' style adds underneath the two questions the day cannot
+           ;; answer from inside itself: when this could be taken on instead,
+           ;; and what has not been asked about at all.
+           ((agenda "" ((org-agenda-span 1)
+                        (org-agenda-start-day "+0d")
+                        (org-agenda-start-on-weekday nil))))
+           ((org-foresight-report-style 'plan)))
+          ("b" "Before leaving · 席を立つ前"
            ;; One-glance "is anything left undone?" before stepping away.  When
            ;; calendar/meeting events are present in `org-agenda-files', the first
            ;; block shows work + private together (both worlds).
@@ -212,19 +224,7 @@ org's existing key table stays the single source of truth."
            ((tags "TODO=\"WAIT\"|TODO=\"DELEG\""
                   ((org-agenda-overriding-header "委譲・他者待ち — 人別 (DELEGATED_TO)")
                    (org-agenda-sorting-strategy '(scheduled-up priority-down)))))
-           ((org-foresight-report-style nil)))
-          ("p" "Plan · 今日の設計"
-           ;; An ordinary agenda block, because the day being rearranged has to
-           ;; be the real day: org-foresight adds journeys, gaps and the edges
-           ;; of the working span to it, and everything else the agenda knows
-           ;; -- logs, habits, tags, blocked dimming -- comes along for free.
-           ;; The `plan' style adds underneath the two questions the day cannot
-           ;; answer from inside itself: when this could be taken on instead,
-           ;; and what has not been asked about at all.
-           ((agenda "" ((org-agenda-span 1)
-                        (org-agenda-start-day "+0d")
-                        (org-agenda-start-on-weekday nil))))
-           ((org-foresight-report-style 'plan)))))
+           ((org-foresight-report-style nil)))))
 
   (defun my/org-agenda-before-leaving ()
     "Open the pre-departure check (the \"b\" custom command).
@@ -311,9 +311,9 @@ change) are unaffected."
                            :files ("*.el"))
   :after org-agenda
   :config
-  (setq org-foresight-awake         '("06:30" . "23:00")
-        org-foresight-workday-start "09:00"
-        org-foresight-workday-end   "17:30"
+  (setq org-foresight-awake         '("06:50" . "22:00")
+        org-foresight-workday-start "08:15"
+        org-foresight-workday-end   "17:45"
         org-foresight-workdays      '(1 2 3 4 5))
 
   ;; This machine's desktop, in the names macOS actually reports for a
@@ -374,7 +374,12 @@ change) are unaffected."
   ;; listing non-problems stops being read.
   (setq org-foresight-undecided-enabled nil)
 
+  ;; CANCEL and DELEG are done here without the work having been done: one was
+  ;; dropped, the other went to somebody else, and neither clock measures the
+  ;; estimate it was given.  Left in, an hour's job abandoned after ten minutes
+  ;; is read as evidence that hours take minutes.
   (setq org-foresight-bias-enabled t
+        org-foresight-bias-abandoned-keywords '("CANCEL" "DELEG")
         org-foresight-report-style 'daily)
 
   (my/define-key
