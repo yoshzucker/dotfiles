@@ -33,7 +33,7 @@
 ;;
 ;;   a task (has a state, a date)       journal.org datetree   C-c c a / i / s / e
 ;;   a settled appointment or clock     journal.org datetree   C-c c p / l / d
-;;   a thought, feeling, fragment       today's daily note     C-c z n / m
+;;   a thought, feeling, fragment       today's daily note     C-c z n
 ;;   a subject inside today             today's daily note     C-c z d
 ;;   more about the clocked task        that task              C-c c n
 ;;   more about the entry at point      that entry             C-c C-z
@@ -692,7 +692,7 @@ called with C-u (prefix 64)."
           ;; groups by that.  Work that is leaving for good has no template --
           ;; it is a state change on something that already exists, and the
           ;; hook `my/org-handover-on-state-change' asks what it needs to.
-          ("e" "任せる（返ってくる）" entry (file+datetree my/org-journal-file)
+          ("e" "hand over (comes back)" entry (file+datetree my/org-journal-file)
            "* WAIT %?\nSCHEDULED: %^t\n:PROPERTIES:\n:PEOPLE: %^{Who has it}\n:END:\n:LOGBOOK:\n- State \"WAIT\"       from              %U\n:END:")
           ;; Note onto the task being clocked.  The `clock' target leaves
           ;; `:target-entry-p' at its default t, so the item joins the note list
@@ -721,7 +721,7 @@ called with C-u (prefix 64)."
           ;; lower, which is the trap the whole practice is about.  And what
           ;; came of it is `towards' or `away' -- workability, the only test
           ;; ACT applies to an action.
-          ("v" "ACT: 選択の記録" entry (file+function my/org-act-file my/org-act-target)
+          ("v" "ACT: choice point" entry (file+function my/org-act-file my/org-act-target)
            ,(concat "* %^{状況}\n"
                     ":PROPERTIES:\n"
                     ":CREATED:      %U\n"
@@ -738,7 +738,7 @@ called with C-u (prefix 64)."
           ;; directions and belong on the one page at the top of the file --
           ;; but the month a wording changed is recorded, and that is the only
           ;; history there is.
-          ("V" "ACT: 月の見直し" entry (file+function my/org-act-file my/org-act-target)
+          ("V" "ACT: monthly review" entry (file+function my/org-act-file my/org-act-target)
            ,(concat "* 見直し\n"
                     ":PROPERTIES:\n:CREATED: %U\n:END:\n"
                     (mapconcat (lambda (d) (format "- %s :: \n" d))
@@ -1195,7 +1195,7 @@ block already shows what is out with them, as a live query."
            :target (file+head "%<%Y-%m-%d-%H-%M-%S>-${slug}.org"
                               "#+title: ${title}\n")
            :unnarrowed t)
-          ("p" "person / 部下" plain "%?"
+          ("p" "person" plain "%?"
            :target (file+head
                     "%<%Y-%m-%d-%H-%M-%S>-${slug}.org"
                     ,(concat "#+title: ${title}\n#+filetags: :person:\n\n- Role ::\n- Since ::\n\n* Objectives / 期待\n\n* Together\n#+BEGIN: people :who \"${title}\"\n#+END:\n\n* " my/org-log-heading "\n"))
@@ -1219,16 +1219,14 @@ block already shows what is out with them, as a live query."
            :target (file+head "%<%Y-%m-%d>.org" ,my/org-daily-head))
           ("n" "note" item ,my/org-note-template
            :target (file+head+olp "%<%Y-%m-%d>.org" ,my/org-daily-head
-                                  (,my/org-log-heading)))
-          ;; Recorded as `mood :: value' so a description list carries it: greppable,
-          ;; and reachable by org-ql without a schema.  A table would aggregate
-          ;; better, but a table per daily file aggregates nothing -- that is a
-          ;; question for one shared table, on the day trends actually matter.
-          ("m" "mood / 気分" item
-           ,(concat my/org-note-prefix
-                    "気分 :: %^{気分|快調|良い|ふつう|もやもや|しんどい}\n  %?")
-           :target (file+head+olp "%<%Y-%m-%d>.org" ,my/org-daily-head
                                   (,my/org-log-heading)))))
+  ;; There was a third template here that recorded a mood on a five-point
+  ;; scale.  It went unused for six years, and by the time ACT arrived it was
+  ;; also pointing the wrong way: a scale becomes a series, and a series
+  ;; invites wanting the number to improve -- which is the struggle ACT is
+  ;; about, not a record of it.  Naming what showed up still happens, in the
+  ;; `釣られた思考・感情' line of a choice point, where it sits beside what was
+  ;; actually done about it.  A plain note ("n") takes anything else.
 
   ;; Display behavior
   (add-to-list 'display-buffer-alist
