@@ -376,9 +376,35 @@ Default RET/f remain `find-file', which already honors
     (when (eq major-mode 'dired-mode)
       (rename-buffer (concat (buffer-name) "/") t)))
 
+  ;; Reverting a listing costs four milliseconds, until the buffer stops being
+  ;; just a listing.  `dired-subtree--after-readin' re-inserts *every* expanded
+  ;; subtree on every revert, one `ls' each; a subdir inserted with `i' is
+  ;; re-listed the same way; and a search buffer's own `revert-buffer-function'
+  ;; re-runs the whole search.  Point any of those at iCloud and one revert
+  ;; blocks for seconds.
+  ;;
+  ;; Which would merely be slow, were it not for where it runs from:
+  ;; `timer-event-handler' binds `inhibit-quit' around the timer function, so
+  ;; while auto-revert works, C-g does nothing.  That is what turned a slow
+  ;; refresh of the `~/' buffer into an Emacs that had to be killed.
+  ;;
+  ;; So the timer gets the cheap case and nothing else.  The test runs every
+  ;; cycle rather than once when the mode is enabled, because a buffer becomes
+  ;; expensive long after it is created -- the moment TAB expands something.
+  ;; `g' still reverts anything: a slow refresh you asked for is one you expect,
+  ;; and one you can interrupt.
+
+  (defun my/dired-buffer-stale-p (&optional noconfirm)
+    "Like `dired-buffer-stale-p', but only for listings a timer can afford."
+    (and (eq revert-buffer-function #'dired-revert)
+         (<= (length dired-subdir-alist) 1)
+         (null (bound-and-true-p dired-subtree-overlays))
+         (dired-buffer-stale-p noconfirm)))
+
   (defun my/dired-enable-auto-revert ()
     "Enable `auto-revert-mode' for Dired buffers, except for remote directories."
     (unless (file-remote-p default-directory)
+      (setq-local buffer-stale-function #'my/dired-buffer-stale-p)
       (auto-revert-mode)))
 
   (setq dired-clean-up-buffers-too t)

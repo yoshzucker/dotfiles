@@ -40,6 +40,29 @@
 ;;   more about a distant node          that node's Log        C-c c g
 ;;   more about a person                that person's Log      C-c c o
 ;;   a new subject                      a new node             C-c f / C-c n c
+;;   a choice point (ACT)               act.org datetree       C-c c v
+;;   the month's ACT review             act.org, on the month  C-c c V
+;;
+;; Records with a shape.  Some of what is recorded here is not prose but a
+;; *kind of thing* -- a person, a mood, a choice point -- and those are written
+;; to a form rather than freely.  A shaped record is three decisions, and they
+;; are worth making together:
+;;
+;;   where it goes    a named place, so it is never "somewhere in the notes"
+;;   what it holds    fixed fields, asked in order by the capture
+;;   how it is read   a dynamic block, a column view, or the eye once a month
+;;
+;; Free text still belongs in them -- inside the shape, in the fields meant for
+;; it.  The shape is what makes a hundred of them comparable later; the prose is
+;; what makes any one of them worth keeping.
+;;
+;; They live here, in this file, and none of it is a package.  Org already has
+;; the parts (capture prompts, property drawers, `#+COLUMNS:', date trees), and
+;; there is a structural reason too: `org-capture-templates' is one `setq', so
+;; a template kept in another file is a template that gets thrown away when
+;; this one runs.  That is not hypothetical -- it happened to the "i" template
+;; and went unnoticed for a while.  When the *reading* side is written a third
+;; time, that is the thing worth extracting.
 ;;
 ;;; Code:
 
@@ -70,6 +93,31 @@
 ;; The daily file is already the date, by name and by title; a date heading
 ;; inside it would only repeat that.
 (defconst my/org-daily-head "#+title: %<%Y-%m-%d>\n")
+
+;;;; ACT — the containers for the practice
+;; The life domains a value can point at.  Named in one place because three
+;; things are built from them: the skeleton of the file, the choice of value
+;; when a choice point is recorded, and the blanks in the monthly review.  Few
+;; is better than many -- a domain nobody has a direction for is a blank that
+;; gets skipped, and skipping is a habit.
+(defconst my/org-act-domains '("仕事" "家族" "健康" "学び" "つながり" "余暇"))
+
+
+;; Values are directions, not goals, so there is one page of them and it is
+;; almost always the same page.  What recurs is the *review* -- how close the
+;; month's actions came, what the next step is, and now and then a rewording --
+;; and that belongs to the month it is about, so it is filed in the tree.
+(defconst my/org-act-skeleton
+  (concat "#+title: ACT\n"
+          "#+COLUMNS: %34ITEM(状況) %ACT_VALUE(価値) %ACT_STRUGGLE(もがき)"
+          " %ACT_MOVE(向かう)\n\n"
+          "* 価値\n"
+          (mapconcat (lambda (d) (format "** %s\n\n" d)) my/org-act-domains "")
+          "* 実践\n")
+  "The file `my/org-act-file' is created with when it does not exist yet.
+The `#+COLUMNS' line is what makes the property drawers worth writing: with
+it, `C-c C-x C-c' over the practice tree is the table, so nothing has to be
+stored twice.")
 
 (use-package org
   :straight org-contrib
@@ -245,6 +293,68 @@ agenda file set does not depend on whether rg is installed -- rg's own
 
   (defvar my/org-journal-file (concat org-directory "journal.org"))
 
+  ;; One file, deliberately: the values are a single current page and the
+  ;; practice is a date tree beneath them, so "what am I pointing at now" is
+  ;; read rather than looked up.  It carries no TODO state, so
+  ;; `my/find-todo-files' leaves it out of `org-agenda-files' on its own --
+  ;; work that comes out of the practice is filed as an ordinary NEXT in the
+  ;; journal, where the rest of the day already lives.
+  (defvar my/org-act-file (concat org-directory "act.org"))
+
+  (defun my/org-act--frame ()
+    "Ensure this buffer holds the ACT frame, and leave point on its `* 実践'.
+Writes the whole skeleton into an empty buffer, and only the missing heading
+into one that has been started by hand."
+    (widen)
+    (goto-char (point-min))
+    (unless (re-search-forward "^\\* 実践[ \t]*$" nil t)
+      (if (= (point-min) (point-max))
+          (insert my/org-act-skeleton)
+        (goto-char (point-max))
+        (unless (bolp) (insert "\n"))
+        (insert "* 実践\n"))
+      (goto-char (point-min))
+      (re-search-forward "^\\* 実践[ \t]*$"))
+    (beginning-of-line))
+
+  (defun my/org-act-target ()
+    "Capture target: today's node in the ACT practice tree.
+
+`(file+olp+datetree FILE \"実践\")' says the same thing in one line and is
+what this would otherwise be -- but it raises \"Heading not found\" when the
+file has not been written yet, and the first capture on a new machine is
+exactly when it has not.  Going through a function lets the frame be built on
+the way past.
+
+The tree is grown under the heading at point, which is what the symbol
+`subtree-at-point' means to `org-datetree-find-date-create'.  Passing t
+instead means only \"do not widen\", and the year then lands beside `* 実践'
+rather than inside it -- a fresh one on every capture.
+
+`:tree-type' is read from the template, so the same target serves both: the
+monthly review stops at the month, a choice point goes on to the day.  The
+date comes from `org-today', which honours `org-extend-today-until' -- a
+choice point recorded at half past midnight belongs to the day it happened
+in."
+    (require 'org-datetree)
+    (my/org-act--frame)
+    (funcall (if (eq (org-capture-get :tree-type) 'month)
+                 #'org-datetree-find-month-create
+               #'org-datetree-find-date-create)
+             (calendar-gregorian-from-absolute (org-today))
+             'subtree-at-point))
+
+  (defun my/org-act-open ()
+    "Open the ACT file, writing its frame the first time.
+
+The values are written by hand, and that is the exercise -- so what this
+creates is the empty frame for them, not a suggestion of what to put in it."
+    (interactive)
+    (find-file my/org-act-file)
+    (save-excursion (my/org-act--frame))
+    (when (buffer-modified-p) (save-buffer))
+    (goto-char (point-min)))
+
   (setq org-return-follows-link t)
   
   (defvar my/org-file-app-rules
@@ -299,6 +409,31 @@ agenda file set does not depend on whether rg is installed -- rg's own
   (advice-add 'org-time-stamp :around #'my/org-time-stamp-in-evil-insert)
   
   ;; Log
+  ;;
+  ;; One axis decides the state: *whose move is it, and does it come back to
+  ;; me?*  Not "how far along is it" -- progress is what the clock and the
+  ;; effort are for.
+  ;;
+  ;;   NEXT / ONGO  mine                                   todo
+  ;;   WAIT         theirs, and it comes back to me        todo
+  ;;   DELEG        theirs, and it does not -- I am out    done
+  ;;   DONE/CANCEL  over                                   done
+  ;;
+  ;; So DELEG does not mean "delegated", it means *handed over for good*: the
+  ;; case where the work left my accountability with it.  Work given to a
+  ;; report is WAIT, because the result returns and I am still answerable for
+  ;; it -- and it stays under its own name, with `:PEOPLE:' saying who has it
+  ;; and SCHEDULED saying when to ask.  A separate "receive X's report" task is
+  ;; the same fact written twice.
+  ;;
+  ;; The sequence below already reads that way: a WAIT that turns out never to
+  ;; come back is closed with DELEG; one that does is closed with DONE.
+  ;;
+  ;; DELEG stays a done-type keyword for a reason beyond bookkeeping: the clock
+  ;; on such an entry measures the *handover* -- the mails, the briefing --
+  ;; while its EFFORT was an estimate of the whole job.  Comparing the two
+  ;; would teach org-foresight that work takes a fraction of its estimate, so
+  ;; `org-foresight-bias-abandoned-keywords' excludes it.
   (setq org-todo-keywords
         '((sequence "NEXT(n!)" "ONGO(o!)" "|" "DONE(d)" "CANCEL(c)")
           (sequence "WAIT(w@)" "|" "DELEG(e@)")))
@@ -550,14 +685,15 @@ called with C-u (prefix 64)."
            "* %?\n:LOGBOOK:\nCLOCK: %U--%U =>  0:00\n:END:")
           ("d" "insert done" entry (file+datetree my/org-journal-file)
            "* DONE %?\nCLOSED: %U\n:LOGBOOK:\nCLOCK: %U--%U =>  0:00\n:END:")
-          ;; Delegation: capture a brand-new task already handed off.  DELEG is a
-          ;; done-type keyword, so it stays off the daily agenda; the "d" custom
-          ;; command (the people board) surfaces it, grouped by :PEOPLE:.
-          ;; SCHEDULED is the follow-up/check-in date.  For a task you are already
-          ;; looking at, just change its state to DELEG -- the hook
-          ;; `my/org-delegate-on-state-change' prompts for the same metadata.
-          ("e" "delegate task" entry (file+datetree my/org-journal-file)
-           "* DELEG %?\nSCHEDULED: %^t\n:PROPERTIES:\n:PEOPLE: %^{Delegate to}\n:END:\n:LOGBOOK:\n- State \"DELEG\"      from              %U\n:END:")
+          ;; Work handed to someone, captured as it is created.  WAIT rather
+          ;; than DELEG: it is coming back, and I am still answerable for it
+          ;; (see `org-todo-keywords').  SCHEDULED is when to ask, `:PEOPLE:'
+          ;; is who has it, and the "d" custom command (the people board)
+          ;; groups by that.  Work that is leaving for good has no template --
+          ;; it is a state change on something that already exists, and the
+          ;; hook `my/org-handover-on-state-change' asks what it needs to.
+          ("e" "任せる（返ってくる）" entry (file+datetree my/org-journal-file)
+           "* WAIT %?\nSCHEDULED: %^t\n:PROPERTIES:\n:PEOPLE: %^{Who has it}\n:END:\n:LOGBOOK:\n- State \"WAIT\"       from              %U\n:END:")
           ;; Note onto the task being clocked.  The `clock' target leaves
           ;; `:target-entry-p' at its default t, so the item joins the note list
           ;; in that entry's own body and never reaches into its children.
@@ -572,62 +708,106 @@ called with C-u (prefix 64)."
           ("g" "note on a node" item (function my/org-roam-node-log-target)
            ,my/org-node-note-template)
           ("o" "note on a person" item (function my/org-roam-person-log-target)
-           ,my/org-node-note-template)))
+           ,my/org-node-note-template)
+          ;; ACT.  A choice point: what showed up, what it pulled me into, and
+          ;; what the value asked for instead.  Only what can be enumerated is
+          ;; prompted for -- the three sentences are labelled and left to be
+          ;; typed, because a form that asks six questions in a row is a form
+          ;; nobody fills in at the moment it is needed.
+          ;;
+          ;; The two numbers are the ones ACT actually works on.  Struggle is
+          ;; how hard I fought the feeling, not how strong it was: intensity is
+          ;; deliberately not recorded, because tracking it invites wanting it
+          ;; lower, which is the trap the whole practice is about.  And what
+          ;; came of it is `towards' or `away' -- workability, the only test
+          ;; ACT applies to an action.
+          ("v" "ACT: 選択の記録" entry (file+function my/org-act-file my/org-act-target)
+           ,(concat "* %^{状況}\n"
+                    ":PROPERTIES:\n"
+                    ":CREATED:      %U\n"
+                    ":ACT_VALUE:    %^{価値|" (string-join my/org-act-domains "|") "}\n"
+                    ":ACT_STRUGGLE: %^{もがき度|0|1|2|3|4|5|6|7|8|9|10}\n"
+                    ":ACT_MOVE:     %^{向かえたか|towards|partly|away}\n"
+                    ":END:\n"
+                    "- 釣られた思考・感情 :: %?\n"
+                    "- 逸れた行動 :: \n"
+                    "- 向かう行動 :: \n"))
+          ;; The monthly review, filed under the month rather than under a day:
+          ;; it is about the month, not about the day it happened to be written
+          ;; on.  Values themselves are not rewritten here -- they are
+          ;; directions and belong on the one page at the top of the file --
+          ;; but the month a wording changed is recorded, and that is the only
+          ;; history there is.
+          ("V" "ACT: 月の見直し" entry (file+function my/org-act-file my/org-act-target)
+           ,(concat "* 見直し\n"
+                    ":PROPERTIES:\n:CREATED: %U\n:END:\n"
+                    (mapconcat (lambda (d) (format "- %s :: \n" d))
+                               my/org-act-domains "")
+                    "- 書き直し :: \n"
+                    "- 来月の一歩 :: %?\n")
+           :tree-type month)))
 
-  ;; Delegation, the other half of the "e" template above.  That one captures a
-  ;; task already handed off; this one catches a task you are looking at being
-  ;; changed to DELEG, and asks the same two questions.  It belongs to Org
-  ;; rather than to the agenda -- `org-after-todo-state-change-hook' fires
-  ;; wherever the state is cycled -- and living beside the agenda meant it did
-  ;; not exist until the agenda had been opened at least once.
+  ;; Handing work over, the other half of the "e" template above.  That one
+  ;; captures work handed over as it is created; this one catches work you are
+  ;; already looking at changing hands, and asks the same questions.  It
+  ;; belongs to Org rather than to the agenda -- `org-after-todo-state-change-hook'
+  ;; fires wherever the state is cycled -- and living beside the agenda meant it
+  ;; did not exist until the agenda had been opened at least once.
   (defun my/org-roam-person-names ()
     "Titles of all `:person:'-tagged org-roam nodes.
-Used as completion candidates when delegating.  Free text is still accepted at
-the prompt, so delegating to someone without a person node also works."
+Used as completion candidates when handing work over.  Free text is still
+accepted at the prompt, so handing something to someone without a person node
+also works."
     (when (require 'org-roam nil t)
       (seq-uniq
        (seq-keep (lambda (n)
                    ;; File-level nodes only: the `:person:' filetag is inherited
                    ;; by sub-headings, so without this the headings inside a
-                   ;; person node (Log, Delegated/Waiting, ...) leak in as names.
+                   ;; person node (Log, Together, ...) leak in as names.
                    (and (= 0 (org-roam-node-level n))
                         (member "person" (org-roam-node-tags n))
                         (org-roam-node-title n)))
                  (org-roam-node-list)))))
 
-  (defun my/org-delegate-on-state-change ()
-    "When a task enters the DELEG state, capture the delegation metadata.
-Runs from `org-after-todo-state-change-hook': prompts for who the task went to
-and a follow-up (check-in) date, then records the `:PEOPLE:' property and
-SCHEDULEs the follow-up -- so the entry shows up, grouped by person, in the
-\"d\" people board.  The existing DELEG(e@) note still records why.
+  (defun my/org-handover-on-state-change ()
+    "Record who has the work when it stops being mine, and when to ask.
 
-`:PEOPLE:' rather than a property named for delegation: the same word names
+Runs from `org-after-todo-state-change-hook\='.  Which questions get asked
+follows from what the two states mean (see `org-todo-keywords\='):
+
+  WAIT   who has it, *and* when to ask -- it is coming back to me
+  DELEG  who has it.  Nothing else: it is not coming back, and a follow-up
+         date on work I am no longer answerable for is a reminder to chase
+         something that is not mine
+
+`:PEOPLE:\=' rather than a property named for delegation: the same word names
 whoever a piece of work involves, and the state says which way round it is --
-WAIT and DELEG are with them, a NEXT with `:PEOPLE:' needs them.  One word
-means the person's own note can show both in one block.  It is written as a
+WAIT and DELEG are with them, a NEXT with `:PEOPLE:\=' needs them.  One word
+means the person\='s own note can show both in one block.  Written as a
 multi-valued property, so a name with a space in it survives.
 
-The \"Delegate to\" prompt completes over `:person:' node titles (so names stay
-consistent with those nodes, which keeps the per-person block matching) but
-accepts free text too -- delegation is not limited to reports.  The follow-up
-SCHEDULE is set with logging suppressed so it does not interleave with the
-pending state-change note.  No-op when non-interactive, so scripted state
-changes (and capture, which inserts DELEG text without a state change) are
+The prompt completes over `:person:\=' node titles, so names stay consistent
+with those nodes and the per-person block keeps matching, but accepts free
+text too -- work is not only handed to reports.  The follow-up SCHEDULE is set
+with logging suppressed so it does not interleave with the pending
+state-change note.  No-op when non-interactive, so scripted state changes (and
+capture, which writes the state as text without a state change) are
 unaffected."
-    (when (and (equal org-state "DELEG") (not noninteractive))
-      (let ((who (completing-read "Delegate to: " (my/org-roam-person-names)
-                                  nil nil nil nil
-                                  (car (org-entry-get-multivalued-property
-                                        nil "PEOPLE"))))
-            (followup (org-read-date nil nil nil "Follow-up date")))
+    (when (and (member org-state '("WAIT" "DELEG")) (not noninteractive))
+      (let ((who (completing-read
+                  (if (equal org-state "WAIT") "Who has it: " "Handed to: ")
+                  (my/org-roam-person-names)
+                  nil nil nil nil
+                  (car (org-entry-get-multivalued-property nil "PEOPLE"))))
+            (followup (and (equal org-state "WAIT")
+                           (org-read-date nil nil nil "When to ask"))))
         (unless (string-empty-p who)
           (org-entry-put-multivalued-property nil "PEOPLE" who))
         (when (and followup (not (string-empty-p followup)))
           (let ((org-log-reschedule nil))
             (org-schedule nil followup))))))
 
-  (add-hook 'org-after-todo-state-change-hook #'my/org-delegate-on-state-change)
+  (add-hook 'org-after-todo-state-change-hook #'my/org-handover-on-state-change)
   
   ;; Babel
   ;; Load R here.  agent-shell is registered later by `ob-agent-shell' in
