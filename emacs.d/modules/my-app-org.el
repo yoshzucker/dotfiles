@@ -1,5 +1,11 @@
-;;; my-app-org.el --- Org-mode configuration -*- lexical-binding: t; -*- ;;; Commentary:
-;; Configuration for org-mode including keybindings, clocking, and general behaviors.
+;;; my-app-org.el --- Org itself -*- lexical-binding: t; -*- ;;; Commentary:
+;; Org as a way of recording: files, capture, refile, clocking, roam, export.
+;;
+;; What today looks like is the other question and lives in
+;; my-app-org-agenda.el -- the agenda, org-foresight, the timeline, the blocks,
+;; ActivityWatch.  The line between the two files is that one: this file is
+;; about how a thing gets written down and found again, that one is about a
+;; day.
 ;;
 ;; Recording model.  Two structures carry everything:
 ;;
@@ -511,9 +517,20 @@ called with C-u (prefix 64)."
   (setq org-capture-templates
         `(("a" "add task" entry (file+datetree my/org-journal-file)
            "* NEXT %?\nSCHEDULED: %^t\n:LOGBOOK:\n- State \"NEXT\"       from              %U\n:END:")
-          ;; "i" (interrupt) lives in my-app-org-agenda.el: it is the one
-          ;; capture org-foresight depends on, and it belongs beside the
-          ;; setting that reads it.
+          ;; The one capture org-foresight depends on.  `:SURGE:' marks work as
+          ;; having arrived rather than been planned, and its value is when it
+          ;; arrived -- which is what decides when it stops counting as
+          ;; unplanned.  A date of its own on any later day means the work has
+          ;; been taken in hand, and from then it is ordinary promised work.
+          ;;
+          ;; `:clock-resume' is the whole difference from "s": an interruption
+          ;; is recorded and then you go back to what you were doing, where a
+          ;; switch leaves you on the new thing.
+          ("i" "interrupt task" entry (file+datetree my/org-journal-file)
+           ,(concat "* ONGO %?\n"
+                    ":PROPERTIES:\n:SURGE: %U\n:END:\n"
+                    ":LOGBOOK:\n- State \"ONGO\"       from              %U\n:END:")
+           :clock-in t :clock-resume t)
           ("s" "switch task" entry (file+datetree my/org-journal-file)
            ;; Capture writes the heading rather than calling `org-todo', so
            ;; no state change fires and nothing logs when the task began.
@@ -556,6 +573,61 @@ called with C-u (prefix 64)."
            ,my/org-node-note-template)
           ("o" "note on a person" item (function my/org-roam-person-log-target)
            ,my/org-node-note-template)))
+
+  ;; Delegation, the other half of the "e" template above.  That one captures a
+  ;; task already handed off; this one catches a task you are looking at being
+  ;; changed to DELEG, and asks the same two questions.  It belongs to Org
+  ;; rather than to the agenda -- `org-after-todo-state-change-hook' fires
+  ;; wherever the state is cycled -- and living beside the agenda meant it did
+  ;; not exist until the agenda had been opened at least once.
+  (defun my/org-roam-person-names ()
+    "Titles of all `:person:'-tagged org-roam nodes.
+Used as completion candidates when delegating.  Free text is still accepted at
+the prompt, so delegating to someone without a person node also works."
+    (when (require 'org-roam nil t)
+      (seq-uniq
+       (seq-keep (lambda (n)
+                   ;; File-level nodes only: the `:person:' filetag is inherited
+                   ;; by sub-headings, so without this the headings inside a
+                   ;; person node (Log, Delegated/Waiting, ...) leak in as names.
+                   (and (= 0 (org-roam-node-level n))
+                        (member "person" (org-roam-node-tags n))
+                        (org-roam-node-title n)))
+                 (org-roam-node-list)))))
+
+  (defun my/org-delegate-on-state-change ()
+    "When a task enters the DELEG state, capture the delegation metadata.
+Runs from `org-after-todo-state-change-hook': prompts for who the task went to
+and a follow-up (check-in) date, then records the `:PEOPLE:' property and
+SCHEDULEs the follow-up -- so the entry shows up, grouped by person, in the
+\"d\" people board.  The existing DELEG(e@) note still records why.
+
+`:PEOPLE:' rather than a property named for delegation: the same word names
+whoever a piece of work involves, and the state says which way round it is --
+WAIT and DELEG are with them, a NEXT with `:PEOPLE:' needs them.  One word
+means the person's own note can show both in one block.  It is written as a
+multi-valued property, so a name with a space in it survives.
+
+The \"Delegate to\" prompt completes over `:person:' node titles (so names stay
+consistent with those nodes, which keeps the per-person block matching) but
+accepts free text too -- delegation is not limited to reports.  The follow-up
+SCHEDULE is set with logging suppressed so it does not interleave with the
+pending state-change note.  No-op when non-interactive, so scripted state
+changes (and capture, which inserts DELEG text without a state change) are
+unaffected."
+    (when (and (equal org-state "DELEG") (not noninteractive))
+      (let ((who (completing-read "Delegate to: " (my/org-roam-person-names)
+                                  nil nil nil nil
+                                  (car (org-entry-get-multivalued-property
+                                        nil "PEOPLE"))))
+            (followup (org-read-date nil nil nil "Follow-up date")))
+        (unless (string-empty-p who)
+          (org-entry-put-multivalued-property nil "PEOPLE" who))
+        (when (and followup (not (string-empty-p followup)))
+          (let ((org-log-reschedule nil))
+            (org-schedule nil followup))))))
+
+  (add-hook 'org-after-todo-state-change-hook #'my/org-delegate-on-state-change)
   
   ;; Babel
   ;; Load R here.  agent-shell is registered later by `ob-agent-shell' in
@@ -1194,60 +1266,6 @@ block already shows what is out with them, as a live query."
           (migemo-forward str nil t)
         (re-search-forward str nil t)))
     (advice-add 'deft-search-forward :override #'my/deft-search-forward-migemo)))
-
-(use-package org-dayflow
-  :straight (:host github :repo "yoshzucker/org-dayflow")
-  :after (org evil)
-  :config
-  ;; Personal category coloring for the timeline.  Category names live ONLY here
-  ;; (never in the org-dayflow package); adjust to match your calendar sources.
-  ;; These are the categories org-calsync writes: what a thing is, never where
-  ;; it was read from.
-  (setq org-dayflow-category-faces
-        '(("meeting"  . font-lock-keyword-face)
-          ("family"   . font-lock-string-face)
-          ("personal" . font-lock-doc-face)))
-  (dolist (key '("z" "g" "/" "n" "N" ":"))
-    (define-key org-dayflow-mode-map (kbd key)
-                (lookup-key evil-motion-state-map (kbd key))))
-
-  (my/define-key
-   (:map global-map
-         :key
-         "C-c d" #'org-dayflow)
-   (:map org-dayflow-mode-map
-         :key
-         my/backslash #'evil-avy-goto-char-timer))
-
-  (evil-set-initial-state 'org-dayflow-mode 'emacs)
-  (add-hook 'org-dayflow-mode-hook
-            (lambda ()
-              (my/evil-ex-define-cmd-local "w[rite]" #'org-save-all-org-buffers))))
-
-(use-package org-timeblock
-  :straight (:host github :repo "ichernyshovvv/org-timeblock")
-  :after (org evil)
-  :config
-  ;; `org-timeblock-files' defaults to `(org-agenda-files)', which includes
-  ;; calendar.org (via the advice in my-app-calendar.el), so meetings and
-  ;; scheduled tasks appear as time blocks.  SVG-rendered -- needs an Emacs built
-  ;; with SVG support.
-  (evil-set-initial-state 'org-timeblock-mode 'emacs)
-  (evil-set-initial-state 'org-timeblock-list-mode 'emacs)
-
-  ;; Same hour range for every column so days line up (the default hides past
-  ;; hours per day, giving each column a different start/end).  Integer hours
-  ;; only -- org-timeblock renders on whole-hour lines.
-  (setq org-timeblock-scale-options '(6 . 23))
-
-  (my/define-key
-   (:map global-map :key "C-c b" #'org-timeblock)))
-
-(use-package activity-watch-mode
-  :diminish (activity-watch-mode " aw")
-  :config
-  (setopt activity-watch-org-clock-active t)
-  (global-activity-watch-mode))
 
 (provide 'my-app-org)
 ;;; my-app-org.el ends here

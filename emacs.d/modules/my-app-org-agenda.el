@@ -1,21 +1,24 @@
-;;; my-app-org-agenda.el --- The day: agenda, and what foresight adds to it -*- lexical-binding: t; -*-
+;;; my-app-org-agenda.el --- The day -*- lexical-binding: t; -*-
 
 ;;; Commentary:
-;; Everything about the day view lives here: the agenda itself, the custom
-;; commands built on it, the packages that exist only to serve it, and
-;; org-foresight, which adds to it the parts of a day that are not entries --
-;; journeys, gaps, the edges of the working span, and how much may still be
-;; promised.
+;; The day, in every form I look at it: the agenda and the commands built on
+;; it, org-foresight (which adds the parts of a day that are not entries --
+;; journeys, gaps, the edges of the working span, how much may still be
+;; promised), the timeline and the blocks, and ActivityWatch, which is where
+;; the account of the day that was actually spent comes from.
 ;;
 ;; Split from my-app-org.el by concern rather than by size.  That file is
-;; about Org: capture, refile, clocking, export.  This one is about the one
-;; question those feed -- what does today look like, and can it be worked.
+;; about Org -- files, capture, refile, clocking, roam, export.  This one is
+;; about the one question those feed: what does today look like, and can it
+;; be worked.  A thing belongs here if it would still make sense with the
+;; word "today" in front of it.
 ;;
 ;; org-foresight holds only generic mechanism; everything personal is a value,
 ;; and values live here.  Where a setting needs explaining, the explanation
 ;; belongs in the package's own docstring, so `C-h v' answers it wherever the
 ;; package is used.  What stays here is only what is true of me and could not
-;; be true of the package.
+;; be true of the package -- so there is no wiring below, only values: the
+;; package attaches itself to the agenda when it loads.
 
 ;;; Code:
 
@@ -199,7 +202,10 @@ org's existing key table stays the single source of truth."
            ;; so each block's orientation header is shown in the review.
            ((org-foresight-report-style 'review)
             (org-agenda-compact-blocks nil)))
-          ("b" "Board · 決まっていないもの" my/org-foresight-board "")
+          ;; `C-c a b' kept its key through the rewrite on purpose: the
+          ;; question at the door has not changed, only the answer -- what only
+          ;; being here can settle, and what has not been planned for at all.
+          ("b" "Board · 決まっていないもの" org-foresight-board "")
           ("d" "People board · 人が絡む仕事"
            ;; Everything a person is part of, whichever way round: WAIT and
            ;; DELEG are with them, anything else with a `:PEOPLE:' needs them.
@@ -212,66 +218,7 @@ org's existing key table stays the single source of truth."
            ((tags "TODO=\"WAIT\"|TODO=\"DELEG\"|PEOPLE={.}"
                   ((org-agenda-overriding-header "人が絡む仕事 — 待ち・委譲・要同席 (PEOPLE)")
                    (org-agenda-sorting-strategy '(scheduled-up priority-down)))))
-           ((org-foresight-report-style nil)))))
-
-  (defun my/org-foresight-board (&optional _match)
-    "Open org-foresight's board from the agenda dispatcher.
-
-Takes and ignores the match string every dispatcher function is handed.
-`C-c a b\' kept its key through the rewrite on purpose: the question at the
-door has not changed, only the answer -- what only being here can settle,
-and what has not been planned for at all."
-    (interactive)
-    (org-foresight-board))
-
-  (defun my/org-roam-person-names ()
-    "Titles of all `:person:'-tagged org-roam nodes.
-Used as completion candidates when delegating.  Free text is still accepted at
-the prompt, so delegating to someone without a person node also works."
-    (when (require 'org-roam nil t)
-      (seq-uniq
-       (seq-keep (lambda (n)
-                   ;; File-level nodes only: the `:person:' filetag is inherited
-                   ;; by sub-headings, so without this the headings inside a
-                   ;; person node (Log, Delegated/Waiting, ...) leak in as names.
-                   (and (= 0 (org-roam-node-level n))
-                        (member "person" (org-roam-node-tags n))
-                        (org-roam-node-title n)))
-                 (org-roam-node-list)))))
-
-  (defun my/org-delegate-on-state-change ()
-    "When a task enters the DELEG state, capture the delegation metadata.
-Runs from `org-after-todo-state-change-hook': prompts for who the task went to
-and a follow-up (check-in) date, then records the `:PEOPLE:' property and
-SCHEDULEs the follow-up -- so the entry shows up, grouped by person, in the
-\"d\" people board.  The existing DELEG(e@) note still records why.
-
-`:PEOPLE:' rather than a property named for delegation: the same word names
-whoever a piece of work involves, and the state says which way round it is --
-WAIT and DELEG are with them, a NEXT with `:PEOPLE:' needs them.  One word
-means the person's own note can show both in one block.  It is written as a
-multi-valued property, so a name with a space in it survives.
-
-The \"Delegate to\" prompt completes over `:person:' node titles (so names stay
-consistent with those nodes, which keeps the per-person block matching) but
-accepts free text too -- delegation is not limited to reports.  The follow-up
-SCHEDULE is set with logging suppressed so it does not interleave with the
-pending state-change note.  No-op when non-interactive, so scripted state
-changes (and capture, which inserts DELEG text without a state change) are
-unaffected."
-    (when (and (equal org-state "DELEG") (not noninteractive))
-      (let ((who (completing-read "Delegate to: " (my/org-roam-person-names)
-                                  nil nil nil nil
-                                  (car (org-entry-get-multivalued-property
-                                        nil "PEOPLE"))))
-            (followup (org-read-date nil nil nil "Follow-up date")))
-        (unless (string-empty-p who)
-          (org-entry-put-multivalued-property nil "PEOPLE" who))
-        (when (and followup (not (string-empty-p followup)))
-          (let ((org-log-reschedule nil))
-            (org-schedule nil followup))))))
-
-  (add-hook 'org-after-todo-state-change-hook #'my/org-delegate-on-state-change))
+           ((org-foresight-report-style nil))))))
 
 (use-package adaptive-wrap
   :after org-agenda
@@ -303,39 +250,24 @@ unaffected."
 
 ;;;; org-foresight -- the forward-looking half of the day
 
-;;;; The one capture org-foresight depends on
-;; It lives here rather than with the other templates because the setting that
-;; reads it lives here: `:SURGE:' marks work as having arrived rather than been
-;; planned, and its value is when it arrived -- which is what decides when it
-;; stops counting as unplanned.  A date of its own on any later day means the
-;; work has been taken in hand, and from then it is ordinary promised work.
-;;
-;; The state line is written by hand because capture inserts the heading rather
-;; than calling `org-todo', so no state change fires and nothing would record
-;; when the task began.  The "a" and "e" templates do the same.
-;;
-;; `:clock-resume' is the whole difference from "s": an interruption is
-;; recorded and then you go back to what you were doing, where a switch leaves
-;; you on the new thing.
+;; The capture this depends on is the "i" (interrupt) template, and it lives
+;; with the other templates in my-app-org.el.  It was here once, next to the
+;; settings that read what it writes, and that could not work: `use-package
+;; org' runs its `:config' -- which `setq's the whole template list -- *after*
+;; `use-package org-capture' runs its own, so anything appended from here was
+;; silently thrown away.  Measured, not guessed: use-package's own statistics
+;; timestamp org-capture's config at 35.346 and org's at 35.761.
 
-(use-package org-capture
-  :straight nil
-  ;; `:defer t' rather than `:after': with nothing to defer on, `:after'
-  ;; expands to a bare `require', which would pull org in ahead of evil and
-  ;; break the order this whole file is arranged around.  Deferred, the only
-  ;; thing emitted is an `eval-after-load' -- the template is appended when
-  ;; capture is first used, by which time `org-capture-templates' has been set
-  ;; in org's own `:config'.
-  :defer t
+;; ActivityWatch -- where the Observed table, the leak and the lost come from.
+;; The only thing in Emacs that reads it is org-foresight, and
+;; `activity-watch-org-clock-active' is the setting that makes its rows carry
+;; the task being clocked: without it the day can be told what was on screen
+;; but not what it was for.
+(use-package activity-watch-mode
+  :diminish (activity-watch-mode " aw")
   :config
-  (add-to-list
-   'org-capture-templates
-   `("i" "interrupt task" entry (file+datetree my/org-journal-file)
-     ,(concat "* ONGO %?\n"
-              ":PROPERTIES:\n:SURGE: %U\n:END:\n"
-              ":LOGBOOK:\n- State \"ONGO\"       from              %U\n:END:")
-     :clock-in t :clock-resume t)
-   t))
+  (setopt activity-watch-org-clock-active t)
+  (global-activity-watch-mode))
 
 (use-package org-foresight
   :straight (org-foresight :host github :repo "yoshzucker/org-foresight"
@@ -450,9 +382,60 @@ unaffected."
          ;; "That landed on me" is realised while looking at the day too --
          ;; usually about something already in the file, which the interrupt
          ;; capture never saw.
-         "S" #'org-foresight-mark-surge))
+         "S" #'org-foresight-mark-surge)))
 
-  (add-hook 'org-agenda-finalize-hook #'org-foresight-report-render t))
+;;;; Other views of the same day
+;; Neither reads the agenda, and neither is one: a timeline and a set of
+;; blocks are the same hours seen a different way, and they live here because
+;; what they are about is the day rather than Org.
+
+(use-package org-dayflow
+  :straight (:host github :repo "yoshzucker/org-dayflow")
+  :after (org evil)
+  :config
+  ;; Personal category coloring for the timeline.  Category names live ONLY here
+  ;; (never in the org-dayflow package); adjust to match your calendar sources.
+  ;; These are the categories org-calsync writes: what a thing is, never where
+  ;; it was read from.
+  (setq org-dayflow-category-faces
+        '(("meeting"  . font-lock-keyword-face)
+          ("family"   . font-lock-string-face)
+          ("personal" . font-lock-doc-face)))
+  (dolist (key '("z" "g" "/" "n" "N" ":"))
+    (define-key org-dayflow-mode-map (kbd key)
+                (lookup-key evil-motion-state-map (kbd key))))
+
+  (my/define-key
+   (:map global-map
+         :key
+         "C-c d" #'org-dayflow)
+   (:map org-dayflow-mode-map
+         :key
+         my/backslash #'evil-avy-goto-char-timer))
+
+  (evil-set-initial-state 'org-dayflow-mode 'emacs)
+  (add-hook 'org-dayflow-mode-hook
+            (lambda ()
+              (my/evil-ex-define-cmd-local "w[rite]" #'org-save-all-org-buffers))))
+
+(use-package org-timeblock
+  :straight (:host github :repo "ichernyshovvv/org-timeblock")
+  :after (org evil)
+  :config
+  ;; `org-timeblock-files' defaults to `(org-agenda-files)', which includes
+  ;; calendar.org (via the advice in my-app-calendar.el), so meetings and
+  ;; scheduled tasks appear as time blocks.  SVG-rendered -- needs an Emacs built
+  ;; with SVG support.
+  (evil-set-initial-state 'org-timeblock-mode 'emacs)
+  (evil-set-initial-state 'org-timeblock-list-mode 'emacs)
+
+  ;; Same hour range for every column so days line up (the default hides past
+  ;; hours per day, giving each column a different start/end).  Integer hours
+  ;; only -- org-timeblock renders on whole-hour lines.
+  (setq org-timeblock-scale-options '(6 . 23))
+
+  (my/define-key
+   (:map global-map :key "C-c b" #'org-timeblock)))
 
 (provide 'my-app-org-agenda)
 
