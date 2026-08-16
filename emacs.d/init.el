@@ -5,7 +5,11 @@
 
 ;;; Code:
 
-(setq debug-on-error t)
+;; Left at the standard nil: Org signals ordinary refusals with `error' -- "the
+;; span is already day", "command not allowed in this line" -- and with this on,
+;; each of them opens a backtrace over the buffer you were reading.  Debugging
+;; wants it, so `M-x toggle-debug-on-error' turns it on for as long as it helps,
+;; and `emacs --debug-init' still covers startup.
 
 ;; Bootstrap straight.el
 (defvar bootstrap-version)

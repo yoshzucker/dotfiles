@@ -154,6 +154,7 @@ main() {
   # ------------------------------------------------------------------
   if [ "$link" -eq 1 ]; then
     setup_links
+    setup_dev_packages
   fi
 
   if [ "$unlink" -eq 1 ]; then
@@ -175,6 +176,7 @@ main() {
     update_r_packages
     install_zsh_plugins
     setup_links
+    setup_dev_packages
 
     show_restart_notice
   fi
@@ -638,6 +640,67 @@ setup_links() {
   print_line "$left_message" "Finished."
 }
 
+setup_dev_packages() {
+  # Packages written here rather than merely used: point straight's clone at
+  # the working tree in ~/Developer, so editing a package and restarting Emacs
+  # is enough to see the change.  Without this the loaded copy is straight's
+  # own clone, and every experiment costs a commit, a push and a pull.
+  #
+  # Skipped silently where the working tree is absent -- a machine that only
+  # uses these packages should let straight clone them as usual.  A clone that
+  # has anything of its own in it is left alone and reported: work done in the
+  # wrong directory is still work, and this is not the place to discover it is
+  # gone.
+  left_message="Linking developed packages"
+  print_line "$left_message" "Started."
+
+  local repos="$HOME/.emacs.d/straight/repos"
+  local build="$HOME/.emacs.d/straight/build"
+  local pkg src dest
+
+  for pkg in \
+      org-foresight \
+      org-calsync \
+      org-dayflow \
+      gensho-theme \
+      rustcity-theme
+  do
+    src="$HOME/Developer/$pkg"
+    dest="$repos/$pkg"
+
+    [ -d "$src" ] || continue
+
+    if [ -L "$dest" ]; then
+      if [ "$(realpath "$dest" 2>/dev/null)" = "$(realpath "$src" 2>/dev/null)" ]; then
+        echo "↔️ Skipping existing correct link: $dest"
+        continue
+      fi
+      echo "🔁 Replacing link: $dest"
+      rm -f "$dest"
+    elif [ -d "$dest" ]; then
+      # straight's own clone.  Safe to drop only when it holds nothing that
+      # is not already elsewhere.
+      if [ -n "$(git -C "$dest" status --porcelain 2>/dev/null)" ]; then
+        echo "⚠️ Skipping $pkg: straight's clone has uncommitted changes"
+        continue
+      fi
+      if [ -n "$(git -C "$dest" log --oneline '@{u}..HEAD' 2>/dev/null)" ]; then
+        echo "⚠️ Skipping $pkg: straight's clone has unpushed commits"
+        continue
+      fi
+      rm -rf "$dest"
+    fi
+
+    ln -s "$src" "$dest"
+    # The build is a copy of whatever was there before; drop it so the next
+    # start rebuilds from the working tree.
+    rm -rf "${build:?}/$pkg"
+    echo "✅ Linked: $dest → $src"
+  done
+
+  print_line "$left_message" "Finished."
+}
+
 # =============================================================================
 # Package Management Utilities
 # =============================================================================
@@ -984,6 +1047,7 @@ perform_full_bootstrap() {
   install_r_packages
   install_zsh_plugins
   setup_links
+  setup_dev_packages
   install_claude_plugins
 
   print_line "$left_message" "Finished."

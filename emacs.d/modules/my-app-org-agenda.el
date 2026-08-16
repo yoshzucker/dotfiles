@@ -74,7 +74,7 @@
         org-agenda-persistent-marks nil
         org-agenda-span 'day
         org-agenda-start-on-weekday 0
-        org-agenda-start-with-log-mode '(state)
+        org-agenda-start-with-log-mode nil
         org-agenda-start-with-clockreport-mode nil
         org-agenda-start-with-entry-text-mode nil
         org-agenda-start-with-follow-mode nil
@@ -98,20 +98,29 @@
         org-agenda-columns-add-appointments-to-effort-sum t
         org-agenda-block-separator 62
         org-agenda-compact-blocks t
-        org-agenda-prefix-format '((agenda . "  %-8.8c%?-12t% s%?-5e")
+        ;; Five leading spaces on the daily agenda, not two.  One is the
+        ;; margin every block's body starts at -- the frame edge belongs to
+        ;; the badges -- and the listing is a body like any other.  The rest
+        ;; is the gutter: two brackets, the blank between them, and the usual
+        ;; gap before the text.  Every column org-foresight counts is read off
+        ;; the rows themselves, so widening this moves the marks with it.
+        org-agenda-prefix-format '((agenda . "     %-8.8c%?-12t% s%?-5e")
                                    (timeline . "  % s")
                                    (todo . "  %-8c %-7e")
                                    (tags . "  %i %-5c %-7e")
                                    (search . " %i %-12c"))
         org-agenda-timegrid-use-ampm nil
-        ;; The agenda `v' log menu now reads as three meaningful levels:
-        ;;   default (`org-agenda-start-with-log-mode' below) . state changes only
-        ;;   v l  (Log)      . closed + state          (this variable)
-        ;;   v L  (Log all)  . + clock                 (all item types)
+        ;; The agenda opens with no log at all, and `v' asks for it in three
+        ;; levels:
+        ;;   v l  (Log)         . closed + state       (this variable)
+        ;;   v L  (Log all)     . + clock              (all item types)
         ;;   v c  (Clock check) . clock + consistency audit (gaps/overlaps/…)
         ;; `clock' is deliberately dropped from `l' so time-tracking detail lives
-        ;; in the end-of-agenda viz tables and `L'.  Add it back (e.g. '(state
-        ;; clock)) to taste.
+        ;; in the end-of-agenda viz tables and `L'.
+        ;;
+        ;; Note that `v l' toggles while `v L' assigns: pressing `L' twice leaves
+        ;; the log on, and `l' is what turns it back off.  That is org's own
+        ;; `org-agenda-log-mode', not a local choice.
         org-agenda-log-mode-items '(closed state)
         org-clock-report-include-clocking-task t
         ;; The daily agenda's own "time by area" view is now rendered by the
@@ -165,40 +174,14 @@ org's existing key table stays the single source of truth."
   (advice-add 'org-agenda-view-mode-dispatch :around
               #'my/org-agenda-view-mode-dispatch-breadcrumbs)
 
-  ;; Custom agenda commands
+  ;; Custom agenda commands.  Two, and they ask different questions of
+  ;; different periods: today, and the week just gone.  A third used to draw
+  ;; today's agenda again with a different block underneath, and was never
+  ;; opened -- a view whose top half is identical to another is not a place,
+  ;; it is a toggle.  What it had to say now lives on the board, which is not
+  ;; an agenda view at all (`C-c a b').
   (setq org-agenda-custom-commands
-        '(("p" "Plan for current day"
-           ;; An ordinary agenda block, because the day being rearranged has to
-           ;; be the real day: org-foresight adds journeys, gaps and the edges
-           ;; of the working span to it, and everything else the agenda knows
-           ;; -- logs, habits, tags, blocked dimming -- comes along for free.
-           ;; The `plan' style adds underneath the two questions the day cannot
-           ;; answer from inside itself: when this could be taken on instead,
-           ;; and what has not been asked about at all.
-           ((agenda "" ((org-agenda-span 1)
-                        (org-agenda-start-day "+0d")
-                        (org-agenda-start-on-weekday nil))))
-           ((org-foresight-report-style 'plan)))
-          ("b" "Before leaving · 席を立つ前"
-           ;; One-glance "is anything left undone?" before stepping away.  When
-           ;; calendar/meeting events are present in `org-agenda-files', the first
-           ;; block shows work + private together (both worlds).
-           ((agenda "" ((org-agenda-overriding-header "Today + tomorrow · 予定/締切(両世界)")
-                        (org-agenda-span 2)
-                        (org-agenda-start-day "+0d")
-                        (org-agenda-start-on-weekday nil)
-                        (org-agenda-start-with-log-mode nil))) ; forward-looking, not a log
-            (todo "NEXT" ((org-agenda-overriding-header "Unscheduled NEXT · 未スケジュール(取りこぼし)")
-                          (org-agenda-todo-ignore-with-date t))) ; only undated, i.e. stuck
-            (todo "WAIT" ((org-agenda-overriding-header "WAIT · 他者待ち(要ナッジ?)")))
-            ;; DELEG is a done-type keyword ("|" ... DELEG); an explicit keyword
-            ;; match still lists it, so delegated work stays visible for follow-up.
-            (todo "DELEG" ((org-agenda-overriding-header "DELEG · 委譲済み(要フォロー?)"))))
-           ;; A status check, not a time-tracking review: suppress the finalize
-           ;; time-viz tables and keep per-block headers visible.
-           ((org-foresight-report-style nil)
-            (org-agenda-compact-blocks nil)))
-          ("r" "Weekly review — past 7 days"
+        '(("r" "Weekly review — past 7 days"
            ((agenda "" ((org-agenda-overriding-header "Clock check · past week")
                         (org-agenda-span 'week)
                         (org-agenda-start-day "-1w")
@@ -216,22 +199,30 @@ org's existing key table stays the single source of truth."
            ;; so each block's orientation header is shown in the review.
            ((org-foresight-report-style 'review)
             (org-agenda-compact-blocks nil)))
-          ("d" "Delegation board · 委譲・待ち板"
-           ;; Everything out with someone: WAIT (I'm blocked on them) + DELEG
-           ;; (I handed it off).  DELEG is a done-type keyword so the `tags'
-           ;; type is used (it lists done entries, unlike `todo'); sorted by
-           ;; SCHEDULED (the follow-up date) so overdue check-ins float to the top.
-           ((tags "TODO=\"WAIT\"|TODO=\"DELEG\""
-                  ((org-agenda-overriding-header "委譲・他者待ち — 人別 (DELEGATED_TO)")
+          ("b" "Board · 決まっていないもの" my/org-foresight-board "")
+          ("d" "People board · 人が絡む仕事"
+           ;; Everything a person is part of, whichever way round: WAIT and
+           ;; DELEG are with them, anything else with a `:PEOPLE:' needs them.
+           ;; One property says who, and the state says which -- so this is one
+           ;; list, not two that would have to be read together.
+           ;;
+           ;; DELEG is a done-type keyword, so the `tags' type is used (it lists
+           ;; done entries, unlike `todo'); sorted by SCHEDULED (the follow-up
+           ;; date) so overdue check-ins float to the top.
+           ((tags "TODO=\"WAIT\"|TODO=\"DELEG\"|PEOPLE={.}"
+                  ((org-agenda-overriding-header "人が絡む仕事 — 待ち・委譲・要同席 (PEOPLE)")
                    (org-agenda-sorting-strategy '(scheduled-up priority-down)))))
            ((org-foresight-report-style nil)))))
 
-  (defun my/org-agenda-before-leaving ()
-    "Open the pre-departure check (the \"b\" custom command).
-Shows today+tomorrow across both worlds plus stuck NEXT / WAIT / DELEG, so
-\"is anything left undone?\" is answered in one keystroke before stepping away."
+  (defun my/org-foresight-board (&optional _match)
+    "Open org-foresight's board from the agenda dispatcher.
+
+Takes and ignores the match string every dispatcher function is handed.
+`C-c a b\' kept its key through the rewrite on purpose: the question at the
+door has not changed, only the answer -- what only being here can settle,
+and what has not been planned for at all."
     (interactive)
-    (org-agenda nil "b"))
+    (org-foresight-board))
 
   (defun my/org-roam-person-names ()
     "Titles of all `:person:'-tagged org-roam nodes.
@@ -251,25 +242,31 @@ the prompt, so delegating to someone without a person node also works."
   (defun my/org-delegate-on-state-change ()
     "When a task enters the DELEG state, capture the delegation metadata.
 Runs from `org-after-todo-state-change-hook': prompts for who the task went to
-and a follow-up (check-in) date, then records the `:DELEGATED_TO:' property and
+and a follow-up (check-in) date, then records the `:PEOPLE:' property and
 SCHEDULEs the follow-up -- so the entry shows up, grouped by person, in the
-\"d\" Delegation board.  The existing DELEG(e@) note still records why.
+\"d\" people board.  The existing DELEG(e@) note still records why.
+
+`:PEOPLE:' rather than a property named for delegation: the same word names
+whoever a piece of work involves, and the state says which way round it is --
+WAIT and DELEG are with them, a NEXT with `:PEOPLE:' needs them.  One word
+means the person's own note can show both in one block.  It is written as a
+multi-valued property, so a name with a space in it survives.
 
 The \"Delegate to\" prompt completes over `:person:' node titles (so names stay
-consistent with those nodes, which keeps the per-person `delegated' block
-matching) but accepts free text too -- delegation is not limited to reports.
-`:DELEGATED_TO:' defaults to any current value, so re-entering DELEG never
-loses it.  The follow-up SCHEDULE is set with logging suppressed so it does not
-interleave with the pending state-change note.  No-op when non-interactive, so
-scripted state changes (and capture, which inserts DELEG text without a state
-change) are unaffected."
+consistent with those nodes, which keeps the per-person block matching) but
+accepts free text too -- delegation is not limited to reports.  The follow-up
+SCHEDULE is set with logging suppressed so it does not interleave with the
+pending state-change note.  No-op when non-interactive, so scripted state
+changes (and capture, which inserts DELEG text without a state change) are
+unaffected."
     (when (and (equal org-state "DELEG") (not noninteractive))
       (let ((who (completing-read "Delegate to: " (my/org-roam-person-names)
                                   nil nil nil nil
-                                  (org-entry-get nil "DELEGATED_TO")))
+                                  (car (org-entry-get-multivalued-property
+                                        nil "PEOPLE"))))
             (followup (org-read-date nil nil nil "Follow-up date")))
         (unless (string-empty-p who)
-          (org-set-property "DELEGATED_TO" who))
+          (org-entry-put-multivalued-property nil "PEOPLE" who))
         (when (and followup (not (string-empty-p followup)))
           (let ((org-log-reschedule nil))
             (org-schedule nil followup))))))
@@ -306,15 +303,51 @@ change) are unaffected."
 
 ;;;; org-foresight -- the forward-looking half of the day
 
+;;;; The one capture org-foresight depends on
+;; It lives here rather than with the other templates because the setting that
+;; reads it lives here: `:SURGE:' marks work as having arrived rather than been
+;; planned, and its value is when it arrived -- which is what decides when it
+;; stops counting as unplanned.  A date of its own on any later day means the
+;; work has been taken in hand, and from then it is ordinary promised work.
+;;
+;; The state line is written by hand because capture inserts the heading rather
+;; than calling `org-todo', so no state change fires and nothing would record
+;; when the task began.  The "a" and "e" templates do the same.
+;;
+;; `:clock-resume' is the whole difference from "s": an interruption is
+;; recorded and then you go back to what you were doing, where a switch leaves
+;; you on the new thing.
+
+(use-package org-capture
+  :straight nil
+  ;; `:defer t' rather than `:after': with nothing to defer on, `:after'
+  ;; expands to a bare `require', which would pull org in ahead of evil and
+  ;; break the order this whole file is arranged around.  Deferred, the only
+  ;; thing emitted is an `eval-after-load' -- the template is appended when
+  ;; capture is first used, by which time `org-capture-templates' has been set
+  ;; in org's own `:config'.
+  :defer t
+  :config
+  (add-to-list
+   'org-capture-templates
+   `("i" "interrupt task" entry (file+datetree my/org-journal-file)
+     ,(concat "* ONGO %?\n"
+              ":PROPERTIES:\n:SURGE: %U\n:END:\n"
+              ":LOGBOOK:\n- State \"ONGO\"       from              %U\n:END:")
+     :clock-in t :clock-resume t)
+   t))
+
 (use-package org-foresight
   :straight (org-foresight :host github :repo "yoshzucker/org-foresight"
                            :files ("*.el"))
   :after org-agenda
   :config
-  (setq org-foresight-awake         '("06:50" . "22:00")
-        org-foresight-workday-start "08:15"
-        org-foresight-workday-end   "17:45"
-        org-foresight-workdays      '(1 2 3 4 5))
+  ;; The hours being defended, not the hours actually worked.  A list, so a
+  ;; day that breaks can say so: add an interval and the gap stops being
+  ;; capacity, stops being offered, and stops being planned through.
+  (setq org-foresight-awake    '("06:50" . "22:00")
+        org-foresight-work     '(("08:15" . "17:45"))
+        org-foresight-workdays '(1 2 3 4 5))
 
   ;; This machine's desktop, in the names macOS actually reports for a
   ;; Japanese locale.  Shared across the dotfiles, so it describes the personal
@@ -350,13 +383,33 @@ change) are unaffected."
   (setq org-foresight-surge-default "1:00"
         org-foresight-surge-window  20)
 
+  ;; Which days are worked from the office.  Left empty until the pattern is
+  ;; steady: an unlisted day is worked from `org-foresight-home-place', and a
+  ;; day that goes differently says so on its own heading with
+  ;; \[org-foresight-shape-day].  What this buys is the question at the door --
+  ;; work that needs the office is not late until the next office day has gone,
+  ;; and until the day has a place there is no way to ask when that is.
+  (setq org-foresight-day-places nil)
+
+  ;; The two ends of the day, booked because they happen.  Ten minutes at the
+  ;; desk on arrival to see what the day is, and ten before leaving it to see
+  ;; what only being here can settle -- the second is what `C-c a b' was made
+  ;; for, and until it had time of its own it was taken out of whatever came
+  ;; last.  The keys are resolved when the row is drawn, so they keep naming
+  ;; the right ones; `C-c a a' is a custom agenda command and has no binding
+  ;; to resolve, so it is written out.
+  (setq org-foresight-check-in
+        '(:minutes 10 :title "look at the day (C-c a a)")
+        org-foresight-check-out
+        '(:minutes 10 :title "before you leave (\\[org-foresight-board])"))
+
   ;; Both mean "out with someone else", so a SCHEDULED date on them is a
   ;; check-in rather than a start.  DELEG is a done-type keyword here, which
   ;; keeps it off the daily agenda -- exactly why it needs a signal of its own.
   (setq org-foresight-followup-keywords '("WAIT" "DELEG"))
 
   ;; Only the imported work calendar implies preparation; the club one does not.
-  (setq org-foresight-meeting-categories '("outlook")
+  (setq org-foresight-meeting-categories '("meeting")
         org-foresight-meeting-prep   "0:30"
         org-foresight-meeting-follow "0:15")
 
@@ -385,10 +438,19 @@ change) are unaffected."
   (my/define-key
    (:map org-agenda-mode-map
          :key
+         ;; The board, from inside the day.  Bound as well as reachable through
+         ;; `C-c a b' so the verdict line can name a key rather than an M-x:
+         ;; `substitute-command-keys' resolves what is bound, and a dispatcher
+         ;; entry is not.
+         "B" #'org-foresight-board
          "P" #'org-foresight-plan-fill
          ;; Whether a meeting needs all of the hour or will share it is
          ;; decided while looking at the day, so it is set from here.
-         "A" #'org-foresight-set-attention))
+         "A" #'org-foresight-set-attention
+         ;; "That landed on me" is realised while looking at the day too --
+         ;; usually about something already in the file, which the interrupt
+         ;; capture never saw.
+         "S" #'org-foresight-mark-surge))
 
   (add-hook 'org-agenda-finalize-hook #'org-foresight-report-render t))
 

@@ -511,11 +511,14 @@ called with C-u (prefix 64)."
   (setq org-capture-templates
         `(("a" "add task" entry (file+datetree my/org-journal-file)
            "* NEXT %?\nSCHEDULED: %^t\n:LOGBOOK:\n- State \"NEXT\"       from              %U\n:END:")
-          ("i" "interrupt task" entry (file+datetree my/org-journal-file)
-           "* ONGO %?\n"
-           :clock-in t :clock-resume t)
+          ;; "i" (interrupt) lives in my-app-org-agenda.el: it is the one
+          ;; capture org-foresight depends on, and it belongs beside the
+          ;; setting that reads it.
           ("s" "switch task" entry (file+datetree my/org-journal-file)
-           "* ONGO %?\n"
+           ;; Capture writes the heading rather than calling `org-todo', so
+           ;; no state change fires and nothing logs when the task began.
+           ;; Written by hand, as the "a" and "e" templates do.
+           "* ONGO %?\n:LOGBOOK:\n- State \"ONGO\"       from              %U\n:END:"
            :clock-in t :clock-keep t :jump-to-captured t)
           ("p" "appointment" entry (file+datetree my/org-journal-file)
            "* %? %^T\n"
@@ -532,12 +535,12 @@ called with C-u (prefix 64)."
            "* DONE %?\nCLOSED: %U\n:LOGBOOK:\nCLOCK: %U--%U =>  0:00\n:END:")
           ;; Delegation: capture a brand-new task already handed off.  DELEG is a
           ;; done-type keyword, so it stays off the daily agenda; the "d" custom
-          ;; command ("Delegation board") surfaces it, grouped by :DELEGATED_TO:.
+          ;; command (the people board) surfaces it, grouped by :PEOPLE:.
           ;; SCHEDULED is the follow-up/check-in date.  For a task you are already
           ;; looking at, just change its state to DELEG -- the hook
           ;; `my/org-delegate-on-state-change' prompts for the same metadata.
           ("e" "delegate task" entry (file+datetree my/org-journal-file)
-           "* DELEG %?\nSCHEDULED: %^t\n:PROPERTIES:\n:DELEGATED_TO: %^{Delegate to}\n:END:\n:LOGBOOK:\n- State \"DELEG\"      from              %U\n:END:")
+           "* DELEG %?\nSCHEDULED: %^t\n:PROPERTIES:\n:PEOPLE: %^{Delegate to}\n:END:\n:LOGBOOK:\n- State \"DELEG\"      from              %U\n:END:")
           ;; Note onto the task being clocked.  The `clock' target leaves
           ;; `:target-entry-p' at its default t, so the item joins the note list
           ;; in that entry's own body and never reaches into its children.
@@ -847,25 +850,42 @@ without replacing it."
 
   ;; People/delegation management via generic Org mechanisms (a custom dynamic
   ;; block + capture templates + tags), not bespoke commands.
-  (defun org-dblock-write:delegated (params)
-    "Dynamic block listing WAIT/DELEG tasks whose `:DELEGATED_TO:' is :who.
-Unlike the built-in `org-ql' dynamic block (current-buffer only), this searches
-`org-agenda-files', so a `person' node can show everything currently out with
-that person.  Header: `#+BEGIN: delegated :who \"名前\"'.  Refresh with C-c C-c
-on the block or `org-update-all-dblocks'."
+  (defun org-dblock-write:people (params)
+    "Dynamic block listing everything :who is part of, whichever way round.
+
+`:PEOPLE:' names who a piece of work involves and the TODO state says the
+relation: WAIT and DELEG are with them, anything else needs them.  So one
+block answers both halves of a person -- what they owe and what they are
+holding up -- where two blocks would have had to be read together.
+
+Unlike the built-in `org-ql' dynamic block (current-buffer only), this
+searches `org-agenda-files', so a `person' node shows everything anywhere.
+Header: `#+BEGIN: people :who \"名前\"'.  Refresh with C-c C-c on the block or
+`org-update-all-dblocks'."
     (require 'org-ql)
     (let* ((who (or (plist-get params :who) ""))
-           (items (ignore-errors
-                    (org-ql-select (org-agenda-files)
-                      `(and (todo "WAIT" "DELEG") (property "DELEGATED_TO" ,who))
-                      :sort 'scheduled
-                      :action (lambda ()
-                                (format "- %s %s%s"
-                                        (org-get-todo-state)
-                                        (org-get-heading t t t t)
-                                        (let ((s (org-entry-get nil "SCHEDULED")))
-                                          (if s (format "  %s" s) ""))))))))
-      (insert (if items (string-join items "\n") "- (none)"))))
+           (render
+            (lambda (query)
+              (ignore-errors
+                (org-ql-select (org-agenda-files) query
+                  :sort 'scheduled
+                  :action (lambda ()
+                            (format "- %s %s%s"
+                                    (org-get-todo-state)
+                                    (org-get-heading t t t t)
+                                    (let ((s (org-entry-get nil "SCHEDULED")))
+                                      (if s (format "  %s" s) ""))))))))
+           (with-them (funcall render
+                               `(and (todo "WAIT" "DELEG")
+                                     (property "PEOPLE" ,who))))
+           (needs-them (funcall render
+                                `(and (not (todo "WAIT" "DELEG"))
+                                      (not (done))
+                                      (property "PEOPLE" ,who)))))
+      (insert "With them:\n"
+              (if with-them (string-join with-them "\n") "- (none)")
+              "\n\nNeeds them:\n"
+              (if needs-them (string-join needs-them "\n") "- (none)"))))
 
   (defun my/org-roam-node-log-target (&optional filter prompt)
     "Capture target: the `my/org-log-heading' subtree of a node read from PROMPT.
@@ -913,9 +933,8 @@ block already shows what is out with them, as a live query."
   ;; `#+filetags:' line behind.  Tags are added later, once a note has enough
   ;; shape to deserve one, with `org-roam-tag-add' (C-c n t).
   ;;
-  ;; Of what the person template lays out, only the `delegated' block is
-  ;; person-specific -- it queries :DELEGATED_TO:, and you cannot hand work to
-  ;; something that is not an agent.  Role/Since, Objectives and the log heading
+  ;; Of what the person template lays out, only the `people' block is
+  ;; person-specific -- it queries :PEOPLE:, and only an agent can be one.  Role/Since, Objectives and the log heading
   ;; are generic, and `:person:' is just the label the candidate filter reads.
   ;; Another category of node (a place, a system) needs no new machinery: create
   ;; it with [d] and append to it with "g".
@@ -927,7 +946,7 @@ block already shows what is out with them, as a live query."
           ("p" "person / 部下" plain "%?"
            :target (file+head
                     "%<%Y-%m-%d-%H-%M-%S>-${slug}.org"
-                    ,(concat "#+title: ${title}\n#+filetags: :person:\n\n- Role ::\n- Since ::\n\n* Objectives / 期待\n\n* Delegated / Waiting\n#+BEGIN: delegated :who \"${title}\"\n#+END:\n\n* " my/org-log-heading "\n"))
+                    ,(concat "#+title: ${title}\n#+filetags: :person:\n\n- Role ::\n- Since ::\n\n* Objectives / 期待\n\n* Together\n#+BEGIN: people :who \"${title}\"\n#+END:\n\n* " my/org-log-heading "\n"))
            :unnarrowed t)))
 
   ;; Daily notes live under daily/ but share the single central attachment store
@@ -1179,12 +1198,15 @@ block already shows what is out with them, as a live query."
 (use-package org-dayflow
   :straight (:host github :repo "yoshzucker/org-dayflow")
   :after (org evil)
-  :load-path "site-lisp/org-dayflow"
   :config
   ;; Personal category coloring for the timeline.  Category names live ONLY here
   ;; (never in the org-dayflow package); adjust to match your calendar sources.
+  ;; These are the categories org-calsync writes: what a thing is, never where
+  ;; it was read from.
   (setq org-dayflow-category-faces
-        '(("outlook" . font-lock-keyword-face)))
+        '(("meeting"  . font-lock-keyword-face)
+          ("family"   . font-lock-string-face)
+          ("personal" . font-lock-doc-face)))
   (dolist (key '("z" "g" "/" "n" "N" ":"))
     (define-key org-dayflow-mode-map (kbd key)
                 (lookup-key evil-motion-state-map (kbd key))))
