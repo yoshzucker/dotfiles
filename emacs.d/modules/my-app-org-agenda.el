@@ -205,8 +205,8 @@ org's existing key table stays the single source of truth."
           ;; `C-c a b' kept its key through the rewrite on purpose: the
           ;; question at the door has not changed, only the answer -- what only
           ;; being here can settle, and what has not been planned for at all.
-          ("b" "Board · 決まっていないもの" org-foresight-board "")
-          ("d" "People board · 人が絡む仕事"
+          ("b" "Board — what has not been settled" org-foresight-board "")
+          ("d" "People — work with someone in it"
            ;; Everything a person is part of, whichever way round: WAIT and
            ;; DELEG are with them, anything else with a `:PEOPLE:' needs them.
            ;; One property says who, and the state says which -- so this is one
