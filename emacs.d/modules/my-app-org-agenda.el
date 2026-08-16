@@ -335,10 +335,12 @@ org's existing key table stays the single source of truth."
         org-foresight-check-out
         '(:minutes 10 :title "before you leave (\\[org-foresight-board])"))
 
-  ;; Both mean "out with someone else", so a SCHEDULED date on them is a
-  ;; check-in rather than a start.  DELEG is a done-type keyword here, which
-  ;; keeps it off the daily agenda -- exactly why it needs a signal of its own.
-  (setq org-foresight-followup-keywords '("WAIT" "DELEG"))
+  ;; WAIT means somebody else has it *and it comes back to me*, so a SCHEDULED
+  ;; date on one is a check-in rather than a start, and one that has gone by
+  ;; is a thing to chase.  DELEG is not on the list: it means the work left my
+  ;; hands for good, and chasing it would be chasing something that is not
+  ;; mine (see `org-todo-keywords' in my-app-org.el for the axis).
+  (setq org-foresight-followup-keywords '("WAIT"))
 
   ;; Only the imported work calendar implies preparation; the club one does not.
   (setq org-foresight-meeting-categories '("meeting")
@@ -359,10 +361,12 @@ org's existing key table stays the single source of truth."
   ;; listing non-problems stops being read.
   (setq org-foresight-undecided-enabled nil)
 
-  ;; CANCEL and DELEG are done here without the work having been done: one was
-  ;; dropped, the other went to somebody else, and neither clock measures the
-  ;; estimate it was given.  Left in, an hour's job abandoned after ten minutes
-  ;; is read as evidence that hours take minutes.
+  ;; Neither of these closes with a clock that measures the estimate it was
+  ;; given.  CANCEL is the obvious one: an hour's job dropped after ten minutes
+  ;; would be read as evidence that hours take minutes.  DELEG is the subtler
+  ;; one -- its clock is the time *I* spent handing the work over, the mails
+  ;; and the briefing, while its EFFORT was an estimate of the whole job.  The
+  ;; two are about different work, so comparing them teaches nothing true.
   (setq org-foresight-bias-enabled t
         org-foresight-bias-abandoned-keywords '("CANCEL" "DELEG")
         org-foresight-report-style 'daily)
