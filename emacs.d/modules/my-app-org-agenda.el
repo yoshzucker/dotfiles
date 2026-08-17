@@ -281,19 +281,6 @@ org's existing key table stays the single source of truth."
         org-foresight-work     '(("08:15" . "17:45"))
         org-foresight-workdays '(1 2 3 4 5))
 
-  ;; This machine's desktop, in the names macOS actually reports for a
-  ;; Japanese locale.  Shared across the dotfiles, so it describes the personal
-  ;; machine; the work machine's own list belongs in its `custom-file', which
-  ;; is not committed.  What matters beyond the Observed table is that surge
-  ;; learning counts only work and comms as displaced work.
-  (setq org-foresight-app-categories
-        '(("work" . ("Emacs" "Ghostty" "Terminal" "iTerm2" "Code" "Xcode"
-                     "プレビュー" "Preview" "Claude" "Grok" "ActivityWatch"))
-          ("comms" . ("メール" "Mail" "カレンダー" "Calendar" "Slack"
-                      "メッセージ" "Messages" "Zoom"))
-          ("distraction" . ("Safari" "Chrome" "Firefox" "YouTube" "X"
-                            "Twitter" "Discord"))))
-
   ;; Every imported meeting carries a Teams link, so a LOCATION alone cannot
   ;; say where the body has to be.  Only these say it; anything else leaves me
   ;; where I already was.
@@ -305,7 +292,12 @@ org's existing key table stays the single source of truth."
                                       ((office . client) . 45))
         org-foresight-travel-default 45)
 
-  (setq org-foresight-private-categories '("family" "personal")
+  ;; Life, in the three calendars it arrives from.  These occupy the day and
+  ;; are subtracted from what may still be promised, but they are never
+  ;; counted as work: an hour at the dentist inside working hours is an hour
+  ;; the day cannot spend, not an hour of work that got done.  Nor are they
+  ;; ever offered as the thing to move when the day is overfull.
+  (setq org-foresight-private-categories '("family" "personal" "event")
         ;; The child's club calendar says when the house is empty and takes
         ;; none of my time.  A meeting I only have to hear does cost the hour,
         ;; but that is per entry (:ATTENTION: background), not per category.
@@ -380,6 +372,12 @@ org's existing key table stays the single source of truth."
          ;; entry is not.
          "B" #'org-foresight-board
          "P" #'org-foresight-plan-fill
+         ;; The shape of the day under the cursor, which is why it is bound
+         ;; here rather than left to `M-x': the day that goes differently is
+         ;; almost never today, and declaring it is only useful while looking
+         ;; at the week it sits in.  Over `org-agenda-toggle-diary', which
+         ;; nothing here uses.
+         "D" #'org-foresight-shape-day
          ;; Whether a meeting needs all of the hour or will share it is
          ;; decided while looking at the day, so it is set from here.
          "A" #'org-foresight-set-attention
@@ -402,8 +400,16 @@ org's existing key table stays the single source of truth."
   ;; These are the categories org-calsync writes: what a thing is, never where
   ;; it was read from.
   (setq org-dayflow-category-faces
-        '(("meeting"  . font-lock-keyword-face)
+        '(;; The two shapes work arrives in: named, from the work calendar on
+          ;; the machine that has it, and nameless, from the busy export.  One
+          ;; colour, because on a timeline they are the same hour.
+          ("meeting"  . font-lock-keyword-face)
+          ("work"     . font-lock-keyword-face)
           ("family"   . font-lock-string-face)
+          ;; Household fixtures with a name of their own -- a recital, a match.
+          ;; The same colour as `family', because on the timeline they are the
+          ;; same thing: the house doing something rather than me.
+          ("event"    . font-lock-string-face)
           ("personal" . font-lock-doc-face)))
   (dolist (key '("z" "g" "/" "n" "N" ":"))
     (define-key org-dayflow-mode-map (kbd key)
