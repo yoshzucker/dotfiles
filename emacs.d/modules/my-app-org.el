@@ -503,9 +503,20 @@ creates is the empty frame for them, not a suggestion of what to put in it."
   
   (advice-add 'org-archive-subtree :around #'my/org-archive-subtree-low-level)
 
-  ;; Property 
+  ;; Property
+  ;;
+  ;; `PLACE' is read from a day's own heading and, rarely, from a single entry
+  ;; whose LOCATION does not say where the body has to be.  Both are typed
+  ;; with `C-c C-x p', and a place is a closed set of names rather than free
+  ;; text -- a misspelt one is not an error anywhere, it just quietly stops
+  ;; producing a commute.  Global rather than a `#+PROPERTY:' line, so it also
+  ;; holds in calendar.org, which org-calsync rewrites.  The names themselves
+  ;; are `org-foresight-places' in my-app-org-agenda.el; kept here because
+  ;; this is the one setq that owns allowed values, and splitting it is how
+  ;; the later half gets silently dropped.
   (setq org-global-properties
         '(("EFFORT_ALL"       . "0:00 0:02 0:05 0:10 0:15 0:30 0:45 1:00 1:30 2:00")
+          ("PLACE_ALL"        . "home office client")
           ("STYLE_ALL"        . "habit")
           ("COOKIE_DATA_ALL"  . "recursive")))
   

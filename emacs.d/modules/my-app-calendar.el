@@ -58,14 +58,23 @@
      ;; and Siri's guesses, and an agenda that shows tomorrow's forecast beside
      ;; tomorrow's meetings is one that stops being read.
      ;;
-     ;; `busy' is the working week arriving the long way round: exported on the
-     ;; company machine, subscribed to here, and a meeting like any other as
-     ;; far as the day is concerned.
+     ;; `Work' is the working week arriving the long way round: exported from
+     ;; the company machine as busy.ics -- times and the word 予定あり, nothing
+     ;; else -- mailed out, and subscribed to here.  It is `work' and not
+     ;; `meeting' because that is all that survives the crossing: an hour that
+     ;; is taken, at work.  Calling it a meeting would be a claim about
+     ;; something the file deliberately does not contain, and one this machine
+     ;; would then act on -- the board would ask for preparation for a block
+     ;; with no subject, which can only be prepared for where the subject is.
+     ;;
+     ;; The name is the only thing that crosses, so it carries the meaning: an
+     ;; ics `CATEGORIES:' line does not survive Calendar.app, whose event
+     ;; objects have no such field for the reader to ask for.
      (setq org-calsync-macos-calendars
            '(("Personal" . "personal")
              ("Family"   . "family")
              ("Event"    . "event")
-             ("busy"     . "meeting"))
+             ("Work"     . "work"))
            org-calsync-macos-days 60)))
 
   ;; Keep the feature self-contained: rather than hard-coding calendar.org into
