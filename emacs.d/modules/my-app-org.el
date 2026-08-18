@@ -516,8 +516,8 @@ creates is the empty frame for them, not a suggestion of what to put in it."
   ;; the later half gets silently dropped.
   (setq org-global-properties
         '(("EFFORT_ALL"       . "0:00 0:02 0:05 0:10 0:15 0:30 0:45 1:00 1:30 2:00")
-          ("PLACE_ALL"        . "home office client")
-          ("STYLE_ALL"        . "habit")
+          ("PLACE_ALL"        . "home gym office client")
+          ("STYLE_ALL"        . "habit personal")
           ("COOKIE_DATA_ALL"  . "recursive")))
   
   (setq org-use-property-inheritance nil)

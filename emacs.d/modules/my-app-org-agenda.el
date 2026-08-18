@@ -107,7 +107,15 @@
         ;; is the gutter: two brackets, the blank between them, and the usual
         ;; gap before the text.  Every column org-foresight counts is read off
         ;; the rows themselves, so widening this moves the marks with it.
-        org-agenda-prefix-format '((agenda . "     %-8.8c%?-12t% s%?-5e")
+        ;;
+        ;; Effort before the leader, not after it.  An estimate is a number
+        ;; read down a column and compared with the ones above it, and behind
+        ;; `% s' it moves with whatever word that row needed -- `Scheduled: ',
+        ;; `Deadline:  ', `Sched.3x: ', or nothing at all.  In front of it the
+        ;; estimate sits at one column on every row that carries a clock, and
+        ;; it is the leader that wanders, which costs nothing: nobody lines up
+        ;; words.
+        org-agenda-prefix-format '((agenda . "     %-8.8c%?-12t%?-5e% s")
                                    (timeline . "  % s")
                                    (todo . "  %-8c %-7e")
                                    (tags . "  %i %-5c %-7e")
@@ -278,7 +286,7 @@ org's existing key table stays the single source of truth."
   ;; day that breaks can say so: add an interval and the gap stops being
   ;; capacity, stops being offered, and stops being planned through.
   (setq org-foresight-awake    '("06:50" . "22:00")
-        org-foresight-work     '(("08:15" . "17:45"))
+        org-foresight-work     '(("08:15" . "12:15") ("13:30" . "17:15"))
         org-foresight-workdays '(1 2 3 4 5))
 
   ;; Every imported meeting carries a Teams link, so a LOCATION alone cannot
@@ -287,10 +295,12 @@ org's existing key table stays the single source of truth."
   (setq org-foresight-places '((office . "本社\\|会議室\\|オフィス")
                                (client . "様\\|訪問\\|先方"))
         org-foresight-home-place 'home
-        org-foresight-travel-matrix '(((home . office) . 60)
+        org-foresight-travel-matrix '(((home . gym) . 15)
+                                      ((home . office) . 75)
                                       ((home . client) . 75)
-                                      ((office . client) . 45))
-        org-foresight-travel-default 45)
+                                      ((gym . office) . 55)
+                                      ((office . client) . 60))
+        org-foresight-travel-default 60)
 
   ;; Life, in the three calendars it arrives from.  These occupy the day and
   ;; are subtracted from what may still be promised, but they are never
