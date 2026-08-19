@@ -123,16 +123,23 @@
         org-agenda-timegrid-use-ampm nil
         ;; The agenda opens with no log at all, and `v' asks for it in three
         ;; levels:
-        ;;   v l  (Log)         . closed + state       (this variable)
-        ;;   v L  (Log all)     . + clock              (all item types)
+        ;;   v l  (Log)         . closed                (this variable)
+        ;;   v L  (Log all)     . + state + clock       (all item types)
         ;;   v c  (Clock check) . clock + consistency audit (gaps/overlaps/…)
         ;; `clock' is deliberately dropped from `l' so time-tracking detail lives
         ;; in the end-of-agenda viz tables and `L'.
         ;;
+        ;; And `state' with it.  The forward view now says what is *left* of the
+        ;; day -- a gap that has gone offers nothing -- which leaves the morning
+        ;; a blank and raises the only question worth asking about it: what came
+        ;; of it.  `closed' answers that in one line per finished thing.  State
+        ;; changes answer a different question, at three lines to the same fact,
+        ;; and `L' still has them.
+        ;;
         ;; Note that `v l' toggles while `v L' assigns: pressing `L' twice leaves
         ;; the log on, and `l' is what turns it back off.  That is org's own
         ;; `org-agenda-log-mode', not a local choice.
-        org-agenda-log-mode-items '(closed state)
+        org-agenda-log-mode-items '(closed)
         org-clock-report-include-clocking-task t
         ;; The daily agenda's own "time by area" view is now rendered by the
         ;; custom CATEGORY block (`org-foresight-report-clocked'), so the
@@ -292,8 +299,18 @@ org's existing key table stays the single source of truth."
   ;; Every imported meeting carries a Teams link, so a LOCATION alone cannot
   ;; say where the body has to be.  Only these say it; anything else leaves me
   ;; where I already was.
+  ;; Nothing can be worked from a pool, so the day does not wait in one: what
+  ;; took me there ends and I set off, and the hours that frees land somewhere
+  ;; they are worth something -- at the office rather than in a changing room.
+  (setq org-foresight-unworkable-places '(gym))
+
   (setq org-foresight-places '((office . "本社\\|会議室\\|オフィス")
-                               (client . "様\\|訪問\\|先方"))
+                               (client . "様\\|訪問\\|先方")
+                               ;; Both scripts: the match ignores case, so
+                               ;; `GYM' needs nothing extra, and カタカナ is a
+                               ;; different string rather than a different
+                               ;; case of the same one.
+                               (gym . "gym\\|ジム"))
         org-foresight-home-place 'home
         org-foresight-travel-matrix '(((home . gym) . 15)
                                       ((home . office) . 75)
@@ -394,7 +411,11 @@ org's existing key table stays the single source of truth."
          ;; "That landed on me" is realised while looking at the day too --
          ;; usually about something already in the file, which the interrupt
          ;; capture never saw.
-         "S" #'org-foresight-mark-surge)))
+         "S" #'org-foresight-mark-surge
+         ;; A derived journey answers to none of Org's commands -- there is no
+         ;; entry behind it -- so making one real needs a key of its own.  Over
+         ;; `org-agenda-show-tags', which says nothing this prefix does not.
+         "T" #'org-foresight-book-travel)))
 
 ;;;; Other views of the same day
 ;; Neither reads the agenda, and neither is one: a timeline and a set of
