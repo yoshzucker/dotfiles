@@ -31,31 +31,6 @@ ffmpeg:p        # yazi preview: video/audio
 zsh:            # msys base repo
 pactoys:        # provides pacboy (installer also self-bootstraps this)
 
-# --- Emacs native compilation ---
-# The official GNU Windows build of Emacs is compiled *with* native
-# compilation but ships no libgccjit, so `native-comp-available-p' answers nil
-# and every function stays byte-code.  These two supply it; the PATH entry that
-# lets Emacs find the DLL is added by Enable-EmacsNativeComp in bootstrap.ps1.
-# Measured on this machine before adding them: an agenda redraw spent 0.79s of
-# its 0.85s walking the org files, against 0.10ms per heading on a native-comp
-# macOS build of the same version -- roughly eleven times slower per heading.
-# Full names, not `:p'. Everything else here is built for UCRT64, which is
-# what $MSYSTEM is set to -- but these two are not for us, they are for the
-# official GNU build of Emacs, and that is built under MINGW64 (its
-# admin/nt/dist-build/build-zips.sh sets PKG_CONFIG_PATH=/mingw64/...). Emacs
-# loads libgccjit into its own process, where its own bin directory answers
-# first for libgcc, libstdc++ and libwinpthread; a UCRT libgccjit meets the
-# MSVCRT ones there and fails to load, silently, which is what
-# `native-comp-available-p' returning nil looks like from the outside.
-#
-# libgccjit alone, without the mingw64 gcc that half the advice on the web
-# tells you to install alongside it. It generates the code in Emacs's own
-# process and carries its own gcc-libs; whether it also wants the driver is a
-# question this machine can answer in one batch Emacs, and
-# Enable-EmacsNativeComp asks it. A hundred megabytes of second toolchain is
-# not something to install against folklore.
-mingw-w64-x86_64-libgccjit:
-
 # --- font build (PlemolJP NF, via local/bin/build-plemoljp-nf) ---
 fontforge:p     # merges PlemolJP + Console NF glyphs into "PlemolJP NF"
 curl:           # download font sources (msys base repo)
