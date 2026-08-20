@@ -870,6 +870,24 @@ function Get-MSYS2BashPath {
     return $bash
 }
 
+function ConvertTo-MSYS2Path {
+    # C:\Users\x\Temp\foo -> /c/Users/x/Temp/foo, without asking MSYS2.
+    #
+    # Every step here used to start bash once purely to run `cygpath', and then
+    # a second time to do the work. That first launch printed nothing and ran
+    # before any timeout could cover it, so when bash itself was slow to start
+    # -- a monitoring agent between the process and its DLLs will do it -- the
+    # step sat at "Started." in silence with nothing to show and no limit to
+    # end it. The conversion is a string transform on a drive-letter path, and
+    # MSYS2 mounts drives at /c, /d and so on, so it can simply be done here.
+    param([string] $WindowsPath)
+    $full = [System.IO.Path]::GetFullPath($WindowsPath)
+    if ($full -match '^([A-Za-z]):\\(.*)$') {
+        return "/" + $Matches[1].ToLower() + "/" + ($Matches[2] -replace '\\', '/')
+    }
+    return ($full -replace '\\', '/')
+}
+
 function Invoke-MSYS2Script {
     # Runs a bash script file under MSYS2 and refuses to wait forever.
     #
@@ -950,7 +968,7 @@ done
         [System.IO.File]::WriteAllText($tmp, $bashScript, (New-Object System.Text.UTF8Encoding $false))
         # Convert the temp path with cygpath; pass it as $0 (single-level quotes,
         # no nesting) so the argument survives the Windows -> bash.exe boundary.
-        $posix = (& $bash -lc 'cygpath -u "$0"' $tmp | Select-Object -First 1).Trim()
+        $posix = ConvertTo-MSYS2Path $tmp
 
         $env:MSYSTEM = "UCRT64"
         $env:DOTFILES_PKGLIST = $listFile
@@ -1000,7 +1018,7 @@ pacman -Syu --noconfirm </dev/null
     $savedMsystem = $env:MSYSTEM
     try {
         [System.IO.File]::WriteAllText($tmp, $upgrade, (New-Object System.Text.UTF8Encoding $false))
-        $posix = (& $bash -lc 'cygpath -u "$0"' $tmp | Select-Object -First 1).Trim()
+        $posix = ConvertTo-MSYS2Path $tmp
         $env:MSYSTEM = "UCRT64"
         if (-not (Invoke-MSYS2Script -Bash $bash -PosixScript $posix)) {
             Write-Host "Warning: the MSYS2 upgrade did not finish cleanly." -ForegroundColor Yellow
@@ -1062,7 +1080,7 @@ exec "$repo/local/bin/build-plemoljp-nf"
     $savedWork    = $env:DOTFILES_FONT_WORKDIR
     try {
         [System.IO.File]::WriteAllText($tmp, $bashScript, (New-Object System.Text.UTF8Encoding $false))
-        $posix = (& $bash -lc 'cygpath -u "$0"' $tmp | Select-Object -First 1).Trim()
+        $posix = ConvertTo-MSYS2Path $tmp
 
         $env:MSYSTEM = "UCRT64"
         $env:DOTFILES_REPO = $script:ScriptDir
@@ -1226,7 +1244,7 @@ pacman -S --needed --noconfirm mingw-w64-x86_64-libgccjit </dev/null
             $tmp = [System.IO.Path]::GetTempFileName()
             try {
                 [System.IO.File]::WriteAllText($tmp, $get, (New-Object System.Text.UTF8Encoding $false))
-                $posix = (& $bash -lc 'cygpath -u "$0"' $tmp | Select-Object -First 1).Trim()
+                $posix = ConvertTo-MSYS2Path $tmp
                 Invoke-MSYS2Script -Bash $bash -PosixScript $posix -TimeoutSeconds 600 | Out-Null
             } finally {
                 [System.IO.File]::Delete($tmp)
@@ -1586,7 +1604,7 @@ done < "$list"
     $savedPkglist = $env:DOTFILES_PKGLIST
     try {
         [System.IO.File]::WriteAllText($tmp, $bashScript, (New-Object System.Text.UTF8Encoding $false))
-        $posix = (& $bash -lc 'cygpath -u "$0"' $tmp | Select-Object -First 1).Trim()
+        $posix = ConvertTo-MSYS2Path $tmp
 
         $env:DOTFILES_PKGLIST = $listFile
         & $bash -l $posix
