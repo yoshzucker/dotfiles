@@ -39,8 +39,16 @@ pactoys:        # provides pacboy (installer also self-bootstraps this)
 # Measured on this machine before adding them: an agenda redraw spent 0.79s of
 # its 0.85s walking the org files, against 0.10ms per heading on a native-comp
 # macOS build of the same version -- roughly eleven times slower per heading.
-libgccjit:p
-gcc:p           # the driver libgccjit hands the generated code to
+# Full names, not `:p'. Everything else here is built for UCRT64, which is
+# what $MSYSTEM is set to -- but these two are not for us, they are for the
+# official GNU build of Emacs, and that is built under MINGW64 (its
+# admin/nt/dist-build/build-zips.sh sets PKG_CONFIG_PATH=/mingw64/...). Emacs
+# loads libgccjit into its own process, where its own bin directory answers
+# first for libgcc, libstdc++ and libwinpthread; a UCRT libgccjit meets the
+# MSVCRT ones there and fails to load, silently, which is what
+# `native-comp-available-p' returning nil looks like from the outside.
+mingw-w64-x86_64-libgccjit:
+mingw-w64-x86_64-gcc:
 
 # --- font build (PlemolJP NF, via local/bin/build-plemoljp-nf) ---
 fontforge:p     # merges PlemolJP + Console NF glyphs into "PlemolJP NF"
