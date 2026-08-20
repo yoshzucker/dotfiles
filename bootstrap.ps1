@@ -141,6 +141,7 @@ function Main {
         Set-UserEnvironment
         Update-ScoopPackages
         Update-MSYS2Packages
+        Enable-EmacsNativeComp
         Update-RPackages
         Install-ZshPlugins
         Setup-Links
@@ -949,6 +950,13 @@ function Update-MSYS2Packages {
     }
 
     Write-PrintLine $leftMessage "Finished."
+
+    # And whatever the list has gained since the last full bootstrap, the way
+    # Update-ScoopPackages does. Upgrading only what is already installed makes
+    # the package list authoritative on a fresh machine and advisory on this
+    # one, so a package added to it is a package nobody running `update' ever
+    # gets.
+    Install-MSYS2Packages
 }
 
 function Install-Fonts {
@@ -1100,6 +1108,71 @@ function Set-UserEnvironment {
     if ($sessionEntries.Count -eq 0) {
         $env:Path = $env:Path.TrimEnd(';') + ";" + $localBin
     }
+
+    Write-PrintLine $leftMessage "Finished."
+}
+
+function Enable-EmacsNativeComp {
+    # Makes libgccjit findable by Emacs, which is all that stands between the
+    # official GNU Windows build and native compilation.
+    #
+    # That build is compiled *with* native compilation -- (featurep
+    # 'native-compile) is t -- but ships no libgccjit, so
+    # (native-comp-available-p) answers nil and every function stays byte-code.
+    # Scoop cannot help with this: it installs the prebuilt emacs-30.2.zip from
+    # ftp.gnu.org and has no build flags to pass. The library has to come from
+    # somewhere else, and MSYS2 is already here.
+    #
+    # Appended to PATH, never prepended. The MSYS2 ucrt64 bin holds its own
+    # git, ripgrep and the rest, and putting it first would quietly shadow the
+    # Scoop shims those tools are expected to come from. Appended, it is
+    # consulted only for names nothing earlier provides -- which is exactly the
+    # case for libgccjit-0.dll.
+    #
+    # Idempotent: writes only when the entry is missing.
+    $leftMessage = "Enabling Emacs native compilation (libgccjit on PATH)"
+
+    if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) { return }
+    $prefix = $null
+    try {
+        $prefix = (scoop prefix msys2 2>$null | Select-Object -First 1)
+        if ($prefix) { $prefix = $prefix.Trim() }
+    } catch { $prefix = $null }
+    if (-not $prefix -or -not (Test-Path -LiteralPath $prefix)) {
+        return
+    }
+
+    $ucrtBin = Join-Path $prefix "ucrt64\bin"
+    $dll     = Join-Path $ucrtBin "libgccjit-0.dll"
+    if (-not (Test-Path -LiteralPath $dll)) {
+        Write-Host "libgccjit not installed yet; run the MSYS2 package step first." -ForegroundColor Yellow
+        return
+    }
+
+    Write-PrintLine $leftMessage "Started."
+
+    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    if (-not $userPath) { $userPath = "" }
+    $entries = @($userPath -split ";" | Where-Object { $_ -ne "" })
+    $already = @($entries | Where-Object { $_.TrimEnd('\') -ieq $ucrtBin.TrimEnd('\') })
+    if ($already.Count -eq 0) {
+        Write-Host "Appending to user PATH: $ucrtBin"
+        $trimmed = $userPath.TrimEnd(';')
+        $newPath = if ($trimmed) { "$trimmed;$ucrtBin" } else { $ucrtBin }
+        [System.Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+    } else {
+        Write-Host "User PATH already contains: $ucrtBin"
+    }
+
+    # Reflect in the current session so a later step sees it.
+    $sessionEntries = @($env:Path -split ";" | Where-Object { $_.TrimEnd('\') -ieq $ucrtBin.TrimEnd('\') })
+    if ($sessionEntries.Count -eq 0) {
+        $env:Path = $env:Path.TrimEnd(';') + ";" + $ucrtBin
+    }
+
+    Write-Host "Check in a NEW Emacs: M-: (native-comp-available-p)  =>  t"
+    Write-Host "The first start after this compiles the world in the background;"
+    Write-Host "expect one busy quarter of an hour, then .eln files in ~/.emacs.d/eln-cache."
 
     Write-PrintLine $leftMessage "Finished."
 }
@@ -1545,6 +1618,7 @@ function Perform-FullBootstrap {
     Set-UserEnvironment
     Install-ScoopPackages
     Install-MSYS2Packages
+    Enable-EmacsNativeComp
     Install-Fonts
     Install-RPackages
     Install-ZshPlugins

@@ -31,6 +31,17 @@ ffmpeg:p        # yazi preview: video/audio
 zsh:            # msys base repo
 pactoys:        # provides pacboy (installer also self-bootstraps this)
 
+# --- Emacs native compilation ---
+# The official GNU Windows build of Emacs is compiled *with* native
+# compilation but ships no libgccjit, so `native-comp-available-p' answers nil
+# and every function stays byte-code.  These two supply it; the PATH entry that
+# lets Emacs find the DLL is added by Enable-EmacsNativeComp in bootstrap.ps1.
+# Measured on this machine before adding them: an agenda redraw spent 0.79s of
+# its 0.85s walking the org files, against 0.10ms per heading on a native-comp
+# macOS build of the same version -- roughly eleven times slower per heading.
+libgccjit:p
+gcc:p           # the driver libgccjit hands the generated code to
+
 # --- font build (PlemolJP NF, via local/bin/build-plemoljp-nf) ---
 fontforge:p     # merges PlemolJP + Console NF glyphs into "PlemolJP NF"
 curl:           # download font sources (msys base repo)
