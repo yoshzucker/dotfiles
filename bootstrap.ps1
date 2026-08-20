@@ -941,6 +941,17 @@ function Update-MSYS2Packages {
     $leftMessage = "Updating MSYS2 packages (via pacman)"
     Write-PrintLine $leftMessage "Started."
 
+    # Whatever the list has gained since the last full bootstrap, first --
+    # before the upgrade, not after it. Upgrading only what is already
+    # installed would make the package list authoritative on a fresh machine
+    # and advisory on this one, so a package added to it is a package nobody
+    # running `update' ever gets; but a `pacman -Syu' can replace the MSYS2
+    # runtime itself, and anything asked to run afterwards in the same session
+    # can meet a gpg-agent still holding the old DLL and wait for it forever.
+    # Nothing runs after the upgrade now. The upgrade that follows repairs
+    # anything the older database got wrong.
+    Install-MSYS2Packages
+
     $savedMsystem = $env:MSYSTEM
     try {
         $env:MSYSTEM = "UCRT64"
@@ -950,13 +961,6 @@ function Update-MSYS2Packages {
     }
 
     Write-PrintLine $leftMessage "Finished."
-
-    # And whatever the list has gained since the last full bootstrap, the way
-    # Update-ScoopPackages does. Upgrading only what is already installed makes
-    # the package list authoritative on a fresh machine and advisory on this
-    # one, so a package added to it is a package nobody running `update' ever
-    # gets.
-    Install-MSYS2Packages
 }
 
 function Install-Fonts {

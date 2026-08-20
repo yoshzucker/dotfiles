@@ -47,8 +47,14 @@ pactoys:        # provides pacboy (installer also self-bootstraps this)
 # first for libgcc, libstdc++ and libwinpthread; a UCRT libgccjit meets the
 # MSVCRT ones there and fails to load, silently, which is what
 # `native-comp-available-p' returning nil looks like from the outside.
+#
+# libgccjit alone, without the mingw64 gcc that half the advice on the web
+# tells you to install alongside it. It generates the code in Emacs's own
+# process and carries its own gcc-libs; whether it also wants the driver is a
+# question this machine can answer in one batch Emacs, and
+# Enable-EmacsNativeComp asks it. A hundred megabytes of second toolchain is
+# not something to install against folklore.
 mingw-w64-x86_64-libgccjit:
-mingw-w64-x86_64-gcc:
 
 # --- font build (PlemolJP NF, via local/bin/build-plemoljp-nf) ---
 fontforge:p     # merges PlemolJP + Console NF glyphs into "PlemolJP NF"
