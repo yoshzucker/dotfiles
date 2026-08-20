@@ -1117,107 +1117,111 @@ function Set-UserEnvironment {
 }
 
 function Enable-EmacsNativeComp {
-    # Makes libgccjit findable by Emacs, which is all that stands between the
-    # official GNU Windows build and native compilation.
+    # Puts libgccjit where Emacs can actually load it, which is not on PATH.
     #
-    # That build is compiled *with* native compilation -- (featurep
-    # 'native-compile) is t -- but ships no libgccjit, so
+    # The official GNU Windows build is compiled *with* native compilation --
+    # (featurep 'native-compile) is t -- but ships no libgccjit, so
     # (native-comp-available-p) answers nil and every function stays byte-code.
     # Scoop cannot help: it unpacks the prebuilt emacs-30.2.zip from ftp.gnu.org
-    # and has no build flags to pass. The library has to come from somewhere
-    # else, and MSYS2 is already here.
+    # and has no build flags to pass.
     #
-    # MINGW64, not UCRT64, though everything else in this script uses UCRT64.
-    # The library is not for us, it is for Emacs, and Emacs is built under
-    # MINGW64 -- admin/nt/dist-build/build-zips.sh sets
-    # PKG_CONFIG_PATH=/mingw64/lib/pkgconfig. It is loaded into Emacs's own
-    # process, where Emacs's bin directory answers first for libgcc, libstdc++
-    # and libwinpthread, because the application directory precedes PATH in
-    # Windows' search order. A UCRT libgccjit meets the MSVCRT ones there and
-    # fails to load without saying so, which from the outside is exactly what a
-    # missing library looks like.
+    # PATH does not work, and the reason is worth writing down because it cost
+    # two attempts. Windows searches the *application directory* before PATH,
+    # and Emacs's own bin already holds every MinGW library libgccjit depends
+    # on -- all nine of them, at the vintage Emacs was built against. A
+    # libgccjit from a current MSYS2 (GCC 16) meets those and fails to load,
+    # silently, which from the outside is indistinguishable from a missing
+    # library. No amount of PATH ordering beats the application directory.
     #
-    # Appended to PATH, never prepended. The MSYS2 bin holds its own git,
-    # ripgrep and the rest, and putting it first would quietly shadow the Scoop
-    # shims those are expected to come from. Appended, it is consulted only for
-    # names nothing earlier provides -- which is the case for libgccjit-0.dll.
+    # So the library goes into the application directory instead, with the nine
+    # it needs, and the rule that was fighting us becomes the one that settles
+    # it: one directory answers for all of them, consistently.
     #
-    # Idempotent, and it checks its own work: the answer is one batch Emacs
-    # away, and leaving the reader to reboot and find out is how a fix that did
-    # not work gets believed for a week.
-    $leftMessage = "Enabling Emacs native compilation (libgccjit on PATH)"
+    # The list is what `ldd /mingw64/bin/libgccjit-0.dll' reports, filtered to
+    # /mingw64. Re-derive it with that command if a future libgccjit wants
+    # something else; a name absent from the source is skipped rather than
+    # guessed at.
+    #
+    # Overwriting Emacs's bundled copies is safe in the direction that matters:
+    # these are newer, and each keeps its soname. `scoop reset emacs' puts the
+    # originals back if it ever is not.
+    $leftMessage = "Enabling Emacs native compilation (libgccjit into Emacs bin)"
 
     if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) { return }
-    $prefix = $null
-    try {
-        $prefix = (scoop prefix msys2 2>$null | Select-Object -First 1)
-        if ($prefix) { $prefix = $prefix.Trim() }
-    } catch { $prefix = $null }
-    if (-not $prefix -or -not (Test-Path -LiteralPath $prefix)) {
-        return
-    }
 
-    $mingwBin = Join-Path $prefix "mingw64\bin"
-    $staleBin = Join-Path $prefix "ucrt64\bin"
-    $dll      = Join-Path $mingwBin "libgccjit-0.dll"
-    if (-not (Test-Path -LiteralPath $dll)) {
+    $msys = $null; $emacs = $null
+    try { $msys  = (scoop prefix msys2 2>$null | Select-Object -First 1) } catch { }
+    try { $emacs = (scoop prefix emacs 2>$null | Select-Object -First 1) } catch { }
+    if ($msys)  { $msys  = $msys.Trim() }
+    if ($emacs) { $emacs = $emacs.Trim() }
+    if (-not $msys -or -not (Test-Path -LiteralPath $msys))   { return }
+    if (-not $emacs -or -not (Test-Path -LiteralPath $emacs)) { return }
+
+    $src = Join-Path $msys "mingw64\bin"
+    $dst = Join-Path $emacs "bin"
+    $jit = Join-Path $src "libgccjit-0.dll"
+    if (-not (Test-Path -LiteralPath $jit)) {
         Write-Host "libgccjit (mingw64) not installed yet; run the MSYS2 package step first." -ForegroundColor Yellow
         return
     }
+    if (-not (Test-Path -LiteralPath $dst)) { return }
+
+    $needed = @(
+        "libgccjit-0.dll",
+        "libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll",
+        "libgmp-10.dll", "libisl-23.dll", "libmpc-3.dll", "libmpfr-6.dll",
+        "zlib1.dll", "libzstd.dll"
+    )
 
     Write-PrintLine $leftMessage "Started."
 
-    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
-    if (-not $userPath) { $userPath = "" }
-    $entries = @($userPath -split ";" | Where-Object { $_ -ne "" })
-
-    # Drop the ucrt64 entry an earlier run of this function added. It was the
-    # wrong prefix, it does nothing here, and a PATH nobody prunes is a PATH
-    # nobody can reason about.
-    $kept = @($entries | Where-Object { $_.TrimEnd('\') -ine $staleBin.TrimEnd('\') })
-    if ($kept.Count -ne $entries.Count) {
-        Write-Host "Removing from user PATH (wrong prefix): $staleBin"
-    }
-
-    $already = @($kept | Where-Object { $_.TrimEnd('\') -ieq $mingwBin.TrimEnd('\') })
-    if ($already.Count -eq 0) {
-        Write-Host "Appending to user PATH: $mingwBin"
-        $kept += $mingwBin
-    } else {
-        Write-Host "User PATH already contains: $mingwBin"
-    }
-
-    $newPath = ($kept -join ";")
-    if ($newPath -ne $userPath) {
-        [System.Environment]::SetEnvironmentVariable("Path", $newPath, "User")
-    }
-
-    # Reflect in the current session, so the check below tests what a new
-    # process would see rather than what this one happened to start with.
-    $sessionKept = @($env:Path -split ";" |
-                     Where-Object { $_ -ne "" -and $_.TrimEnd('\') -ine $staleBin.TrimEnd('\') })
-    if (-not ($sessionKept | Where-Object { $_.TrimEnd('\') -ieq $mingwBin.TrimEnd('\') })) {
-        $sessionKept += $mingwBin
-    }
-    $env:Path = ($sessionKept -join ";")
-
-    # Ask Emacs itself.
-    $emacs = $null
-    try { $emacs = (Get-Command emacs.exe -ErrorAction SilentlyContinue).Source } catch { $emacs = $null }
-    if ($emacs) {
-        $answer = (& $emacs -Q --batch --eval '(princ (if (native-comp-available-p) "yes" "no"))' 2>$null | Select-Object -First 1)
-        if ($answer -eq "yes") {
-            Write-Host "native-comp-available-p => t. The first start after this compiles" -ForegroundColor Green
-            Write-Host "the world in the background: one busy quarter of an hour, then .eln"
-            Write-Host "files in ~/.emacs.d/eln-cache and it stays fast."
-        } else {
-            Write-Host "libgccjit is on PATH but Emacs still cannot load it." -ForegroundColor Yellow
-            Write-Host "Next thing to look at, from the MSYS2 shell:"
-            Write-Host "  ldd /mingw64/bin/libgccjit-0.dll"
-            Write-Host "and compare what it wants against $((Split-Path $emacs -Parent))."
+    $copied = 0
+    foreach ($name in $needed) {
+        $from = Join-Path $src $name
+        $to   = Join-Path $dst $name
+        if (-not (Test-Path -LiteralPath $from)) {
+            Write-Host "Not in MSYS2, skipping: $name" -ForegroundColor Yellow
+            continue
         }
-    } else {
-        Write-Host "emacs.exe not on PATH; check by hand: M-: (native-comp-available-p)"
+        $a = Get-Item -LiteralPath $from
+        $b = if (Test-Path -LiteralPath $to) { Get-Item -LiteralPath $to } else { $null }
+        if ($b -and $b.Length -eq $a.Length -and $b.LastWriteTimeUtc -eq $a.LastWriteTimeUtc) {
+            continue
+        }
+        Copy-Item -LiteralPath $from -Destination $to -Force
+        $copied++
+    }
+    Write-Host "Copied $copied of $($needed.Count) libraries into $dst"
+
+    # The PATH entries earlier attempts left behind. They never worked and a
+    # PATH nobody prunes is a PATH nobody can reason about.
+    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    if ($userPath) {
+        $stale = @((Join-Path $msys "ucrt64\bin"), $src)
+        $entries = @($userPath -split ";" | Where-Object { $_ -ne "" })
+        $kept = @($entries | Where-Object {
+            $entry = $_.TrimEnd('\')
+            -not ($stale | Where-Object { $_.TrimEnd('\') -ieq $entry })
+        })
+        if ($kept.Count -ne $entries.Count) {
+            Write-Host "Removing from user PATH (no longer needed): $($entries.Count - $kept.Count) entry/entries"
+            [System.Environment]::SetEnvironmentVariable("Path", ($kept -join ";"), "User")
+        }
+    }
+
+    # Ask Emacs itself rather than leave the reader to reboot and find out.
+    $exe = Join-Path $dst "emacs.exe"
+    if (Test-Path -LiteralPath $exe) {
+        $answer = (& $exe -Q --batch --eval "(princ (native-comp-available-p))" 2>$null |
+                   Select-Object -First 1)
+        if ($answer -eq "t") {
+            Write-Host "native-comp-available-p => t" -ForegroundColor Green
+            Write-Host "The first start after this compiles the world in the background:"
+            Write-Host "one busy quarter of an hour, then .eln files in ~/.emacs.d/eln-cache."
+        } else {
+            Write-Host "Still nil. Compare what libgccjit wants against what is now here:" -ForegroundColor Yellow
+            Write-Host "  $msys\usr\bin\bash.exe -lc 'ldd /mingw64/bin/libgccjit-0.dll'"
+        }
     }
 
     Write-PrintLine $leftMessage "Finished."
