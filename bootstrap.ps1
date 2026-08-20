@@ -870,6 +870,34 @@ function Get-MSYS2BashPath {
     return $bash
 }
 
+function Invoke-MSYS2Script {
+    # Runs a bash script file under MSYS2 and refuses to wait forever.
+    #
+    # pacman can stop dead with nothing on the screen -- a mirror that never
+    # answers, a gpg-agent waiting on something, a monitoring agent sitting
+    # between the process and the network. Without a limit the only symptom is
+    # a bootstrap that never returns and a cursor that has stopped blinking,
+    # and the reader cannot tell that from slow progress. A limit turns that
+    # into a message.
+    #
+    # Passed as a file path with no spaces, not as -lc "...": arguments cross
+    # the PowerShell -> bash.exe boundary intact that way, which is why the
+    # rest of this script already writes its bash to a temp file.
+    param(
+        [string] $Bash,
+        [string] $PosixScript,
+        [int]    $TimeoutSeconds = 900
+    )
+    $proc = Start-Process -FilePath $Bash -ArgumentList @("-l", $PosixScript) `
+                          -NoNewWindow -PassThru
+    if (-not $proc.WaitForExit($TimeoutSeconds * 1000)) {
+        Write-Host "No answer after $TimeoutSeconds seconds; stopping it." -ForegroundColor Yellow
+        & taskkill /PID $proc.Id /T /F 2>$null | Out-Null
+        return $false
+    }
+    return ($proc.ExitCode -eq 0)
+}
+
 function Install-MSYS2Packages {
     # Installs MSYS2/ucrt64 shell tools from pkg/pacman/msys2-packages.txt by
     # invoking the Scoop-installed MSYS2 bash with MSYSTEM=UCRT64. Mirrors
@@ -897,14 +925,22 @@ function Install-MSYS2Packages {
     # prepended). A file + a single path argument sidesteps both problems.
     # The package list path is passed via the environment and converted with
     # cygpath inside MSYS2.
+    # `set -x' and an echo per phase, because a step that prints nothing is a
+    # step nobody can tell from a hung one. pacman can sit for minutes on a
+    # slow mirror or a gpg agent that is waiting for something, and without a
+    # trace the only evidence is a cursor that has stopped blinking.
     $bashScript = (@'
 set -e
+set -x
 command -v pacboy >/dev/null 2>&1 || pacman -S --needed --noconfirm pactoys
 list="$(cygpath -u "$DOTFILES_PKGLIST")"
 mapfile -t pkgs < <(sed -e 's/[[:space:]]*#.*$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$list" | grep -v '^[[:space:]]*$')
-if [ "${#pkgs[@]}" -gt 0 ]; then
-  pacboy -S --needed --noconfirm "${pkgs[@]}"
-fi
+set +x
+echo "packages to consider (${#pkgs[@]}): ${pkgs[*]}"
+for pkg in "${pkgs[@]}"; do
+  echo ">>> $pkg"
+  pacboy -S --needed --noconfirm "$pkg" </dev/null || echo "!!! failed: $pkg"
+done
 '@) -replace "`r", ""
 
     $tmp = [System.IO.Path]::GetTempFileName()
@@ -918,9 +954,8 @@ fi
 
         $env:MSYSTEM = "UCRT64"
         $env:DOTFILES_PKGLIST = $listFile
-        & $bash -l $posix
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Warning: some MSYS2 packages may have failed (exit $LASTEXITCODE)." -ForegroundColor Yellow
+        if (-not (Invoke-MSYS2Script -Bash $bash -PosixScript $posix)) {
+            Write-Host "Warning: some MSYS2 packages may have failed." -ForegroundColor Yellow
         }
     } finally {
         $env:MSYSTEM = $savedMsystem
@@ -952,12 +987,27 @@ function Update-MSYS2Packages {
     # anything the older database got wrong.
     Install-MSYS2Packages
 
+    # Through a temp file and the timeout runner, like the step above: an
+    # upgrade that never answers should say so rather than hold the whole
+    # bootstrap. Standard input is closed, so a question `--noconfirm' does not
+    # cover ends the run instead of waiting for an answer nobody can see.
+    $upgrade = (@'
+set -x
+pacman -Syu --noconfirm </dev/null
+'@) -replace "`r", ""
+
+    $tmp = [System.IO.Path]::GetTempFileName()
     $savedMsystem = $env:MSYSTEM
     try {
+        [System.IO.File]::WriteAllText($tmp, $upgrade, (New-Object System.Text.UTF8Encoding $false))
+        $posix = (& $bash -lc 'cygpath -u "$0"' $tmp | Select-Object -First 1).Trim()
         $env:MSYSTEM = "UCRT64"
-        & $bash -lc "pacman -Syu --noconfirm"
+        if (-not (Invoke-MSYS2Script -Bash $bash -PosixScript $posix)) {
+            Write-Host "Warning: the MSYS2 upgrade did not finish cleanly." -ForegroundColor Yellow
+        }
     } finally {
         $env:MSYSTEM = $savedMsystem
+        [System.IO.File]::Delete($tmp)
     }
 
     Write-PrintLine $leftMessage "Finished."
@@ -1159,9 +1209,32 @@ function Enable-EmacsNativeComp {
 
     $src = Join-Path $msys "mingw64\bin"
     $dst = Join-Path $emacs "bin"
+    # Fetched here rather than from pkg/pacman/msys2-packages.txt, which is a
+    # UCRT64 list read by pacboy. This one library is MINGW64 -- it is not for
+    # us, it is for Emacs, and Emacs is built under MINGW64 -- so it does not
+    # belong in that list under a name pacboy has to be told not to translate.
+    # It belongs with the one step that knows why it is wanted.
     $jit = Join-Path $src "libgccjit-0.dll"
     if (-not (Test-Path -LiteralPath $jit)) {
-        Write-Host "libgccjit (mingw64) not installed yet; run the MSYS2 package step first." -ForegroundColor Yellow
+        $bash = Get-MSYS2BashPath
+        if ($bash) {
+            Write-Host "Installing mingw-w64-x86_64-libgccjit..."
+            $get = (@'
+set -x
+pacman -S --needed --noconfirm mingw-w64-x86_64-libgccjit </dev/null
+'@) -replace "`r", ""
+            $tmp = [System.IO.Path]::GetTempFileName()
+            try {
+                [System.IO.File]::WriteAllText($tmp, $get, (New-Object System.Text.UTF8Encoding $false))
+                $posix = (& $bash -lc 'cygpath -u "$0"' $tmp | Select-Object -First 1).Trim()
+                Invoke-MSYS2Script -Bash $bash -PosixScript $posix -TimeoutSeconds 600 | Out-Null
+            } finally {
+                [System.IO.File]::Delete($tmp)
+            }
+        }
+    }
+    if (-not (Test-Path -LiteralPath $jit)) {
+        Write-Host "libgccjit (mingw64) still not present; skipping." -ForegroundColor Yellow
         return
     }
     if (-not (Test-Path -LiteralPath $dst)) { return }
