@@ -259,9 +259,27 @@ org's existing key table stays the single source of truth."
   ;; field -- `org-agenda-time-leading-zero' (a core agenda display setting)
   ;; lives here, not with the other prefix-format settings, specifically to
   ;; keep that assumption true.
+  ;;
+  ;; It is coupled to the *order* of the prefix too, which is easy to forget
+  ;; and silent when broken.  Upstream joins the time range to the literal
+  ;; `Clocked:' with `[[:space:]]+', which assumes nothing sits between them.
+  ;; Putting the effort in front of `% s' puts `0:45' there, the join fails,
+  ;; and the regexp falls into the `\|.*' branch that exists for a *running*
+  ;; clock -- so the end-time groups come back nil and `C-j' / `C-k' stop
+  ;; working on the clock-out while still working on the clock-in.  Worse, it
+  ;; keeps working on entries that have no effort, which is what makes it look
+  ;; like an intermittent fault rather than a settings clash.
+  ;;
+  ;; The extra group below is that hole: an optional duration between the
+  ;; range and `Clocked:'.
   (setq org-agenda-time-leading-zero t
         org-clock-convenience-clocked-agenda-re
-        "^ +\\([^:]+\\)[[:space:]]*\\(\\([ \t012][0-9]\\):\\([0-5][0-9]\\)\\)\\(?:-\\(\\([ 012][0-9]\\):\\([0-5][0-9]\\)\\)\\|.*\\)?[[:space:]]+Clocked:[[:space:]]+\\(([0-9]+:[0-5][0-9])\\|(-)\\)"))
+        (concat "^ +\\([^:]+\\)[[:space:]]*"
+                "\\(\\([ \t012][0-9]\\):\\([0-5][0-9]\\)\\)"        ; clock-in
+                "\\(?:-\\(\\([ 012][0-9]\\):\\([0-5][0-9]\\)\\)\\|.*\\)?" ; clock-out
+                "\\(?:[[:space:]]+[0-9]+:[0-5][0-9]\\)?"              ; the effort field
+                "[[:space:]]+Clocked:[[:space:]]+"
+                "\\(([0-9]+:[0-5][0-9])\\|(-)\\)")))
 
 ;;;; org-foresight -- the forward-looking half of the day
 
@@ -390,6 +408,14 @@ org's existing key table stays the single source of truth."
         org-foresight-bias-abandoned-keywords '("CANCEL" "DELEG")
         org-foresight-report-style 'daily)
 
+  ;; Org's `now' line in the colour the bar rules itself at, which is life's
+  ;; colour: what is left of the day is the part still worth defending, and
+  ;; the two marks say the same thing about the same moment.  Set here rather
+  ;; than in the theme because it is Org's face, not the package's.
+  (set-face-attribute 'org-agenda-current-time nil
+                      :inherit 'org-foresight-report-now
+                      :foreground 'unspecified)
+
   (my/define-key
    (:map org-agenda-mode-map
          :key
@@ -415,7 +441,12 @@ org's existing key table stays the single source of truth."
          ;; A derived journey answers to none of Org's commands -- there is no
          ;; entry behind it -- so making one real needs a key of its own.  Over
          ;; `org-agenda-show-tags', which says nothing this prefix does not.
-         "T" #'org-foresight-book-travel)))
+         "T" #'org-foresight-book-travel
+         ;; Filling in a clock is remembering, and remembering happens while
+         ;; looking at the day it went missing from.  Over
+         ;; `org-agenda-convert-date', which offers the Julian and Mayan
+         ;; dates and has never been wanted here.
+         "C" #'org-foresight-clock-fill)))
 
 ;;;; Other views of the same day
 ;; Neither reads the agenda, and neither is one: a timeline and a set of
