@@ -886,8 +886,12 @@ With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_arc
    (:map org-columns-map :key "g" (lookup-key evil-motion-state-map "g"))))
 
 (use-package org-habit
+  ;; Waits on the agenda rather than on Org, because the agenda is the only
+  ;; place a habit is drawn -- and because org-habit.el requires org-agenda at
+  ;; its top level, so waiting on Org instead pulled the whole agenda into
+  ;; every startup.
   :straight nil
-  :after org
+  :after org-agenda
   :config
   (setq org-habit-graph-column 50
         org-habit-following-days 7
@@ -913,9 +917,10 @@ With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_arc
     (add-to-list 'org-structure-template-alist entry)))
 
 (use-package org-cliplink
-  :after org
-  :config
-  (my/define-key (:map org-mode-map :key "C-c p" #'org-cliplink)))
+  ;; Reached by its key, which is enough to load it.
+  :defer t
+  :init
+  (my/define-key (:map org-mode-map :after org :key "C-c p" #'org-cliplink)))
 
 (use-package org-attach
   :straight nil
@@ -1065,8 +1070,12 @@ without replacing it."
   :init (with-eval-after-load 'ox (require 'ox-pandoc)))
 
 (use-package org-ql
-  :after org
-  :config
+  ;; A query language, entered through one of two commands.  Binding them is
+  ;; all that has to happen at startup; straight's autoloads take it from
+  ;; there, and they point at org-ql-search.el and org-ql-view.el, which is
+  ;; where those commands actually live.
+  :defer t
+  :init
   (my/define-key
    (:map global-map
          :prefix "C-c"
@@ -1078,17 +1087,26 @@ without replacing it."
          :key
          "q" #'org-ql-search
          "v" #'org-ql-view))
-
+  :config
   (with-eval-after-load 'org-ql-view
     (dolist (key '("g"))
       (define-key org-ql-view-map (kbd key)
                   (lookup-key evil-motion-state-map (kbd key))))))
 
 (use-package org-roam
-  :after org
+  ;; Reached by command, so loaded by one.  The keys are bound at startup and
+  ;; straight's autoloads carry them into the right file -- which for the
+  ;; dailies is org-roam-dailies.el, not org-roam.el, so `:commands' is
+  ;; deliberately absent: use-package would generate autoloads naming the
+  ;; wrong file and overwrite the correct ones.
+  ;;
+  ;; What waits with it is `org-roam-db-autosync-mode', in `:config'.  Until
+  ;; the first org-roam command of a session, saving a note does not update the
+  ;; database; `M-x org-roam-db-sync' repairs that, and every command that
+  ;; reads the database loads org-roam first and so turns the mode on.
+  :defer t
   :init
   (setq org-roam-v2-ack t)
-  :config
   (my/define-key
    (:map global-map
          :prefix "C-c"
@@ -1110,17 +1128,19 @@ without replacing it."
          "A" #'org-roam-alias-add
          "R" #'org-roam-ref-add)
    (:map org-mode-map
+         :after org
          :prefix "C-c n"
          :key
          "r" #'org-roam-refile)
    ;; Page through *existing* dailies (gaps skipped); `goto-yesterday'/`-tomorrow'
    ;; instead step a fixed calendar day and create the note if missing.
    (:map org-mode-map
+         :after org
          :state normal motion
          :key
          "]d" #'org-roam-dailies-goto-next-note
          "[d" #'org-roam-dailies-goto-previous-note))
-
+  :config
   ;; `org-roam-db-location' is left to no-littering (var/org/org-roam.db).
   ;; The db is a regenerable cache of the .org files, so it stays machine-local
   ;; and out of the synced notes dir; only the .org files (and data/) sync.
