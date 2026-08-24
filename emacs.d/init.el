@@ -25,22 +25,40 @@
       (eval-print-last-sexp)))
   (load bootstrap-file nil 'nomessage))
 
+;; How straight decides a package needs rebuilding.  Must come before the first
+;; `straight-use-package' below, and needs nothing earlier than that.
+;;
+;; The default includes `find-at-startup', and the bulk walk it names does not
+;; happen when straight loads -- `straight--modifications' is a `memq' over
+;; this variable, consulted per package inside
+;; `straight--package-might-be-modified-p', and the walk itself is
+;; `straight--make-package-modifications-available', a transaction step that
+;; runs once, for the first package checked.  That first package is
+;; `use-package', two lines down, which is why setting this after it had no
+;; effect: the walk was already done and cached for the rest of the session.
+;;
+;; It is worth avoiding.  On Windows it walks every file of every cloned
+;; repository before anything is loaded: thirty-one seconds to start, against
+;; a sixth of a second for `emacs -Q'.  `check-on-save' catches every edit made
+;; in this Emacs, which is all of them in ordinary use; `find-when-checking'
+;; still walks a repository, but only the one being asked about and only when
+;; it is asked about.  What is given up is noticing a repository edited by
+;; something else while Emacs was not looking, which `M-x straight-check-all'
+;; answers on demand.
+(when (eq system-type 'windows-nt)
+  (setq straight-check-for-modifications '(check-on-save find-when-checking)))
+
 ;; Install and use use-package via straight
 (straight-use-package 'use-package)
 (setq straight-use-package-by-default t)
 
-(setq use-package-verbose t)
-(setq use-package-compute-statistics t)
-(setq use-package-minimum-reported-time 0)
+(setq use-package-verbose t
+      use-package-compute-statistics t
+      use-package-minimum-reported-time 0)
 
 ;; Add core and module directories to load path
 (add-to-list 'load-path (expand-file-name "core" user-emacs-directory))
 (add-to-list 'load-path (expand-file-name "modules" user-emacs-directory))
-;; (let ((default-directory (expand-file-name "site-lisp/" user-emacs-directory)))
-;;   (normal-top-level-add-to-load-path '("."))
-;;   (normal-top-level-add-subdirs-to-load-path))
-;; 
-;; (add-to-list 'custom-theme-load-path (expand-file-name "themes/" user-emacs-directory))
 
 ;; Load essential core modules
 (require 'my-core-encoding)
