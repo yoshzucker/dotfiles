@@ -121,13 +121,24 @@ stored twice.")
 
 (use-package org
   :straight org-contrib
+  ;; Loaded a second after the keyboard first goes quiet, rather than during
+  ;; startup.  `:defer' with a number is `run-with-idle-timer', so the frame
+  ;; arrives without waiting for Org, which with everything that loads beside it
+  ;; is half of this configuration's startup.
+  ;;
+  ;; The work is moved, not avoided: it lands as a pause a moment after the
+  ;; frame instead of as a longer blank wait before it.  That is the whole of
+  ;; the trade.  `:after evil' stays because the keymaps below are evil's, and
+  ;; because `:init' runs there -- at startup, where the agenda file scan needs
+  ;; it -- rather than on the timer.
   :after evil
+  :defer 1
   :init
   (setq system-time-locale "C")
   ;; Set `org-directory' here in `:init' (not `:config') so it is bound at
-  ;; startup: org is deferred via `:after evil', and the startup agenda refresh
-  ;; below reads it before org loads.  Presetting this defcustom is safe --
-  ;; org.el will not clobber an already-bound value.
+  ;; startup: Org is not loaded yet when the startup agenda refresh below reads
+  ;; it.  Presetting this defcustom is safe -- org.el will not clobber an
+  ;; already-bound value.
   (setq org-directory (file-name-as-directory "~/Documents/memex/"))
 
   ;; Agenda-file discovery also lives in `:init' so it is available at startup.
