@@ -74,13 +74,11 @@
           ;; itself once the grammars are available -- no remap needed.
           (yaml-mode   . yaml-ts-mode)))
 
-  ;; Add gcc
+  ;; The compiler grammars are built with is put on PATH in early-init.el,
+  ;; where it has to be chosen anyway: native compilation needs the driver
+  ;; that matches the libgccjit Emacs loaded, and two compilers at the front
+  ;; of one PATH is one compiler too many.  See the comment there.
   (when (eq system-type 'windows-nt)
-    (let ((gcc-dir (expand-file-name "~/scoop/apps/gcc/current/bin/")))
-      (when (file-exists-p (expand-file-name "gcc.exe" gcc-dir))
-        (add-to-list 'exec-path gcc-dir)
-        (setenv "PATH" (concat gcc-dir ";" (getenv "PATH")))))
-
     ;; kill treesit remaps for these modes (Emacs 30.2)
     (dolist (src '(bash c cpp javascript python))
       (setq treesit-language-source-alist

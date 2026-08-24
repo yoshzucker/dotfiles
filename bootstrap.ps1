@@ -1232,14 +1232,23 @@ function Enable-EmacsNativeComp {
     # us, it is for Emacs, and Emacs is built under MINGW64 -- so it does not
     # belong in that list under a name pacboy has to be told not to translate.
     # It belongs with the one step that knows why it is wanted.
+    # Both, and for different reasons.  libgccjit is the library Emacs loads;
+    # gcc is the driver libgccjit goes on to invoke to assemble and link, and
+    # it must be the one from this same toolchain -- another build's gcc fails
+    # with "error invoking gcc driver" and every file quietly stays byte-code.
+    # libgccjit does not depend on gcc (only on gcc-libs), so asking for it
+    # alone leaves a machine that loads the library and can compile nothing.
+    # early-init.el puts this directory at the front of Emacs's own PATH; see
+    # the comment there for why it is not put on the system's.
     $jit = Join-Path $src "libgccjit-0.dll"
-    if (-not (Test-Path -LiteralPath $jit)) {
+    $gcc = Join-Path $src "gcc.exe"
+    if (-not (Test-Path -LiteralPath $jit) -or -not (Test-Path -LiteralPath $gcc)) {
         $bash = Get-MSYS2BashPath
         if ($bash) {
-            Write-Host "Installing mingw-w64-x86_64-libgccjit..."
+            Write-Host "Installing mingw-w64-x86_64-libgccjit and -gcc..."
             $get = (@'
 set -x
-pacman -S --needed --noconfirm mingw-w64-x86_64-libgccjit </dev/null
+pacman -S --needed --noconfirm mingw-w64-x86_64-libgccjit mingw-w64-x86_64-gcc </dev/null
 '@) -replace "`r", ""
             $tmp = [System.IO.Path]::GetTempFileName()
             try {
@@ -1254,6 +1263,9 @@ pacman -S --needed --noconfirm mingw-w64-x86_64-libgccjit </dev/null
     if (-not (Test-Path -LiteralPath $jit)) {
         Write-Host "libgccjit (mingw64) still not present; skipping." -ForegroundColor Yellow
         return
+    }
+    if (-not (Test-Path -LiteralPath $gcc)) {
+        Write-Host "gcc (mingw64) still not present; native compilation will fail at link time." -ForegroundColor Yellow
     }
     if (-not (Test-Path -LiteralPath $dst)) { return }
 
