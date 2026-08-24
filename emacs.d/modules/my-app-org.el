@@ -121,23 +121,17 @@ stored twice.")
 
 (use-package org
   :straight org-contrib
-  ;; Loaded a second after the keyboard first goes quiet, rather than during
-  ;; startup.  `:defer' with a number is `run-with-idle-timer', so the frame
-  ;; arrives without waiting for Org, which with everything that loads beside it
-  ;; is half of this configuration's startup.
-  ;;
-  ;; The work is moved, not avoided: it lands as a pause a moment after the
-  ;; frame instead of as a longer blank wait before it.  That is the whole of
-  ;; the trade.  `:after evil' stays because the keymaps below are evil's, and
-  ;; because `:init' runs there -- at startup, where the agenda file scan needs
-  ;; it -- rather than on the timer.
+  ;; Loaded at startup, deliberately.  Org is the first thing reached for here,
+  ;; and a pause on reaching for it is worse than a slower start.  It can afford
+  ;; to be: what made Org expensive was never Org but the ecosystem that used to
+  ;; load beside it, and that now waits to be asked for.
   :after evil
-  :defer 1
   :init
   (setq system-time-locale "C")
-  ;; Set `org-directory' here in `:init' (not `:config') so it is bound at
-  ;; startup: Org is not loaded yet when the startup agenda refresh below reads
-  ;; it.  Presetting this defcustom is safe -- org.el will not clobber an
+  ;; Set `org-directory' here in `:init' (not `:config') so it is bound before
+  ;; org.el loads rather than after.  The agenda-file discovery below depends on
+  ;; it and on nothing else in Org, and runs from `emacs-startup-hook'.
+  ;; Presetting this defcustom is safe -- org.el will not clobber an
   ;; already-bound value.
   (setq org-directory (file-name-as-directory "~/Documents/memex/"))
 
