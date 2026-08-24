@@ -11,6 +11,36 @@
 ;; wants it, so `M-x toggle-debug-on-error' turns it on for as long as it helps,
 ;; and `emacs --debug-init' still covers startup.
 
+;; What `load' probes for, on a machine where probing is expensive.
+;;
+;; Emacs finds a library by walking `load-path' and trying, in each directory,
+;; every combination of `load-suffixes' and `load-file-rep-suffixes'.  With Auto
+;; Compression mode on -- it is on by default -- that means `.elc' `.elc.gz'
+;; `.el' `.el.gz' and the module suffixes doubled the same way: eight probes per
+;; directory.  straight puts one build directory per package at the front of the
+;; walk, and Emacs's own lisp sits at the end, so every bundled library is found
+;; only after several hundred probes for names that were never going to be there.
+;;
+;; That is most of the startup on Windows, where one probe costs 0.22ms against
+;; 0.003ms on macOS.  Measured there: 172 directories, 143ms to look one library
+;; up, and `mail-prsvr' -- thirty-three lines -- taking 0.10s of a 39.7s startup,
+;; all of it spent arriving.  Without the compressed half the same lookup took
+;; 67ms.
+;;
+;; `jka-compr-load-suffixes' is the setting that adds that half, and setting it
+;; through Custom runs `jka-compr-update', so the derived `load-file-rep-suffixes'
+;; follows instead of being poked behind its owner's back.  Auto Compression mode
+;; stays on: .gz files open and save exactly as before, and only the search for a
+;; *library* stops considering them.
+;;
+;; Sound only where no lisp is shipped gzipped, which is worth testing rather
+;; than assuming -- a distribution compresses all of its lisp or none of it, and
+;; `subr.el' is the one file all of them have.
+(let* ((subr (locate-library "subr"))
+       (lisp (and subr (file-name-directory subr))))
+  (when (and lisp (not (file-exists-p (expand-file-name "subr.el.gz" lisp))))
+    (setopt jka-compr-load-suffixes nil)))
+
 ;; Bootstrap straight.el
 (defvar bootstrap-version)
 (let ((bootstrap-file (expand-file-name "straight/repos/straight.el/bootstrap.el"

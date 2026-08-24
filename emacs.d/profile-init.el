@@ -41,17 +41,22 @@ Each element is (NAME . CHILD-SECONDS), where the cdr accumulates the
 time of nested frames so it can be subtracted on the way out.")
 
 (defvar profile-init--files (make-hash-table :test #'equal)
-  "NAME to a vector of [ALONE-SECONDS TOTAL-SECONDS CALLS].")
+  "NAME to a vector of [ALONE-SECONDS TOTAL-SECONDS CALLS REQUIRER].
+REQUIRER is whichever frame was open when this one was first entered, which
+is the answer to \"who pulled this in\" -- the question a ranking on its own
+always raises and never settles.")
 
 (defun profile-init--time (name thunk)
   "Call THUNK, charging its wall time to NAME."
-  (let ((start (float-time)))
+  (let ((start (float-time))
+        (parent (car (car profile-init--stack))))
     (push (cons name 0.0) profile-init--stack)
     (unwind-protect (funcall thunk)
       (let* ((elapsed (- (float-time) start))
              (frame (pop profile-init--stack))
              (row (or (gethash name profile-init--files)
-                      (puthash name (vector 0.0 0.0 0) profile-init--files))))
+                      (puthash name (vector 0.0 0.0 0 parent)
+                               profile-init--files))))
         (aset row 0 (+ (aref row 0) (- elapsed (cdr frame))))
         (aset row 1 (+ (aref row 1) elapsed))
         (aset row 2 (1+ (aref row 2)))
@@ -90,20 +95,20 @@ A feature already present costs nothing and would only add a zero row."
       (erase-buffer)
       (insert (format "Startup profile -- %.2f s over %d files\n%s on %s\n\n"
                       total (length rows) emacs-version system-type))
-      (insert "  alone   within  calls  what\n")
-      (insert "  ------  -------  -----  ----------------------------------------\n")
+      (insert "  alone   within  what                            pulled in by\n")
+      (insert "  ------  -------  ------------------------------  --------------------\n")
       (let ((shown 0) (rest 0.0))
         (dolist (row rows)
           (if (or (< shown 30) (>= (aref (cdr row) 0) 0.10))
               (progn
                 (setq shown (1+ shown))
-                (insert (format "  %6.2f  %7.2f  %5d  %s\n"
+                (insert (format "  %6.2f  %7.2f  %-30s  %s\n"
                                 (aref (cdr row) 0) (aref (cdr row) 1)
-                                (aref (cdr row) 2)
-                                (profile-init--shorten (car row) 40))))
+                                (profile-init--shorten (car row) 30)
+                                (profile-init--shorten (or (aref (cdr row) 3) "-") 20))))
             (setq rest (+ rest (aref (cdr row) 0)))))
         (when (> (length rows) shown)
-          (insert (format "  %6.2f                  (%d further files)\n"
+          (insert (format "  %6.2f           (%d further files)\n"
                           rest (- (length rows) shown)))))
       (insert "\nM-x profiler-report for what a row was doing.\n")
       (if noninteractive
@@ -123,7 +128,7 @@ A feature already present costs nothing and would only add a zero row."
   (when (file-exists-p early)
     (load early nil 'nomessage))
   (setq elapsed (- (float-time) start))
-  (puthash "early-init.el" (vector elapsed elapsed 1) profile-init--files)
+  (puthash "early-init.el" (vector elapsed elapsed 1 nil) profile-init--files)
 
   (advice-add 'load :around #'profile-init--load)
   (advice-add 'require :around #'profile-init--require)
