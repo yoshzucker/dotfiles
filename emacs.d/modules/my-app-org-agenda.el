@@ -446,7 +446,15 @@ org's existing key table stays the single source of truth."
          ;; looking at the day it went missing from.  Over
          ;; `org-agenda-convert-date', which offers the Julian and Mayan
          ;; dates and has never been wanted here.
-         "C" #'org-foresight-clock-fill)))
+         "C" #'org-foresight-clock-fill
+         ;; Preparation is decided one invitation at a time.  The bulk
+         ;; command offers every meeting that has none, which is the right
+         ;; shape once a week and the wrong one for the invitation that just
+         ;; arrived -- most meetings need nothing, and a prompt that asks
+         ;; about all of them at once gets answered "no".  Over
+         ;; `org-agenda-priority-down', which the priority axis here does not
+         ;; use.
+         "P" #'org-foresight-prepare-meeting)))
 
 ;;;; Other views of the same day
 ;; Neither reads the agenda, and neither is one: a timeline and a set of
