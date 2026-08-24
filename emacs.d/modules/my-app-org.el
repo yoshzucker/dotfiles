@@ -1295,6 +1295,14 @@ block already shows what is out with them, as a live query."
 
 (use-package pdf-tools
   :if (display-graphic-p)
+  ;; Not loaded until a PDF is opened.  `pdf-tools-install' checks that
+  ;; `epdfinfo' is built and current, which means a subprocess and a walk of
+  ;; the build directory -- nine seconds of every Windows startup, measured,
+  ;; against under two on macOS, for a program most sessions never open a PDF
+  ;; in.  `pdf-loader-install' registers the file associations and defers that
+  ;; check to the first PDF, which is the only moment its answer is wanted.
+  :defer t
+  :init (pdf-loader-install)
   :config
   ;; MSYS2 + pdf-tools setup (for Windows)
   ;; 1. Install MSYS2 (e.g., scoop install msys2)
@@ -1307,7 +1315,6 @@ block already shows what is out with them, as a live query."
   ;;    M-x pdf-tools-install
   ;;    M-x pdf-info-check-epdfinfo
 
-  (pdf-tools-install)       ;; Run every time to ensure setup
   (blink-cursor-mode 0))    ;; Better UX for PDF buffers
 
 (use-package org-pdftools
