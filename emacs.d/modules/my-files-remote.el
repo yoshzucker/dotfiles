@@ -7,6 +7,13 @@
 
 (use-package tramp
   :straight nil
+  ;; Loaded when a remote file name is first opened, which most sessions never
+  ;; do.  Emacs autoloads Tramp off the file-name handler regardless, so
+  ;; nothing here is needed before then -- and on Windows the eager load cost
+  ;; nearly a second and a half of every startup, against a fifth of one on
+  ;; macOS.  What it does at load time is look at the world it might have to
+  ;; reach, and that is the part Windows charges for.
+  :defer t
   :config
   (setenv "SHELL" "/bin/bash")
 

@@ -298,6 +298,12 @@ org's existing key table stays the single source of truth."
 ;; but not what it was for.
 (use-package activity-watch-mode
   :diminish (activity-watch-mode " aw")
+  ;; Started two seconds after the keyboard goes quiet, rather than during
+  ;; startup.  `:defer\=' with a number is `run-with-idle-timer\=': the package
+  ;; is required once the first pause comes, so its cost lands where nobody is
+  ;; waiting on it.  Watching a second of the session go unrecorded is not a
+  ;; cost worth the name, and it is a second nobody was working in.
+  :defer 2
   :config
   (setopt activity-watch-org-clock-active t)
   (global-activity-watch-mode))
