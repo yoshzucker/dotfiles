@@ -111,18 +111,34 @@ A feature already present costs nothing and would only add a zero row."
         (pop-to-buffer (current-buffer))
         (goto-char (point-min))))))
 
-(advice-add 'load :around #'profile-init--load)
-(advice-add 'require :around #'profile-init--require)
-(profiler-start 'cpu)
+;; `early-init.el' is loaded before the instrumentation goes on, not under it.
+;; Advising a primitive makes Emacs synthesize a native-compiled trampoline for
+;; it, and on Windows the toolchain that compiles one is only reachable through
+;; the PATH `early-init.el' sets.  Instrument first and the profiler's own
+;; advice fails to compile, which is a report about the profiler.  Its time is
+;; taken with a plain clock instead and shown as a row like any other.
+(let* ((start (float-time))
+       (early (expand-file-name "early-init.el" user-emacs-directory))
+       (elapsed nil))
+  (when (file-exists-p early)
+    (load early nil 'nomessage))
+  (setq elapsed (- (float-time) start))
+  (puthash "early-init.el" (vector elapsed elapsed 1) profile-init--files)
 
-(let ((start (float-time)))
-  (dolist (file '("early-init.el" "init.el"))
-    (let ((path (expand-file-name file user-emacs-directory)))
-      (when (file-exists-p path)
-        (load path nil 'nomessage))))
+  (advice-add 'load :around #'profile-init--load)
+  (advice-add 'require :around #'profile-init--require)
+  (profiler-start 'cpu)
+  ;; The total is the two loads added up, not the wall clock across this whole
+  ;; form: the setup between them is the profiler's own cost and belongs to no
+  ;; startup.  Leaving it out is what keeps the alone column summing to the
+  ;; total, which is the property that makes the table exhaustive.
+  (setq start (float-time))
+  (load (expand-file-name "init.el" user-emacs-directory) nil 'nomessage)
+  (setq elapsed (+ elapsed (- (float-time) start)))
   (profiler-stop)
   (advice-remove 'load #'profile-init--load)
   (advice-remove 'require #'profile-init--require)
-  (profile-init--report (- (float-time) start)))
+
+  (profile-init--report elapsed))
 
 ;;; profile-init.el ends here
