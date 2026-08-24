@@ -5,24 +5,18 @@
 
 ;;; Code:
 
-(use-package pyenv-mode
-  :config
-  (my/define-key
-   (:map pyenv-mode-map
-         :key
-         "C-c C-s" nil
-         "C-c C-u" nil))
-
-  (my/add-hook
-   (:hook python-mode python-ts-mode
-          :func #'pyenv-mode)))
-
 (use-package pyvenv
+  :defer t
   :config
   (add-hook 'pyvenv-post-activate-hooks
             (lambda ()
+              ;; Windows virtualenvs put the interpreter in Scripts/, every
+              ;; other platform in bin/.
               (setq python-shell-interpreter
-                    (expand-file-name "Scripts/python" pyvenv-virtual-env)))))
+                    (expand-file-name (if (eq system-type 'windows-nt)
+                                          "Scripts/python"
+                                        "bin/python")
+                                      pyvenv-virtual-env)))))
 
 (provide 'my-lang-python)
 ;;; my-lang-python.el ends here
