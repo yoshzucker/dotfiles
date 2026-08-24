@@ -87,11 +87,15 @@
 ;; lookup against 0.4ms per directory, which was most of what a startup spent.
 ;;
 ;; Only a package that ships a library Emacs also bundles needs to be ahead of
-;; Emacs's lisp.  For every other package the order is arbitrary, and the front
-;; is simply the expensive place to stand.  So those few go in front and the
-;; rest are appended, leaving
+;; Emacs's lisp.  Those few stay in front; the rest go behind it, leaving
 ;;
 ;;     [the shadowing packages] [Emacs's own lisp] [everything else]
+;;
+;; Behind, but at the head of it.  straight prepending is not arbitrary: a
+;; package is required immediately after it is registered, so the front is
+;; exactly where the directory about to be searched belongs, and appending
+;; instead put every package at the back of the queue at the one moment it was
+;; wanted -- measured at 57ms to find a package against 0.4ms before.
 ;;
 ;; Getting that list wrong is quiet.  The bundled copy wins, the installed
 ;; package becomes unreachable, and for something like `compat' that looks like
@@ -181,13 +185,24 @@ rebuild."
 
 (define-advice straight--add-package-to-load-path
     (:around (orig recipe) my/behind-emacs-own-lisp)
-  "Append the package's directory unless it has to shadow Emacs's own lisp."
-  (let ((package (plist-get recipe :package)))
-    (if (member package my/straight-packages-before-emacs-lisp)
-        (funcall orig recipe)
-      (add-to-list 'load-path
-                   (directory-file-name (straight--build-dir package))
-                   'append))))
+  "Add the package's directory just behind Emacs's own lisp.
+A package that has to shadow Emacs's lisp is prepended as straight would.
+Anything else lands at the head of what follows Emacs's lisp, so it is still
+the first package directory searched when it is required a moment later."
+  (let* ((package (plist-get recipe :package))
+         (dir (directory-file-name (straight--build-dir package)))
+         (last-own (car (last my/emacs-own-load-path)))
+         (at (and last-own (seq-position load-path last-own))))
+    (cond
+     ((member dir load-path) load-path)
+     ;; No recognisable block of Emacs's own lisp to sit behind -- leave the
+     ;; ordering to straight rather than guess at a position.
+     ((or (null at)
+          (member package my/straight-packages-before-emacs-lisp))
+      (funcall orig recipe))
+     (t (setq load-path (append (seq-take load-path (1+ at))
+                                (list dir)
+                                (seq-drop load-path (1+ at))))))))
 
 ;; Install and use use-package via straight
 (straight-use-package 'use-package)
