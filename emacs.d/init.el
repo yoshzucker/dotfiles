@@ -78,6 +78,117 @@
 (when (eq system-type 'windows-nt)
   (setq straight-check-for-modifications '(check-on-save find-when-checking)))
 
+;; Where Emacs's own lisp sits in `load-path'.
+;;
+;; A library is found by walking `load-path' in order, probing each directory
+;; for each candidate suffix.  straight prepends one build directory per
+;; package, so Emacs's own lisp ends up behind all of them, and every bundled
+;; library is found only after probing every one: measured on Windows at 67ms a
+;; lookup against 0.4ms per directory, which was most of what a startup spent.
+;;
+;; Only a package that ships a library Emacs also bundles needs to be ahead of
+;; Emacs's lisp.  For every other package the order is arbitrary, and the front
+;; is simply the expensive place to stand.  So those few go in front and the
+;; rest are appended, leaving
+;;
+;;     [the shadowing packages] [Emacs's own lisp] [everything else]
+;;
+;; Getting that list wrong is quiet.  The bundled copy wins, the installed
+;; package becomes unreachable, and for something like `compat' that looks like
+;; nothing at all until a function turns out to be missing.  So the list is
+;; checked rather than trusted: `my/straight-warn-if-shadowing' runs on
+;; `straight-use-package-post-build-functions', which fires on every install and
+;; on every rebuild after a pull -- the only moments the answer can change.
+
+(defconst my/emacs-own-load-path
+  (let ((ours (expand-file-name user-emacs-directory)))
+    (seq-remove (lambda (dir) (string-prefix-p ours (expand-file-name dir)))
+                load-path))
+  "Every directory of Emacs's bundled lisp, and nothing else.
+Read before straight has added a package, so whatever lives under
+`user-emacs-directory' at this point belongs to straight rather than Emacs.")
+
+(defconst my/straight-packages-before-emacs-lisp
+  '("bind-key" "compat" "eglot" "eldoc" "external-completion" "flymake"
+    "jsonrpc" "let-alist" "map" "org" "peg" "project" "seq" "svg"
+    "transient" "use-package" "xref")
+  "Packages that must stay ahead of Emacs's own lisp in `load-path'.
+Each ships at least one library Emacs also bundles, so behind Emacs's lisp
+the bundled copy would win and the installed package would be unreachable.
+Every other package straight builds is appended instead.")
+
+(defun my/emacs-bundled-libraries ()
+  "Return a hash table whose keys name every library Emacs itself bundles."
+  (let ((names (make-hash-table :test #'equal)))
+    (dolist (dir my/emacs-own-load-path names)
+      (dolist (file (ignore-errors (directory-files dir nil "\\.elc?\\'")))
+        (puthash (file-name-base file) t names)))))
+
+(defun my/straight-shadowed-libraries (package &optional bundled)
+  "Return the libraries PACKAGE ships that Emacs also bundles.
+BUNDLED is a table from `my/emacs-bundled-libraries', built here when
+omitted.  Pass one when asking about many packages: building it walks every
+directory of Emacs's lisp."
+  (let ((bundled (or bundled (my/emacs-bundled-libraries)))
+        (dir (straight--build-dir package))
+        found)
+    (dolist (file (and (file-directory-p dir)
+                       (directory-files dir nil "\\.el\\'"))
+                  (nreverse found))
+      (let ((name (file-name-base file)))
+        (when (gethash name bundled)
+          (push name found))))))
+
+(defun my/straight-warn-if-shadowing (package &rest _)
+  "Warn when PACKAGE shadows Emacs's own lisp without being declared to."
+  (unless (member package my/straight-packages-before-emacs-lisp)
+    (when-let* ((shadowed (my/straight-shadowed-libraries package)))
+      (display-warning
+       'straight
+       (format (concat "%s ships %s, which Emacs also bundles.  Its build "
+                       "directory is appended to `load-path', so Emacs's copy "
+                       "wins and the installed %s is unreachable.\n"
+                       "Add %S to `my/straight-packages-before-emacs-lisp'.")
+               package (string-join shadowed ", ") package package)
+       :warning))))
+
+(add-hook 'straight-use-package-post-build-functions
+          #'my/straight-warn-if-shadowing)
+
+(defun my/straight-check-load-path-shadows ()
+  "Report every built package that shadows Emacs's own lisp undeclared.
+The post-build hook covers packages built from here on; this covers the ones
+already sitting in straight's build directory, which it has no reason to
+rebuild."
+  (interactive)
+  (let* ((bundled (my/emacs-bundled-libraries))
+         (build (straight--build-dir))
+         (packages (seq-filter
+                    (lambda (name)
+                      (file-directory-p (expand-file-name name build)))
+                    (directory-files build nil "\\`[^.]")))
+         (undeclared
+          (seq-filter
+           (lambda (package)
+             (and (not (member package my/straight-packages-before-emacs-lisp))
+                  (my/straight-shadowed-libraries package bundled)))
+           packages)))
+    (if undeclared
+        (message "Shadowing Emacs's own lisp, undeclared: %s"
+                 (string-join undeclared " "))
+      (message "No package shadows Emacs's own lisp undeclared (%d checked)"
+               (length packages)))))
+
+(define-advice straight--add-package-to-load-path
+    (:around (orig recipe) my/behind-emacs-own-lisp)
+  "Append the package's directory unless it has to shadow Emacs's own lisp."
+  (let ((package (plist-get recipe :package)))
+    (if (member package my/straight-packages-before-emacs-lisp)
+        (funcall orig recipe)
+      (add-to-list 'load-path
+                   (directory-file-name (straight--build-dir package))
+                   'append))))
+
 ;; Install and use use-package via straight
 (straight-use-package 'use-package)
 (setq straight-use-package-by-default t)
