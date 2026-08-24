@@ -4,7 +4,40 @@
 
 ;;; Code:
 (use-package agent-shell
-  :after evil
+  ;; Loaded on first use.  Everything in `:config' below adjusts agent-shell
+  ;; itself -- its keymap, its header rendering, its UI padding -- and none of
+  ;; it means anything until agent-shell exists.  Three things do have to hold
+  ;; for the whole session, so they live in `:init': the keys that reach the
+  ;; command, the interpreters it shells out to, and its entry in the project
+  ;; switcher, which would otherwise appear only after the first visit.
+  :defer t
+  :commands (agent-shell agent-shell-toggle)
+  :init
+  (when (eq system-type 'windows-nt)
+    (dolist (path (list (expand-file-name "~/scoop/apps/nodejs/current")
+                        (expand-file-name "~/scoop/apps/nodejs/current/bin")
+                        (expand-file-name "~/scoop/apps/msys2/current/usr/bin")))
+      (add-to-list 'exec-path path)
+      (setenv "PATH" (concat path ";" (getenv "PATH")))))
+
+  (my/define-key
+   (:map global-map
+         :prefix "C-c"
+         :key
+         "x" #'agent-shell
+         "h" #'agent-shell-toggle))
+
+  (with-eval-after-load 'project
+    (add-to-list 'project-switch-commands
+                 '(my/project-agent-shell "Agent shell" "a")
+                 t))
+
+  (defun my/project-agent-shell ()
+    "Start agent-shell from the root of the current project."
+    (interactive)
+    (let ((default-directory (project-root (project-current t))))
+      (call-interactively #'agent-shell)))
+
   :config
   ;; Permission-button dispatch: when a permission dialog is present in
   ;; the buffer, `y'/`n'/`!' must reach the button's text-property keymap
@@ -40,11 +73,6 @@ CHAR is a string like \"y\" / \"n\" / \"!\"."
                             cmd))))
 
   (my/define-key
-   (:map global-map
-         :prefix "C-c"
-         :key
-         "x" #'agent-shell
-         "h" #'agent-shell-toggle)
    (:map agent-shell-mode-map :state insert normal
          :key
          "C-RET" #'my/shell-maker-submit-and-normal
@@ -57,13 +85,6 @@ CHAR is a string like \"y\" / \"n\" / \"!\"."
          :key
          "<backtab>" #'my/agent-shell-cycle-session-mode
          "C-c C-q" #'my/agent-shell-sayoonara))
-  
-  (when (eq system-type 'windows-nt)
-    (dolist (path (list (expand-file-name "~/scoop/apps/nodejs/current")
-                        (expand-file-name "~/scoop/apps/nodejs/current/bin")
-                        (expand-file-name "~/scoop/apps/msys2/current/usr/bin")))
-      (add-to-list 'exec-path path)
-      (setenv "PATH" (concat path ";" (getenv "PATH")))))
   
   (let ((packages
          (append
@@ -112,17 +133,6 @@ Outside: pre-fills with the file at point in dired, or buffer-file-name for norm
              (files (list (expand-file-name file dir))))
         (agent-shell-insert :text (agent-shell--get-files-context :files files)
                             :shell-buffer shell-buffer))))
-
-  (with-eval-after-load 'project
-    (add-to-list 'project-switch-commands
-                 '(my/project-agent-shell "Agent shell" "a")
-                 t))
-
-  (defun my/project-agent-shell ()
-    "Start agent-shell from the root of the current project."
-    (interactive)
-    (let ((default-directory (project-root (project-current t))))
-      (call-interactively #'agent-shell)))
 
   (defun my/agent-shell-cycle-session-mode (&optional on-success)
     "Cycle session modes, skipping any that the backend refuses.
@@ -345,7 +355,14 @@ via a font-weight= presence check."
 
 (use-package agent-shell-manager
   :straight (:host github :repo "jethrokuan/agent-shell-manager")
-  :after (agent-shell evil)
+  ;; Deferred alongside agent-shell, so the key that summons it is bound here
+  ;; rather than in `:config' -- otherwise the manager could only be reached
+  ;; after something else had already loaded agent-shell.
+  :defer t
+  :commands (agent-shell-manager-toggle)
+  :init
+  (my/define-key
+   (:map global-map :key "C-c s m" #'agent-shell-manager-toggle))
   :custom
   ;; Route display through `display-buffer-alist' (configured below in
   ;; :config) instead of the package's fixed 30%-of-frame side window.
@@ -411,7 +428,6 @@ shell would either overflow or leave dead space."
               #'my/agent-shell-manager-refit)
 
   (my/define-key
-   (:map global-map :key "C-c s m" #'agent-shell-manager-toggle)
    (:map agent-shell-manager-mode-map
          :state motion
          :key

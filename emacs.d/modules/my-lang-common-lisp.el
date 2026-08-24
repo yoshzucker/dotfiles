@@ -8,6 +8,10 @@
 ;;; Code:
 
 (use-package sly
+  ;; Loaded by `M-x sly'.  Eager, it pulled in `hyperspec' and `browse-url' and
+  ;; `arc-mode' on every startup, for a REPL that is started deliberately or not
+  ;; at all.
+  :defer t
   :init
   (setq inferior-lisp-program "sbcl")
   :config

@@ -996,12 +996,18 @@ without replacing it."
   (setq org-download-method 'attach))
 
 (use-package org-pomodoro
-  :after (org org-clock)
-  :config
+  ;; Deferred to the first timer.  The key that starts one is bound when Org
+  ;; loads, so nothing about reaching it changes; what stops loading at startup
+  ;; is `alert' and the notification backends behind it.
+  :defer t
+  :commands (org-pomodoro)
+  :init
   (my/define-key
    (:map global-map org-mode-map
+         :after org
          :key
          "C-c C-x C-p" #'org-pomodoro))
+  :config
   (setq org-pomodoro-format "%s")
 
   (defun my/org-pomodoro-update-mode-line ()
@@ -1038,7 +1044,14 @@ without replacing it."
   :after org)
 
 (use-package ox-pandoc
-  :after org)
+  ;; An export backend is reachable from one place, the export dispatcher, and
+  ;; that dispatcher lives in `ox' -- so `ox' loading is exactly the moment this
+  ;; has to exist, and no earlier.  Under `:after org' it loaded with Org and
+  ;; brought the whole export tree with it (ox, ox-org, ox-html, ox-latex,
+  ;; ox-odt, ox-ascii), three seconds of every startup for a converter reached
+  ;; a few times a year.
+  :defer t
+  :init (with-eval-after-load 'ox (require 'ox-pandoc)))
 
 (use-package org-ql
   :after org
