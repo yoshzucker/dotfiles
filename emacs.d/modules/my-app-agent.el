@@ -451,11 +451,18 @@ shell would either overflow or leave dead space."
          "C-c C-c" #'agent-shell-manager-interrupt)))
 
 (use-package knockknock
-  :straight (:host github :repo "konrad1977/knockknock"))
+  :straight (:host github :repo "konrad1977/knockknock")
+  ;; Nothing calls into this directly; agent-shell-knockknock requires it, and
+  ;; that is the only path by which its posframe and nerd-icons ever need to
+  ;; load.
+  :defer t)
 
 (use-package agent-shell-knockknock
   :straight (:host github :repo "xenodium/agent-shell-knockknock")
-  :after (agent-shell knockkock)
+  ;; Only agent-shell is waited on.  `knockknock' does not belong in this list:
+  ;; agent-shell-knockknock requires it at its top level, so naming it here
+  ;; would mean waiting for a load that nothing else ever performs.
+  :after agent-shell
   :config
   (agent-shell-knockknock-mode 1))
 
