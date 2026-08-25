@@ -1,7 +1,12 @@
 ;;; my-files-remote.el --- Remote access and integration tools -*- lexical-binding: t -*-
 ;;; Commentary:
-;; Provides configuration for accessing and interacting with remote environments.
-;; Covers TRAMP, WSL, SSH, and containerized systems such as Docker.
+;; Reaching files that are not on this machine.  Tramp is the whole of it, and
+;; it is reached by naming the place in the file name rather than by any
+;; command of its own:
+;;
+;;   C-x C-f /ssh:user@host:/path     another machine
+;;   C-x C-f /sudo::/path             another user, here
+;;   C-x C-f /docker:name:/path       inside a container
 
 ;;; Code:
 
@@ -19,12 +24,7 @@
 
   (setq vc-ignore-dir-regexp
         (format "\\(%s\\)\\|\\(%s\\)" vc-ignore-dir-regexp
-                tramp-file-name-regexp))
-
-  (defun my/tramp-ssh-hint ()
-    "TRAMP via SSH: C-x C-f /ssh:user@host:/path"
-    (interactive)
-    (message "TRAMP: C-x C-f /ssh:user@host:/path")))
+                tramp-file-name-regexp)))
 
 (provide 'my-files-remote)
 ;;; my-files-remote.el ends here

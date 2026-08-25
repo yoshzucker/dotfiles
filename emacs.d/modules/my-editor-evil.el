@@ -252,17 +252,6 @@
    (:map evil-normal-state-map :key "g C-n" #'iedit-mode)
    (:map evil-visual-state-map :key "C-n" #'iedit-mode)))
 
-;; (use-package evil-cleverparens
-;;   :init
-;;   (setq evil-cleverparens-use-additional-movement-keys nil)
-;;   :config
-;;   (my/add-hook
-;;    (:hook lisp-mode-hook slime-lisp-mode-hook emacs-lisp-mode-hook
-;;           :func #'evil-cleverparens-mode))
-
-;;   (when evil-move-cursor-back
-;;     (setq evil-move-beyond-eol t)))
-
 (use-package evil-snipe
   :after evil
   :diminish evil-snipe-local-mode
