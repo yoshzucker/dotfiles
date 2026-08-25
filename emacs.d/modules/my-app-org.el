@@ -217,7 +217,8 @@ agenda file set does not depend on whether rg is installed -- rg's own
          "C-o" #'org-clock-out
          "C-j" #'org-clock-goto
          "C-|" #'org-clock-goto
-         "i"   #'org-mru-clock-in
+         ;; Clocking into something already clocked once is Org's own
+         ;; `C-u C-c C-x C-i', which offers the recent ones to choose from.
          "C-z" #'org-resolve-clocks
          "C-e" #'org-clock-modify-effort-estimate)
    (:map org-mode-map
