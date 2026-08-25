@@ -32,7 +32,7 @@
 ;; What to record, where it goes, how to get there:
 ;;
 ;;   a task (has a state, a date)       journal.org datetree   C-c c a / i / s / e
-;;   a settled appointment or clock     journal.org datetree   C-c c p / l / d
+;;   a settled appointment or clock     journal.org datetree   C-c c p / l
 ;;   a thought, feeling, fragment       today's daily note     C-c z n
 ;;   a subject inside today             today's daily note     C-c z d
 ;;   more about the clocked task        that task              C-c c n
@@ -699,8 +699,6 @@ called with C-u (prefix 64)."
            :clock-in t :clock-keep t :jump-to-captured t)
           ("l" "insert clock" entry (file+datetree my/org-journal-file)
            "* %?\n:LOGBOOK:\nCLOCK: %U--%U =>  0:00\n:END:")
-          ("d" "insert done" entry (file+datetree my/org-journal-file)
-           "* DONE %?\nCLOSED: %U\n:LOGBOOK:\nCLOCK: %U--%U =>  0:00\n:END:")
           ;; Work handed to someone, captured as it is created.  WAIT rather
           ;; than DELEG: it is coming back, and I am still answerable for it
           ;; (see `org-todo-keywords').  SCHEDULED is when to ask, `:PEOPLE:'
