@@ -1,26 +1,13 @@
 ;;; my-lang-shell.el --- Shell and terminal configuration -*- lexical-binding: t; -*-
 
 ;;; Commentary:
-;; Enhances shell and REPL environments in Emacs.
-;; Provides keybindings for `comint-mode` and indentation settings for shell scripts.
-;; Supports various shell interfaces such as `sh-mode`, `comint`, and `powershell`.
-;; 
-;; This file is focused on traditional shell support.
-;; For vterm/eshell or REPL frameworks, consider creating separate modules if needed.
+;; Editing shell scripts: how they are indented, and the modes that read them.
+;;
+;; Not the shells themselves.  A process buffer is comint's, and comint is
+;; configured in my-syntax-repl.el beside everything else that runs code and
+;; reads back what it said.
 
 ;;; Code:
-
-(use-package comint
-  :straight nil
-  :defer t
-  :config
-  ;; Shell-like input navigation in insert state
-  (my/define-key
-   (:map comint-mode-map
-         :state insert
-         :key
-         "C-j" #'comint-next-input
-         "C-k" #'comint-previous-input)))
 
 (use-package sh-script
   :straight nil
