@@ -1,8 +1,8 @@
 ;;; my-ui-cursor.el --- Cursor appearance and behavior -*- lexical-binding: t; -*-
 
 ;;; Commentary:
-;; Sets up cursor appearance, scrolling behavior, and terminal
-;; cursor shape using ANSI escape sequences.
+;; Cursor appearance and scrolling, and -- in a terminal -- the escape
+;; sequence that makes the shape follow evil's state.
 
 ;;; Code:
 
@@ -17,22 +17,22 @@
 ;; Terminal-specific cursor settings
 (unless (display-graphic-p)
 
-  ;; Cursor shape escape sequences
-  (defconst my/cursor-shape-table
-    '((iterm . ((line  . "\e]50;CursorShape=1\x7")
-                (block . "\e]50;CursorShape=0\x7")))
-      (ansi  . ((line  . "\e[5 q")
-                (block . "\e[1 q")))))
+  ;; DECSCUSR, which is what every terminal used here answers to -- mintty on
+  ;; Windows, ghostty on macOS.  A terminal that wanted its own sequence would
+  ;; need a table; none of them do.
+  (defconst my/cursor-shapes
+    '((line  . "\e[5 q")
+      (block . "\e[1 q")))
 
-  ;; Tmux escape sequence wrapping
+  ;; Inside tmux a sequence meant for the terminal has to be handed through the
+  ;; pane, or tmux reads it as its own.
   (defconst my/tmux-prefix "\ePtmux;\e")
   (defconst my/tmux-suffix "\e\\")
 
   (defun my/escape-seq (shape)
-    "Return appropriate escape sequence string for cursor SHAPE (:line or :block)."
-    (let* ((term (if (equal (getenv "TERM_PROGRAM") "iTerm.app") 'iterm 'ansi))
-           (seq  (cdr (assoc shape (alist-get term my/cursor-shape-table))))
-           (tmux (getenv "TMUX")))
+    "Return the escape sequence for cursor SHAPE, wrapped when inside tmux."
+    (let ((seq (alist-get shape my/cursor-shapes))
+          (tmux (getenv "TMUX")))
       (concat (if tmux my/tmux-prefix "")
               seq
               (if tmux my/tmux-suffix ""))))

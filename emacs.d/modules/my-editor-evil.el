@@ -1,18 +1,20 @@
-;;; my-editor-evil.el --- Evil mode key customizations for iTerm2 -*- lexical-binding: t; -*-
+;;; my-editor-evil.el --- Evil, and the keys a terminal cannot send -*- lexical-binding: t; -*-
 
 ;;; Commentary:
-;; Configure iTerm2 key mappings:
-;;   (Preferences -> Profiles -> Keys -> Key Mappings -> Send Hex Code)
+;; Some of the keys bound below have no encoding of their own in a terminal.
+;; They arrive instead as Emacs\='s own control escape -- `C-x @ c\=' followed by
+;; the plain character, 18 40 63 in hex -- which the terminal has to be told
+;; to send:
 ;;
-;;   C-,   -> "18 40 63 2c"
-;;   C-.   -> "18 40 63 2e"
-;;   C-:   -> "18 40 63 3a"
-;;   C-;   -> "18 40 63 3b"
-;;   C-<   -> "18 40 63 3c"  (actually C-S-<)
-;;   C->   -> "18 40 63 3e"  (actually C-S->)
-;;   C-(   -> "18 40 63 28"
-;;   C-)   -> "18 40 63 29"
-;;   C-RET -> "18 40 63 0d"
+;;   C-,   18 40 63 2c      C-<   18 40 63 3c   (C-S-<)
+;;   C-.   18 40 63 2e      C->   18 40 63 3e   (C-S->)
+;;   C-:   18 40 63 3a      C-(   18 40 63 28
+;;   C-;   18 40 63 3b      C-)   18 40 63 29
+;;   C-RET 18 40 63 0d
+;;
+;; Where that is said depends on the terminal -- mintty has KeyFunctions,
+;; ghostty has `keybind ... text:\=' -- so what is recorded here is the hex,
+;; which is the part that does not change.  A graphical Emacs needs none of it.
 
 ;;; Code:
 
