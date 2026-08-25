@@ -399,6 +399,18 @@ org's existing key table stays the single source of truth."
   (setq org-foresight-wip-keywords '("ONGO")
         org-foresight-wip-limit 2)
 
+  ;; The hours that go on answering people.  Real, recurring, and the ones
+  ;; still unrecorded at six o'clock, because naming each of them costs more
+  ;; than the two minutes it took to reply.  `C' in the agenda now offers this
+  ;; as an answer and asks only what it was about, filing the clock on a
+  ;; `comms' heading under that work -- so the time keeps its subject without
+  ;; anyone typing the word.
+  ;;
+  ;; Left unnamed these hours are indistinguishable from hours nobody can
+  ;; account for, and a week of them teaches the reserve that the whole day
+  ;; leaks.
+  (setq org-foresight-clock-fill-kinds '("comms"))
+
   ;; Measured against this journal it matched 17% of all headings -- diary
   ;; entries and date-tree scaffolding, not problems -- and a board mostly
   ;; listing non-problems stops being read.
@@ -430,7 +442,6 @@ org's existing key table stays the single source of truth."
          ;; `substitute-command-keys' resolves what is bound, and a dispatcher
          ;; entry is not.
          "B" #'org-foresight-board
-         "P" #'org-foresight-plan-fill
          ;; The shape of the day under the cursor, which is why it is bound
          ;; here rather than left to `M-x': the day that goes differently is
          ;; almost never today, and declaring it is only useful while looking
