@@ -442,6 +442,15 @@ org's existing key table stays the single source of truth."
          ;; `substitute-command-keys' resolves what is bound, and a dispatcher
          ;; entry is not.
          "B" #'org-foresight-board
+         ;; A proposal for the rest of the day: what has been accepted but not
+         ;; yet placed, laid into the free hours nearest deadline first and
+         ;; net of the reserve, in a buffer that writes nothing until it has
+         ;; been read.  Distinct from the `↳' rows the agenda draws under a
+         ;; gap -- those report what would fit in one hole and choose nothing,
+         ;; so the same task appears under every hole it fits in.  Over
+         ;; `org-agenda-phases-of-moon', the last of the almanac commands in
+         ;; this map; the Julian and Mayan dates went the same way for `C'.
+         "M" #'org-foresight-plan-fill
          ;; The shape of the day under the cursor, which is why it is bound
          ;; here rather than left to `M-x': the day that goes differently is
          ;; almost never today, and declaring it is only useful while looking
