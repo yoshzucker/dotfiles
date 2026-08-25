@@ -5,11 +5,9 @@
 
 ;;; Code:
 
-(use-package diminish
-  :config
-  (defmacro diminish-major-mode (hook new-name)
-    `(add-hook ,hook (lambda ()
-                       (setq mode-name ,new-name)))))
+;; Wanted for `use-package''s own `:diminish', which is how every minor mode
+;; here is shortened.  Nothing calls into it directly.
+(use-package diminish)
 
 ;;;###autoload
 (defmacro my/map-env (emacs-var env-var &optional mapping)

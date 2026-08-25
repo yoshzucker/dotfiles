@@ -45,15 +45,6 @@
           :func
           (lambda () (my/xref-add #'my/xref-backend-dumb-jump t))))
 
-  ;; (defun my/setup-xref-backends ()
-  ;;   "Set up prioritized xref backends for the current buffer."
-  ;;   (dolist (backend '(my/xref-backend-slime
-  ;;                      my/xref-backend-eglot
-  ;;                      my/xref-backend-dumb-jump))
-  ;;     (add-hook 'xref-backend-functions backend t t)))
-  
-  ;; (add-hook 'prog-mode-hook #'my/setup-xref-backends)
-
   ;; Avoid prompts when identifier is at point
   (setq xref-prompt-for-identifier
         '(not xref-find-definitions
