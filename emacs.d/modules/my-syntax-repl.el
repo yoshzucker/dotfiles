@@ -13,16 +13,30 @@
 ;;; Code:
 
 (use-package comint
+  ;; The substrate under every process buffer -- a REPL, a shell, an inferior
+  ;; anything -- which is why it is configured beside the REPL integration
+  ;; rather than beside the editing of shell scripts, with which it shares a
+  ;; word and nothing else.
+  ;;
+  ;; Deferred, because nothing wants comint until a process buffer exists.
   :straight nil
+  :defer t
   :config
   (my/define-key
    (:map comint-mode-map
          :key
          "C-p" #'comint-previous-matching-input-from-input
-         "C-n" #'comint-next-matching-input-from-input))
+         "C-n" #'comint-next-matching-input-from-input)
+   ;; Plain history in insert state, where the matching search above would
+   ;; take the half-typed line as a pattern.
+   (:map comint-mode-map
+         :state insert
+         :key
+         "C-j" #'comint-next-input
+         "C-k" #'comint-previous-input))
 
-  (defun clear-shell ()
-    "Clear the shell output buffer."
+  (defun my/comint-clear ()
+    "Clear this process buffer's output."
     (interactive)
     (let ((comint-buffer-maximum-size 0))
       (comint-truncate-buffer))))
