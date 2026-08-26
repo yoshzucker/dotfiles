@@ -69,10 +69,23 @@
               (my/evil-ex-define-cmd-local "w[rite]" #'org-save-all-org-buffers)))
 
   ;; Agenda settings
+  ;;
+  ;; Not sticky, because this agenda is a clock-relative page: almost
+  ;; everything foresight draws is measured from the moment of the draw -- the
+  ;; reserve still to be spent, what a gap can still hold, whether the day is
+  ;; behind or ahead, which work would fit.  A sticky agenda hands back a page
+  ;; built earlier, `org-agenda-use-sticky-p' throwing straight out of the
+  ;; build, so an afternoon `a' can offer gaps that closed at lunch with only
+  ;; a line in the echo area to say the page is old.
+  ;;
+  ;; What being sticky saved was the rebuild, and the rebuild is cheap: 14ms
+  ;; for a day and 21ms for a week, under one frame either way.  What it costs
+  ;; is holding two views open side by side, and `q' killing the buffer rather
+  ;; than burying it.
   (setq calendar-holidays nil
         org-deadline-warning-days 4
         org-agenda-window-setup 'reorganize-frame
-        org-agenda-sticky t
+        org-agenda-sticky nil
         org-agenda-persistent-filter t
         org-agenda-persistent-marks nil
         org-agenda-span 'day
