@@ -63,6 +63,60 @@
          :key
          "gr" #'org-agenda-redo))
 
+  ;; Keeping a sticky agenda's markers honest.
+  ;;
+  ;; `org-agenda-sticky' is on, so an agenda buffer survives and keeps
+  ;; `org-marker' text properties pointing into the org files.  When an entry
+  ;; it shows is deleted or moved -- archived, refiled, cut, edited by hand --
+  ;; the marker floats onto the neighbouring heading while the line on screen
+  ;; stays as it was.  Acting on that line then reaches a different, often
+  ;; unrelated entry: clocking in clocks the wrong task, `t' changes the wrong
+  ;; state, and the row still reads correctly the whole time.  A plain
+  ;; `org-agenda-redo' rebuilds the markers and cures it.
+  ;;
+  ;; Done in the background rather than at the moment of use, so the agenda is
+  ;; already fresh when it is reached for.  React to "some org buffer changed"
+  ;; rather than watching files: `org-agenda-files' is computed and changes
+  ;; under us, and a per-file snapshot would have to be kept true.
+  ;;
+  ;; What a redo costs has grown since this was first written -- it now redraws
+  ;; org-foresight's blocks too, about a quarter of a second on the Windows
+  ;; machine, for each live agenda.  `my/org-agenda-refresh-idle' is the knob:
+  ;; longer means fewer rebuilds and a wider window in which a stale marker
+  ;; could be acted on.
+  (defvar my/org-agenda-refresh-idle 1.5
+    "Idle seconds to debounce the sticky-agenda auto-redo.")
+
+  (defvar my/org-agenda-refresh-timer nil
+    "The single pending idle timer armed by `my/org-agenda--arm-refresh'.")
+
+  (defun my/org-agenda--refresh-agendas ()
+    "Redo every live `org-agenda-mode' buffer to refresh stale markers.
+`org-agenda-redo' does not modify the org source buffers, so this cannot
+re-trigger `after-change-functions' there -- the arming hook is installed on
+org buffers only -- and `org-agenda-persistent-filter' keeps any active
+filter across the redo."
+    (setq my/org-agenda-refresh-timer nil)
+    (dolist (buf (buffer-list))
+      (when (buffer-live-p buf)
+        (with-current-buffer buf
+          (when (derived-mode-p 'org-agenda-mode)
+            (ignore-errors (org-agenda-redo t)))))))
+
+  (defun my/org-agenda--arm-refresh (&rest _)
+    "Debounced trigger: (re)arm the idle auto-redo after an org edit.
+Added buffer-locally to `after-change-functions' in org buffers."
+    (when (timerp my/org-agenda-refresh-timer)
+      (cancel-timer my/org-agenda-refresh-timer))
+    (setq my/org-agenda-refresh-timer
+          (run-with-idle-timer my/org-agenda-refresh-idle nil
+                               #'my/org-agenda--refresh-agendas)))
+
+  (add-hook 'org-mode-hook
+            (lambda ()
+              (add-hook 'after-change-functions
+                        #'my/org-agenda--arm-refresh nil t)))
+
   ;; Ex command in agenda-mode
   (add-hook 'org-agenda-mode-hook
             (lambda ()
