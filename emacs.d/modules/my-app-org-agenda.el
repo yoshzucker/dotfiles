@@ -244,7 +244,7 @@ org's existing key table stays the single source of truth."
            ;; done entries, unlike `todo'); sorted by SCHEDULED (the follow-up
            ;; date) so overdue check-ins float to the top.
            ((tags "TODO=\"WAIT\"|TODO=\"DELEG\"|PEOPLE={.}"
-                  ((org-agenda-overriding-header "人が絡む仕事 — 待ち・委譲・要同席 (PEOPLE)")
+                  ((org-agenda-overriding-header "Waiting on · handed over · needs someone")
                    (org-agenda-sorting-strategy '(scheduled-up priority-down)))))
            ((org-foresight-report-style nil))))))
 
@@ -285,14 +285,58 @@ org's existing key table stays the single source of truth."
   ;;
   ;; The extra group below is that hole: an optional duration between the
   ;; range and `Clocked:'.
+  ;;
+  ;; The category group is lazy for a related reason.  Upstream ends it at a
+  ;; literal colon, which Org's own prefix supplies (`%-12:c'); this one does
+  ;; not (`%-8.8c'), so a greedy `[^:]+' runs on until the colon inside the
+  ;; clock-in time and only backtracks as far as it must.  It stops one
+  ;; character too late, and since the field lookup counts a boundary as
+  ;; belonging to the earlier field, the first digit of the clock-in -- the
+  ;; leading zero, the natural place to land coming from the left -- reads as
+  ;; category and nothing happens there.  Lazy, it stops at the name.
   (setq org-agenda-time-leading-zero t
         org-clock-convenience-clocked-agenda-re
-        (concat "^ +\\([^:]+\\)[[:space:]]*"
+        (concat "^ +\\([^:]*?\\)[[:space:]]*"
                 "\\(\\([ \t012][0-9]\\):\\([0-5][0-9]\\)\\)"        ; clock-in
                 "\\(?:-\\(\\([ 012][0-9]\\):\\([0-5][0-9]\\)\\)\\|.*\\)?" ; clock-out
                 "\\(?:[[:space:]]+[0-9]+:[0-5][0-9]\\)?"              ; the effort field
                 "[[:space:]]+Clocked:[[:space:]]+"
-                "\\(([0-9]+:[0-5][0-9])\\|(-)\\)")))
+                "\\(([0-9]+:[0-5][0-9])\\|(-)\\)"))
+
+  ;; Why nothing happened, in a sentence rather than in a backtrace.
+  ;;
+  ;; These three read the rendered line, so they act on one kind of row -- the
+  ;; `Clocked:' log line -- and on the two time fields in it, and nowhere
+  ;; else.  Off them they fail inside the field lookup with "No such field
+  ;; name: nil", which names an internal no key on this keyboard asked for.
+  ;;
+  ;; The common case is worse than a bad message.  `v l' shows `closed' alone,
+  ;; so on an ordinary day the page carries no eligible row at all and every
+  ;; keystroke fails the same way, which reads as a broken command rather than
+  ;; as a view that is not showing clocks.  `v L' and `v c' are what put them
+  ;; on the page.
+  (defun my/org-clock-convenience-say-why (orig &rest args)
+    "Run ORIG with ARGS, or name what would have to be true first."
+    (let* ((row (save-excursion
+                  (beginning-of-line)
+                  (looking-at org-clock-convenience-clocked-agenda-re)))
+           (field (and row (ignore-errors
+                             (org-clock-convenience-at-timefield-p)))))
+      (cond
+       (field (apply orig args))
+       (row (user-error "Put point on one of the two clock times on this row"))
+       ((save-excursion
+          (goto-char (point-min))
+          (re-search-forward org-clock-convenience-clocked-agenda-re nil t))
+        (user-error
+         "This row carries no clock; the rows that do read \"Clocked:\""))
+       (t (user-error
+           "No clocked rows on this page -- `v L' or `v c' shows them")))))
+
+  (dolist (cmd '(org-clock-convenience-timestamp-up
+                 org-clock-convenience-timestamp-down
+                 org-clock-convenience-fill-gap))
+    (advice-add cmd :around #'my/org-clock-convenience-say-why)))
 
 ;;;; org-foresight -- the forward-looking half of the day
 
@@ -330,7 +374,7 @@ org's existing key table stays the single source of truth."
   ;; day that breaks can say so: add an interval and the gap stops being
   ;; capacity, stops being offered, and stops being planned through.
   (setq org-foresight-awake    '("06:50" . "22:00")
-        org-foresight-work     '(("08:15" . "12:15") ("13:30" . "17:15"))
+        org-foresight-work     '(("08:15" . "12:15") ("13:30" . "18:30"))
         org-foresight-workdays '(1 2 3 4 5))
 
   ;; Every imported meeting carries a Teams link, so a LOCATION alone cannot
@@ -486,6 +530,12 @@ org's existing key table stays the single source of truth."
          ;; `org-agenda-convert-date', which offers the Julian and Mayan
          ;; dates and has never been wanted here.
          "C" #'org-foresight-clock-fill
+         ;; The other half of the same repair, and a separate command because
+         ;; it asks the opposite first question: `C' offers the stretches no
+         ;; clock covers, this offers the stretches a clock covers wrongly.
+         ;; Over `org-agenda-holidays', which lists `calendar-holidays' -- set
+         ;; to nil a hundred lines up, so the key shows an empty page today.
+         "H" #'org-foresight-clock-split
          ;; Preparation is decided one invitation at a time.  The bulk
          ;; command offers every meeting that has none, which is the right
          ;; shape once a week and the wrong one for the invitation that just
