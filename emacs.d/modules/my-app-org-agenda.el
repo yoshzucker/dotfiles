@@ -480,21 +480,7 @@ org's existing key table stays the single source of truth."
          ;; about all of them at once gets answered "no".  Over
          ;; `org-agenda-priority-down', which the priority axis here does not
          ;; use.
-         "P" #'org-foresight-prepare-meeting)
-   ;; The clock keys, reaching the agenda's own commands.  `org-clock-in'
-   ;; reads point in the current buffer and knows nothing about a row; an
-   ;; agenda row keeps its entry in a text property that only
-   ;; `org-agenda-clock-in' looks at.  Pressed on a row the global binding
-   ;; stops at "before first headline in buffer *Org Agenda*" -- and where it
-   ;; does not stop, it has found some other heading.
-   ;;
-   ;; Org's own `I' and `O' do this too; these exist so the keys that clock
-   ;; from a file clock from the day as well.
-   (:map org-agenda-mode-map
-         :prefix "C-c C-x"
-         :key
-         "C-i" #'org-agenda-clock-in
-         "C-o" #'org-agenda-clock-out)))
+         "P" #'org-foresight-prepare-meeting)))
 
 ;;;; Other views of the same day
 ;; Neither reads the agenda, and neither is one: a timeline and a set of
