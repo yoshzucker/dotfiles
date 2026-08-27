@@ -32,7 +32,7 @@
 ;; What to record, where it goes, how to get there:
 ;;
 ;;   a task (has a state, a date)       journal.org datetree   C-c c a / i / s / e
-;;   a settled appointment or clock     journal.org datetree   C-c c p / l
+;;   a clock written out by hand       journal.org datetree   C-c c l
 ;;   a thought, feeling, fragment       today's daily note     C-c z n
 ;;   a subject inside today             today's daily note     C-c z d
 ;;   more about the clocked task        that task              C-c c n
@@ -689,15 +689,9 @@ called with C-u (prefix 64)."
            ;; Written by hand, as the "a" and "e" templates do.
            "* ONGO %?\n:LOGBOOK:\n- State \"ONGO\"       from              %U\n:END:"
            :clock-in t :clock-keep t :jump-to-captured t)
-          ("p" "appointment" entry (file+datetree my/org-journal-file)
-           "* %? %^T\n"
-           :jump-to-captured t)
           ("j" "journal" entry (file+datetree my/org-journal-file)
            ,(concat "* %?\n" my/org-note-prefix)
            :jump-to-captured t)
-          ("c" "clocking journal" entry (file+datetree my/org-journal-file)
-           ,(concat "* %?\n" my/org-note-prefix)
-           :clock-in t :clock-keep t :jump-to-captured t)
           ("l" "insert clock" entry (file+datetree my/org-journal-file)
            "* %?\n:LOGBOOK:\nCLOCK: %U--%U =>  0:00\n:END:")
           ;; Work handed to someone, captured as it is created.  WAIT rather
