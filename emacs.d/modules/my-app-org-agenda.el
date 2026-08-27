@@ -545,6 +545,190 @@ org's existing key table stays the single source of truth."
          ;; use.
          "P" #'org-foresight-prepare-meeting)))
 
+;;;; Catching a clock that lands on the wrong entry
+
+;; A recorder for a fault that will not reproduce on demand: the agenda row
+;; says one task, `C-c C-x C-i' clocks another, and `TAB' from the same row
+;; goes somewhere else again.  Both commands read the same `org-marker', so
+;; whatever is happening is not visible from the outside -- it has to be
+;; caught in the act.
+;;
+;; Nothing here writes down what anything is called.  This runs on a machine
+;; holding work that cannot leave it, so the log carries shapes instead of
+;; names: which properties a row had, whether they agreed, where in a file
+;; they pointed, and a digest that can say "the same entry" or "a different
+;; one" without saying which entry.
+;;
+;; The digest is salted with a number drawn when the session starts.  A plain
+;; hash of a short heading can be guessed at by trying headings; a salted one
+;; cannot be compared with anything outside its own log, which is all the
+;; comparing this needs.  Files are numbered in the order they are first seen
+;; -- `file 1', `file 2' -- so a path never appears either.  What is left is
+;; positions, lengths, booleans and keystrokes.
+
+(defvar my/org-agenda-clock-record nil
+  "Rows recorded by `my/org-agenda-clock-record-mode', newest last.")
+
+(defvar my/org-agenda-clock-record-commands
+  '(org-agenda-goto org-agenda-switch-to org-agenda-clock-in
+                    org-agenda-clock-out org-agenda-todo)
+  "Commands recorded while `my/org-agenda-clock-record-mode' is on.")
+
+(defvar my/org-agenda-clock-record--salt nil)
+(defvar my/org-agenda-clock-record--files nil)
+(defvar my/org-agenda-clock-record--advice nil
+  "The advice installed on each recorded command, kept so it can be removed.
+One closure per command rather than one shared function: the closure knows
+which command it wraps, and `this-command\=' is not something to rely on --
+a command reached from a prefix map or run from Lisp does not set it.")
+
+(defun my/org-agenda-clock-record--digest (string)
+  "Return a short salted digest of STRING, or nil.
+Comparable with the other digests in this log and with nothing else."
+  (when (stringp string)
+    (substring (secure-hash 'sha1 (concat my/org-agenda-clock-record--salt string))
+               0 6)))
+
+(defun my/org-agenda-clock-record--file (buffer)
+  "Return a number standing for BUFFER, assigned in the order first seen."
+  (when (bufferp buffer)
+    (or (cdr (assq buffer my/org-agenda-clock-record--files))
+        (let ((n (1+ (length my/org-agenda-clock-record--files))))
+          (push (cons buffer n) my/org-agenda-clock-record--files)
+          n))))
+
+(defun my/org-agenda-clock-record--where (marker)
+  "Return (FILE POSITION DIGEST LENGTH) for MARKER, or nil.
+The heading is read the way `org-get-heading' reads it and then reduced to a
+digest and a character count."
+  (when (and (markerp marker) (marker-buffer marker))
+    (let ((head (ignore-errors
+                  (org-with-point-at marker
+                    (org-back-to-heading t)
+                    (org-get-heading t t t t)))))
+      (list (my/org-agenda-clock-record--file (marker-buffer marker))
+            (marker-position marker)
+            (my/org-agenda-clock-record--digest head)
+            (and head (length head))))))
+
+(defun my/org-agenda-clock-record--row ()
+  "Return what the agenda row under point claims, without its text."
+  (let* ((m (org-get-at-bol 'org-marker))
+         (h (org-get-at-bol 'org-hd-marker))
+         (line (buffer-substring-no-properties (line-beginning-position)
+                                               (line-end-position))))
+    (list :line (line-number-at-pos)
+          :type (org-get-at-bol 'org-agenda-type)
+          :width (length line)
+          ;; The one question that matters, asked of both markers: does the
+          ;; row read as if it were about the entry the marker points at?
+          :row-fits-marker
+          (and m (let ((head (ignore-errors
+                               (org-with-point-at m (org-back-to-heading t)
+                                                  (org-get-heading t t t t)))))
+                   (and head (not (string-empty-p head))
+                        (string-search (org-link-display-format head) line)
+                        t)))
+          :marker (my/org-agenda-clock-record--where m)
+          :hd-marker (my/org-agenda-clock-record--where h)
+          :markers-agree (and m h (equal m h)))))
+
+(defun my/org-agenda-clock-record--note (command keys before was failed)
+  "Append one record for COMMAND, run from BEFORE with KEYS.
+WAS is whatever was already clocked when the command started, which is what
+says whether an old clock survived a keystroke aimed at something else."
+  (setq my/org-agenda-clock-record
+        (append my/org-agenda-clock-record
+                (list (append
+                       (list :at (format-time-string "%H:%M:%S")
+                             :keys keys :command command :failed failed
+                             :was-clocked was)
+                       before
+                       (list :landed-on
+                             (and (derived-mode-p 'org-mode)
+                                  (my/org-agenda-clock-record--where
+                                   (point-marker)))
+                             :clocked
+                             (and (org-clocking-p)
+                                  (my/org-agenda-clock-record--where
+                                   org-clock-marker))))))))
+
+(defun my/org-agenda-clock-record--around (command orig args)
+  "Record what COMMAND did, and let anything that goes wrong go wrong as usual."
+  (let ((before (ignore-errors (my/org-agenda-clock-record--row)))
+        (was (and (org-clocking-p)
+                  (ignore-errors (my/org-agenda-clock-record--where
+                                  org-clock-marker))))
+        (keys (key-description (this-command-keys)))
+        (failed nil))
+    (unwind-protect
+        (condition-case err
+            (apply orig args)
+          (error (setq failed (car err)) (signal (car err) (cdr err))))
+      (ignore-errors
+        (my/org-agenda-clock-record--note command keys before was failed)))))
+
+(define-minor-mode my/org-agenda-clock-record-mode
+  "Record what the agenda's clock and jump commands act on.
+Turn it on, work as usual, and when a command lands on the wrong entry run
+\\[my/org-agenda-clock-record-show].  Nothing recorded says what any entry is
+called."
+  :global t
+  (if my/org-agenda-clock-record-mode
+      (progn
+        (setq my/org-agenda-clock-record nil
+              my/org-agenda-clock-record--files nil
+              my/org-agenda-clock-record--salt (format "%d" (random)))
+        (dolist (cmd my/org-agenda-clock-record-commands)
+          (let* ((command cmd)
+                 (fn (lambda (orig &rest args)
+                       (my/org-agenda-clock-record--around command orig args))))
+            (push (cons cmd fn) my/org-agenda-clock-record--advice)
+            (advice-add cmd :around fn)))
+        (message "Recording. %s shows what was caught"
+                 (substitute-command-keys
+                  "\\[my/org-agenda-clock-record-show]")))
+    (dolist (pair my/org-agenda-clock-record--advice)
+      (advice-remove (car pair) (cdr pair)))
+    (setq my/org-agenda-clock-record--advice nil)
+    (message "Recording stopped; %d kept"
+             (length my/org-agenda-clock-record))))
+
+(defun my/org-agenda-clock-record-show ()
+  "Show what was recorded, in a buffer that can be read before it is sent."
+  (interactive)
+  (let ((buf (get-buffer-create "*agenda clock record*")))
+    (with-current-buffer buf
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert "Shapes only -- no heading, file name or path appears here.\n"
+                "A digest identifies an entry within this log and nowhere else.\n"
+                "where = (file position digest heading-length)\n\n")
+        (dolist (r my/org-agenda-clock-record)
+          (insert (format "%s  %-14s %s\n" (plist-get r :at)
+                          (plist-get r :keys) (plist-get r :command)))
+          (insert (format "   row       line %s, %s chars, type %s\n"
+                          (plist-get r :line) (plist-get r :width)
+                          (plist-get r :type)))
+          (insert (format "   marker    %S\n" (plist-get r :marker)))
+          (insert (format "   hd-marker %S%s\n" (plist-get r :hd-marker)
+                          (if (plist-get r :markers-agree) "  (same)" "")))
+          (insert (format "   the row reads as the marker's entry: %s\n"
+                          (if (plist-get r :row-fits-marker) "yes" "NO")))
+          (when (plist-get r :landed-on)
+            (insert (format "   landed on %S\n" (plist-get r :landed-on))))
+          (when (plist-get r :was-clocked)
+            (insert (format "   was       %S  (running before the key)\n"
+                            (plist-get r :was-clocked))))
+          (when (plist-get r :clocked)
+            (insert (format "   clocked   %S\n" (plist-get r :clocked))))
+          (when (plist-get r :failed)
+            (insert (format "   failed with %S\n" (plist-get r :failed))))
+          (insert "\n"))
+        (goto-char (point-min))
+        (special-mode)))
+    (pop-to-buffer buf)))
+
 ;;;; Other views of the same day
 ;; Neither reads the agenda, and neither is one: a timeline and a set of
 ;; blocks are the same hours seen a different way, and they live here because
