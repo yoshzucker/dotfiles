@@ -542,7 +542,26 @@ creates is the empty frame for them, not a suggestion of what to put in it."
         org-clock-persist t
         org-clock-persist-query-save nil
         org-clock-idle-time 60
-        org-clock-auto-clock-resolution 'when-no-clock-is-running
+        ;; Off, because it takes the keystroke away from the row it was aimed
+        ;; at.  With it set, `org-clock-in' calls `org-resolve-clocks' before
+        ;; it looks at anything (org-clock.el:1410); a clock left unclosed
+        ;; anywhere -- and `org-clock-persist' restores one across restarts --
+        ;; sends it into `org-clock-resolve', which *jumps to that entry*
+        ;; (1163) and reads one character.  Every lowercase answer leaves the
+        ;; final state clocked in, on the old entry.  So `C-c C-x C-i' on a
+        ;; healthy agenda row clocks something else entirely, while `C-i' from
+        ;; the same row goes to the right place, because visiting a row never
+        ;; goes near `org-clock-in'.  Caught in the act: the row read as its
+        ;; own entry, and the clock landed on a different one two hundred
+        ;; characters earlier in the same file.
+        ;;
+        ;; What is given up is being asked about an unclosed clock at the
+        ;; moment of clocking in.  `Z' in the agenda is `org-resolve-clocks'
+        ;; and asks the same question when it is the question being asked, and
+        ;; `v c' audits the day's clocks; the idle check is separate and still
+        ;; runs, being driven by `org-clock-idle-time' above
+        ;; (`org-resolve-clocks-if-idle', org-clock.el:1351).
+        org-clock-auto-clock-resolution nil
         org-clock-continuously nil
         org-clock-clocked-in-display 'both
         org-clock-string-limit 0)
