@@ -61,7 +61,21 @@
    (:map org-agenda-mode-map
          :state emacs motion normal
          :key
-         "gr" #'org-agenda-redo))
+         "gr" #'org-agenda-redo
+         ;; `C-i' reaches Emacs as TAB, and evil's motion state binds TAB to
+         ;; `evil-jump-forward' -- older position in the jump list, which has
+         ;; nothing to do with the row under the cursor.  Pressed in the
+         ;; agenda it lands wherever you last were, which is often the entry
+         ;; you were reading a moment ago and so looks like it visited the
+         ;; row.  It did not, and the two part company the moment a row stops
+         ;; naming its own entry: `C-c C-x C-i' acts on the row's marker,
+         ;; `C-i' on a remembered place.
+         ;;
+         ;; Org binds both TAB and <tab>, so a GUI Tab key already reached
+         ;; `org-agenda-goto' while `C-i' and a terminal's Tab did not -- the
+         ;; same keyboard doing two things.  The jump pair is half given up
+         ;; here already: `C-o' is `org-clock-convenience-fill-gap'.
+         "TAB" #'org-agenda-goto))
 
   ;; Ex command in agenda-mode
   (add-hook 'org-agenda-mode-hook
