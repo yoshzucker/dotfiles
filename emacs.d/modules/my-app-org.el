@@ -1629,5 +1629,92 @@ went wrong."
      (* 1000 (- no-redisplay bare)) (* 1000 bare)
      (* 1000 no-cache) (* 1000 logical) (* 1000 raw))))
 
+;; What a session accumulates, counted so two of them can be compared.
+;;
+;; The same file is quick in a fresh Emacs and slow in one that has been
+;; running, so what is slow is not the file.  Something grows: overlays,
+;; markers a package forgot to free, entries in the invisibility spec, hooks
+;; added twice, timers nobody cancelled.  Any of them makes moving over
+;; folded text dearer, because moving over folded text is a walk through
+;; everything the fold hides and everything laid on top of it.
+;;
+;; Run it once while Emacs is quick and again when it has gone slow: the
+;; second call prints what changed.  Counts only -- no name of anything.
+
+(defvar my/org-motion-state--last nil
+  "The last counts taken by `my/org-motion-state\\=', for comparison.")
+
+(defun my/org-motion-state--counts ()
+  "Return an alist of the things that grow in a long-running session.
+Counted with `safe-length\=': some of these are rings rather than lists --
+`org-mark-ring\=' is joined end to end -- and `length\=' does not come back
+from one."
+  (let ((local (lambda (hook)
+                 (safe-length (remq t (if (local-variable-p hook)
+                                     (buffer-local-value hook (current-buffer))
+                                   nil))))))
+    (list
+     (cons "buffer characters" (buffer-size))
+     (cons "overlays here" (safe-length (overlays-in (point-min) (point-max))))
+     (cons "overlays everywhere"
+           (apply #'+ (mapcar (lambda (b)
+                                (with-current-buffer b
+                                  (safe-length (overlays-in (point-min) (point-max)))))
+                              (buffer-list))))
+     (cons "invisibility spec"
+           (if (listp buffer-invisibility-spec)
+               (safe-length buffer-invisibility-spec) 1))
+     (cons "pre-command-hook here" (funcall local 'pre-command-hook))
+     (cons "post-command-hook here" (funcall local 'post-command-hook))
+     (cons "post-command-hook global" (safe-length (default-value 'post-command-hook)))
+     (cons "before-change here" (funcall local 'before-change-functions))
+     (cons "after-change here" (funcall local 'after-change-functions))
+     (cons "timers" (safe-length timer-list))
+     (cons "idle timers" (safe-length timer-idle-list))
+     (cons "buffers" (safe-length (buffer-list)))
+     (cons "org buffers"
+           (safe-length (seq-filter (lambda (b)
+                                 (with-current-buffer b
+                                   (derived-mode-p 'org-mode)))
+                               (buffer-list))))
+     (cons "agenda markers org keeps"
+           (if (boundp 'org-agenda-markers) (safe-length org-agenda-markers) -1))
+     (cons "org mark ring" (safe-length org-mark-ring))
+     (cons "global mark ring" (safe-length global-mark-ring))
+     (cons "clock history"
+           (if (boundp 'org-clock-history) (safe-length org-clock-history) -1))
+     (cons "kill ring" (safe-length kill-ring))
+     (cons "font-lock keywords"
+           (safe-length (ignore-errors (cadr font-lock-keywords))))
+     (cons "garbage collections" gcs-done)
+     (cons "seconds in gc" (round gc-elapsed)))))
+
+;;;###autoload
+(defun my/org-motion-state ()
+  "Count what has piled up, and against the last count if there is one.
+Take one in a fresh Emacs and another when it has gone slow; what grew is
+what to look at."
+  (interactive)
+  (let* ((now (my/org-motion-state--counts))
+         (before my/org-motion-state--last)
+         (buf (get-buffer-create "*org session state*")))
+    (with-current-buffer buf
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert (if before
+                    "count now, and how it moved since the last one\n\n"
+                  "the first count -- run this again when Emacs has gone slow\n\n"))
+        (dolist (row now)
+          (let* ((was (cdr (assoc (car row) before)))
+                 (delta (and was (- (cdr row) was))))
+            (insert (format "%28s  %9s%s\n" (car row) (cdr row)
+                            (cond ((null delta) "")
+                                  ((zerop delta) "")
+                                  (t (format "   %+d" delta)))))))
+        (goto-char (point-min))
+        (special-mode)))
+    (setq my/org-motion-state--last now)
+    (pop-to-buffer buf)))
+
 (provide 'my-app-org)
 ;;; my-app-org.el ends here
