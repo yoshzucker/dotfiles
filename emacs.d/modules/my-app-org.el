@@ -1492,5 +1492,142 @@ block already shows what is out with them, as a live query."
         (re-search-forward str nil t)))
     (advice-add 'deft-search-forward :override #'my/deft-search-forward-migemo)))
 
+;;;; Finding the line that takes a second to step onto
+
+;; Moving the cursor down a folded outline is not one thing.  Emacs runs the
+;; motion, then every function on `post-command-hook', then a redisplay, and
+;; Org may parse a subtree along the way -- and a profile that says
+;; `command-execute' 91% has named all four at once.  These two measure the
+;; same keystroke with those parts taken away one at a time, which is what
+;; turns a percentage into a cause.
+;;
+;; Nothing here reads a line out.  What is reported is where the line is, how
+;; long it is, how deep the heading is, whether it is folded and how much is
+;; folded under it -- shapes, on a machine whose text cannot leave it.
+
+(defun my/org-motion--shape ()
+  "Describe the line at point without quoting any of it."
+  (let ((heading (org-at-heading-p)))
+    (list :line (line-number-at-pos)
+          :chars (- (line-end-position) (line-beginning-position))
+          :level (and heading (org-current-level))
+          :folded (and heading (fboundp 'org-fold-folded-p)
+                       (org-fold-folded-p (line-end-position)) t)
+          :hides (when heading
+                   (save-excursion
+                     (let ((from (point)))
+                       (org-end-of-subtree t t)
+                       (count-lines from (point)))))
+          :inside (cond ((org-at-table-p) 'table)
+                        ((org-at-drawer-p) 'drawer)
+                        ((org-at-property-p) 'property)
+                        ((org-in-block-p '("src" "example" "quote" "export"))
+                         'block)))))
+
+(defun my/org-motion--step (hooks redisplay &optional visual)
+  "Move down one line the way the command loop would, and return the seconds.
+HOOKS runs `post-command-hook' as a real keystroke does; REDISPLAY forces the
+screen to be brought up to date.  Between them they separate the motion from
+what the motion sets off.
+
+VISUAL is `logical' to move with `line-move-visual' off, or `raw' to use
+`forward-line' and skip the line-move machinery altogether.  One line down a
+folded outline means crossing everything the fold hides, and what that costs
+depends on which of the two does the crossing."
+  (let ((start (float-time))
+        (this-command 'next-line)
+        (last-command 'next-line))
+    (pcase visual
+      ('raw (ignore-errors (forward-line 1)))
+      ('logical (let ((line-move-visual nil))
+                  (ignore-errors (call-interactively #'next-line))))
+      (_ (ignore-errors (call-interactively #'next-line))))
+    (when hooks (run-hooks 'post-command-hook))
+    (when redisplay (redisplay t))
+    (- (float-time) start)))
+
+;;;###autoload
+(defun my/org-motion-sweep (&optional threshold)
+  "Step down every line of this buffer and name the ones that cost.
+THRESHOLD is in seconds, 0.05 by default.  The outline is left folded as it
+is: a line that is expensive to arrive at while folded may be free when the
+subtree under it is open, and it is the folded case being looked for."
+  (interactive (list (read-number "Report lines slower than (seconds): " 0.05)))
+  (unless (derived-mode-p 'org-mode) (user-error "This is for an Org file"))
+  (let ((threshold (or threshold 0.05))
+        (slow nil) (total 0.0) (steps 0) (worst 0.0) (worst-line nil))
+    (save-excursion
+      (goto-char (point-min))
+      (while (not (eobp))
+        (let* ((was (point))
+               (cost (my/org-motion--step t t))
+               (shape (my/org-motion--shape)))
+          (when (= was (point)) (forward-line 1))
+          (setq total (+ total cost) steps (1+ steps))
+          (when (> cost worst)
+            (setq worst cost worst-line (plist-get shape :line)))
+          (when (> cost threshold)
+            (push (cons cost shape) slow)))))
+    (let ((buf (get-buffer-create "*org motion cost*")))
+      (with-current-buffer buf
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (insert (format "%d steps, %.1f s in all, %.0f ms each on average\n"
+                          steps total (* 1000 (/ total (max 1 steps)))))
+          (insert (format "slowest: line %s at %.0f ms\n\n" worst-line
+                          (* 1000 worst)))
+          (if (not slow)
+              (insert (format "Nothing over %.0f ms.\n" (* 1000 threshold)))
+            (insert "     ms  line   chars  level  folded  hides  inside\n")
+            (dolist (row (sort slow (lambda (a b) (> (car a) (car b)))))
+              (let ((s (cdr row)))
+                (insert (format "%7.0f  %5s  %5s  %5s  %6s  %5s  %s\n"
+                                (* 1000 (car row))
+                                (plist-get s :line) (plist-get s :chars)
+                                (or (plist-get s :level) "-")
+                                (if (plist-get s :folded) "yes" "-")
+                                (or (plist-get s :hides) "-")
+                                (or (plist-get s :inside) "-"))))))
+          (insert "\nGo to one of those lines and run M-x my/org-motion-here\n"
+                  "to see which part of the keystroke is paying for it.\n")
+          (goto-char (point-min))
+          (special-mode)))
+      (pop-to-buffer buf))))
+
+;;;###autoload
+(defun my/org-motion-here (&optional repeats)
+  "Take the keystroke onto the next line apart, here.
+
+Four measurements, each the same motion with one more part left out, so the
+difference between two lines is what that part costs.  The element cache is
+the fifth: `org-element-use-cache' off means Org parses what it needs instead
+of keeping it, which is slower in general and faster when keeping it is what
+went wrong."
+  (interactive "p")
+  (unless (derived-mode-p 'org-mode) (user-error "This is for an Org file"))
+  (let* ((repeats (max 1 (or repeats 1)))
+         (home (point))
+         (best (lambda (hooks redisplay cache &optional visual)
+                 (let ((low 1.0e9))
+                   (dotimes (_ repeats low)
+                     (goto-char home)
+                     (let ((org-element-use-cache cache))
+                       (setq low (min low (my/org-motion--step
+                                           hooks redisplay visual))))))))
+         (all (funcall best t t org-element-use-cache))
+         (no-redisplay (funcall best t nil org-element-use-cache))
+         (bare (funcall best nil nil org-element-use-cache))
+         (no-cache (funcall best nil nil nil))
+         (logical (funcall best nil nil org-element-use-cache 'logical))
+         (raw (funcall best nil nil org-element-use-cache 'raw)))
+    (goto-char home)
+    (message
+     (concat "keystroke %.0f ms · redisplay %.0f · post-command-hook %.0f "
+             "· the motion %.0f  ||  the motion: no element cache %.0f "
+             "· logical lines %.0f · forward-line %.0f")
+     (* 1000 all) (* 1000 (- all no-redisplay))
+     (* 1000 (- no-redisplay bare)) (* 1000 bare)
+     (* 1000 no-cache) (* 1000 logical) (* 1000 raw))))
+
 (provide 'my-app-org)
 ;;; my-app-org.el ends here
