@@ -539,29 +539,21 @@ creates is the empty frame for them, not a suggestion of what to put in it."
         org-clock-history-length 10
         org-clock-goto-may-find-recent-task t
         org-clock-in-resume nil
-        org-clock-persist t
+        ;; The running clock, and not the history.  `t' saves both, and on
+        ;; the next start Org visits the file of the running clock *and every
+        ;; file the history mentions* -- measured here at 0.87s and three
+        ;; buffers opened, on a local disk; the same over a synced drive is
+        ;; the several seconds of `org-clock-persist' in the echo area at
+        ;; startup.  `clock' keeps what the setting is for -- carrying on with
+        ;; what you were doing -- and opens one file to do it.  The history
+        ;; still builds up within a session; it is only not carried across.
+        org-clock-persist 'clock
         org-clock-persist-query-save nil
         org-clock-idle-time 60
-        ;; Off, because it takes the keystroke away from the row it was aimed
-        ;; at.  With it set, `org-clock-in' calls `org-resolve-clocks' before
-        ;; it looks at anything (org-clock.el:1410); a clock left unclosed
-        ;; anywhere -- and `org-clock-persist' restores one across restarts --
-        ;; sends it into `org-clock-resolve', which *jumps to that entry*
-        ;; (1163) and reads one character.  Every lowercase answer leaves the
-        ;; final state clocked in, on the old entry.  So `C-c C-x C-i' on a
-        ;; healthy agenda row clocks something else entirely, while `C-i' from
-        ;; the same row goes to the right place, because visiting a row never
-        ;; goes near `org-clock-in'.  Caught in the act: the row read as its
-        ;; own entry, and the clock landed on a different one two hundred
-        ;; characters earlier in the same file.
-        ;;
-        ;; What is given up is being asked about an unclosed clock at the
-        ;; moment of clocking in.  `Z' in the agenda is `org-resolve-clocks'
-        ;; and asks the same question when it is the question being asked, and
-        ;; `v c' audits the day's clocks; the idle check is separate and still
-        ;; runs, being driven by `org-clock-idle-time' above
-        ;; (`org-resolve-clocks-if-idle', org-clock.el:1351).
-        org-clock-auto-clock-resolution nil
+        ;; `org-clock-auto-clock-resolution' is not set here: it belongs to
+        ;; `my/org-clock-obeys-the-row' below, which is where the reason for
+        ;; its value is written down and where anything setting it back is
+        ;; noticed.
         org-clock-continuously nil
         org-clock-clocked-in-display 'both
         org-clock-string-limit 0)
@@ -580,6 +572,57 @@ creates is the empty frame for them, not a suggestion of what to put in it."
             (append tab-bar-format
                     '(tab-bar-format-align-right
                       tab-bar-format-global)))))
+
+  ;; Clocking in acts on what was aimed at
+  ;;
+  ;; A defcustom rather than a comment beside a value, because the value looks
+  ;; harmless and the reason it is not took three days to find.  A name can be
+  ;; searched for, a docstring is read by `C-h v', and the watcher below says
+  ;; something if the value it protects is ever set back.
+
+  (defcustom my/org-clock-obeys-the-row t
+    "When non-nil, clocking in acts on what was aimed at and nothing else.
+
+Org offers to tidy up an unclosed clock at the moment you clock in, which is
+`org-clock-auto-clock-resolution\=' -- and the tidying is not passive.
+`org-clock-in\=' calls `org-resolve-clocks\=' before it looks at the entry
+at all (org-clock.el:1410), and `org-clock-resolve\=' *jumps to* the entry
+holding the unclosed clock (1163) and reads one character.  Its own prompt
+says what that costs: \"using uppercase makes your final state to be CLOCKED
+OUT\" -- so every lowercase answer leaves the clock running on the old entry.
+
+The result is a keystroke that starts the clock on something you were not
+looking at, from an agenda row that is perfectly correct.  It cannot be seen
+by comparing the row with its marker, because nothing about the row is wrong;
+and visiting the same row goes to the right place, because visiting never
+passes through `org-clock-in\='.  That asymmetry is the whole tell.
+
+Unclosed clocks do not go away, they are dealt with when they are the
+subject: `Z\=' in the agenda is `org-resolve-clocks\=', `v c\=' audits the
+day, and the idle check is a separate mechanism driven by
+`org-clock-idle-time\=' (`org-resolve-clocks-if-idle\=', org-clock.el:1351)
+which this does not touch."
+    :type 'boolean
+    :group 'org-clock
+    :set (lambda (symbol value)
+           (set-default symbol value)
+           (when value (setq org-clock-auto-clock-resolution nil))))
+
+  (defun my/org-clock--resolution-set-back (_symbol newval operation _where)
+    "Say so when `org-clock-auto-clock-resolution\=' is turned back on.
+Only for a plain set: Org binds it to nil around its own resume
+(org-clock.el:3345), and a binding is not somebody changing their mind."
+    (when (and my/org-clock-obeys-the-row newval (eq operation 'set))
+      (display-warning
+       'org-clock
+       (concat "`org-clock-auto-clock-resolution' has been set to "
+               (format "%S" newval)
+               ", which lets clocking in start the clock on an entry you were "
+               "not looking at.  See `my/org-clock-obeys-the-row'.")
+       :warning)))
+
+  (add-variable-watcher 'org-clock-auto-clock-resolution
+                        #'my/org-clock--resolution-set-back)
 
   ;; State and Clock
   (defvar my/org-inhibit-auto-clock-in nil
