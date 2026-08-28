@@ -608,21 +608,28 @@ which this does not touch."
            (set-default symbol value)
            (when value (setq org-clock-auto-clock-resolution nil))))
 
-  (defun my/org-clock--resolution-set-back (_symbol newval operation _where)
-    "Say so when `org-clock-auto-clock-resolution\=' is turned back on.
-Only for a plain set: Org binds it to nil around its own resume
-(org-clock.el:3345), and a binding is not somebody changing their mind."
+  (defun my/org-clock--refuse-resolution (_symbol newval operation _where)
+    "Refuse to let `org-clock-auto-clock-resolution\=' be turned back on.
+
+A watcher that signals prevents the assignment, and preventing it is the
+point.  A warning about this one arrives after the trap is armed again, in a
+buffer nobody is looking at; the refusal arrives instead of the trap, and
+names the way past itself.  Turning `my/org-clock-obeys-the-row\=' off is
+that way, and reading why is what its docstring is for.
+
+Only a plain set is refused.  Org binds the variable to nil around its own
+resume (org-clock.el:3345), and a binding is not somebody changing their
+mind."
     (when (and my/org-clock-obeys-the-row newval (eq operation 'set))
-      (display-warning
-       'org-clock
-       (concat "`org-clock-auto-clock-resolution' has been set to "
-               (format "%S" newval)
-               ", which lets clocking in start the clock on an entry you were "
-               "not looking at.  See `my/org-clock-obeys-the-row'.")
-       :warning)))
+      (user-error
+       (concat "Refusing to set `org-clock-auto-clock-resolution' to %S: it "
+               "lets clocking in start the clock on an entry you were not "
+               "looking at.  Set `my/org-clock-obeys-the-row' to nil first, "
+               "and read its docstring for what that gives up")
+       newval)))
 
   (add-variable-watcher 'org-clock-auto-clock-resolution
-                        #'my/org-clock--resolution-set-back)
+                        #'my/org-clock--refuse-resolution)
 
   ;; State and Clock
   (defvar my/org-inhibit-auto-clock-in nil
