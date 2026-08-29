@@ -464,6 +464,13 @@ org's existing key table stays the single source of truth."
   (setq org-foresight-wip-keywords '("ONGO")
         org-foresight-wip-limit 2)
 
+  ;; Someday, and the reason it is worth a keyword of its own: without one the
+  ;; only way out of the undecided pile is to make a heading look like work,
+  ;; after which it takes its estimate out of every day it is not being done
+  ;; on.  Deciding then costs more than not deciding.  Parked, it occupies
+  ;; nothing and comes back once a week as a question rather than as a debt.
+  (setq org-foresight-parked-keywords '("SDAY"))
+
   ;; The hours that go on answering people.  Real, recurring, and the ones
   ;; still unrecorded at six o'clock, because naming each of them costs more
   ;; than the two minutes it took to reply.  `C' in the agenda now offers this
