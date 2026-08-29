@@ -441,7 +441,13 @@ creates is the empty frame for them, not a suggestion of what to put in it."
   ;; would teach org-foresight that work takes a fraction of its estimate, so
   ;; `org-foresight-bias-abandoned-keywords' excludes it.
   (setq org-todo-keywords
-        '((sequence "NEXT(n!)" "ONGO(o!)" "|" "DONE(d)" "CANCEL(c)")
+        ;; `SDAY' is someday: put down on purpose, not forgotten.  It logs
+        ;; its time like the other live states, because how long something has
+        ;; been put down is the question the weekly review asks of it.
+        ;; `org-foresight-parked-keywords' is what makes it cost nothing --
+        ;; without that it would be work like any other, taking its estimate
+        ;; out of every day it is not being done on.
+        '((sequence "NEXT(n!)" "ONGO(o!)" "SDAY(s!)" "|" "DONE(d)" "CANCEL(c)")
           (sequence "WAIT(w@)" "|" "DELEG(e@)")))
   
   (setq org-log-done 'note
