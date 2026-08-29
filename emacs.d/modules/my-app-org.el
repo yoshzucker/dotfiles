@@ -40,8 +40,7 @@
 ;;   more about a distant node          that node's Log        C-c c g
 ;;   more about a person                that person's Log      C-c c o
 ;;   a new subject                      a new node             C-c f / C-c n c
-;;   a choice point (ACT)               act.org datetree       C-c c v
-;;   the month's ACT review             act.org, on the month  C-c c V
+;;   a choice point (ACT)               the value it is about  C-c c v
 ;;
 ;; Records with a shape.  Some of what is recorded here is not prose but a
 ;; *kind of thing* -- a person, a mood, a choice point -- and those are written
@@ -93,31 +92,6 @@
 ;; The daily file is already the date, by name and by title; a date heading
 ;; inside it would only repeat that.
 (defconst my/org-daily-head "#+title: %<%Y-%m-%d>\n")
-
-;;;; ACT — the containers for the practice
-;; The life domains a value can point at.  Named in one place because three
-;; things are built from them: the skeleton of the file, the choice of value
-;; when a choice point is recorded, and the blanks in the monthly review.  Few
-;; is better than many -- a domain nobody has a direction for is a blank that
-;; gets skipped, and skipping is a habit.
-(defconst my/org-act-domains '("仕事" "家族" "健康" "学び" "つながり" "余暇"))
-
-
-;; Values are directions, not goals, so there is one page of them and it is
-;; almost always the same page.  What recurs is the *review* -- how close the
-;; month's actions came, what the next step is, and now and then a rewording --
-;; and that belongs to the month it is about, so it is filed in the tree.
-(defconst my/org-act-skeleton
-  (concat "#+title: ACT\n"
-          "#+COLUMNS: %34ITEM(状況) %ACT_VALUE(価値) %ACT_STRUGGLE(もがき)"
-          " %ACT_MOVE(向かう)\n\n"
-          "* 価値\n"
-          (mapconcat (lambda (d) (format "** %s\n\n" d)) my/org-act-domains "")
-          "* 実践\n")
-  "The file `my/org-act-file' is created with when it does not exist yet.
-The `#+COLUMNS' line is what makes the property drawers worth writing: with
-it, `C-c C-x C-c' over the practice tree is the table, so nothing has to be
-stored twice.")
 
 (use-package org
   :straight org-contrib
@@ -298,68 +272,6 @@ agenda file set does not depend on whether rg is installed -- rg's own
   (setq org-default-notes-file (concat org-directory "project.org"))
 
   (defvar my/org-journal-file (concat org-directory "journal.org"))
-
-  ;; One file, deliberately: the values are a single current page and the
-  ;; practice is a date tree beneath them, so "what am I pointing at now" is
-  ;; read rather than looked up.  It carries no TODO state, so
-  ;; `my/find-todo-files' leaves it out of `org-agenda-files' on its own --
-  ;; work that comes out of the practice is filed as an ordinary NEXT in the
-  ;; journal, where the rest of the day already lives.
-  (defvar my/org-act-file (concat org-directory "act.org"))
-
-  (defun my/org-act--frame ()
-    "Ensure this buffer holds the ACT frame, and leave point on its `* 実践'.
-Writes the whole skeleton into an empty buffer, and only the missing heading
-into one that has been started by hand."
-    (widen)
-    (goto-char (point-min))
-    (unless (re-search-forward "^\\* 実践[ \t]*$" nil t)
-      (if (= (point-min) (point-max))
-          (insert my/org-act-skeleton)
-        (goto-char (point-max))
-        (unless (bolp) (insert "\n"))
-        (insert "* 実践\n"))
-      (goto-char (point-min))
-      (re-search-forward "^\\* 実践[ \t]*$"))
-    (beginning-of-line))
-
-  (defun my/org-act-target ()
-    "Capture target: today's node in the ACT practice tree.
-
-`(file+olp+datetree FILE \"実践\")' says the same thing in one line and is
-what this would otherwise be -- but it raises \"Heading not found\" when the
-file has not been written yet, and the first capture on a new machine is
-exactly when it has not.  Going through a function lets the frame be built on
-the way past.
-
-The tree is grown under the heading at point, which is what the symbol
-`subtree-at-point' means to `org-datetree-find-date-create'.  Passing t
-instead means only \"do not widen\", and the year then lands beside `* 実践'
-rather than inside it -- a fresh one on every capture.
-
-`:tree-type' is read from the template, so the same target serves both: the
-monthly review stops at the month, a choice point goes on to the day.  The
-date comes from `org-today', which honours `org-extend-today-until' -- a
-choice point recorded at half past midnight belongs to the day it happened
-in."
-    (require 'org-datetree)
-    (my/org-act--frame)
-    (funcall (if (eq (org-capture-get :tree-type) 'month)
-                 #'org-datetree-find-month-create
-               #'org-datetree-find-date-create)
-             (calendar-gregorian-from-absolute (org-today))
-             'subtree-at-point))
-
-  (defun my/org-act-open ()
-    "Open the ACT file, writing its frame the first time.
-
-The values are written by hand, and that is the exercise -- so what this
-creates is the empty frame for them, not a suggestion of what to put in it."
-    (interactive)
-    (find-file my/org-act-file)
-    (save-excursion (my/org-act--frame))
-    (when (buffer-modified-p) (save-buffer))
-    (goto-char (point-min)))
 
   (setq org-return-follows-link t)
   
@@ -797,37 +709,28 @@ called with C-u (prefix 64)."
           ;; typed, because a form that asks six questions in a row is a form
           ;; nobody fills in at the moment it is needed.
           ;;
+          ;; It is filed as a child of the rung it is about, chosen by
+          ;; completion over the ladder, so no property has to name the value:
+          ;; the parent says it.  What used to be a fixed list of life domains
+          ;; is now whatever has actually been declared, which means a value
+          ;; cannot be practised until it has been written down.
+          ;;
           ;; The two numbers are the ones ACT actually works on.  Struggle is
           ;; how hard I fought the feeling, not how strong it was: intensity is
           ;; deliberately not recorded, because tracking it invites wanting it
           ;; lower, which is the trap the whole practice is about.  And what
           ;; came of it is `towards' or `away' -- workability, the only test
           ;; ACT applies to an action.
-          ("v" "ACT: choice point" entry (file+function my/org-act-file my/org-act-target)
+          ("v" "ACT: choice point" entry (function org-convect-act-target)
            ,(concat "* %^{状況}\n"
                     ":PROPERTIES:\n"
                     ":CREATED:      %U\n"
-                    ":ACT_VALUE:    %^{価値|" (string-join my/org-act-domains "|") "}\n"
                     ":ACT_STRUGGLE: %^{もがき度|0|1|2|3|4|5|6|7|8|9|10}\n"
                     ":ACT_MOVE:     %^{向かえたか|towards|partly|away}\n"
                     ":END:\n"
                     "- 釣られた思考・感情 :: %?\n"
                     "- 逸れた行動 :: \n"
-                    "- 向かう行動 :: \n"))
-          ;; The monthly review, filed under the month rather than under a day:
-          ;; it is about the month, not about the day it happened to be written
-          ;; on.  Values themselves are not rewritten here -- they are
-          ;; directions and belong on the one page at the top of the file --
-          ;; but the month a wording changed is recorded, and that is the only
-          ;; history there is.
-          ("V" "ACT: monthly review" entry (file+function my/org-act-file my/org-act-target)
-           ,(concat "* 見直し\n"
-                    ":PROPERTIES:\n:CREATED: %U\n:END:\n"
-                    (mapconcat (lambda (d) (format "- %s :: \n" d))
-                               my/org-act-domains "")
-                    "- 書き直し :: \n"
-                    "- 来月の一歩 :: %?\n")
-           :tree-type month)))
+                    "- 向かう行動 :: \n"))))
 
   ;; Handing work over, the other half of the "e" template above.  That one
   ;; captures work handed over as it is created; this one catches work you are
@@ -1790,6 +1693,47 @@ what to look at."
         (special-mode)))
     (setq my/org-motion-state--last now)
     (pop-to-buffer buf)))
+
+;;;; The horizons above the project
+;; org-foresight holds the two lowest altitudes -- projects and next actions --
+;; and answers everything with the clock.  What is above them is a different
+;; kind of question: not "does it fit" but "what is this in service of", which
+;; no amount of time arithmetic reaches.  org-convect holds those rungs.
+;;
+;; Nothing here points downward.  A task carries a CATEGORY, CATEGORY is
+;; inherited, and that is the whole of a task's relationship to the ladder --
+;; so opening a five-minute job never costs a thought about purpose.  The climb
+;; happens in the review and nowhere else.
+(use-package org-convect
+  :straight (org-convect :host github :repo "yoshzucker/org-convect"
+                         :files ("*.el"))
+  :after org
+  :config
+  (setq org-convect-files (list (concat org-directory "horizons.org")))
+
+  ;; ACT's life domains: not a rung and not a hierarchy, but the check that
+  ;; keeps the areas from turning out to be entirely about work.  Few is better
+  ;; than many -- a domain nothing is ever written about becomes a blank that
+  ;; gets skipped, and skipping is a habit.
+  (setq org-convect-act-domains '("仕事" "家族" "健康" "学び" "つながり" "余暇"))
+
+  ;; Sections are scaffolding: an entry belongs to a rung because it says so,
+  ;; not because of where it sits.  They are ordered lowest first because that
+  ;; is the order they get filled -- GTD's own advice is to clear the runway
+  ;; before reaching for purpose, and the file should not argue with that.
+  ;;
+  ;; The `#+COLUMNS' line is what makes the property drawers worth writing:
+  ;; `C-c C-x C-c' on a value is the table of its choice points, so nothing has
+  ;; to be stored twice.
+  (setq org-convect-skeleton
+        (concat "#+title: Horizons\n"
+                "#+COLUMNS: %40ITEM(項目) %CONVECT_HORIZON(高さ)"
+                " %CONVECT_SERVES(仕える先) %ACT_STRUGGLE(もがき)"
+                " %ACT_MOVE(向かう)\n\n"
+                "* 関心と責任の領域\n"
+                "* 目標\n"
+                "* ビジョン\n"
+                "* 目的と原則\n")))
 
 (provide 'my-app-org)
 ;;; my-app-org.el ends here
