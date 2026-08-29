@@ -205,14 +205,26 @@ org's existing key table stays the single source of truth."
   (advice-add 'org-agenda-view-mode-dispatch :around
               #'my/org-agenda-view-mode-dispatch-breadcrumbs)
 
-  ;; Custom agenda commands.  Two, and they ask different questions of
-  ;; different periods: today, and the week just gone.  A third used to draw
-  ;; today's agenda again with a different block underneath, and was never
-  ;; opened -- a view whose top half is identical to another is not a place,
-  ;; it is a toggle.  What it had to say now lives on the board, which is not
-  ;; an agenda view at all (`C-c a b').
+  ;; Custom agenda commands, one per question a week asks.
+  ;;
+  ;; `r' reviews what has been taken on -- undecided, waiting, stalled -- and
+  ;; that is the weekly review as GTD means it: the board's signals *are* Get
+  ;; Current.  It is also what to read before walking out, so the title names
+  ;; both; the board has never been a weekly-only thing.
+  ;;
+  ;; `c' is the clock: whether the record is true, and then what it says.  Two
+  ;; halves of one act -- reading a record you have not checked is reading a
+  ;; guess -- and neither is GTD, which manages commitments and has no
+  ;; timesheet anywhere in it.  Measuring where the hours went is Drucker's
+  ;; step, and his order is exactly this one.
+  ;;
+  ;; A view that used to draw today's agenda again with a different block
+  ;; underneath was never opened: a view whose top half is identical to
+  ;; another is not a place, it is a toggle.
   (setq org-agenda-custom-commands
-        '(("r" "Weekly review — past 7 days"
+        '(("r" "Review — unsettled work, weekly and at the door"
+           org-foresight-board "")
+          ("c" "Clock — the week's record, and where it went"
            ((agenda "" ((org-agenda-overriding-header "Clock check · past week")
                         (org-agenda-span 'week)
                         (org-agenda-start-day "-1w")
@@ -230,10 +242,6 @@ org's existing key table stays the single source of truth."
            ;; so each block's orientation header is shown in the review.
            ((org-foresight-report-style 'review)
             (org-agenda-compact-blocks nil)))
-          ;; `C-c a b' kept its key through the rewrite on purpose: the
-          ;; question at the door has not changed, only the answer -- what only
-          ;; being here can settle, and what has not been planned for at all.
-          ("b" "Board — what has not been settled" org-foresight-board "")
           ("d" "People — work with someone in it"
            ;; Everything a person is part of, whichever way round: WAIT and
            ;; DELEG are with them, anything else with a `:PEOPLE:' needs them.
@@ -425,7 +433,7 @@ org's existing key table stays the single source of truth."
 
   ;; The two ends of the day, booked because they happen.  Ten minutes at the
   ;; desk on arrival to see what the day is, and ten before leaving it to see
-  ;; what only being here can settle -- the second is what `C-c a b' was made
+  ;; what only being here can settle -- the second is what `C-c a r' was made
   ;; for, and until it had time of its own it was taken out of whatever came
   ;; last.  The keys are resolved when the row is drawn, so they keep naming
   ;; the right ones; `C-c a a' is a custom agenda command and has no binding
@@ -495,7 +503,7 @@ org's existing key table stays the single source of truth."
    (:map org-agenda-mode-map
          :key
          ;; The board, from inside the day.  Bound as well as reachable through
-         ;; `C-c a b' so the verdict line can name a key rather than an M-x:
+         ;; `C-c a r' so the verdict line can name a key rather than an M-x:
          ;; `substitute-command-keys' resolves what is bound, and a dispatcher
          ;; entry is not.
          "B" #'org-foresight-board
