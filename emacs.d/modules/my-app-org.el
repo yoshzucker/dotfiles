@@ -31,8 +31,8 @@
 ;;
 ;; What to record, where it goes, how to get there:
 ;;
-;;   a task (has a state, a date)       journal.org datetree   C-c c a / i / s / e
-;;   an entry under today               journal.org datetree   C-c c j
+;;   anything at all, to sort later     journal.org datetree   C-c c j
+;;   work starting now, clocked         journal.org datetree   C-c c i / s
 ;;   a thought, feeling, fragment       today's daily note     C-c z n
 ;;   a subject inside today             today's daily note     C-c z d
 ;;   more about the clocked task        that task              C-c c n
@@ -363,25 +363,61 @@ agenda file set does not depend on whether rg is installed -- rg's own
           (sequence "WAIT(w@)" "|" "DELEG(e@)")))
   
   (setq org-log-done 'note
-        org-treat-insert-todo-heading-as-state-change t
-        org-log-state-notes-insert-after-drawers t)
+        org-treat-insert-todo-heading-as-state-change t)
 
   ;; Read an entry top to bottom in the order things happened: notes appended
   ;; by C-c C-z land below the previous ones rather than above, matching how
   ;; the `item' capture templates append.  Applies to LOGBOOK state and clock
   ;; lines too.
   (setq org-log-states-order-reversed nil)
-  
+
+  ;; One decision, spread over the three settings below and the advice after
+  ;; them: *a record goes in the drawer, a sentence I wrote goes in the body.*
+  ;;
+  ;; `time' is how that decision is spelled for these three -- it means "write
+  ;; it down and do not ask me anything", which is exactly what makes them
+  ;; records rather than notes, and therefore what sends them to the drawer.
+  ;; Org offers `note' here instead; taking it would move them to the body,
+  ;; which is the same rule still holding rather than an exception to it.
   (setq org-log-redeadline 'time
         org-log-reschedule 'time
-        org-log-refile     'time
-        org-closed-keep-when-no-todo nil)
-  
-  (defun my/org-add-log-setup-into-drawer (&optional purpose _state _prev-state _how _extra)
-    (setq org-log-into-drawer
-          (memq purpose '(state deldeadline delschedule redeadline reschedule refile))))
-  
+        org-log-refile     'time)
+
+  ;; Org treats `org-log-into-drawer' as a standing preference: a drawer, or no
+  ;; drawer.  There is no supported way to say "drawer for some kinds of log
+  ;; entry and not others" -- the nearest thing, the LOG_INTO_DRAWER property,
+  ;; is per heading rather than per kind.  So the value is recomputed before
+  ;; every log entry instead, which is the one place this configuration goes
+  ;; past what Org intends, and worth knowing two things about.
+  ;;
+  ;; It has to be `setq' rather than a binding: `org-add-log-setup' only
+  ;; records what is about to happen and defers the writing to
+  ;; `post-command-hook', so anything let-bound here is gone by the time
+  ;; `org-store-log-note' reads it.
+  ;;
+  ;; And nothing sets a baseline, so removing the advice does not restore the
+  ;; default -- it leaves the variable nil and there are no drawers at all.
+  ;; This one line carries every drawer in the system.
+  ;;
+  ;; The test is Org's own.  `org-add-log-note' asks whether HOW is `time' or
+  ;; `state', and stores the entry silently if it is; anything else stops to
+  ;; take a sentence.  Reading the same field here means the rule cannot drift
+  ;; from what actually happens, and cannot go stale when Org adds a purpose --
+  ;; which is how the earlier version of this, a list of purposes, came to be
+  ;; missing `done' and to file closing notes differently from every other note.
+  (defun my/org-add-log-setup-into-drawer (&optional _purpose _state _prev-state how _extra)
+    "Send this log entry to the drawer when it is a record, not a note.
+Advises `org-add-log-setup', which runs before every log entry Org writes.
+HOW is Org's own note-taking setting for the entry; see `org-add-log-note',
+which stores the entry without asking when HOW is `time' or `state'."
+    (setq org-log-into-drawer (and (memq how '(time state)) t)))
+
   (advice-add 'org-add-log-setup :before #'my/org-add-log-setup-into-drawer)
+
+  ;; With the rule above, every sentence I write is on the no-drawer side, so
+  ;; this is what keeps those sentences below the drawers rather than wedged
+  ;; between the heading and its own properties.
+  (setq org-log-state-notes-insert-after-drawers t)
 
   ;; Cookie
   (setq org-provide-todo-statistics t
@@ -647,51 +683,93 @@ called with C-u (prefix 64)."
    (:hook org-capture-before-finalize-hook
           :func #'my/org-capture-update-clock-heading))
 
+  ;; A few templates write a heading that is already in a state, as text, so no
+  ;; state change fires and Org logs nothing about when the thing began.  The
+  ;; line it would have written is spelled out instead -- derived from the
+  ;; format Org would have used rather than copied out of a file once and left
+  ;; to drift.  The alignment in those lines is not decorative: it is `%-12s'
+  ;; padding, and hand-counting it is how it goes wrong.
+  (defun my/org-state-log-line (state)
+    "The LOGBOOK line Org writes when a heading first enters STATE.
+For use inside `org-capture-templates'.  `%t' becomes `%U' rather than a
+timestamp, so the capture expands it and the line carries the moment it was
+written rather than the moment Emacs started."
+    (concat "- " (org-replace-escapes
+                  (cdr (assq 'state org-log-note-headings))
+                  `(("%s" . ,(format "\"%s\"" state))
+                    ("%S" . "")
+                    ("%t" . "%U")))))
+
+  (defun my/org-state-log-drawer (state)
+    "A LOGBOOK drawer holding STATE's opening line, for a capture template.
+The drawer name is written out rather than read from `org-log-into-drawer',
+whose value at any moment belongs to the last log entry Org wrote (see
+`my/org-add-log-setup-into-drawer') and says nothing about this one."
+    (concat ":LOGBOOK:\n" (my/org-state-log-line state) "\n:END:"))
+
   ;; Two kinds of template live here, distinguished by capture type rather than
-  ;; by key: `entry' ones create a subject (a task, a dated journal entry, a
-  ;; clock repair), while `item' ones append a note to a subject that already
-  ;; exists.  The `item' ones are the cheap, high-frequency half -- use them
+  ;; by key: `entry' ones create a subject, while `item' ones append a note to
+  ;; a subject that already exists.  The `item' ones are the cheap, high-frequency half -- use them
   ;; freely.  C-c C-z (`org-add-note') is the same act performed in place; the
   ;; templates here exist for adding to a subject you are *not* looking at.
   (setq org-capture-templates
-        `(("a" "add task" entry (file+datetree my/org-journal-file)
-           "* NEXT %?\nSCHEDULED: %^t\n:LOGBOOK:\n- State \"NEXT\"       from              %U\n:END:")
-          ;; The one capture org-foresight depends on.  `:SURGE:' marks work as
+        `(;; The way in.  A heading under today and nothing else -- no state,
+          ;; no date, no note -- because deciding what a thing is happens after
+          ;; it has been caught, not during.  `:jump-to-captured' lands you on
+          ;; it, so `C-c C-t' makes it a task, `C-c C-s' dates it and `C-c C-z'
+          ;; says more; each of those fires the real machinery and logs itself,
+          ;; which is why there is no template here that writes a state.
+          ("i" "inbox" entry (file+olp+datetree my/org-journal-file)
+           "* %?\n"
+           :jump-to-captured t)
+          ;; The two that exist because they touch the clock, which the inbox
+          ;; cannot do after the fact -- by the time you have caught the thing,
+          ;; the moment it started is gone.  Both clock in on what they capture;
+          ;; they differ only in where the clock is left afterwards.
+          ;;
+          ;; These are also the two that ask which area the work belongs to,
+          ;; and the inbox is the one that must not.  Catching and deciding are
+          ;; different acts: the inbox exists so that something can be caught
+          ;; before it is understood, and a prompt there would make catching
+          ;; cost a decision.  Here the work is starting now, so the answer is
+          ;; already known -- and these are the entries whose hours get clocked,
+          ;; which is what `org-convect-unclaimed-categories' reads.  Without a
+          ;; CATEGORY that names an area, time is booked to the file's name and
+          ;; nothing can say where it went.
+          ;;
+          ;; The candidates are the areas that actually exist, so work cannot
+          ;; be filed against a responsibility nobody has claimed.  Anything
+          ;; caught in the inbox gets its area later, with
+          ;; `org-convect-set-category'.
+          ;;
+          ;;   "i"  the clock goes back to what was interrupted
+          ;;   "s"  the clock stays on the new thing
+          ;;
+          ;; `:SURGE:' is what org-foresight depends on: it marks work as
           ;; having arrived rather than been planned, and its value is when it
           ;; arrived -- which is what decides when it stops counting as
           ;; unplanned.  A date of its own on any later day means the work has
           ;; been taken in hand, and from then it is ordinary promised work.
-          ;;
-          ;; `:clock-resume' is the whole difference from "s": an interruption
-          ;; is recorded and then you go back to what you were doing, where a
-          ;; switch leaves you on the new thing.
-          ("i" "interrupt task" entry (file+datetree my/org-journal-file)
+          ("t" "interrupt task" entry (file+olp+datetree my/org-journal-file)
            ,(concat "* ONGO %?\n"
-                    ":PROPERTIES:\n:SURGE: %U\n:END:\n"
-                    ":LOGBOOK:\n- State \"ONGO\"       from              %U\n:END:")
+                    ":PROPERTIES:\n"
+                    ":CATEGORY: %(org-convect-read-area)\n"
+                    ":SURGE: %U\n:END:\n"
+                    (my/org-state-log-drawer "ONGO"))
            :clock-in t :clock-resume t)
-          ("s" "switch task" entry (file+datetree my/org-journal-file)
-           ;; Capture writes the heading rather than calling `org-todo', so
-           ;; no state change fires and nothing logs when the task began.
-           ;; Written by hand, as the "a" and "e" templates do.
-           "* ONGO %?\n:LOGBOOK:\n- State \"ONGO\"       from              %U\n:END:"
+          ("s" "switch task" entry (file+olp+datetree my/org-journal-file)
+           ;; Capture writes the heading rather than calling `org-todo', so no
+           ;; state change fires and nothing logs when the task began.  The
+           ;; line Org would have written is put there instead.
+           ,(concat "* ONGO %?\n"
+                    ":PROPERTIES:\n"
+                    ":CATEGORY: %(org-convect-read-area)\n:END:\n"
+                    (my/org-state-log-drawer "ONGO"))
            :clock-in t :clock-keep t :jump-to-captured t)
-          ("j" "journal" entry (file+datetree my/org-journal-file)
-           ,(concat "* %?\n" my/org-note-prefix)
-           :jump-to-captured t)
-          ;; Work handed to someone, captured as it is created.  WAIT rather
-          ;; than DELEG: it is coming back, and I am still answerable for it
-          ;; (see `org-todo-keywords').  SCHEDULED is when to ask, `:PEOPLE:'
-          ;; is who has it, and the "d" custom command (the people board)
-          ;; groups by that.  Work that is leaving for good has no template --
-          ;; it is a state change on something that already exists, and the
-          ;; hook `my/org-handover-on-state-change' asks what it needs to.
-          ("e" "hand over (comes back)" entry (file+datetree my/org-journal-file)
-           "* WAIT %?\nSCHEDULED: %^t\n:PROPERTIES:\n:PEOPLE: %^{Who has it}\n:END:\n:LOGBOOK:\n- State \"WAIT\"       from              %U\n:END:")
           ;; Note onto the task being clocked.  The `clock' target leaves
           ;; `:target-entry-p' at its default t, so the item joins the note list
           ;; in that entry's own body and never reaches into its children.
-          ("n" "note on clocked task" item (clock)
+          ("c" "note on clocked task" item (clock)
            ,(concat my/org-note-prefix "Annotation %a\n  %?")
            :jump-to-captured t)
           ;; Note onto a node chosen by name.  "o" is the same template with the
@@ -699,9 +777,9 @@ called with C-u (prefix 64)."
           ;; filter, so a note reads the same wherever it lands.  Anything that
           ;; later deserves to be looked up on its own (a 1on1 worth scheduling
           ;; follow-ups against) gets promoted to a headline then, not now.
-          ("g" "note on a node" item (function my/org-roam-node-log-target)
+          ("n" "note on a node" item (function my/org-roam-node-log-target)
            ,my/org-node-note-template)
-          ("o" "note on a person" item (function my/org-roam-person-log-target)
+          ("p" "note on a person" item (function my/org-roam-person-log-target)
            ,my/org-node-note-template)
           ;; ACT.  A choice point: what showed up, what it pulled me into, and
           ;; what the value asked for instead.  Only what can be enumerated is
@@ -721,21 +799,24 @@ called with C-u (prefix 64)."
           ;; lower, which is the trap the whole practice is about.  And what
           ;; came of it is `towards' or `away' -- workability, the only test
           ;; ACT applies to an action.
-          ("v" "ACT: choice point" entry (function org-convect-act-target)
-           ,(concat "* %^{状況}\n"
+          ("a" "ACT: choice point" entry (function org-convect-act-target)
+           ,(concat "* %^{Situation}\n"
                     ":PROPERTIES:\n"
                     ":CREATED:      %U\n"
-                    ":ACT_STRUGGLE: %^{もがき度|0|1|2|3|4|5|6|7|8|9|10}\n"
-                    ":ACT_MOVE:     %^{向かえたか|towards|partly|away}\n"
+                    ":ACT_STRUGGLE: %^{Struggle|0|1|2|3|4|5|6|7|8|9|10}\n"
+                    ":ACT_MOVE:     %^{Moved|towards|partly|away}\n"
                     ":END:\n"
-                    "- 釣られた思考・感情 :: %?\n"
-                    "- 逸れた行動 :: \n"
-                    "- 向かう行動 :: \n"))))
+                    "- what pulled :: %?\n"
+                    "- away :: \n"
+                    "- towards :: \n"))))
 
-  ;; Handing work over, the other half of the "e" template above.  That one
-  ;; captures work handed over as it is created; this one catches work you are
-  ;; already looking at changing hands, and asks the same questions.  It
-  ;; belongs to Org rather than to the agenda -- `org-after-todo-state-change-hook'
+  ;; Handing work over.  There is no capture template for it: cycling into
+  ;; WAIT or DELEG is the act, wherever it happens, and this asks the two
+  ;; questions that go with it.  There used to be a template as well, which
+  ;; only meant the same property could be written two ways -- and the people
+  ;; board matches it as an exact string, so two ways is one way too many.
+  ;;
+  ;; It belongs to Org rather than to the agenda -- `org-after-todo-state-change-hook'
   ;; fires wherever the state is cycled -- and living beside the agenda meant it
   ;; did not exist until the agenda had been opened at least once.
   (defun my/org-roam-person-names ()
@@ -783,11 +864,17 @@ unaffected."
                   (if (equal org-state "WAIT") "Who has it: " "Handed to: ")
                   (my/org-roam-person-names)
                   nil nil nil nil
-                  (car (org-entry-get-multivalued-property nil "PEOPLE"))))
+                  (org-entry-get nil "PEOPLE")))
             (followup (and (equal org-state "WAIT")
                            (org-read-date nil nil nil "When to ask"))))
         (unless (string-empty-p who)
-          (org-entry-put-multivalued-property nil "PEOPLE" who))
+          ;; Written plainly, not with the multivalued property API, which
+          ;; escapes spaces as `%20'.  The "e" capture template writes this
+          ;; property as ordinary text and the people board matches it as an
+          ;; exact string, so an escaping writer would split any name with a
+          ;; space into two populations that never see each other.  One person
+          ;; holds a piece of work, so the multivalued reading buys nothing.
+          (org-entry-put nil "PEOPLE" who))
         (when (and followup (not (string-empty-p followup)))
           (let ((org-log-reschedule nil))
             (org-schedule nil followup))))))
@@ -1243,7 +1330,7 @@ block already shows what is out with them, as a live query."
   ;; also pointing the wrong way: a scale becomes a series, and a series
   ;; invites wanting the number to improve -- which is the struggle ACT is
   ;; about, not a record of it.  Naming what showed up still happens, in the
-  ;; `釣られた思考・感情' line of a choice point, where it sits beside what was
+  ;; `what pulled' line of a choice point, where it sits beside what was
   ;; actually done about it.  A plain note ("n") takes anything else.
 
   ;; Display behavior
@@ -1629,8 +1716,8 @@ Counted with `safe-length\=': some of these are rings rather than lists --
 from one."
   (let ((local (lambda (hook)
                  (safe-length (remq t (if (local-variable-p hook)
-                                     (buffer-local-value hook (current-buffer))
-                                   nil))))))
+                                          (buffer-local-value hook (current-buffer))
+                                        nil))))))
     (list
      (cons "buffer characters" (buffer-size))
      (cons "overlays here" (safe-length (overlays-in (point-min) (point-max))))
@@ -1652,9 +1739,9 @@ from one."
      (cons "buffers" (safe-length (buffer-list)))
      (cons "org buffers"
            (safe-length (seq-filter (lambda (b)
-                                 (with-current-buffer b
-                                   (derived-mode-p 'org-mode)))
-                               (buffer-list))))
+                                      (with-current-buffer b
+                                        (derived-mode-p 'org-mode)))
+                                    (buffer-list))))
      (cons "agenda markers org keeps"
            (if (boundp 'org-agenda-markers) (safe-length org-agenda-markers) -1))
      (cons "org mark ring" (safe-length org-mark-ring))
@@ -1711,29 +1798,30 @@ what to look at."
   :config
   (setq org-convect-files (list (concat org-directory "horizons.org")))
 
+  ;; An area's name is the CATEGORY its tasks carry, and the agenda prints that
+  ;; through `%-8.8c\=' (see `org-agenda-prefix-format\=' in my-app-org-agenda.el).
+  ;; Eight is what is actually shown, so eight is what the doctor measures
+  ;; against -- a name longer than this is not wrong, it is just never read in
+  ;; full in the place it is read most.
+  (setq org-convect-category-width 8)
+
   ;; ACT's life domains: not a rung and not a hierarchy, but the check that
   ;; keeps the areas from turning out to be entirely about work.  Few is better
   ;; than many -- a domain nothing is ever written about becomes a blank that
   ;; gets skipped, and skipping is a habit.
-  (setq org-convect-act-domains '("仕事" "家族" "健康" "学び" "つながり" "余暇"))
+  (setq org-convect-act-domains
+        '("work" "family" "health" "learning" "friendship" "leisure"))
 
-  ;; Sections are scaffolding: an entry belongs to a rung because it says so,
-  ;; not because of where it sits.  They are ordered lowest first because that
-  ;; is the order they get filled -- GTD's own advice is to clear the runway
-  ;; before reaching for purpose, and the file should not argue with that.
+  ;; The frame, its guidance and the `#+COLUMNS' line all come from the package
+  ;; and want no help here.  The names are GTD's, kept in English so that
+  ;; anything written about the model reads against the file directly, and the
+  ;; overlay adds its own two columns when it loads.
   ;;
-  ;; The `#+COLUMNS' line is what makes the property drawers worth writing:
-  ;; `C-c C-x C-c' on a value is the table of its choice points, so nothing has
-  ;; to be stored twice.
-  (setq org-convect-skeleton
-        (concat "#+title: Horizons\n"
-                "#+COLUMNS: %40ITEM(項目) %CONVECT_HORIZON(高さ)"
-                " %CONVECT_SERVES(仕える先) %ACT_STRUGGLE(もがき)"
-                " %ACT_MOVE(向かう)\n\n"
-                "* 関心と責任の領域\n"
-                "* 目標\n"
-                "* ビジョン\n"
-                "* 目的と原則\n")))
+  ;; `M-x org-convect-open' writes the frame, `M-x org-convect-add' writes a
+  ;; rung.  The :GUIDE: drawers in the frame say what each rung is; they are
+  ;; folded, nothing reads them back, and they are meant to be deleted once
+  ;; they have done their job.
+  )
 
 (provide 'my-app-org)
 ;;; my-app-org.el ends here
