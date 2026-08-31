@@ -733,14 +733,14 @@ whose value at any moment belongs to the last log entry Org wrote (see
           ;; before it is understood, and a prompt there would make catching
           ;; cost a decision.  Here the work is starting now, so the answer is
           ;; already known -- and these are the entries whose hours get clocked,
-          ;; which is what `org-convect-unclaimed-categories' reads.  Without a
-          ;; CATEGORY that names an area, time is booked to the file's name and
-          ;; nothing can say where it went.
+          ;; which is what `org-convect-unclaimed-time' reads.  An entry with
+          ;; no area has its hours reported as unattributed, which is the
+          ;; finding rather than a gap in it.
           ;;
           ;; The candidates are the areas that actually exist, so work cannot
           ;; be filed against a responsibility nobody has claimed.  Anything
           ;; caught in the inbox gets its area later, with
-          ;; `org-convect-set-category'.
+          ;; `org-convect-set-area'.
           ;;
           ;;   "i"  the clock goes back to what was interrupted
           ;;   "s"  the clock stays on the new thing
@@ -753,7 +753,7 @@ whose value at any moment belongs to the last log entry Org wrote (see
           ("t" "interrupt task" entry (file+olp+datetree my/org-journal-file)
            ,(concat "* ONGO %?\n"
                     ":PROPERTIES:\n"
-                    ":CATEGORY: %(org-convect-read-area)\n"
+                    ":CONVECT_AREA: %(org-convect-read-area)\n"
                     ":SURGE: %U\n:END:\n"
                     (my/org-state-log-drawer "ONGO"))
            :clock-in t :clock-resume t)
@@ -763,7 +763,7 @@ whose value at any moment belongs to the last log entry Org wrote (see
            ;; line Org would have written is put there instead.
            ,(concat "* ONGO %?\n"
                     ":PROPERTIES:\n"
-                    ":CATEGORY: %(org-convect-read-area)\n:END:\n"
+                    ":CONVECT_AREA: %(org-convect-read-area)\n:END:\n"
                     (my/org-state-log-drawer "ONGO"))
            :clock-in t :clock-keep t :jump-to-captured t)
           ;; Note onto the task being clocked.  The `clock' target leaves
@@ -1797,13 +1797,6 @@ what to look at."
   :after org
   :config
   (setq org-convect-files (list (concat org-directory "horizons.org")))
-
-  ;; An area's name is the CATEGORY its tasks carry, and the agenda prints that
-  ;; through `%-8.8c\=' (see `org-agenda-prefix-format\=' in my-app-org-agenda.el).
-  ;; Eight is what is actually shown, so eight is what the doctor measures
-  ;; against -- a name longer than this is not wrong, it is just never read in
-  ;; full in the place it is read most.
-  (setq org-convect-category-width 8)
 
   ;; ACT's life domains: not a rung and not a hierarchy, but the check that
   ;; keeps the areas from turning out to be entirely about work.  Few is better
