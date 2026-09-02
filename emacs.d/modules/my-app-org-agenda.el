@@ -136,23 +136,30 @@
         org-agenda-timegrid-use-ampm nil
         ;; The agenda opens with no log at all, and `v' asks for it in three
         ;; levels:
-        ;;   v l  (Log)         . closed                (this variable)
-        ;;   v L  (Log all)     . + state + clock       (all item types)
+        ;;   v l  (Log)         . clock                 (this variable)
+        ;;   v L  (Log all)     . + closed + state      (all item types)
         ;;   v c  (Clock check) . clock + consistency audit (gaps/overlaps/…)
-        ;; `clock' is deliberately dropped from `l' so time-tracking detail lives
-        ;; in the end-of-agenda viz tables and `L'.
         ;;
-        ;; And `state' with it.  The forward view now says what is *left* of the
-        ;; day -- a gap that has gone offers nothing -- which leaves the morning
-        ;; a blank and raises the only question worth asking about it: what came
-        ;; of it.  `closed' answers that in one line per finished thing.  State
-        ;; changes answer a different question, at three lines to the same fact,
-        ;; and `L' still has them.
+        ;; The forward view says what is *left* of the day -- a gap that has
+        ;; gone offers nothing -- which leaves the morning a blank and raises
+        ;; the only question worth asking about it: where did it go.  `clock'
+        ;; answers that in the units the rest of this file works in, and puts
+        ;; the hours back in the row where they were spent rather than a table
+        ;; at the foot.
+        ;;
+        ;; `closed' answers a narrower question -- what finished -- and the two
+        ;; overlap where it matters: anything worth having finished was clocked,
+        ;; so it shows here anyway, at the time it was worked rather than the
+        ;; minute it was ticked off.  What it loses is the thing closed with no
+        ;; clock against it, which is a thing there is no record of doing.
+        ;;
+        ;; `state' stays out of both: three lines to the same fact, and `L'
+        ;; still has them.
         ;;
         ;; Note that `v l' toggles while `v L' assigns: pressing `L' twice leaves
         ;; the log on, and `l' is what turns it back off.  That is org's own
         ;; `org-agenda-log-mode', not a local choice.
-        org-agenda-log-mode-items '(closed)
+        org-agenda-log-mode-items '(clock)
         org-clock-report-include-clocking-task t
         ;; The daily agenda's own "time by area" view is now rendered by the
         ;; custom CATEGORY block (`org-foresight-report-clocked'), so the
@@ -402,7 +409,7 @@ org's existing key table stays the single source of truth."
                                (gym . "gym\\|ジム"))
         org-foresight-home-place 'home
         org-foresight-travel-matrix '(((home . gym) . 15)
-                                      ((home . office) . 75)
+                                      ((home . office) . 60)
                                       ((home . client) . 75)
                                       ((gym . office) . 55)
                                       ((office . client) . 60))
