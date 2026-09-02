@@ -1814,7 +1814,27 @@ what to look at."
   ;; rung.  The :GUIDE: drawers in the frame say what each rung is; they are
   ;; folded, nothing reads them back, and they are meant to be deleted once
   ;; they have done their job.
-  )
+
+  ;; Opening the space to think a project through, from either place it is
+  ;; wanted: in the agenda the thought is "this needs breaking down", in the
+  ;; file it is already being written.  The same letter in both, so there is
+  ;; one thing to remember rather than two.
+  ;;
+  ;; `K' is one of the four letters org leaves unbound in the agenda (`K', `V',
+  ;; `W', `Y') and the only one on the home row.  Every other key in this
+  ;; config's agenda map had to displace something and say why; this one costs
+  ;; nothing.  `k' beside it is `org-agenda-previous-line' -- a motion, not
+  ;; something this could be mistaken for.
+  (my/define-key
+   (:map org-mode-map
+         :prefix "C-c"
+         :key
+         "k" #'org-convect-plan))
+  (with-eval-after-load 'org-agenda
+    (my/define-key
+     (:map org-agenda-mode-map
+           :key
+           "K" #'org-convect-plan))))
 
 (provide 'my-app-org)
 ;;; my-app-org.el ends here
