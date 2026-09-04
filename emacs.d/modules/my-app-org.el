@@ -365,11 +365,16 @@ agenda file set does not depend on whether rg is installed -- rg's own
   (setq org-log-done 'note
         org-treat-insert-todo-heading-as-state-change t)
 
-  ;; Read an entry top to bottom in the order things happened: notes appended
-  ;; by C-c C-z land below the previous ones rather than above, matching how
-  ;; the `item' capture templates append.  Applies to LOGBOOK state and clock
-  ;; lines too.
-  (setq org-log-states-order-reversed nil)
+  ;; Newest first.  What you want from a log you are reading rather than
+  ;; writing is the last thing that happened, and having to scroll a year of
+  ;; them to find it is the cost of the other order.  Applies to LOGBOOK state
+  ;; and clock lines too, where it matters less -- those are read by machine.
+  ;;
+  ;; org-convect follows this for the notes on a horizon rung, and puts them
+  ;; *below* the rung's prose rather than above it.  Org has no setting for
+  ;; that: a rung's body is the standard the review is against, and a month of
+  ;; passing thoughts read before reaching it buries the thing it is about.
+  (setq org-log-states-order-reversed t)
 
   ;; One decision, spread over the three settings below and the advice after
   ;; them: *a record goes in the drawer, a sentence I wrote goes in the body.*
