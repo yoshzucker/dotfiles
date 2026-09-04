@@ -509,9 +509,18 @@ org's existing key table stays the single source of truth."
   ;; colour: what is left of the day is the part still worth defending, and
   ;; the two marks say the same thing about the same moment.  Set here rather
   ;; than in the theme because it is Org's face, not the package's.
-  (set-face-attribute 'org-agenda-current-time nil
-                      :inherit 'org-foresight-report-now
-                      :foreground 'unspecified)
+  ;;
+  ;; The whole face, not one attribute of it.  `set-face-attribute' changes
+  ;; what it names and leaves everything else, so clearing the foreground alone
+  ;; let gensho's `:weight bold' through -- and org-foresight draws this same
+  ;; rule itself whenever the hour is pinned, in `org-foresight-report-now'
+  ;; with no weight at all.  The same moment came out bold or not depending on
+  ;; which of the two had drawn it, which is `org-foresight-demo-mode' on or
+  ;; off.  An override spec replaces rather than merges, and outlives a theme
+  ;; being reloaded, which `set-face-attribute' does not.
+  (face-spec-set 'org-agenda-current-time
+                 '((t :inherit org-foresight-report-now))
+                 'face-override-spec)
 
   (my/define-key
    (:map org-agenda-mode-map
