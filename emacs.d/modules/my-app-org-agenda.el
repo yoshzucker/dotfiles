@@ -388,8 +388,16 @@ org's existing key table stays the single source of truth."
   ;; The hours being defended, not the hours actually worked.  A list, so a
   ;; day that breaks can say so: add an interval and the gap stops being
   ;; capacity, stops being offered, and stops being planned through.
+  ;;
+  ;; The day opens at nine, not at a quarter past eight.  Leaving the house at
+  ;; 8:15 is leaving for the gym, and the gym is mine -- the day starts when I
+  ;; leave it, which is around nine, and the journey from there to the office
+  ;; is work and counts.  On a day worked from home the same journey ends a
+  ;; little after nine and the difference comes out of the day rather than out
+  ;; of the morning, which is the honest way round: an hour I did not defend is
+  ;; not an hour I was owed.
   (setq org-foresight-awake    '("06:50" . "22:00")
-        org-foresight-work     '(("08:15" . "12:15") ("13:30" . "18:30"))
+        org-foresight-work     '(("09:00" . "12:15") ("13:30" . "18:30"))
         org-foresight-workdays '(1 2 3 4 5))
 
   ;; Every imported meeting carries a Teams link, so a LOCATION alone cannot
@@ -505,22 +513,12 @@ org's existing key table stays the single source of truth."
         org-foresight-bias-abandoned-keywords '("CANCEL" "DELEG")
         org-foresight-report-style 'daily)
 
-  ;; Org's `now' line in the colour the bar rules itself at, which is life's
-  ;; colour: what is left of the day is the part still worth defending, and
-  ;; the two marks say the same thing about the same moment.  Set here rather
-  ;; than in the theme because it is Org's face, not the package's.
-  ;;
-  ;; The whole face, not one attribute of it.  `set-face-attribute' changes
-  ;; what it names and leaves everything else, so clearing the foreground alone
-  ;; let gensho's `:weight bold' through -- and org-foresight draws this same
-  ;; rule itself whenever the hour is pinned, in `org-foresight-report-now'
-  ;; with no weight at all.  The same moment came out bold or not depending on
-  ;; which of the two had drawn it, which is `org-foresight-demo-mode' on or
-  ;; off.  An override spec replaces rather than merges, and outlives a theme
-  ;; being reloaded, which `set-face-attribute' does not.
-  (face-spec-set 'org-agenda-current-time
-                 '((t :inherit org-foresight-report-now))
-                 'face-override-spec)
+  ;; Org's `now' line is themed rather than patched here.  org-foresight draws
+  ;; that same line itself whenever the hour is pinned, and the two have to
+  ;; agree; the place they can agree by construction is the theme, where both
+  ;; faces are defined.  Patching it from this side does not work anyway --
+  ;; every form of it merges with the theme's spec, so the theme's weight and
+  ;; colour survive whatever is asked for here.
 
   (my/define-key
    (:map org-agenda-mode-map
