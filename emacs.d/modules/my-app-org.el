@@ -1135,8 +1135,7 @@ without replacing it."
    (:map global-map
          :prefix "C-c"
          :key
-         "q" #'org-ql-search
-         "v" #'org-ql-view)
+         "q" #'org-ql-search)
    (:map global-map
          :prefix "C-c n"
          :key
@@ -1840,6 +1839,50 @@ what to look at."
      (:map org-agenda-mode-map
            :key
            "K" #'org-convect-plan))))
+
+;;;; Files rising to the heading that is being lived
+;; org-foresight is when, on the day.  org-convect takes purpose from
+;; the top of the ladder down to H2 and climbs back as a reduction.
+;; org-upwell is the other vertical: at H1, the day's feet, the files
+;; and URLs work is done with rise to the heading being lived.  Capture
+;; is a resident watcher outside this process (AHK on Windows,
+;; osascript on macOS) -- Emacs only intersects those traces with CLOCK
+;; lines, including ones filled in after the fact with foresight's C.
+;;
+;; User headings stay user headings.  A claim is an org-id on the stored
+;; item pointing *up* at the project/task/meeting; the heading body is
+;; not a file listing.  upwell.org is the store for those identities,
+;; kept out of the agenda the way horizons.org is kept out of it.
+(use-package org-upwell
+  :straight (org-upwell :host github :repo "yoshzucker/org-upwell"
+                        :files ("*.el" ("script" "script/*")))
+  :after org
+  :config
+  (setq org-upwell-open-function #'my/open-file)
+  (org-upwell-mode 1)
+  ;; One key everywhere.  On a heading (Org, agenda) that heading is
+  ;; expanded; elsewhere completing-read among clocks and open NEXT.
+  ;; `C-c n v' remains `org-ql-view'.  Babel is `C-c C-v'.
+  (my/define-key
+   (:map global-map
+         :prefix "C-c"
+         :key
+         "v" #'org-upwell-expand))
+  (with-eval-after-load 'org-agenda
+    (my/define-key
+     (:map org-agenda-mode-map
+           :key
+           "V" #'org-upwell-expand)))
+  ;; Package default: `g' redraws.  Here `g' is motion/search, as in
+  ;; agenda and dayflow; redraw is `gr'.
+  (dolist (key '("z" "g" "/" "n" "N" ":"))
+    (define-key org-upwell-bench-mode-map (kbd key)
+                (lookup-key evil-motion-state-map (kbd key))))
+  (my/define-key
+   (:map org-upwell-bench-mode-map
+         :state emacs motion normal
+         :key
+         "gr" #'org-upwell-bench)))
 
 (provide 'my-app-org)
 ;;; my-app-org.el ends here
