@@ -126,6 +126,7 @@ function Main {
 
     if ($script:MainMode -eq "link") {
         Setup-Links
+        Setup-DevPackages
     }
 
     if ($script:MainMode -eq "unlink") {
@@ -145,6 +146,7 @@ function Main {
         Update-RPackages
         Install-ZshPlugins
         Setup-Links
+        Setup-DevPackages
         Install-Cmigemo
         Setup-StartupShortcuts
         Setup-ActivityWatchStartup
@@ -1416,48 +1418,137 @@ function Install-Cmigemo {
     Write-PrintLine $leftMessage "Finished."
 }
 
-function Setup-StartupShortcuts {
-    # Register the repo's AutoHotkey scripts (etc/ahk/*.ahk) to launch at login
-    # by placing a <name>.ahk.lnk shortcut in the current user's Startup folder.
-    # The shortcut targets the .ahk file directly; AutoHotkey (installed via
-    # Scoop) runs it through the .ahk file association. Mirrors the manual
-    # setup previously done by hand on configured machines. Idempotent: a
-    # shortcut already pointing at the same target is left alone.
-    $ahkDir = Join-Path (Join-Path $script:ScriptDir "etc") "ahk"
-    if (-not (Test-Path -LiteralPath $ahkDir -PathType Container)) {
-        return
-    }
-
-    $scripts = @(Get-ChildItem -LiteralPath $ahkDir -Filter "*.ahk" -File -ErrorAction SilentlyContinue)
-    if ($scripts.Count -eq 0) {
-        return
-    }
-
-    $leftMessage = "Registering AHK startup shortcuts"
+function Setup-DevPackages {
+    # Packages written here rather than merely used: point straight's clone at
+    # the working tree in ~/Developer, so editing a package and restarting Emacs
+    # is enough to see the change.  Without this the loaded copy is straight's
+    # own clone, and every experiment costs a commit, a push and a pull.
+    #
+    # Skipped silently where the working tree is absent -- a machine that only
+    # uses these packages should let straight clone them as usual.  A clone that
+    # has anything of its own in it is left alone and reported: work done in the
+    # wrong directory is still work, and this is not the place to discover it is
+    # gone.
+    $leftMessage = "Linking developed packages"
     Write-PrintLine $leftMessage "Started."
+
+    $repos = Join-Path $HOME ".emacs.d\straight\repos"
+    $build = Join-Path $HOME ".emacs.d\straight\build"
+    $packages = @(
+        "org-foresight",
+        "org-calsync",
+        "org-convect",
+        "org-dayflow",
+        "org-upwell",
+        "gensho-theme",
+        "rustcity-theme"
+    )
+
+    foreach ($pkg in $packages) {
+        $src = Join-Path $HOME "Developer\$pkg"
+        $dest = Join-Path $repos $pkg
+
+        if (-not (Test-Path -LiteralPath $src -PathType Container)) {
+            continue
+        }
+
+        $srcResolved = (Resolve-Path -LiteralPath $src).Path
+
+        if (Test-Path -LiteralPath $dest) {
+            $item = Get-Item -LiteralPath $dest -Force
+            if ($item.LinkType -eq "SymbolicLink") {
+                $current = $item.Target
+                if ($current -is [array]) { $current = $current[0] }
+                if (Test-SamePath $current $srcResolved) {
+                    Write-Host "Skipping existing correct link: $dest"
+                    continue
+                }
+                Write-Host "Replacing link: $dest"
+                Remove-Item -LiteralPath $dest -Force
+            } elseif ($item.PSIsContainer) {
+                $gitDir = Join-Path $dest ".git"
+                if (Test-Path -LiteralPath $gitDir) {
+                    $porcelain = git -C $dest status --porcelain 2>$null
+                    if ($porcelain) {
+                        Write-Host "Skipping ${pkg}: straight's clone has uncommitted changes" -ForegroundColor Yellow
+                        continue
+                    }
+                    $unpushed = git -C $dest log --oneline "@{u}..HEAD" 2>$null
+                    if ($unpushed) {
+                        Write-Host "Skipping ${pkg}: straight's clone has unpushed commits" -ForegroundColor Yellow
+                        continue
+                    }
+                }
+                Remove-Item -LiteralPath $dest -Recurse -Force
+            } else {
+                Remove-Item -LiteralPath $dest -Force
+            }
+        }
+
+        New-Item -ItemType SymbolicLink -Path $dest -Target $srcResolved -Force | Out-Null
+        $buildDir = Join-Path $build $pkg
+        if (Test-Path -LiteralPath $buildDir) {
+            Remove-Item -LiteralPath $buildDir -Recurse -Force
+        }
+        Write-Host "Linked: $dest -> $srcResolved"
+    }
+
+    Write-PrintLine $leftMessage "Finished."
+}
+
+function Register-AhkStartupShortcut {
+    # Place <name>.ahk.lnk in the current user's Startup folder, targeting
+    # the .ahk file itself. AutoHotkey (Scoop) runs it through the file
+    # association. The shortcut is a pointer, not a copy: git pull of the
+    # source plus a Windows restart is what picks up a new version.
+    param(
+        [Parameter(Mandatory = $true)][string]$Target
+    )
+
+    if (-not (Test-Path -LiteralPath $Target -PathType Leaf)) {
+        return
+    }
 
     $startup = [System.Environment]::GetFolderPath("Startup")
     $ws = New-Object -ComObject WScript.Shell
+    $lnkPath = Join-Path $startup ((Split-Path -Leaf $Target) + ".lnk")
 
-    foreach ($ahk in $scripts) {
-        $target  = $ahk.FullName
-        $lnkPath = Join-Path $startup ($ahk.Name + ".lnk")
-
-        if (Test-Path -LiteralPath $lnkPath) {
-            $existingTarget = $ws.CreateShortcut($lnkPath).TargetPath
-            if (Test-SamePath $existingTarget $target) {
-                Write-Host "Skipping existing correct shortcut: $lnkPath"
-                continue
-            }
-            Write-Host "Replacing shortcut: $lnkPath"
+    if (Test-Path -LiteralPath $lnkPath) {
+        $existingTarget = $ws.CreateShortcut($lnkPath).TargetPath
+        if (Test-SamePath $existingTarget $Target) {
+            Write-Host "Skipping existing correct shortcut: $lnkPath"
+            return
         }
-
-        $shortcut = $ws.CreateShortcut($lnkPath)
-        $shortcut.TargetPath = $target
-        $shortcut.WorkingDirectory = $ahk.DirectoryName
-        $shortcut.Save()
-        Write-Host "Created startup shortcut: $lnkPath -> $target"
+        Write-Host "Replacing shortcut: $lnkPath"
     }
+
+    $shortcut = $ws.CreateShortcut($lnkPath)
+    $shortcut.TargetPath = $Target
+    $shortcut.WorkingDirectory = Split-Path -Parent $Target
+    $shortcut.Save()
+    Write-Host "Created startup shortcut: $lnkPath -> $Target"
+}
+
+function Setup-StartupShortcuts {
+    # Register AutoHotkey scripts to launch at login. Two sources, both
+    # pointed at by shortcut rather than copied: etc/ahk/*.ahk in this
+    # repo (remap-windows-keys and friends), and org-upwell's watcher,
+    # which lives next to the package it belongs to. Idempotent.
+    $leftMessage = "Registering AHK startup shortcuts"
+    Write-PrintLine $leftMessage "Started."
+
+    $ahkDir = Join-Path (Join-Path $script:ScriptDir "etc") "ahk"
+    if (Test-Path -LiteralPath $ahkDir -PathType Container) {
+        foreach ($ahk in @(Get-ChildItem -LiteralPath $ahkDir -Filter "*.ahk" -File -ErrorAction SilentlyContinue)) {
+            Register-AhkStartupShortcut $ahk.FullName
+        }
+    }
+
+    # Same HOME-relative layout as macOS. Not inside the dotfiles repo, so
+    # unlink will not remove this shortcut; that is the point -- the
+    # watcher belongs to the package, not to the remaps.
+    $upwellWatch = Join-Path $env:USERPROFILE "Developer\org-upwell\script\org-upwell-watch.ahk"
+    Register-AhkStartupShortcut $upwellWatch
 
     Write-PrintLine $leftMessage "Finished."
 }
@@ -1776,6 +1867,7 @@ function Perform-FullBootstrap {
     Install-RPackages
     Install-ZshPlugins
     Setup-Links
+    Setup-DevPackages
     Install-Cmigemo
     Setup-StartupShortcuts
     Setup-ActivityWatchStartup

@@ -661,7 +661,9 @@ setup_dev_packages() {
   for pkg in \
       org-foresight \
       org-calsync \
+      org-convect \
       org-dayflow \
+      org-upwell \
       gensho-theme \
       rustcity-theme
   do
