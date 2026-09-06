@@ -89,6 +89,11 @@ Real names come from `~/.config/.package-scope.conf`, which stays on the
 machine for the same reason leakseek's keyword file does: publishing the list
 would publish the names. Add one when a new colleague turns up in your notes.
 
+Commit messages are scanned by their own hook, `commit-msg`: they are
+published like everything else and neither `leakseek` nor `check-package-scope`
+sees them, which is how a message quoting the word it was warning about went
+out unread.
+
 The check cannot judge rows 3, 4 and 6 above — those need reading. When you
 have touched a README or a header comment, read the changed prose once with
 the stranger's question in mind before committing.

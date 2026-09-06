@@ -30,6 +30,8 @@ Run leakseek, gitleaks, and Japanese character check before committing.
 - Checks for Japanese characters in source files
 - Warns when a package repo describes one particular machine
   (check-package-scope; a no-op in the dotfiles repo itself)
+
+The commit *message* is a separate hook: see ~/.local/bin/commit-msg.
 - If any check fails, the commit is aborted
 - If all checks pass, the commit proceeds
 
