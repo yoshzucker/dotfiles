@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Run leakseek's keyword list against the commit message itself.
+#
+# leakseek scans tracked files, which is where the risk normally is.  A commit
+# message is neither tracked nor scanned, and it is published just the same --
+# a message quoting the word it is warning you about goes out unread.  That is
+# not a hypothetical; it is how this hook came to exist.
+#
+# Blocked words abort the commit.  Lines beginning ':warn ' in the keyword
+# file only warn, as they do for leakseek.
+#
+# 🪝 Install:
+#      ln -sf ~/.local/bin/commit-msg .git/hooks/commit-msg
+
+set -uo pipefail
+export LC_ALL=en_US.UTF-8
+
+MSG_FILE="${1:-}"
+[ -n "$MSG_FILE" ] && [ -f "$MSG_FILE" ] || exit 0
+
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/.leakseek.conf"
+[ -f "$CONF" ] || exit 0
+
+# The message without its comment lines: git strips those before committing,
+# and a scissors line carries the whole diff, which leakseek already scanned.
+body="$(sed -e '/^#/d' -e '/^-\{1,\} >8 -\{1,\}$/,$d' "$MSG_FILE")"
+
+echo "🔒 Running leakseek keywords on the commit message..."
+blocked=0
+while IFS= read -r line; do
+  line="${line%%#*}"
+  line="$(printf '%s' "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+  [ -z "$line" ] && continue
+  if [[ "$line" == :warn* ]]; then
+    kw="${line#:warn }"
+    if printf '%s' "$body" | grep -qiE -- "$kw"; then
+      echo "⚠️  Warn-only match in the message"
+    fi
+    continue
+  fi
+  if printf '%s' "$body" | grep -qiE -- "$line"; then
+    # The keyword itself is not echoed: the terminal is a place it can leak
+    # from too, and the author knows their own list.
+    echo "❌ Blocked keyword in the commit message (line $((++blocked)) of the report)."
+  fi
+done < "$CONF"
+
+if [ "$blocked" -gt 0 ]; then
+  cat <<'TAIL'
+   Reword the message and commit again.  Check ~/.config/.leakseek.conf for
+   which words are blocked; a false positive there is a sign the word belongs
+   under ':warn ' rather than in the blocked list.
+TAIL
+  exit 1
+fi
+
+echo "✅ Commit message clean."
