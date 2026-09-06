@@ -672,10 +672,18 @@ function Setup-Links {
     Ensure-RealDirectory (Join-Path $HOME ".local\bin")
     Link-DirectoryContents (Join-Path $dotfilesRoot "local\bin") (Join-Path $HOME ".local\bin")
 
-    # ~/.claude is intentionally not managed here: settings.json is Claude-owned
-    # and rewritten at runtime (model/theme/effortLevel), so symlinking it into the
-    # repo produces perpetual diff noise. Claude Code creates ~/.claude itself, and
-    # plugins are provisioned by Install-ClaudePlugins.
+    # Skills are the one part of ~/.claude worth tracking: plain files that never
+    # get rewritten, and rules that have to be in front of every project -- the
+    # packages in ~/Developer included, which this repo does not otherwise reach.
+    Ensure-RealDirectory (Join-Path $HOME ".claude")
+    Ensure-RealDirectory (Join-Path $HOME ".claude\skills")
+    Link-DirectoryContents (Join-Path $dotfilesRoot "claude\skills") (Join-Path $HOME ".claude\skills")
+
+    # The rest of ~/.claude is intentionally not managed: settings.json is
+    # Claude-owned and rewritten at runtime (model/theme/effortLevel), so
+    # symlinking it into the repo produces perpetual diff noise. Claude Code
+    # creates ~/.claude itself, and plugins are provisioned by
+    # Install-ClaudePlugins.
 
     Write-PrintLine $leftMessage "Finished."
 }

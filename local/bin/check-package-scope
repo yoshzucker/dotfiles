@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+#
+# Warn when a reusable package's own files talk about one particular machine.
+#
+# A credential scanner does not catch this: gitleaks passes and the README
+# still names the author's launcher, the author's directory tree, and which of
+# the author's laptops runs the thing.  What is grepped here is the half that
+# can be grepped; the judgement half is in the `package-scope' skill.
+#
+# Silent and successful in the configuration repository itself, which is the
+# one place that is allowed to be about one person.
+#
+# Usage:  check-package-scope [DIR]        (default: the git repo root, else .)
+#
+# Exceptions go one per line in .package-scope-allow at the repo root, as
+# extended regexps matched against the whole "path:line:text" output.
+#
+# Names of real people -- colleagues who ended up as sample data, and the
+# author -- go in ~/.config/.package-scope.conf, one extended regexp per line,
+# '#' for comments.  That file stays on the machine and out of every
+# repository, the same arrangement leakseek's keyword file has.  Absent, the
+# check is skipped.
+
+set -uo pipefail
+export LC_ALL=C.UTF-8 2>/dev/null || export LC_ALL=en_US.UTF-8
+
+TARGET="${1:-}"
+if [ -z "$TARGET" ]; then
+  TARGET="$(git rev-parse --show-toplevel 2>/dev/null || echo .)"
+fi
+cd "$TARGET" || exit 0
+
+echo "🏷  Running package scope check..."
+
+# The configuration repository is the exception, by construction: it exists to
+# describe this machine, and doc/ is where the moved-out knowledge lands.
+if [ -f bootstrap ] && [ -d emacs.d ] && [ -d pkg ]; then
+  echo "✅ Configuration repository; nothing to check."
+  exit 0
+fi
+
+# PATTERN<TAB>WHY[<TAB>i].  A third field of `i' matches without regard to
+# case, which names need and paths do not.  An array, not a heredoc in $():
+# bash mis-parses an apostrophe inside command substitution, and these are
+# English sentences.
+PATTERNS=(
+  $'\\bmy/[a-z0-9-]+\ta configuration'"'"'s own function; take a variable or a hook instead'
+  $'~/Developer/\tthe author'"'"'s checkout path'
+  $'~/Documents/(memex|project)\tone machine'"'"'s directory tree'
+  $'\\bmemex\\b\tprivate vocabulary for a notes directory'
+  $'remap-windows-keys|bootstrap\\.ps1|Setup-StartupShortcuts|\\.emacs\\.d/modules\ta file that lives in the configuration repository'
+  $'FlowLauncher|ScanSnap|Alfred|Raycast|Keyboard Maestro\ta product on the author'"'"'s desk, not something the code touches'
+  $'\\((production|development / test|dev / test)\\)\ta workflow role, not a property of the package'
+  $'\\bmy (machine|laptop|setup|desk|dotfiles|config)\\b\ttrue of one person only'
+  $'\\bI (use|run|keep|prefer) \tthe author'"'"'s habit, not the package'"'"'s behaviour'
+)
+
+ALLOW=".package-scope-allow"
+NAMES="${XDG_CONFIG_HOME:-$HOME/.config}/.package-scope.conf"
+FOUND=0
+
+# Real names read from the private list, appended as one alternation: sample
+# data is where a colleague's name reaches a public repository, and no amount
+# of prose review catches a surname that reads like a placeholder.
+if [ -f "$NAMES" ]; then
+  names_alt="$(grep -v -E '^\s*(#|$)' "$NAMES" | paste -sd '|' -)"
+  if [ -n "$names_alt" ]; then
+    PATTERNS+=( "$(printf '\\b(%s)\\b\ta real person'"'"'s name; sample data wants an invented one\ti' "$names_alt")" )
+  fi
+fi
+
+files() {
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    git ls-files -z
+  else
+    find . -type f -not -path './.git/*' -print0
+  fi
+}
+
+for entry in "${PATTERNS[@]}"; do
+  IFS=$'\t' read -r pattern why flags <<< "$entry"
+  [ -z "${pattern:-}" ] && continue
+  grep_flags=(-I -n -H -E)
+  [ "${flags:-}" = "i" ] && grep_flags+=(-i)
+  hits="$(files | xargs -0 grep "${grep_flags[@]}" -- "$pattern" 2>/dev/null || true)"
+  if [ -f "$ALLOW" ] && [ -n "$hits" ]; then
+    hits="$(printf '%s\n' "$hits" | grep -v -E -f "$ALLOW" || true)"
+  fi
+  if [ -n "$hits" ]; then
+    FOUND=1
+    echo "⚠️  $why"
+    printf '%s\n' "$hits" | sed 's/^/     /'
+  fi
+done
+
+if [ "$FOUND" -eq 0 ]; then
+  echo "✅ Nothing here is about one machine."
+else
+  cat <<'TAIL'
+
+   These read as the package's design to somebody who installed it.  Move the
+   value into the configuration and leave the mechanism here, or move the
+   sentence into dotfiles/doc/ and leave the package saying nothing about it.
+   Deliberate exceptions go in .package-scope-allow (extended regexps).
+TAIL
+fi
+
+# A warning, like check-japanese: the judgement is the author's.
+exit 0

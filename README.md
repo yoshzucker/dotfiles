@@ -99,6 +99,12 @@ Run `./bootstrap update` (or the explicit package commands) to apply.
 - **Windows**: Scoop (extras bucket included). Symlink support requires **Developer Mode** enabled (Settings → Update & Security → For developers) or running PowerShell as Administrator. First run after Scoop install usually requires terminal restart.
 - **Emacs**: The `emacs.d/` tree in the repo is linked under `~/.emacs.d` by bootstrap.
 
+## My Own Org Packages
+
+Five Org packages are written here rather than merely used: org-foresight, org-convect, org-upwell, org-calsync, org-dayflow. Each has its own repository and its own README, which describe the package and say nothing about this machine.
+
+Everything that is true only of *this* setup — which machine runs org-upwell's watcher, how straight.el is pointed at `~/Developer`, which keys go where, and where the data sits — is in [`doc/org-packages.md`](doc/org-packages.md).
+
 ## Claude Code + Org-roam (claude-orgmode)
 
 Claude Code can create/link/tag/search org-roam notes and inspect backlinks in the `~/Documents/memex` knowledge base via the [`majorgreys/claude-orgmode`](https://github.com/majorgreys/claude-orgmode) plugin, which talks to a running Emacs through `emacsclient`.

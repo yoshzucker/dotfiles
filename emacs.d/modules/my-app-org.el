@@ -1858,7 +1858,14 @@ what to look at."
                         :files ("*.el" ("script" "script/*")))
   :after org
   :config
-  (setq org-upwell-open-function #'my/open-file)
+  ;; The package holds the mechanism and no directory of mine.  These are
+  ;; the trees a file that moved is actually looked for in, and where a new
+  ;; one is put when the heading does not say.
+  (setq org-upwell-open-function #'my/open-file
+        org-upwell-search-roots (list "~/Documents/project/"
+                                      "~/Documents/upwell/"
+                                      "~/Downloads/")
+        org-upwell-create-directory "~/Documents/upwell/")
   (org-upwell-mode 1)
   ;; One key everywhere.  On a heading (Org, agenda) that heading is
   ;; expanded; elsewhere completing-read among clocks and open NEXT.

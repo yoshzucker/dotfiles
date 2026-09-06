@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# gitleaks + check-package-scope + check-japanese, for a repository that is
+# published for other people to install.
+#
+# Deliberately not leakseek: its keyword file is this configuration's policy,
+# and several of its blocked words are ordinary English that a package's own
+# prose and tests are entitled to use -- the very word a redaction test has to
+# contain in order to assert that it was redacted, a three-letter network
+# acronym in a sentence about ports that drop packets.  What leakseek is
+# really wanted for here -- names that belong to people -- is check-package-
+# scope's job, and credentials are gitleaks'.
+#
+# 🪝 Install in a package repository:
+#      ln -sf ~/.local/bin/pre-commit-package .git/hooks/pre-commit
+#
+# The configuration repository keeps ~/.local/bin/pre-commit instead.
+
+set -e
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+  exit 0
+fi
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+cd "$REPO_ROOT"
+
+echo "🔒 Running gitleaks..."
+if ! gitleaks detect --no-banner --redact --source .; then
+  echo "❌ gitleaks found potential leaks. Commit aborted."
+  exit 1
+fi
+
+echo "🈲 Running Japanese character check..."
+check-japanese "$REPO_ROOT" || true
+
+check-package-scope "$REPO_ROOT" || true
+
+echo "✅ All checks passed."
