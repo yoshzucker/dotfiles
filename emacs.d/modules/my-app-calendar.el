@@ -87,7 +87,12 @@
         (add-to-list 'org-agenda-files cal))))
 
   (advice-add 'my/org-agenda-files-refresh :after
-              #'my/org-calendar--add-to-agenda-files))
+              #'my/org-calendar--add-to-agenda-files)
+
+  ;; A first sync creates calendar.org where there was none, and the agenda
+  ;; list here is built by hand rather than from a directory, so it has to be
+  ;; asked again once the file exists.
+  (add-hook 'org-calsync-after-sync-hook #'my/org-agenda-files-refresh))
 
 (provide 'my-app-calendar)
 ;;; my-app-calendar.el ends here

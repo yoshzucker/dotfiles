@@ -28,6 +28,8 @@ Run leakseek, gitleaks, and Japanese character check before committing.
 - Runs 'leakseek' from the repo root
 - Runs 'gitleaks detect' from the repo root
 - Checks for Japanese characters in source files
+- Warns when a package repo describes one particular machine
+  (check-package-scope; a no-op in the dotfiles repo itself)
 - If any check fails, the commit is aborted
 - If all checks pass, the commit proceeds
 
@@ -59,5 +61,9 @@ if ! check-japanese "$REPO_ROOT"; then
   echo "⚠️ Japanese character check warning."
   # no exit, just warning
 fi
+
+# Silent in this repository, which is allowed to be about one machine.
+# Elsewhere it warns when a package has started describing my setup.
+check-package-scope "$REPO_ROOT" || true
 
 echo "✅ All checks passed."
