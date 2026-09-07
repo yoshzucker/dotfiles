@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Run the configuration's ERT tests in a bare Emacs.
+#
+# Bare on purpose: the tests take the definitions they need out of a module
+# rather than starting the configuration, so nothing here depends on straight
+# having cloned anything.  Org is the one exception -- if straight's build is
+# on this machine, the tests run against the Org that Emacs actually uses.
+#
+#   test/run              # every test/*-test.el
+#   test/run org-attach   # only files whose name contains this
+
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+org_build="${ORG_BUILD:-$HOME/.emacs.d/straight/build/org}"
+args=(-Q --batch -L test)
+[ -d "$org_build" ] && args+=(-L "$org_build")
+args+=(-l test/my-test.el)
+
+found=0
+for f in test/*-test.el; do
+  [ -e "$f" ] || continue
+  if [ $# -gt 0 ] && [[ "$f" != *"$1"* ]]; then continue; fi
+  args+=(-l "$f")
+  found=$((found + 1))
+done
+
+if [ "$found" -eq 0 ]; then
+  echo "No test files matched." >&2
+  exit 1
+fi
+
+exec emacs "${args[@]}" -f ert-run-tests-batch-and-exit

@@ -125,6 +125,18 @@ Claude Code can create/link/tag/search org-roam notes and inspect backlinks in t
 - Windows: PowerShell 5.0+, internet access. Developer Mode recommended for symlinks.
 - All: 64-bit system, reasonable free disk space.
 
+## Tests
+
+```bash
+./test/run                # every test/*-test.el
+./test/run org-attach     # only files whose name contains this
+```
+
+A bare `emacs -Q --batch`, not the configuration: a test takes the
+definitions it needs out of a module by name, so nothing has to be cloned
+first. That means a test covers the functions and not the `use-package`
+block that installs them; see the commentary in `test/my-test.el`.
+
 ## Regenerating Manifests
 
 - Brew: `brew bundle dump --force --file pkg/brew/Brewfile`
