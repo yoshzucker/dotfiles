@@ -1802,6 +1802,11 @@ what to look at."
   :config
   (setq org-convect-files (list (concat org-directory "horizons.org")))
 
+  ;; The guidance is kept in both languages.  Reading it is the slow part of
+  ;; writing a rung, and reading it in the language I think in is what makes
+  ;; the difference between the four altitudes land.
+  (setq org-convect-guide-language 'ja)
+
   ;; ACT's life domains: not a rung and not a hierarchy, but the check that
   ;; keeps the areas from turning out to be entirely about work.  Few is better
   ;; than many -- a domain nothing is ever written about becomes a blank that
