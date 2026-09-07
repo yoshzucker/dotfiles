@@ -998,6 +998,25 @@ With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_arc
   (defconst my/org-attach-screenshot-timestamp-format "%Y-%m-%dT%H-%M-%S-"
     "`format-time-string' spec used as the attached PNG filename prefix.")
 
+  (defvar my/org-attach-origin nil
+    "Where point was when the `org-attach' dispatcher was called.")
+
+  (defun my/org-attach--remember-origin (fn &rest args)
+    "Call FN with `my/org-attach-origin' holding the caller's position.
+
+`org-attach' runs `org-back-to-heading-or-point-min' before it executes
+the command a key selects, and does so outside the `save-excursion' that
+wraps the prompt.  A command that inserts at point therefore inserts into
+the headline, however far down the entry the cursor was.  The dispatcher
+is the last place the caller's position still exists."
+    (let ((my/org-attach-origin (and (derived-mode-p 'org-mode)
+                                     (point-marker))))
+      (unwind-protect (apply fn args)
+        (when (markerp my/org-attach-origin)
+          (set-marker my/org-attach-origin nil)))))
+
+  (advice-add 'org-attach :around #'my/org-attach--remember-origin)
+
   (defun my/org-attach-screenshot--capture (target)
     "Invoke the platform screenshot backend and write the image to TARGET."
     (pcase system-type
@@ -1034,11 +1053,15 @@ without replacing it."
     (interactive)
     (unless (derived-mode-p 'org-mode)
       (user-error "Not in an Org buffer"))
-    ;; Remember the caller's position before `org-id-get-create' and
-    ;; `org-attach-tag' move point onto the headline.  A marker follows any
-    ;; ID drawer inserted below the heading, so the link still lands at the
-    ;; character the cursor was on.
-    (let ((origin (copy-marker (point))))
+    ;; Where the cursor was, which is not where point is: `org-attach' has
+    ;; already moved point to the headline.  A marker and not a number,
+    ;; because `org-id-get-create' writes a property drawer above it and the
+    ;; link still has to land on the character the cursor was on.
+    (let ((origin (copy-marker (if (and (markerp my/org-attach-origin)
+                                        (eq (marker-buffer my/org-attach-origin)
+                                            (current-buffer)))
+                                   (marker-position my/org-attach-origin)
+                                 (point)))))
       (org-id-get-create)
       (let* ((attach-dir (org-attach-dir 'get-create))
              (basename (concat (format-time-string
@@ -1053,9 +1076,17 @@ without replacing it."
         (run-hook-with-args 'org-attach-after-change-hook attach-dir)
         (goto-char origin)
         (set-marker origin nil)
-        ;; Insert to the right of the character under the (block) cursor, so
-        ;; placing the cursor on the last glyph appends at end of line.
-        (unless (eolp) (forward-char 1))
+        (if (org-at-heading-p)
+            ;; The cursor on a headline means the entry, not its title: a
+            ;; link put in a headline becomes part of the headline.  It goes
+            ;; below the drawers instead, on a line of its own.
+            (progn
+              (org-end-of-meta-data t)
+              (unless (bolp) (insert "\n"))
+              (save-excursion (insert "\n")))
+          ;; Insert to the right of the character under the (block) cursor, so
+          ;; placing the cursor on the last glyph appends at end of line.
+          (unless (eolp) (forward-char 1)))
         (insert (format "[[attachment:%s]]" (org-link-escape basename)))
         (org-display-inline-images)))))
 
