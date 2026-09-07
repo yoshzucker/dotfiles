@@ -1870,7 +1870,11 @@ what to look at."
         org-upwell-search-roots (list "~/Documents/project/"
                                       "~/Documents/upwell/"
                                       "~/Downloads/")
-        org-upwell-create-directory "~/Documents/upwell/")
+        org-upwell-create-directory "~/Documents/upwell/"
+        ;; The agenda designs the day; the bench is where its files are
+        ;; opened from.  Org's own follow (`F') would open each entry's file
+        ;; in a third window on every j/k; this keeps the two panes.
+        org-upwell-agenda-follow t)
   (org-upwell-mode 1)
   ;; One key everywhere.  On a heading (Org, agenda) that heading is
   ;; expanded; elsewhere completing-read among clocks and open NEXT.
