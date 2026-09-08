@@ -431,7 +431,8 @@ org's existing key table stays the single source of truth."
   (setq org-foresight-private-categories '("family" "personal" "event")
         ;; The child's club calendar says when the house is empty and takes
         ;; none of my time.  A meeting I only have to hear does cost the hour,
-        ;; but that is per entry (:ATTENTION: background), not per category.
+        ;; but that is per entry (:FORESIGHT_ATTENTION: background), not per
+        ;; category.
         org-foresight-informational-categories '("club")
         org-foresight-background-categories nil)
 
