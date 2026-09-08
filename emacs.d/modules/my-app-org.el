@@ -750,8 +750,8 @@ whose value at any moment belongs to the last log entry Org wrote (see
           ;;   "i"  the clock goes back to what was interrupted
           ;;   "s"  the clock stays on the new thing
           ;;
-          ;; `:SURGE:' is what org-foresight depends on: it marks work as
-          ;; having arrived rather than been planned, and its value is when it
+          ;; `:FORESIGHT_SURGE:' is what org-foresight depends on: it marks work
+          ;; as having arrived rather than been planned, and its value is when it
           ;; arrived -- which is what decides when it stops counting as
           ;; unplanned.  A date of its own on any later day means the work has
           ;; been taken in hand, and from then it is ordinary promised work.
@@ -759,7 +759,7 @@ whose value at any moment belongs to the last log entry Org wrote (see
            ,(concat "* ONGO %?\n"
                     ":PROPERTIES:\n"
                     ":CONVECT_AREA: %(org-convect-read-area)\n"
-                    ":SURGE: %U\n:END:\n"
+                    ":FORESIGHT_SURGE: %U\n:END:\n"
                     (my/org-state-log-drawer "ONGO"))
            :clock-in t :clock-resume t)
           ("s" "switch task" entry (file+olp+datetree my/org-journal-file)
