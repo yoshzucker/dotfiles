@@ -31,16 +31,16 @@
 ;;
 ;; What to record, where it goes, how to get there:
 ;;
-;;   anything at all, to sort later     journal.org datetree   C-c c j
-;;   work starting now, clocked         journal.org datetree   C-c c i / s
-;;   a thought, feeling, fragment       today's daily note     C-c z n
-;;   a subject inside today             today's daily note     C-c z d
-;;   more about the clocked task        that task              C-c c n
+;;   anything at all, to sort later     journal.org datetree   C-c c i
+;;   work that interrupted, clocked     journal.org datetree   C-c c t
+;;   a thought, feeling, fragment       today's daily note     C-c n z n
+;;   a subject inside today             today's daily note     C-c n z d
+;;   more about the clocked task        that task              C-c c c
 ;;   more about the entry at point      that entry             C-c C-z
-;;   more about a distant node          that node's Log        C-c c g
-;;   more about a person                that person's Log      C-c c o
-;;   a new subject                      a new node             C-c f / C-c n c
-;;   a choice point (ACT)               the value it is about  C-c c v
+;;   more about a distant node          that node's Log        C-c c n
+;;   more about a person                that person's Log      C-c c p
+;;   a new subject                      a new node             C-c n f / C-c n c
+;;   a choice point (ACT)               the value it is about  C-c c a
 ;;
 ;; Records with a shape.  Some of what is recorded here is not prose but a
 ;; *kind of thing* -- a person, a mood, a choice point -- and those are written
@@ -727,28 +727,35 @@ whose value at any moment belongs to the last log entry Org wrote (see
           ("i" "inbox" entry (file+olp+datetree my/org-journal-file)
            "* %?\n"
            :jump-to-captured t)
-          ;; The two that exist because they touch the clock, which the inbox
+          ;; The one that exists because it touches the clock, which the inbox
           ;; cannot do after the fact -- by the time you have caught the thing,
-          ;; the moment it started is gone.  Both clock in on what they capture;
-          ;; they differ only in where the clock is left afterwards.
+          ;; the moment it started is gone.  It clocks in on what it captures
+          ;; and gives the clock back to whatever it took it from.
           ;;
-          ;; These are also the two that ask which area the work belongs to,
+          ;; Simply moving to new work needs no template of its own: catch it
+          ;; in the inbox and cycle it to ONGO, which clocks in
+          ;; (`org-clock-in-switch-to-state' and `my/org-clock-in-if-ongo')
+          ;; and leaves the clock there, because nothing was interrupted.
+          ;; That route is the better one wherever it works -- a real state
+          ;; change fires, so Org writes the LOGBOOK line itself instead of a
+          ;; template spelling out what Org would have written.  An interrupt
+          ;; cannot go that way: the clock has to come back, and only
+          ;; `:clock-resume' knows where it came from.
+          ;;
+          ;; This is also the one that asks which area the work belongs to,
           ;; and the inbox is the one that must not.  Catching and deciding are
           ;; different acts: the inbox exists so that something can be caught
           ;; before it is understood, and a prompt there would make catching
           ;; cost a decision.  Here the work is starting now, so the answer is
-          ;; already known -- and these are the entries whose hours get clocked,
-          ;; which is what `org-convect-unclaimed-time' reads.  An entry with
-          ;; no area has its hours reported as unattributed, which is the
-          ;; finding rather than a gap in it.
+          ;; already known -- and clocked hours are what
+          ;; `org-convect-unclaimed-time' reads.  An entry with no area has its
+          ;; hours reported as unattributed, which is the finding rather than a
+          ;; gap in it.
           ;;
           ;; The candidates are the areas that actually exist, so work cannot
           ;; be filed against a responsibility nobody has claimed.  Anything
           ;; caught in the inbox gets its area later, with
           ;; `org-convect-set-area'.
-          ;;
-          ;;   "i"  the clock goes back to what was interrupted
-          ;;   "s"  the clock stays on the new thing
           ;;
           ;; `:FORESIGHT_SURGE:' is what org-foresight depends on: it marks work
           ;; as having arrived rather than been planned, and its value is when it
@@ -756,21 +763,15 @@ whose value at any moment belongs to the last log entry Org wrote (see
           ;; unplanned.  A date of its own on any later day means the work has
           ;; been taken in hand, and from then it is ordinary promised work.
           ("t" "interrupt task" entry (file+olp+datetree my/org-journal-file)
+           ;; Capture writes the heading rather than calling `org-todo', so no
+           ;; state change fires and nothing logs when the task began.  The
+           ;; line Org would have written is put there instead.
            ,(concat "* ONGO %?\n"
                     ":PROPERTIES:\n"
                     ":CONVECT_AREA: %(org-convect-read-area)\n"
                     ":FORESIGHT_SURGE: %U\n:END:\n"
                     (my/org-state-log-drawer "ONGO"))
            :clock-in t :clock-resume t)
-          ("s" "switch task" entry (file+olp+datetree my/org-journal-file)
-           ;; Capture writes the heading rather than calling `org-todo', so no
-           ;; state change fires and nothing logs when the task began.  The
-           ;; line Org would have written is put there instead.
-           ,(concat "* ONGO %?\n"
-                    ":PROPERTIES:\n"
-                    ":CONVECT_AREA: %(org-convect-read-area)\n:END:\n"
-                    (my/org-state-log-drawer "ONGO"))
-           :clock-in t :clock-keep t :jump-to-captured t)
           ;; Note onto the task being clocked.  The `clock' target leaves
           ;; `:target-entry-p' at its default t, so the item joins the note list
           ;; in that entry's own body and never reaches into its children.
