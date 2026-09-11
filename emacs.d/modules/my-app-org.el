@@ -1924,14 +1924,14 @@ what to look at."
    (:map global-map
          :prefix "C-c"
          :key
-         "v" #'org-upwell-expand))
+         "v" #'org-upwell-bench))
   (with-eval-after-load 'org-agenda
     (my/define-key
      (:map org-agenda-mode-map
            :key
-           "V" #'org-upwell-expand)))
-  ;; Package default: `g' redraws.  Here `g' is motion/search, as in
-  ;; agenda and dayflow; redraw is `gr'.
+           "V" #'org-upwell-bench)))
+  ;; Package default: `g' and `r' both redraw.  Here `g' is motion/search, as
+  ;; in agenda and dayflow, so redraw is `gr' as well as the package's `r'.
   (dolist (key '("z" "g" "/" "n" "N" ":"))
     (define-key org-upwell-bench-mode-map (kbd key)
                 (lookup-key evil-motion-state-map (kbd key))))
@@ -1939,7 +1939,7 @@ what to look at."
    (:map org-upwell-bench-mode-map
          :state emacs motion normal
          :key
-         "gr" #'org-upwell-bench)))
+         "gr" #'org-upwell-bench-redraw)))
 
 (provide 'my-app-org)
 ;;; my-app-org.el ends here
