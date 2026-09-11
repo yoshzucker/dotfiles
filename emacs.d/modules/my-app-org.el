@@ -1908,9 +1908,18 @@ what to look at."
         ;; in a third window on every j/k; this keeps the two panes.
         org-upwell-agenda-follow t)
   (org-upwell-mode 1)
-  ;; One key everywhere.  On a heading (Org, agenda) that heading is
-  ;; expanded; elsewhere completing-read among clocks and open NEXT.
-  ;; `C-c n v' remains `org-ql-view'.  Babel is `C-c C-v'.
+  ;; The bench follows the heading point is on, from the start.  Which files
+  ;; a heading has is a question asked by arriving at it, not by pressing a
+  ;; key afterwards -- and `C-c v' is then for the heading you are *not*
+  ;; standing on, or for asking again after `q'.  Global minor mode, and the
+  ;; package deliberately leaves it off: it draws in a window somebody did
+  ;; not ask for, which is a choice a configuration makes, not a package.
+  (org-upwell-follow-mode 1)
+  ;; One key everywhere.  On a heading (Org, agenda) it lays that heading's
+  ;; files out on the bench; elsewhere it falls through to the running clock,
+  ;; and with `C-u' it reads a heading from today's clocks and open NEXTs.
+  ;; It opens nothing: opening is done from the bench, where the list can be
+  ;; seen first.  `C-c n v' remains `org-ql-view'.  Babel is `C-c C-v'.
   (my/define-key
    (:map global-map
          :prefix "C-c"
