@@ -261,7 +261,21 @@ org's existing key table stays the single source of truth."
            ((tags "TODO=\"WAIT\"|TODO=\"DELEG\"|PEOPLE={.}"
                   ((org-agenda-overriding-header "Waiting on · handed over · needs someone")
                    (org-agenda-sorting-strategy '(scheduled-up priority-down)))))
-           ((org-foresight-report-style nil))))))
+           ((org-foresight-report-style nil)))
+          ("u" "Upwell — one family of headings, and everything they hold"
+           ;; The dispatcher keeps the buffer and point it was called from, so
+           ;; on a heading this is that heading's family straight away; from an
+           ;; agenda row it is that row's, and while clocked it is the clock's.
+           ;; Away from all three `org-upwell-matrix' asks which heading, which
+           ;; is the right question rather than an error.
+           ;;
+           ;; A prefix argument means "ask me" even when standing on a
+           ;; heading; the dispatcher passes it through untouched, and a
+           ;; function-type command has no other use for it.
+           ;;
+           ;; Wrapped because a function-type command is called with the match
+           ;; string, and this one reads a marker in that argument.
+           (lambda (_match) (org-upwell-matrix nil current-prefix-arg)) ""))))
 
 (use-package adaptive-wrap
   :after org-agenda
