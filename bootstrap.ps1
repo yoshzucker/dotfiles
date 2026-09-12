@@ -1042,13 +1042,13 @@ pacman -Syu --noconfirm </dev/null
 }
 
 function Install-Fonts {
-    # Builds the custom "PlemolJP NF" font (non-Console PlemolJP with full-width
-    # arrows + Nerd Font icons) by running local/bin/build-plemoljp-nf inside the
-    # Scoop-installed MSYS2 (which provides fontforge), then registers the built
-    # TTFs for the current user. Also registers "PlemolJP Console NF" (staged into
-    # the build's dist dir) so mintty can use it -- unlike macOS (brew cask), it is
-    # not otherwise installed on Windows. Mirrors install_fonts() in the Unix
-    # 'bootstrap'. Idempotent; non-fatal on failure.
+    # Builds "PlemolJP NF" (non-Console PlemolJP + Nerd icons; Japanese prose
+    # 2-cell, drawing/UI 1-cell — see local/bin/build-plemoljp-nf) via MSYS2
+    # fontforge, then registers the built TTFs for the current user. Also
+    # registers "PlemolJP Console NF" (staged into the build dist dir) so
+    # mintty can use it -- unlike macOS (brew cask), it is not otherwise
+    # installed on Windows. Mirrors install_fonts() in Unix bootstrap.
+    # Idempotent; non-fatal on failure.
     $userFontDir = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts"
     $regPath     = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts"
 
