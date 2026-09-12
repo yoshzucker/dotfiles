@@ -37,6 +37,11 @@
   ;; filename keeps org's own `use-package' -- and the `org-directory' it
   ;; sets -- ahead of anything here that would pull org in.
   :after (evil my-app-org)
+  ;; Every listing built on `org-agenda-mode' gets it, which is the agenda,
+  ;; org-foresight's board and org-convect's review: all three are rows whose
+  ;; commands act on the row under the cursor, and all three are read by
+  ;; holding a line while looking along it.
+  :hook (org-agenda-mode . hl-line-mode)
   :config
   (dolist (key '("z" "g" "/" "n" "N" ":"))
     (define-key org-agenda-mode-map (kbd key)
@@ -229,7 +234,17 @@ org's existing key table stays the single source of truth."
   ;; underneath was never opened: a view whose top half is identical to
   ;; another is not a place, it is a toggle.
   (setq org-agenda-custom-commands
-        '(("r" "Review — unsettled work, weekly and at the door"
+        '(("r" "Review — the ladder, with what wants looking at marked"
+           ;; Wrapped to drop the match string: `org-convect-review' reads its
+           ;; first argument as ONLY-WANTING, and "" is not nil, so handing it
+           ;; the match would silently give the `C-u' shape -- only what is
+           ;; due -- to the plain key.  The prefix argument is passed on so
+           ;; `C-u C-c a r' still means the monthly sitting.
+           (lambda (_match) (org-convect-review current-prefix-arg)) "")
+          ("b" "Board — what is not settled: only here, dated, unplanned"
+           ;; Board and not "review": it looks forward at what has not been
+           ;; settled, while the view that looks back over the record is `c'.
+           ;; The key and the name are the ones its own docstring suggests.
            org-foresight-board "")
           ("c" "Clock — the week's record, and where it went"
            ((agenda "" ((org-agenda-overriding-header "Clock check · past week")
