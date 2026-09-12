@@ -78,46 +78,6 @@
 (when (eq system-type 'windows-nt)
   (setq straight-check-for-modifications '(check-on-save find-when-checking)))
 
-;; Packages a bulk pull has to leave alone.
-;;
-;; pdf-tools builds `epdfinfo', a C program, and on Windows that build does
-;; not run here.  What works is a prebuilt exe and its dlls placed by hand
-;; inside the package's build directory -- and straight copies rather than
-;; symlinks on Windows, so anything that rebuilds the package regenerates
-;; that directory from the repository and the hand-placed binary is gone.
-;; Then it has to be placed again.  Nothing upstream is worth that: the
-;; package is finished software and has been for years.
-;;
-;; The alternative is pulling every other package one at a time, which is
-;; the same chore spread across more commands and the reason a bulk pull
-;; exists.  `straight-pull-all' takes a predicate for precisely this, so
-;; what follows is straight's own mechanism rather than a fight with it.
-(defvar my/straight-pull-skip
-  (when (eq system-type 'windows-nt) '("pdf-tools"))
-  "Packages `straight-pull-all' leaves alone, as name strings.
-
-Empty where the package builds itself successfully, so the two machines
-differ only where the reason does.")
-
-(define-advice straight-pull-all
-    (:around (fn &optional from-upstream predicate) my/skip-hand-built)
-  "Leave `my/straight-pull-skip' alone, unless PREDICATE says otherwise.
-
-The skipped packages are named when it happens.  A bulk pull that quietly
-declined to update something would be a pull nobody could trust, and the
-one package this protects is exactly the one whose staleness is deliberate."
-  (unless (or predicate (null my/straight-pull-skip))
-    (message "straight-pull-all: leaving alone %s"
-             (mapconcat #'identity my/straight-pull-skip ", ")))
-  ;; The predicate reads the variable rather than closing over it: straight
-  ;; calls it from inside its own mapping loop, long after this form has
-  ;; returned, and a closure is one file-local cookie away from being handed
-  ;; a value that is no longer in scope.
-  (funcall fn from-upstream
-           (or predicate
-               (lambda (package)
-                 (not (member package my/straight-pull-skip))))))
-
 ;; Where Emacs's own lisp sits in `load-path'.
 ;;
 ;; A library is found by walking `load-path' in order, probing each directory

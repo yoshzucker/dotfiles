@@ -1434,16 +1434,31 @@ block already shows what is out with them, as a live query."
   :defer t
   :init (pdf-loader-install)
   :config
-  ;; MSYS2 + pdf-tools setup (for Windows)
-  ;; 1. Install MSYS2 (e.g., scoop install msys2)
-  ;; 2. Install required packages via pacman:
-  ;;    - base-devel
-  ;;    - mingw-w64-x86_64-toolchain
-  ;;    - mingw-w64-x86_64-{zlib, libpng, poppler, imagemagick}
-  ;;    - autotools
-  ;; 3. Build via Emacs:
-  ;;    M-x pdf-tools-install
-  ;;    M-x pdf-info-check-epdfinfo
+  ;; On Windows the server is a package, not a build.
+  ;;
+  ;; `epdfinfo' is a C program, and building it here does not work: the
+  ;; Windows build is broken upstream, and `pdf-tools-install' answers a
+  ;; failed build by offering to try again.  MSYS2 packages it
+  ;; (`emacs-pdf-tools-server:p' in pkg/pacman/msys2-packages.txt, installed
+  ;; by bootstrap), from the same repository straight clones for the elisp,
+  ;; so both halves track one version.
+  ;;
+  ;; Pointing at it there rather than copying it into straight's build
+  ;; directory is what makes it survive: straight regenerates that directory
+  ;; from the repository on every rebuild, by copying rather than symlinking
+  ;; on Windows, so anything placed inside it is deleted by the next pull.
+  ;; And a binary in ucrt64/bin sits beside every dll it links, which is the
+  ;; first place Windows looks -- so the mingw64/bin that early-init.el puts
+  ;; at the front of PATH for native-comp does not reach it.
+  ;;
+  ;; `pdf-info-check-epdfinfo' asks only whether this path is executable, and
+  ;; `pdf-tools-install' rebuilds only when the server does not answer, so a
+  ;; working one here means nothing is ever built.
+  (when (eq system-type 'windows-nt)
+    (let ((exe (expand-file-name
+                "~/scoop/apps/msys2/current/ucrt64/bin/epdfinfo.exe")))
+      (when (file-executable-p exe)
+        (setq pdf-info-epdfinfo-program exe))))
 
   (blink-cursor-mode 0))    ;; Better UX for PDF buffers
 
