@@ -31,6 +31,17 @@ ffmpeg:p        # yazi preview: video/audio
 zsh:            # msys base repo
 pactoys:        # provides pacboy (installer also self-bootstraps this)
 
+# --- Emacs pdf-tools server ---
+# `epdfinfo', the C program pdf-tools talks to.  Packaged, and taken from the
+# package rather than built: the build does not run on Windows, and the
+# alternative was a prebuilt exe placed by hand inside straight's build
+# directory -- which straight regenerates on every rebuild, copies rather than
+# symlinks on Windows, and so wipes.  Installed here it sits in ucrt64/bin
+# beside every dll it links, which is where Windows looks first, and `pacman
+# -Syu' keeps it current.  Upstream is the same repository straight clones for
+# the elisp, so the two halves track one version.
+emacs-pdf-tools-server:p
+
 # --- font build (PlemolJP NF, via local/bin/build-plemoljp-nf) ---
 fontforge:p     # merges PlemolJP + Console NF glyphs into "PlemolJP NF"
 curl:           # download font sources (msys base repo)
