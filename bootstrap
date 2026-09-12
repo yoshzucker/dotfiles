@@ -938,8 +938,8 @@ update_r_packages() {
 }
 
 install_fonts() {
-  # Builds and installs the custom "PlemolJP NF" font (non-Console PlemolJP with
-  # full-width arrows + Nerd Font icons) via local/bin/build-plemoljp-nf.
+  # Builds and installs "PlemolJP NF" (non-Console PlemolJP + Nerd icons;
+  # Japanese prose 2-cell, drawing/UI 1-cell — see local/bin/build-plemoljp-nf).
   # Idempotent: skips when already installed. Requires fontforge (Brewfile).
   # Windows is handled separately by bootstrap.ps1 (Install-Fonts).
   local font_dir

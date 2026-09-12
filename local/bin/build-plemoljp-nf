@@ -3,27 +3,47 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-# build-plemoljp-nf — build a single "PlemolJP NF" font: NON-Console PlemolJP
-# (East-Asian ambiguous glyphs valued in Japanese prose stay FULL width:
-# enclosed alphanumerics ①-⑳, math ∀ ∃ ∈ ∉, misc symbols ★ ⚠ ☑ ☒) carrying
-# the Nerd Font icons taken from the official "PlemolJP Console NF".
-# Ambiguous-width UI-decoration blocks (arrows → ← ⇒, box-drawing ─ │ ┌ ┐,
-# block elements ▀ ▄ █ ░ ▒ ▓, geometric shapes ▶ ▼ ■ ● ○ ◆, dingbats ✓ ✗ ❯,
-# misc symbols and arrows ⬆ ⬇ ⭐) are OVERRIDDEN with Console NF's HALF-width
-# glyphs so modern Emacs UI packages (agent-shell expand markers, magit,
-# transient, mode-line) that pad columns assuming these are single-cell keep
-# their alignment intact.
+# build-plemoljp-nf — "PlemolJP NF": a Japanese dual-width coding font + Nerd
+# icons. This comment is the width contract. Do not "simplify" it to Unicode
+# East Asian Width, to "Ambiguous = 1 cell, no list", or to Console-as-base.
 #
-# Why: the official Nerd Fonts build of PlemolJP (PlemolJP_NF release) ships
-# Console variants only, which draw ambiguous-width glyphs (→ ★ ※ …) at half
-# width. Patching the non-Console PlemolJP directly with nerd-fonts' font-patcher
-# does not reproduce correct single-cell icon/powerline sizing for this
-# dual-width CJK font. Instead we copy the already-correct Nerd glyphs (PUA) out
-# of PlemolJP Console NF into the non-Console PlemolJP, plus overlay a curated
-# set of UI-decoration ambiguous blocks with Console NF's half-width glyphs.
-# Both share the same em and design, so the icons drop in unchanged.
+# Construction. BASE = non-Console PlemolJP (2-cell Japanese outlines live
+# here). OVERLAY = PlemolJP Console NF (Nerd PUA + 1-cell drawing glyphs).
+# Official NF ships Console only; font-patcher on non-Console does not size
+# icons/powerline correctly, so we copy those from Console rather than patch.
+# Console is the squeezed derivative. Stretching a Console glyph to 2 cells
+# yields a small mark in a gap, or an oval — never a Japanese 2-cell 記号.
+#
+# Split is by PURPOSE, not by Unicode block:
+#   2 cells — Japanese prose (read in sentences / formulas): ①⑳ ⅠⅡ ∀∃≦
+#             ★⚠☑ ※, and マルバツサンカクシカク ○●◯◎ × □■ △▲▽ ◇◆
+#   1 cell  — drawing / UI chrome that Emacs and terminals tile in columns:
+#             Nerd PUA, Powerline slants, box-drawing, block elements,
+#             arrows, dingbats ✓❯, misc arrows ⬆⭐, geometric drawing ▶◀◢
+# A prose-set character that is mostly used as chrome stays 1 cell. Today
+# that is only ▼ U+25BC (collapse/menu), kept with ▶. Do not flatten the
+# whole マルバツ set to 1 cell to avoid that exception: ○×△□ would then
+# disagree with ≦∀①★ and with always-wide 〇 U+3007 / ＋＝.
+# Geometric Shapes (U+25A0-25FF) MUST be split. Treating the block as all
+# 1-cell is how ○ became half-width by accident.
+#
+# ×÷± (Latin-1) already have a 2-cell advance on the non-Console source,
+# but the outlines are still Latin (half-cell) centred in the cell. Scale
+# the ink to ○; do not copy Console's 1-cell glyphs. "English uses 1 cell"
+# is not a reason to shrink them: Western mono fonts have no 2-cell at all;
+# terminals already count Ambiguous as 1 (this repo's TTY map). × is バツ.
+# ÷ is unused in English code. This font is Japanese-first.
+#
+# Arrows (→←↑↓⇒⇔) are JIS prose but also UI. Drawing wins: 1 cell.
+# Tile-rescale of box/powerline to the 890/-210 line box is independent of
+# the 1-vs-2 split; do not drop it when touching widths.
 #
 # Result family: "PlemolJP NF"  (styles: Regular / Bold / Italic / BoldItalic)
+#
+# Downstream. Emacs GUI char-width must match the advances written here.
+# After a rebuild, run local/bin/gen-plemoljp-char-width to refresh the GUI
+# map in emacs.d/modules/my-ui-char.el. The TTY map in that file follows
+# wcwidth, not this font — do not regenerate it for a width-rule change.
 #
 # Prerequisite: fontforge (macOS: brew install fontforge).
 # Installs into ~/Library/Fonts (macOS) or ~/.local/share/fonts (Linux). On
@@ -117,8 +137,8 @@ def _set_xavg(path, value):
 src_xavg = _read_xavg(base_path)   # = 528 for PlemolJP; preserve (scaled by S below)
 # -----------------------------------------------------------------------------
 
-base = fontforge.open(base_path)   # non-console PlemolJP (full-width arrows, no nerd)
-sym  = fontforge.open(sym_path)    # PlemolJP Console NF (perfect single-cell nerd glyphs)
+base = fontforge.open(base_path)   # non-console PlemolJP (2-cell prose outlines, no nerd)
+sym  = fontforge.open(sym_path)    # PlemolJP Console NF (1-cell nerd + drawing glyphs)
 assert base.em == sym.em
 base.encoding = 'UnicodeFull'; sym.encoding = 'UnicodeFull'
 copied = 0
@@ -133,39 +153,84 @@ for g in sym.glyphs():
     base[u].width = g.width
     copied += 1
 
-# Override ambiguous-width UI-decoration blocks with Console NF's HALF-width
-# glyphs. Modern Emacs UI packages (agent-shell expand markers, magit,
-# transient, mode-line) pad on the assumption these render in a single cell;
-# keeping them full width breaks column alignment (e.g. an "▶ " expand prefix
-# vs an empty "  " prefix on the same visual column).
-# In the Emacs GUI a face's :family (PlemolJP NF) covers these ranges, so a
-# per-range set-fontset-font override to the Console font is ignored on macOS;
-# baking the half-width glyphs into the font itself is what makes them render
-# single-cell (char-width follows via emacs.d/modules/my-ui-char.el, whose GUI
-# map is regenerated from font glyph advances by local/bin/gen-plemoljp-char-width).
+# 1-cell drawing overlay. Emacs UI (agent-shell "▶ " prefixes, magit,
+# transient, mode-line) pads assuming a single cell. On macOS a face
+# :family covers these ranges, so set-fontset-font cannot reroute them;
+# the half-width glyph has to be in this font. char-width follows via
+# emacs.d/modules/my-ui-char.el (regenerated by gen-plemoljp-char-width).
 #
-# Excluded from this list on purpose (Japanese prose still expects full width):
+# Not in this list (stay 2-cell prose from the non-Console base):
 #   U+2160-217F Roman Numerals           (Ⅰ Ⅱ Ⅲ)
 #   U+2200-22FF Mathematical Operators   (∀ ∃ ∈ ∉ ≠ ≦ ≧ ∴ ∵)
 #   U+2460-24FF Enclosed Alphanumerics   (① ⑳ ㊤ ㊥ ㊦)
-#   U+2600-26FF Miscellaneous Symbols    (☑ ☒ ☐ ★ ⚠ ☂ ♠ ♣ ♥ ♦) — used mostly
-#     as content in Org export / docstrings, rarely as column-aligned UI markers
+#   U+2600-26FF Miscellaneous Symbols    (☑ ☒ ☐ ★ ⚠) — document marks, not
+#     column-aligned UI. ☑☐ as Org checkboxes are "[ ]"/"[X]", not these.
+# Geometric Shapes is in the list as drawing, then FULLWIDTH_KEEP restores
+# the マルバツサンカクシカク prose set. ▼ is omitted from KEEP: chrome.
 HALF_WIDTH_OVERRIDES = [
     (0x2190, 0x21FF),  # Arrows                          (→ ← ↑ ↓ ↔ ⇒ ⇔)
     (0x2500, 0x257F),  # Box Drawing                     (─ │ ┌ ┐ └ ┘ ├ ┼)
     (0x2580, 0x259F),  # Block Elements                  (▀ ▄ █ ░ ▒ ▓)
-    (0x25A0, 0x25FF),  # Geometric Shapes                (▶ ▼ ◀ ▲ ■ ● ○ ◆)
+    (0x25A0, 0x25FF),  # Geometric Shapes (drawing)      (▶ ▼ ◀ ◢; KEEP below)
     (0x2700, 0x27BF),  # Dingbats                        (✓ ✗ ✔ ✘ ❯ ❮)
     (0x2B00, 0x2BFF),  # Miscellaneous Symbols and Arrows (⬆ ⬇ ⬅ ➡ ⭐)
 ]
+FULLWIDTH_KEEP = {
+    0x25A0, 0x25A1,        # ■ □
+    0x25B2, 0x25B3,        # ▲ △
+    0x25BD,                # ▽  (▼ U+25BC stays half: drawing)
+    0x25C6, 0x25C7,        # ◆ ◇
+    0x25CB, 0x25CE, 0x25CF, 0x25EF,  # ○ ◎ ● ◯
+}
 halved = 0
 for lo, hi in HALF_WIDTH_OVERRIDES:
     for u in range(lo, hi + 1):
+        if u in FULLWIDTH_KEEP:
+            continue
         if u in sym and u in base:
             sym.selection.none(); sym.selection.select(("unicode",), u); sym.copy()
             base.selection.none(); base.selection.select(("unicode",), u); base.paste()
             base[u].width = sym[u].width
             halved += 1
+
+# ×÷±: 2-cell advance, Latin (half-cell) ink centred in the cell. Scale
+# about the cell centre to ○'s ink. Do not copy Console's 1-cell glyphs.
+FULL = base[0x3042].width                 # 'あ'; reused by the em-normalise below
+filled = 0
+try:
+    _ob = base[0x25CB].boundingBox()      # ○
+    _target_ink = _ob[2] - _ob[0]
+except Exception:
+    _target_ink = 0.80 * FULL
+for u in (0x00D7, 0x00F7, 0x00B1):        # × ÷ ±
+    if u not in base:
+        continue
+    g = base[u]
+    if g.width < 0.9 * FULL:
+        continue
+    box = g.boundingBox()
+    if not box:
+        continue
+    ink = box[2] - box[0]
+    if ink <= 0 or ink >= 0.62 * FULL:
+        continue
+    s = _target_ink / ink
+    cx, cy = g.width / 2.0, (box[1] + box[3]) / 2.0
+    if box[3] != cy:
+        s = min(s, (850.0 - cy) / (box[3] - cy))
+    if box[1] != cy:
+        s = min(s, (-120.0 - cy) / (box[1] - cy))
+    if s <= 1.01:
+        continue
+    if g.references:
+        g.unlinkRef()
+    w = g.width
+    g.transform(psMat.compose(
+        psMat.compose(psMat.translate(-cx, -cy), psMat.scale(s)),
+        psMat.translate(cx, cy)))
+    g.width = w
+    filled += 1
+
 def rename(val, key):
     if not isinstance(val, str) or "PlemolJP" not in val:
         return val
@@ -190,7 +255,6 @@ base.sfnt_names = tuple((lang, key, rename(val, key)) for (lang, key, val) in or
 # are scaled here; line-box metrics are set explicitly below (independent of
 # advance width). font.ascent/descent are left untouched (they always equal em
 # by fontforge's contract).
-FULL = base[0x3042].width                 # 'あ' full-width advance (1056)
 S = base.em / float(FULL)                 # 1000/1056; 1056->1000, 528->500 exactly
 if abs(S - 1.0) > 1e-9:
     w0 = {g.glyphname: (g.width, g.vwidth) for g in base.glyphs()}
@@ -284,7 +348,8 @@ base.hhea_ascent     = LINE_ASC
 base.hhea_descent    = -LINE_DESC
 base.hhea_linegap    = 0
 
-print("  %s -> %d nerd, %d half-width, %d tile-rescaled" % (out_path.split('/')[-1], copied, halved, rescaled))
+print("  %s -> %d nerd, %d half-width, %d prose-filled, %d tile-rescaled"
+      % (out_path.split('/')[-1], copied, halved, filled, rescaled))
 base.generate(out_path)
 # Restore OS/2.xAvgCharWidth to the source value (fontforge inflated it on generate).
 if src_xavg is not None:
