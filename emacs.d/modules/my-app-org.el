@@ -100,6 +100,12 @@
   ;; to be: what made Org expensive was never Org but the ecosystem that used to
   ;; load beside it, and that now waits to be asked for.
   :after evil
+  ;; Which line point is on, in the file as well as in the listings built
+  ;; from it.  The agenda, the foresight board and the upwell grid all mark
+  ;; it, and an outline read for minutes at a time is no easier to hold a
+  ;; place in than they are.  `hl-line' is drawn as an underline here (see
+  ;; the theme) so nothing it passes over loses its colour.
+  :hook (org-mode . hl-line-mode)
   :init
   (setq system-time-locale "C")
   ;; Set `org-directory' here in `:init' (not `:config') so it is bound before
@@ -1930,6 +1936,11 @@ what to look at."
   ;; package deliberately leaves it off: it draws in a window somebody did
   ;; not ask for, which is a choice a configuration makes, not a package.
   (org-upwell-follow-mode 1)
+  ;; And Org's own follow, which is a different thing: it opens the entry's
+  ;; file, upwell draws the bench, and neither switch turns the other on.
+  ;; Both on from the start -- the two answers wanted on arriving at a row
+  ;; are what the work is and where it lives, and they come from the two.
+  (setq org-agenda-start-with-follow-mode t)
   ;; One key everywhere.  On a heading (Org, agenda) it lays that heading's
   ;; files out on the bench; elsewhere it falls through to the running clock,
   ;; and with `C-u' it reads a heading from today's clocks and open NEXTs.
@@ -1950,6 +1961,19 @@ what to look at."
   (dolist (key '("z" "g" "/" "n" "N" ":"))
     (define-key org-upwell-bench-mode-map (kbd key)
                 (lookup-key evil-motion-state-map (kbd key))))
+  ;; Scrolling, on both listings.  Point is deliberately held to the rows
+  ;; there -- on the grid it is held to the cells -- which is right, and
+  ;; leaves nothing to reach a line below the window with: the page moves
+  ;; only if the cursor may leave, and here it may not.  `C-f' and `C-b' are
+  ;; what the agenda answers to, and these buffers put evil in Emacs state so
+  ;; the letters can be commands, which is exactly why the keys have to be
+  ;; borrowed rather than inherited.  Not in the packages: a vi convention on
+  ;; `C-f' is this configuration's, and `C-f' is `forward-char' to everybody
+  ;; else.
+  (dolist (map (list org-upwell-bench-mode-map org-upwell-matrix-mode-map))
+    (dolist (key '("C-f" "C-b" "C-d" "C-e" "C-y"))
+      (when-let ((cmd (lookup-key evil-motion-state-map (kbd key))))
+        (define-key map (kbd key) cmd))))
   (my/define-key
    (:map org-upwell-bench-mode-map
          :state emacs motion normal
