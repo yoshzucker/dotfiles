@@ -100,12 +100,14 @@
   ;; to be: what made Org expensive was never Org but the ecosystem that used to
   ;; load beside it, and that now waits to be asked for.
   :after evil
-  ;; Which line point is on, in the file as well as in the listings built
-  ;; from it.  The agenda, the foresight board and the upwell grid all mark
-  ;; it, and an outline read for minutes at a time is no easier to hold a
-  ;; place in than they are.  `hl-line' is drawn as an underline here (see
-  ;; the theme) so nothing it passes over loses its colour.
-  :hook (org-mode . hl-line-mode)
+  ;; Said rather than left to fall out of which keywords happen to be here.
+  ;; A deferring keyword anywhere in this form stops Org loading at startup,
+  ;; and with it every key bound in `:config' -- `C-c a' stays unbound until
+  ;; something else pulls Org in.  `:hook' is one of them: it autoloads the
+  ;; function it hooks, which use-package turns into a `:commands'.  Hooks
+  ;; here go through `my/add-hook' in `:config' for that reason, and this
+  ;; says out loud what the comment above has always claimed.
+  :demand t
   :init
   (setq system-time-locale "C")
   ;; Set `org-directory' here in `:init' (not `:config') so it is bound before
@@ -180,6 +182,13 @@ agenda file set does not depend on whether rg is installed -- rg's own
   ;; defcustom will not clobber an already-bound value.
   (add-hook 'emacs-startup-hook #'my/org-agenda-files-refresh)
   :config
+  ;; Which line point is on, in the file as well as in the listings built
+  ;; from it.  The agenda, the foresight board and the upwell grid all mark
+  ;; it, and an outline read for minutes at a time is no easier to hold a
+  ;; place in than they are.  It costs nothing now that the keyword faces
+  ;; keep their colour under it.
+  (my/add-hook
+   (:hook org-mode-hook :func #'hl-line-mode))
   (my/define-key
    (:map global-map
          :prefix "C-c"
