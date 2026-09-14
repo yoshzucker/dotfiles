@@ -603,8 +603,7 @@ org's existing key table stays the single source of truth."
          ;; three whether or not somebody is at the keyboard to say so.  The
          ;; row under the cursor when there is one, and it asks which when
          ;; there is not, so the key answers from the foot of the page too.
-         ;; `W'
-         ;; is one of the two letters Org leaves unbound in this map, so
+         ;; `W' is one of the two letters Org leaves unbound in this map, so
          ;; nothing is displaced; read it as *when*, which is the only
          ;; question the command asks.
          "W" #'org-foresight-clock-switch
@@ -615,7 +614,24 @@ org's existing key table stays the single source of truth."
          ;; about all of them at once gets answered "no".  Over
          ;; `org-agenda-priority-down', which the priority axis here does not
          ;; use.
-         "P" #'org-foresight-prepare-meeting)))
+         "P" #'org-foresight-prepare-meeting))
+
+  ;; The review buffer the placement proposals open in is another listing
+  ;; whose letters are commands, so it gets what the agenda and the bench
+  ;; get: `g' is motion and search here, as it is in vi, and the command the
+  ;; package puts on `g' moves to `gr'.  Its own `r' is untouched and still
+  ;; proposes again.
+  (dolist (key '("z" "g" "/" "n" "N" ":"))
+    (define-key org-foresight-plan-review-mode-map (kbd key)
+                (lookup-key evil-motion-state-map (kbd key))))
+  (dolist (key '("C-f" "C-b" "C-d" "C-e" "C-y"))
+    (when-let ((cmd (lookup-key evil-motion-state-map (kbd key))))
+      (define-key org-foresight-plan-review-mode-map (kbd key) cmd)))
+  (my/define-key
+   (:map org-foresight-plan-review-mode-map
+         :state emacs motion normal
+         :key
+         "gr" #'org-foresight-plan-redo)))
 
 ;;;; Other views of the same day
 ;; Neither reads the agenda, and neither is one: a timeline and a set of
