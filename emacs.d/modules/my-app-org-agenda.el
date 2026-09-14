@@ -595,6 +595,19 @@ org's existing key table stays the single source of truth."
          ;; Over `org-agenda-holidays', which lists `calendar-holidays' -- set
          ;; to nil a hundred lines up, so the key shows an empty page today.
          "H" #'org-foresight-clock-split
+         ;; The third of the same family, and the only one about a clock that
+         ;; is running rather than one already written down: move the clock
+         ;; onto an entry as of a time typed in -- ten minutes ago, because
+         ;; the meeting started before anybody thought about the clock, or a
+         ;; time still to come, because a three o'clock meeting starts at
+         ;; three whether or not somebody is at the keyboard to say so.  The
+         ;; row under the cursor when there is one, and it asks which when
+         ;; there is not, so the key answers from the foot of the page too.
+         ;; `W'
+         ;; is one of the two letters Org leaves unbound in this map, so
+         ;; nothing is displaced; read it as *when*, which is the only
+         ;; question the command asks.
+         "W" #'org-foresight-clock-switch
          ;; Preparation is decided one invitation at a time.  The bulk
          ;; command offers every meeting that has none, which is the right
          ;; shape once a week and the wrong one for the invitation that just
