@@ -330,6 +330,9 @@ agenda file set does not depend on whether rg is installed -- rg's own
         org-columns-skip-archived-trees t)
   
   ;; Timestamp
+  (defvar org-time-was-given)      ; dynamically scoped by `org-read-date'
+  (defvar org-end-time-was-given)
+
   (defun my/org-time-stamp-in-evil-insert (orig-fn &rest args)
     "Insert org timestamp with proper evil state handling."
     (if (memq evil-state '(motion normal visual))
@@ -887,7 +890,14 @@ unaffected."
                   nil nil nil nil
                   (org-entry-get nil "PEOPLE")))
             (followup (and (equal org-state "WAIT")
-                           (org-read-date nil nil nil "When to ask"))))
+                           ;; Org tells the caller a time was typed through
+                           ;; these, and only when they are bound where the
+                           ;; call is: their `defvar' in org.el makes them
+                           ;; special in org.el alone.  Unbound here, "5pm"
+                           ;; parses and is then dropped on the way out, and
+                           ;; the prompt looks like it did not understand.
+                           (let (org-time-was-given org-end-time-was-given)
+                             (org-read-date nil nil nil "When to ask")))))
         (unless (string-empty-p who)
           ;; Written plainly, not with the multivalued property API, which
           ;; escapes spaces as `%20'.  The "e" capture template writes this
