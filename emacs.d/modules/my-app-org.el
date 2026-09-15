@@ -1972,16 +1972,16 @@ what to look at."
   ;; clocks and open NEXTs.  It opens nothing -- opening is done from the
   ;; bench, where the list can be seen first -- and the cursor lands there.
   ;;
-  ;; `w' goes to where the heading's work is done, in dired, asking and
-  ;; writing it down where nothing says yet.  Standing on a directory it
-  ;; says *that* is where the work is done, which is the same command
-  ;; reading what is in front of it.
+  ;; `w' opens the directory the heading's work is done in, asking which it
+  ;; is and writing it down where nothing says yet.  Standing on a directory
+  ;; it says *that* is the one, which is the same command reading what is in
+  ;; front of it.
   (my/define-key
    (:map global-map
          :prefix "C-c u"
          :key
          "u" #'org-upwell-bench
-         "w" #'org-upwell-work-here))
+         "w" #'org-upwell-work-directory))
   (with-eval-after-load 'org-agenda
     (my/define-key
      (:map org-agenda-mode-map
