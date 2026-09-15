@@ -1950,7 +1950,7 @@ what to look at."
   (org-upwell-mode 1)
   ;; The bench follows the heading point is on, from the start.  Which files
   ;; a heading has is a question asked by arriving at it, not by pressing a
-  ;; key afterwards -- and `C-c v' is then for the heading you are *not*
+  ;; key afterwards -- and `C-c u u' is then for the heading you are *not*
   ;; standing on, or for asking again after `q'.  Global minor mode, and the
   ;; package deliberately leaves it off: it draws in a window somebody did
   ;; not ask for, which is a choice a configuration makes, not a package.
@@ -1960,16 +1960,28 @@ what to look at."
   ;; Both on from the start -- the two answers wanted on arriving at a row
   ;; are what the work is and where it lives, and they come from the two.
   (setq org-agenda-start-with-follow-mode t)
-  ;; One key everywhere.  On a heading (Org, agenda) it lays that heading's
-  ;; files out on the bench; elsewhere it falls through to the running clock,
-  ;; and with `C-u' it reads a heading from today's clocks and open NEXTs.
-  ;; It opens nothing: opening is done from the bench, where the list can be
-  ;; seen first.  `C-c n v' remains `org-ql-view'.  Babel is `C-c C-v'.
+  ;; A prefix of its own.  There are two things wanted from this package
+  ;; without looking at a listing first -- the heading's files, and the
+  ;; directory its work is done in -- and a package with two doors is a
+  ;; package with a prefix rather than two letters taken from the middle of
+  ;; `C-c'.  `u' for upwell; `C-c v' was a single key doing the first job
+  ;; only, and `C-c n v' remains `org-ql-view'.
+  ;;
+  ;; `u' lays the heading's files out: on a heading (Org, agenda) that
+  ;; heading, elsewhere the running clock, and with `C-u' read from today's
+  ;; clocks and open NEXTs.  It opens nothing -- opening is done from the
+  ;; bench, where the list can be seen first -- and the cursor lands there.
+  ;;
+  ;; `w' goes to where the heading's work is done, in dired, asking and
+  ;; writing it down where nothing says yet.  Standing on a directory it
+  ;; says *that* is where the work is done, which is the same command
+  ;; reading what is in front of it.
   (my/define-key
    (:map global-map
-         :prefix "C-c"
+         :prefix "C-c u"
          :key
-         "v" #'org-upwell-bench))
+         "u" #'org-upwell-bench
+         "w" #'org-upwell-work-here))
   (with-eval-after-load 'org-agenda
     (my/define-key
      (:map org-agenda-mode-map
@@ -1980,6 +1992,13 @@ what to look at."
   (dolist (key '("z" "g" "/" "n" "N" ":"))
     (define-key org-upwell-bench-mode-map (kbd key)
                 (lookup-key evil-motion-state-map (kbd key))))
+  ;; And `N' is one of those, so the package's key for tidying the names is
+  ;; gone from this map -- the foot reads its keys off the keymap and so went
+  ;; blank beside that line, which is the foot telling the truth about a
+  ;; command that could no longer be pressed.  `S' for strip, free here.  The
+  ;; grid keeps `N': nothing is taken from that map, so nothing needs moving,
+  ;; and each foot names the key its own buffer answers to.
+  (define-key org-upwell-bench-mode-map (kbd "S") #'org-upwell-tidy-names)
   ;; Scrolling, on both listings.  Point is deliberately held to the rows
   ;; there -- on the grid it is held to the cells -- which is right, and
   ;; leaves nothing to reach a line below the window with: the page moves
