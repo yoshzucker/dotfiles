@@ -114,6 +114,11 @@
          :key
          "gs" #'consult-buffer
          "g]" #'consult-imenu
+         ;; The pair of `g]': that one is the headings of the buffer in
+         ;; hand, this one the headings of every agenda file.  Where a
+         ;; heading is answers a question `gs' and `g.' cannot -- a task is
+         ;; not a buffer and not a file name.
+         "g[" #'consult-org-agenda
          "g." #'consult-fd
          "g/" #'consult-ripgrep)
    (:map org-mode-map

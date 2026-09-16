@@ -1976,12 +1976,62 @@ what to look at."
   ;; is and writing it down where nothing says yet.  Standing on a directory
   ;; it says *that* is the one, which is the same command reading what is in
   ;; front of it.
+  ;;
+  ;; `f' turns following on and off.  It draws in a window nobody asked for,
+  ;; which is welcome while reading a file tree and in the way while writing
+  ;; prose, and that is a decision made several times a day.
+  ;;
+  ;; `?' says the three in one line.  A prefix rather than a dispatching
+  ;; command, so `C-c u C-h' still lists the map, a prefix argument still
+  ;; reaches the command, and another key can still be added; the one line is
+  ;; for the times when a full window is more than the question deserves.
+  (defvar my/org-upwell-menu-names
+    '((org-upwell-bench . "bench")
+      (org-upwell-work-directory . "work directory")
+      (org-upwell-follow-mode . "follow")
+      (my/org-upwell-menu . "this"))
+    "What to call each `C-c u' command in the one-line menu.")
+
+  (defun my/org-upwell-menu ()
+    "Say what `C-c u' can do, in one line.
+
+Read out of the prefix map rather than written down here, so a key moved
+in this file moves in the line as well -- and a key added without a name
+still appears, under the command's own, rather than going unmentioned."
+    (interactive)
+    (let (out)
+      (map-keymap
+       (lambda (key command)
+         (when (commandp command)
+           (push (cons command (key-description (vector key))) out)))
+       (or (lookup-key global-map (kbd "C-c u")) (make-sparse-keymap)))
+      ;; Ordered by the names above rather than by whatever order the keymap
+      ;; happens to walk in, and anything unnamed brings up the rear.
+      (message
+       "upwell: %s"
+       (mapconcat
+        (pcase-lambda (`(,command . ,key))
+          (format "[%s] %s" key
+                  (or (alist-get command my/org-upwell-menu-names)
+                      (string-remove-prefix "org-upwell-"
+                                            (symbol-name command)))))
+        (sort out (lambda (a b)
+                    (< (or (seq-position (mapcar #'car my/org-upwell-menu-names)
+                                         (car a))
+                           most-positive-fixnum)
+                       (or (seq-position (mapcar #'car my/org-upwell-menu-names)
+                                         (car b))
+                           most-positive-fixnum))))
+        "  "))))
+
   (my/define-key
    (:map global-map
          :prefix "C-c u"
          :key
          "u" #'org-upwell-bench
-         "w" #'org-upwell-work-directory))
+         "w" #'org-upwell-work-directory
+         "f" #'org-upwell-follow-mode
+         "?" #'my/org-upwell-menu))
   (with-eval-after-load 'org-agenda
     (my/define-key
      (:map org-agenda-mode-map
