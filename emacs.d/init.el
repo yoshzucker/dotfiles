@@ -224,48 +224,77 @@ waiting rather than computing, so this is not a count of cores.")
 
 (defun my/straight-fetch-at-once ()
   "Run `git fetch' in every straight repository, several at a time.
-Return the names of the repositories git refused, newest first."
+Return the names of the repositories git refused, newest first.
+
+Says how far it has got as it goes.  Sixteen seconds here is one machine
+on one network, and neither is the slow case: a Windows box walking its
+own antivirus for every object it writes takes a multiple of it, and a
+command that goes quiet for minutes is one nobody can tell from a hung
+one.  `make-progress-reporter' rate-limits the echo area itself, so this
+costs a redraw every fifth of a second and not one per repository.
+
+Whatever is still running is killed on the way out, so `C-g' leaves no
+git processes behind to finish into a command that has gone."
   (unless (executable-find "git")
     (user-error "No git on PATH"))
-  (let ((queue (seq-filter
-                (lambda (dir)
-                  (and (file-directory-p dir)
-                       ;; A worktree keeps a file there rather than a
-                       ;; directory, and a repository of mine is a symlink
-                       ;; to one I edit -- both are repositories to fetch.
-                       (file-exists-p (expand-file-name ".git" dir))))
-                (directory-files (straight--repos-dir) t
-                                 directory-files-no-dot-files-regexp)))
-        (live 0) (done 0) (failed nil) (total 0))
-    (setq total (length queue))
-    (while (or queue (> live 0))
-      (while (and queue (< live my/straight-fetch-jobs))
-        (let* ((dir (pop queue))
-               (name (file-name-nondirectory (directory-file-name dir)))
-               (default-directory dir))
-          (setq live (1+ live))
-          (make-process
-           :name (concat "straight-fetch-" name)
-           :command '("git" "fetch" "--quiet")
-           :noquery t
-           :connection-type 'pipe
-           :buffer nil
-           ;; Nothing reads it, and a process whose output nobody drains
-           ;; can block on a full pipe.
-           :filter #'ignore
-           :sentinel
-           (lambda (proc _event)
-             (unless (process-live-p proc)
-               (setq live (1- live)
-                     done (1+ done))
-               (unless (eq 0 (process-exit-status proc))
-                 (push name failed)))))))
-      ;; Short, because the loop above is also what starts the next process
-      ;; as each one finishes.
-      (accept-process-output nil 0.05))
-    (message "straight: fetched %d repositories%s" done
-             (if failed (format ", %d refused" (length failed)) ""))
-    failed))
+  (let* ((queue (seq-filter
+                 (lambda (dir)
+                   (and (file-directory-p dir)
+                        ;; A worktree keeps a file there rather than a
+                        ;; directory, and a repository of mine is a symlink
+                        ;; to one I edit -- both are repositories to fetch.
+                        (file-exists-p (expand-file-name ".git" dir))))
+                 (directory-files (straight--repos-dir) t
+                                  directory-files-no-dot-files-regexp)))
+         (total (length queue))
+         (began (float-time))
+         (reporter (make-progress-reporter
+                    (format "straight: fetching %d repositories..." total)
+                    0 total))
+         (procs nil)
+         (live 0) (done 0) (failed nil))
+    (unwind-protect
+        (progn
+          (while (or queue (> live 0))
+            (while (and queue (< live my/straight-fetch-jobs))
+              (let* ((dir (pop queue))
+                     (name (file-name-nondirectory (directory-file-name dir)))
+                     (default-directory dir))
+                (setq live (1+ live))
+                (push
+                 (make-process
+                  :name (concat "straight-fetch-" name)
+                  :command '("git" "fetch" "--quiet")
+                  :noquery t
+                  :connection-type 'pipe
+                  :buffer nil
+                  ;; Nothing reads it, and a process whose output nobody
+                  ;; drains can block on a full pipe.
+                  :filter #'ignore
+                  :sentinel
+                  (lambda (proc _event)
+                    (unless (process-live-p proc)
+                      (setq live (1- live)
+                            done (1+ done))
+                      (unless (eq 0 (process-exit-status proc))
+                        (push name failed))
+                      (progress-reporter-update reporter done))))
+                 procs)))
+            ;; Short, because this loop is also what starts the next process
+            ;; as each one finishes.
+            (accept-process-output nil 0.05))
+          (progress-reporter-done reporter)
+          (message "straight: fetched %d repositories in %.0fs%s"
+                   done (- (float-time) began)
+                   (if failed
+                       (format "; %d refused: %s" (length failed)
+                               (string-join (reverse failed) ", "))
+                     ""))
+          failed)
+      (dolist (proc procs)
+        (when (process-live-p proc)
+          (set-process-sentinel proc #'ignore)
+          (delete-process proc))))))
 
 (defun my/straight-pull-all (&optional from-upstream predicate)
   "Pull all packages, fetching them all at once rather than one after another.
