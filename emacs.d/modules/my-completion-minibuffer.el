@@ -13,7 +13,20 @@
          :key
          "<escape>" #'vertico-exit
          "?" #'minibuffer-completion-help
-         "M-RET" #'minibuffer-force-complete-and-exit
+         ;; Answer with what was typed, not with the candidate under point.
+         ;; RET takes the candidate -- `vertico-exit' inserts it first
+         ;; whenever one is selected, and `vertico-preselect' selects the
+         ;; first of them -- so a prompt whose answer is a *new* name had no
+         ;; way to be given one.  Naming an hour that went on something not
+         ;; in any file is exactly such a prompt, and so is every other
+         ;; `completing-read' that was asked without REQUIRE-MATCH.
+         ;;
+         ;; This is vertico's own binding for it.  What it replaces,
+         ;; `minibuffer-force-complete-and-exit', is very nearly what RET
+         ;; already does here: take the selected completion and leave.
+         ;; `C-u RET' is the same thing as this key, for when it is wanted
+         ;; and the hands are already on the prefix.
+         "M-RET" #'vertico-exit-input
          "M-TAB" #'minibuffer-complete
          "C-h" #'backward-kill-word
          "C-j" #'vertico-next
