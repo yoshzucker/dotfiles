@@ -1988,6 +1988,7 @@ what to look at."
   (defvar my/org-upwell-menu-names
     '((org-upwell-bench . "bench")
       (org-upwell-work-directory . "work directory")
+      (org-upwell-find-work-directory . "find a work directory")
       (org-upwell-follow-mode . "follow")
       (my/org-upwell-menu . "this"))
     "What to call each `C-c u' command in the one-line menu.")
@@ -2066,7 +2067,18 @@ still appears, under the command's own, rather than going unmentioned."
    (:map org-upwell-bench-mode-map
          :state emacs motion normal
          :key
-         "gr" #'org-upwell-bench-redraw)))
+         "gr" #'org-upwell-bench-redraw))
+  ;; With the rest of the `g' family, which is where a command that is a way
+  ;; of getting somewhere belongs -- `gs' is buffers, `g.' is files, `g[' is
+  ;; headings, and this is the folders work is done in.  `g@' because it is
+  ;; free in every evil state (`gu' and `gw' are not: they are operators in
+  ;; normal state, so binding either would give a key that works in dired and
+  ;; the agenda and not in a file, with nothing on the screen to say why), and
+  ;; because `@' is unshifted on the keyboard this is typed on.
+  (my/define-key
+   (:map evil-motion-state-map
+         :key
+         "g@" #'org-upwell-find-work-directory)))
 
 (provide 'my-app-org)
 ;;; my-app-org.el ends here
