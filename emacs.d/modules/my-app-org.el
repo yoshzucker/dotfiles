@@ -1988,7 +1988,7 @@ what to look at."
   (defvar my/org-upwell-menu-names
     '((org-upwell-bench . "bench")
       (org-upwell-work-directory . "work directory")
-      (org-upwell-find-work-directory . "find a work directory")
+      (org-upwell-find-work-directory . "any work directory")
       (org-upwell-follow-mode . "follow")
       (my/org-upwell-menu . "this"))
     "What to call each `C-c u' command in the one-line menu.")
@@ -2031,6 +2031,12 @@ still appears, under the command's own, rather than going unmentioned."
          :key
          "u" #'org-upwell-bench
          "w" #'org-upwell-work-directory
+         ;; Beside `w' rather than instead of it, because they are two
+         ;; questions and not one: `w' is where *this* heading's work is
+         ;; done, and settles it when nobody has said; `d' is which of them
+         ;; there are.  The names in the menu carry the difference, since a
+         ;; letter cannot.
+         "d" #'org-upwell-find-work-directory
          "f" #'org-upwell-follow-mode
          "?" #'my/org-upwell-menu))
   (with-eval-after-load 'org-agenda
