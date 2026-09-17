@@ -237,7 +237,26 @@ Whatever is still running is killed on the way out, so `C-g' leaves no
 git processes behind to finish into a command that has gone."
   (unless (executable-find "git")
     (user-error "No git on PATH"))
-  (let* ((queue (seq-filter
+  (let* (;; The echo area is this command\='s while it runs.  A progress
+         ;; report that something else overwrites four times a second is
+         ;; worse than none: the eye reads flicker as a fault.  Garbage
+         ;; collection is the one that narrates over it here --
+         ;; `garbage-collection-messages\=' is on globally, which is right
+         ;; for a session and wrong for a command that has taken the line.
+         (garbage-collection-messages nil)
+         ;; And fewer of them to narrate.  Collecting does not stop the
+         ;; fetching -- git is a separate process and goes on writing while
+         ;; Emacs is busy -- it stops Emacs noticing that a fetch finished
+         ;; and starting the next.  Measured at one collection of ten
+         ;; milliseconds across the whole of a hundred and ninety
+         ;; repositories, so this is for the quiet rather than the speed.
+         ;;
+         ;; Only until something lowers it again: `gcmh-mode\=' drops the
+         ;; threshold from its own idle timer, and a wait this long looks
+         ;; idle.  What that costs is collections, not messages, and they
+         ;; are silent now.
+         (gc-cons-threshold (max gc-cons-threshold (* 256 1024 1024)))
+         (queue (seq-filter
                  (lambda (dir)
                    (and (file-directory-p dir)
                         ;; A worktree keeps a file there rather than a
