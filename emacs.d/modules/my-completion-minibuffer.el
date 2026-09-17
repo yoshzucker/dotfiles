@@ -95,6 +95,7 @@
                (project-file       (styles my/orderless-migemo-dot))
                (org-heading        (styles my/orderless-migemo-dot))
                (org-refile         (styles my/orderless-migemo-dot))
+               (org-upwell-work-directory (styles my/orderless-migemo-dot))
                (org-roam-node      (styles my/orderless-migemo-dot))
                (consult-location   (styles my/orderless-migemo-dot))
                (agent-shell-config (styles my/orderless-migemo-dot))
@@ -132,21 +133,33 @@
   ;; Japanese terms trigger a search.  Affects all consult async commands.
   (setq consult-async-min-input 2)
 
-  ;; Switch to file-file from consult-buffer
+  ;; Switch to find-file from a prompt that is standing somewhere already
   (defun my/sanitize-ascii-japanese (s)
     "Remove unprintable characters, keeping ASCII, Latin, Japanese kana/kanji and symbols."
     (replace-regexp-in-string
      "[^\u0020-\u007E\u00A0-\u00FF\u3000-\u30FF\u4E00-\u9FFF\uFF00-\uFFEF]" "" s))
   
   (defun my/find-file-from-minibuffer ()
-    "Use current consult-buffer candidate as input to `find-file` after exiting minibuffer."
+    "Leave the prompt and start `find-file' where the candidate under point is.
+
+Two kinds of candidate answer to this.  A buffer name, which is what
+`consult-buffer' offers, resolves to the file it is visiting or to the
+directory it is listing.  A line from `org-upwell-find-work-directory'
+resolves through the command itself: its lines carry a heading and a folder
+and have been cut to fit, so the folder cannot be read back off the text and
+the command is asked instead.
+
+Asked before the name is sanitised, because sanitising is what makes a
+buffer name comparable and would make that line match nothing."
     (interactive)
     (let* ((raw (or (and (fboundp 'vertico--candidate)
                          (vertico--candidate))
                     (minibuffer-contents)))
            (name (my/sanitize-ascii-japanese (substring-no-properties raw)))
            (buf  (get-buffer name))
-           (file (or (and buf (buffer-file-name buf))
+           (file (or (and (fboundp 'org-upwell-offered-work-directory)
+                          (org-upwell-offered-work-directory raw))
+                     (and buf (buffer-file-name buf))
                      (and buf (with-current-buffer buf
                                 (derived-mode-p 'dired-mode buf)
                                 (buffer-local-value 'default-directory buf)))
@@ -163,23 +176,31 @@
           (run-at-time 0 nil callback)
           (abort-minibuffers)))))
 
-  (defvar my/consult-buffer-mode-map
+  (defvar my/minibuffer-find-file-mode-map
     (let ((map (make-sparse-keymap)))
       (define-key map (kbd "C-l") #'my/find-file-from-minibuffer)
       map)
-    "Keymap active only during `consult-buffer` minibuffer.")
-  
-  (define-minor-mode my/consult-buffer-mode
-    "Minor mode for `consult-buffer` specific bindings in minibuffer."
+    "Keymap active only in the prompts `my/minibuffer-find-file-commands' names.")
+
+  (define-minor-mode my/minibuffer-find-file-mode
+    "Minor mode giving a minibuffer the key that hands off to `find-file'."
     :init-value nil
     :lighter ""
-    :keymap my/consult-buffer-mode-map)
-  
-  (defun my/enable-consult-buffer-mode ()
-    (when (eq this-command #'consult-buffer)
-      (my/consult-buffer-mode 1)))
-  
-  (add-hook 'minibuffer-setup-hook #'my/enable-consult-buffer-mode)
+    :keymap my/minibuffer-find-file-mode-map)
+
+  (defvar my/minibuffer-find-file-commands
+    '(consult-buffer org-upwell-find-work-directory)
+    "Commands whose prompt offers `C-l' as a way out to `find-file'.
+
+Every one of them is a list of places: buffers, or the folders work is done
+in.  Having picked the place, the next thought is often a file in it, and
+the alternative is to leave the prompt, remember the path, and type it.")
+
+  (defun my/enable-minibuffer-find-file-mode ()
+    (when (memq this-command my/minibuffer-find-file-commands)
+      (my/minibuffer-find-file-mode 1)))
+
+  (add-hook 'minibuffer-setup-hook #'my/enable-minibuffer-find-file-mode)
 
   ;; Sorting recentf
   (defun my/sort-recentf-by-directory ()
