@@ -660,12 +660,21 @@ transitions never spawn a clock-in on a different task."
 whole call (`org-clock-in' already inserts the clock, and its
 `org-clock-in-switch-to-state' fires `org-after-todo-state-change-hook',
 which must not re-enter clock-in), and toggle `org-clock-continuously' when
-called with C-u (prefix 64)."
+called with C-u (prefix 64).
+
+`funcall' and not `apply'.  A START-TIME is a time value, and a time value
+is a list -- so `apply' spread it into two more arguments and `org-clock-in'
+was called with three.  It never showed while the argument was nil, which is
+every ordinary clock-in; it showed the moment anything passed a time, and
+the things that pass one are resolving a clock left running when Emacs was
+last killed, `org-clock-in-last', and `org-clock-in' re-entering itself
+under `org-clock-continuously' -- which is the very prefix this advice is
+here for."
     (let ((my/org-inhibit-auto-clock-in t))
       (if (equal select '(64))
           (let ((org-clock-continuously (not org-clock-continuously)))
-            (apply f nil start-time))
-        (apply f select start-time))))
+            (funcall f nil start-time))
+        (funcall f select start-time))))
   (advice-add 'org-clock-in :around #'my/org-clock-in-continuously-reverse-by-prefix)
   
   ;; Clock heading
