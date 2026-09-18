@@ -89,23 +89,43 @@
 
   (gcmh-mode 1))
 
-(defun my/gc-report ()
-  "Say what garbage collection has cost this session.
+(defvar my/gc--mark nil
+  "Collections, seconds and clock as of the last `my/gc-report', or nil.")
 
-The instrument `garbage-collection-messages' is not: a line in the echo
-area says a collection happened and nothing about whether they add up to
-anything.  These three numbers do, and the last is the one to judge by --
-a percent or two of a session is the price of not thinking about it, and
-ten is a reason to look at `gcmh-high-cons-threshold'."
-  (interactive)
-  (let ((up (max 1.0 (float-time (time-subtract (current-time)
-                                                before-init-time)))))
-    (message "gc: %d collections, %.1fs, %.1f%% of %s"
-             gcs-done gc-elapsed (* 100 (/ gc-elapsed up))
-             ;; `%z' drops whatever stands before it when all of it is
-             ;; zero, so nine minutes reads as "0h 9m" and not as a year
-             ;; and two days of nothing.
-             (format-seconds "%Y %D %z%hh %mm" up))))
+(defun my/gc-report (&optional whole-session)
+  "Say what garbage collection has cost since this was last asked.
+
+Asked twice around something heavy -- once before, once after -- the
+second answer is what that something paid, which is the question worth
+asking.  A session total cannot answer it: nine tenths of a second spread
+over half an hour is nothing, and the same nine tenths landing inside one
+redraw is that redraw being a tenth slower than it looks.
+
+With a prefix argument, or the first time, the whole session instead.
+
+`garbage-collection-messages' is not an instrument for this: a line in the
+echo area says a collection happened and nothing about whether they add up
+to anything.  A percent or two is the price of not thinking about it; ten
+is a reason to look at `gcmh-high-cons-threshold'."
+  (interactive "P")
+  (let* ((now (current-time))
+         (from (if (or whole-session (null my/gc--mark))
+                   (list 0 0.0 before-init-time)
+                 my/gc--mark))
+         (span (max 0.001 (float-time (time-subtract now (nth 2 from)))))
+         (count (- gcs-done (nth 0 from)))
+         (spent (- gc-elapsed (nth 1 from))))
+    (setq my/gc--mark (list gcs-done gc-elapsed now))
+    (message "gc: %d collections, %.2fs, %.1f%% of %s"
+             count spent (* 100 (/ spent span))
+             (if (< span 60)
+                 ;; A decimal, because what is being timed here is often a
+                 ;; single command and "0s" is not an answer about one.
+                 (format "%.1fs" span)
+               ;; `%z' drops whatever stands before it when all of it is
+               ;; zero, so nine minutes reads as "0h 9m" and not as a year
+               ;; and two days of nothing.
+               (format-seconds "%Y %D %z%hh %mm" span)))))
 
 (use-package symon
   ;; What the machine underneath is doing, in the echo area when nothing else
