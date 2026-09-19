@@ -303,6 +303,19 @@ connecting visually to the surrounding edge fill."
                 (:eval (my/mode-line-slant 'right))
                 (:eval (my/mode-line-edge-pad))))
 
+;; And one of it, on a row of its own at the foot of the frame, rather than
+;; one per window.  The line above is unchanged and is what gets drawn there:
+;; `sill-format' left nil means the mode line the frame would otherwise have
+;; had, so this is a change of place and not of content.
+;;
+;; Four windows is three rows back, eight is seven, and the row it costs is
+;; the same row however many there are -- which is why it earns its place on
+;; a screen with an agenda, a board and a file on it at once.
+(use-package sill
+  :straight (sill :host github :repo "yoshzucker/sill")
+  :config
+  (sill-mode 1))
+
 ;; Theme helper packages
 
 (use-package rainbow-mode)
