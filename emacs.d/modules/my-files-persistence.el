@@ -22,7 +22,7 @@
 (use-package recentf
   :after no-littering
   :config
-  (setq recentf-max-saved-items 300
+  (setq recentf-max-saved-items 1000
 	find-file-visit-truename nil))
 
 (use-package recentf-ext
