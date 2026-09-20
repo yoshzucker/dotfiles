@@ -216,21 +216,31 @@ the alternative is to leave the prompt, remember the path, and type it.")
   (add-hook 'minibuffer-setup-hook #'my/enable-minibuffer-find-file-mode)
 
   ;; Sorting recentf
+  ;;
+  ;; Each entry is asked once what it sorts by, and then the sort is a plain
+  ;; comparison of strings.  Asking inside the comparison instead costs a
+  ;; question per comparison rather than per entry -- about thirteen times the
+  ;; list's length -- and the question used to be `file-directory-p', which is
+  ;; a trip to the filesystem.  recentf-ext stores a directory the way dired
+  ;; hands it over, with the trailing slash a file name never has, so the
+  ;; answer is already in the string.
+  ;;
+  ;; The NUL between the directory and the name is what keeps the two halves
+  ;; from running together: it sorts below every character a name can hold, so
+  ;; a directory that is the start of a longer one still comes first.
+  (defun my/recentf-sort-key (file)
+    "Return the string FILE sorts by: directories first, then path, then name."
+    (concat (if (directory-name-p file) "0" "1")
+            (or (file-name-directory file) "")
+            "\0"
+            (file-name-nondirectory file)))
+
   (defun my/sort-recentf-by-directory ()
-    "Return recentf-list sorted by directory and filename."
-    (sort (copy-sequence recentf-list)
-          (lambda (a b)
-            (let ((a-dir? (file-directory-p a))
-                  (b-dir? (file-directory-p b))
-                  (dir-a (file-name-directory a))
-                  (dir-b (file-name-directory b)))
-              (cond
-               ((and a-dir? (not b-dir?)) t)
-               ((and b-dir? (not a-dir?)) nil)
-               ((string= dir-a dir-b)
-                (string< (file-name-nondirectory a)
-                         (file-name-nondirectory b)))
-               (t (string< dir-a dir-b)))))))
+    "Return `recentf-list' sorted by directory and filename."
+    (mapcar #'cdr
+            (sort (mapcar (lambda (f) (cons (my/recentf-sort-key f) f))
+                          recentf-list)
+                  (lambda (a b) (string< (car a) (car b))))))
 
   (setq consult-buffer-sources
         (mapcar
