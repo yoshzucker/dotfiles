@@ -8,8 +8,9 @@
  * Colors are harvested from GENSHO_LIGHT_HEX in
  *   config/shell/zsh/colors.sh   (single source of truth: gensho-theme.el,
  *   `gensho-export-palette 'hex-list`). Re-harvest there if the palette moves.
- *   bg=mono0 #3c3d3e  fg=mono7 #a2a6a7  blue #638cb4  mono1 #494b4b
- *   mono3 #656868  mono4 #747777  mono6 #929697  dim1 #444747
+ *   bg=mono1 #3c3d3e  fg=mono7 #a2a6a7  blue #638cb4
+ *   mono0 #2c2e2e  mono2 #4b4e4e  mono3 #5c5e5f  mono4 #6c7070
+ *   mono6 #8f9394
  */
 @import 'default';
 
@@ -33,20 +34,20 @@ strong {
 }
 
 hr {
-  border-color: #656868;
+  border-color: #5c5e5f;
 }
 
-/* Code: a touch darker than the slide so blocks read as inset. */
+/* Code: mono0, the level outside the page, so blocks read as inset. */
 section pre, section code {
   font-family: "Cascadia Code", "Consolas", "Menlo", monospace;
 }
 section code {
-  background-color: #333435;
+  background-color: #2c2e2e;
   color: #a2a6a7;
 }
 section pre {
-  background-color: #333435;
-  border: 1px solid #747777;
+  background-color: #2c2e2e;
+  border: 1px solid #5c5e5f;
 }
 section pre code {
   background-color: transparent;
@@ -54,20 +55,20 @@ section pre code {
 }
 
 blockquote {
-  border-left-color: #656868;
-  color: #929697;
+  border-left-color: #5c5e5f;
+  color: #8f9394;
 }
 
 table th, table td {
-  border-color: #747777;
+  border-color: #5c5e5f;
 }
 table th {
-  background-color: #444747;
+  background-color: #4b4e4e;
 }
 
 /* Chrome: header, footer, and page numbers stay muted. */
 header, footer, section::after {
-  color: #747777;
+  color: #6c7070;
 }
 
 /* Font-size ladder for content-heavy slides. normal = 1.0em (no class).
