@@ -99,9 +99,15 @@ Run `./bootstrap update` (or the explicit package commands) to apply.
 - **Windows**: Scoop (extras bucket included). Symlink support requires **Developer Mode** enabled (Settings → Update & Security → For developers) or running PowerShell as Administrator. First run after Scoop install usually requires terminal restart.
 - **Emacs**: The `emacs.d/` tree in the repo is linked under `~/.emacs.d` by bootstrap.
 
-## My Own Org Packages
+## My Own Packages
 
-Five Org packages are written here rather than merely used: org-foresight, org-convect, org-upwell, org-calsync, org-dayflow. Each has its own repository and its own README, which describe the package and say nothing about this machine.
+Eight packages are written here rather than merely used. Each has its own repository and its own README, which describe the package and say nothing about this machine.
+
+- **Org**: org-foresight, org-convect, org-upwell, org-calsync, org-dayflow
+- **Themes**: gensho-theme, rustcity-theme
+- **Emacs UI**: sill — one mode line at the foot of the frame instead of one per window
+
+`bootstrap` links each of them from `~/Developer/<name>` into straight.el's repository directory, so what Emacs loads is the checkout being edited. A package left out of that list is cloned from GitHub instead, which succeeds quietly and then stops reflecting local edits — so a new package has to be added there as well as used.
 
 Everything that is true only of *this* setup — which machine runs org-upwell's watcher, how straight.el is pointed at `~/Developer`, which keys go where, and where the data sits — is in [`doc/org-packages.md`](doc/org-packages.md).
 
