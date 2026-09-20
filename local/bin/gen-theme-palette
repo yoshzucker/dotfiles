@@ -28,7 +28,16 @@
 set -euo pipefail
 
 THEME="${1:-gensho}"
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# Resolve through the symlink this is deployed as, so the repository is found
+# whether the command is run from the checkout or from ~/.local/bin.
+src="${BASH_SOURCE[0]}"
+while [ -L "$src" ]; do
+  dir="$(cd -P "$(dirname "$src")" && pwd)"
+  src="$(readlink "$src")"
+  case "$src" in /*) ;; *) src="$dir/$src" ;; esac
+done
+REPO="$(cd -P "$(dirname "$src")/../.." && pwd)"
 OUT="$REPO/config/shell/zsh/palette-$THEME.sh"
 THEME_DIR="$HOME/Developer/$THEME-theme"
 HSLUV="$HOME/.emacs.d/straight/build/hsluv"
