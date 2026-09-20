@@ -14,6 +14,21 @@
 	    corfu-cycle t)
   (global-corfu-mode 1)
 
+  ;; corfu draws its two margins as fringes -- the right one carries the
+  ;; scrollbar -- and a fringe is painted with the `fringe' face wherever it
+  ;; is, which inside the popup is the page colour standing in a strip down
+  ;; either edge.  corfu already remaps `default' in that buffer; `fringe'
+  ;; wants the same treatment and there is no setting that reaches it.
+  (defun my/corfu-margins-read-as-popup (buffer)
+    "Point BUFFER's `fringe' face at `corfu-default'.  Return BUFFER."
+    (with-current-buffer buffer
+      (setf (alist-get 'fringe face-remapping-alist)
+            (cons 'corfu-default (alist-get 'fringe face-remapping-alist))))
+    buffer)
+
+  (advice-add 'corfu--make-buffer :filter-return
+              #'my/corfu-margins-read-as-popup)
+
   (my/define-key
    (:map corfu-map
          :state insert
