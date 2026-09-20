@@ -361,7 +361,6 @@ connecting visually to the surrounding edge fill."
         (cons (cons 'rustcity
                     (lambda ()
                       (let* ((colors (rustcity-palette))
-                             (mono0  (alist-get 'mono0  colors))
                              (mono1  (alist-get 'mono1  colors))
                              (mono2  (alist-get 'mono2  colors))
                              (mono3  (alist-get 'mono3  colors))
@@ -378,10 +377,10 @@ connecting visually to the surrounding edge fill."
                            (("pdf")         . ,red)))
                         (my/set-faces
                          `((my/wdired-edit-face :background ,mono2)
-                           (my/org-ongo :inverse-video t :foreground ,orange :background ,mono0)
+                           (my/org-ongo :inverse-video t :foreground ,orange :background ,mono1)
                            (my/org-wait :inverse-video t :inherit font-lock-comment-face)
-                           (my/mode-line-over :foreground ,mono0 :background ,red)
-                           (my/mode-line-under :foreground ,mono0 :background ,cyan)
+                           (my/mode-line-over :foreground ,mono1 :background ,red)
+                           (my/mode-line-under :foreground ,mono1 :background ,cyan)
                            (mode-line :background ,mono3)
                            (mode-line-inactive :background ,mono3)
                            (my/mode-line-line :background ,mono1)
@@ -397,7 +396,6 @@ connecting visually to the surrounding edge fill."
         (cons (cons 'gensho
                     (lambda ()
                       (let* ((colors (gensho-palette))
-                             (mono0  (alist-get 'mono0  colors))
                              (mono1  (alist-get 'mono1  colors))
                              (mono2  (alist-get 'mono2  colors))
                              (mono3  (alist-get 'mono3  colors))
@@ -414,10 +412,10 @@ connecting visually to the surrounding edge fill."
                            (("pdf")         . ,red)))
                         (my/set-faces
                          `((my/wdired-edit-face :background ,mono2)
-                           (my/org-ongo :inverse-video t :foreground ,orange :background ,mono0)
+                           (my/org-ongo :inverse-video t :foreground ,orange :background ,mono1)
                            (my/org-wait :inverse-video t :inherit font-lock-comment-face)
-                           (my/mode-line-over :foreground ,mono0 :background ,red)
-                           (my/mode-line-under :foreground ,mono0 :background ,cyan)
+                           (my/mode-line-over :foreground ,mono1 :background ,red)
+                           (my/mode-line-under :foreground ,mono1 :background ,cyan)
                            (mode-line :background ,mono3)
                            (mode-line-inactive :background ,mono3)
                            (my/mode-line-line :background ,mono1)
