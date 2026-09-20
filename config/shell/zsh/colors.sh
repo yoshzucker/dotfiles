@@ -2,24 +2,23 @@
 # Theme identity, truecolor setup, terminal palette (OSC 4/10/11/12), THEME_MONO*.
 # zsh-specific.
 #
-# ANSI 16-color slot strategy (Solarized convention; matches
-# gensho--export-name-map in ~/Developer/gensho-theme/gensho-theme.el):
+# Two audiences, so two tables (both in the generated palette-<theme>.sh):
 #
-#   0  black        mono1
-#   1-6 hues        red/green/yellow/blue/magenta/cyan
-#   7  white        mono5
-#   8  brightblack  mono0 = bg   (intentionally near-invisible for dim text)
-#   9  brightred    orange
-#   10 brightgreen  mono2
-#   11 brightyellow mono3
-#   12 brightblue   mono4
-#   13 brightmagenta purple
-#   14 brightcyan   mono6        (visible light grey — NEVER bg)
-#   15 brightwhite  mono7
+#   the terminal itself  speaks ANSI and nothing else, so it is painted from
+#                        _THEME_ANSI_* -- the sixteen slots in canonical order
+#                        -- plus OSC 10/11/12 for foreground, background and
+#                        cursor.
+#   tmux, fzf, the       style themselves from the theme's ramp, so they read
+#   zsh prompt           THEME_MONO0..7 / THEME_DIM0 / the hues, exported here
+#                        from _THEME_SEM_*.
 #
-# Single source of truth: gensho-theme.el (`gensho-export-palette 'hex-list)`).
-# The hex values below are harvested via `emacs --batch` and pasted in.
-# Re-harvest after changing gensho-{wet,dry}-hsl.
+# The second set is named after the ramp, not after whichever ANSI slot a level
+# happens to occupy: a level with no slot at all (the background, the dim
+# levels) is still just a key, and moving the slot assignment changes only what
+# gen-theme-palette writes.
+#
+# Regenerate the data with `gen-theme-palette gensho` after changing the
+# theme's palette or its ANSI slot assignment.
 
 [ -n "$ZSH_VERSION" ] || return 0
 
@@ -44,13 +43,23 @@ esac
 
 [ "$THEME_NAME" = "gensho" ] || return 0
 
-# Always export THEME_<NAME>; only emit OSC outside tmux. Inside tmux the OSC
-# is swallowed before reaching the outer terminal (DCS passthrough would be
-# needed), so it'd be wasted bytes per shell start while the Ghostty palette
-# stays correctly set from the very first non-tmux zsh of the session.
-set_color() {
-  local color_name="$1"
-  local color_value="$2"
+source "${${(%):-%x}:A:h}/palette-${THEME_NAME}.sh"
+
+# The sixteen ANSI slots in canonical order -- a property of the terminal, not
+# of the theme, so it stays here rather than in the generated table.
+typeset -ga _THEME_ANSI_NAMES=(
+  black red green yellow blue magenta cyan white
+  br_black br_red br_green br_yellow br_blue br_magenta br_cyan br_white
+)
+
+# Paint one color. Numbered slots go through OSC 4, the three singular ones
+# through OSC 10/11/12. Inside tmux the sequence is swallowed before it reaches
+# the outer terminal (DCS passthrough would be needed), so it would be wasted
+# bytes per shell start, while the Ghostty palette stays correctly set from the
+# very first non-tmux zsh of the session.
+_theme_osc() {
+  local name="$1" value="$2"
+  [[ -n $TMUX ]] && return 0
 
   typeset -A osc_map=(fg 10 bg 11 curbg 12)
   typeset -A ansi_map=(
@@ -60,110 +69,44 @@ set_color() {
     br_blue 12 br_magenta 13 br_cyan 14 br_white 15
   )
 
-  if [[ -z $TMUX ]]; then
-    local index="${ansi_map[$color_name]:-}"
-    local osc="${osc_map[$color_name]:-}"
-    if [[ -n $index || -n $osc ]]; then
-      local esc_prefix='\x1b]'
-      local esc_suffix='\x07'
-      local color_sequence="${osc:-4};${index:+${index};}#"
-      printf "%b" "${esc_prefix}${color_sequence}${color_value}${esc_suffix}"
-    fi
-  fi
-
-  local export_name="THEME_${(U)color_name}"
-  export "$export_name"="#$color_value"
+  local index="${ansi_map[$name]:-}"
+  local osc="${osc_map[$name]:-}"
+  [[ -n $index || -n $osc ]] || return 0
+  printf "%b" "\x1b]${osc:-4};${index:+${index};}#${value}\x07"
 }
 
-# ----- palette tables (harvested via gensho-export-palette 'hex-list) -----
-# Order: slots 0..15 (canonical ANSI). Update both arrays if HSL changes.
-typeset -ga GENSHO_DARK_HEX=(
-  333435  # 0  black        mono1
-  d4647f  # 1  red
-  59965e  # 2  green
-  a2835a  # 3  yellow
-  638cb4  # 4  blue
-  cb63ae  # 5  magenta
-  5f9196  # 6  cyan
-  6a6d6d  # 7  white        mono5
-  262828  # 8  brightblack  mono0 (bg)
-  bb785a  # 9  brightred    orange
-  404242  # 10 brightgreen  mono2
-  4e5050  # 11 brightyellow mono3
-  5c5e5f  # 12 brightblue   mono4
-  9a79c9  # 13 brightmagenta purple
-  797c7d  # 14 brightcyan   mono6
-  888c8c  # 15 brightwhite  mono7
-  2a2c2c  # 16 dim0         HSLuv(200,5,18)
-  2f3030  # 17 dim1         HSLuv(200,5,20)
-)
-typeset -ga GENSHO_LIGHT_HEX=(
-  494b4b  # 0  black        mono1
-  d4647f  # 1  red
-  59965e  # 2  green
-  a2835a  # 3  yellow
-  638cb4  # 4  blue
-  cb63ae  # 5  magenta
-  5f9196  # 6  cyan
-  838687  # 7  white        mono5
-  3c3d3e  # 8  brightblack  mono0 (bg)
-  bb785a  # 9  brightred    orange
-  57595a  # 10 brightgreen  mono2
-  656868  # 11 brightyellow mono3
-  747777  # 12 brightblue   mono4
-  9a79c9  # 13 brightmagenta purple
-  929697  # 14 brightcyan   mono6
-  a2a6a7  # 15 brightwhite  mono7
-  404242  # 16 dim0         HSLuv(200,5,28)
-  444747  # 17 dim1         HSLuv(200,5,30)
-)
-
-# Slot 0..15 → set_color name (used to walk the active palette).
-typeset -ga _GENSHO_SLOT_NAMES=(
-  black red green yellow blue magenta cyan white
-  br_black br_red br_green br_yellow br_blue br_magenta br_cyan br_white
-  dim0 dim1
-)
-
-_gensho_emit_palette() {
-  local -a hex
+_theme_apply_palette() {
+  local -a ansi
+  local -A sem
   if [[ "$THEME_VARIANT" == "light" ]]; then
-    hex=("${GENSHO_LIGHT_HEX[@]}")
+    ansi=("${_THEME_ANSI_LIGHT[@]}")
+    sem=("${(@kv)_THEME_SEM_LIGHT}")
   else
-    hex=("${GENSHO_DARK_HEX[@]}")
+    ansi=("${_THEME_ANSI_DARK[@]}")
+    sem=("${(@kv)_THEME_SEM_DARK}")
   fi
+
   local i
-  for (( i = 1; i <= 18; i++ )); do
-    set_color "${_GENSHO_SLOT_NAMES[i]}" "${hex[i]}"
+  for (( i = 1; i <= 16; i++ )); do
+    _theme_osc "${_THEME_ANSI_NAMES[i]}" "${ansi[i]}"
   done
-  # OSC 10/11/12 — bg uses slot 8 hex (= mono0), fg uses slot 15 hex (= mono7),
-  # cursor bg uses slot 14 hex (= mono6).
-  set_color "fg"    "${hex[16]}"
-  set_color "bg"    "${hex[9]}"
-  set_color "curbg" "${hex[15]}"
+
+  # mono1 is the surface and mono7 the text, which is what the terminal's own
+  # background and foreground mean; the cursor takes mono6.
+  _theme_osc bg    "${sem[mono1]}"
+  _theme_osc fg    "${sem[mono7]}"
+  _theme_osc curbg "${sem[mono6]}"
+
+  # dim1 is exported by nobody, so it is not exported here either; add it to
+  # the loop if a consumer ever wants a second dim level.
+  local key
+  for key in mono0 mono1 mono2 mono3 mono4 mono5 mono6 mono7 dim0 \
+             red orange yellow green cyan blue purple magenta; do
+    export "THEME_${(U)key}"="#${sem[$key]}"
+  done
 }
 
-_gensho_emit_palette
-
-# THEME_MONO* — portable mono ramp for fzf, tmux, and zsh prompt.
-# Consumers read THEME_MONO* without knowing the underlying ANSI slot.
-# After Solarized re-shuffle:
-#   mono0 = slot 8  (brightblack)  = bg
-#   mono1 = slot 0  (black)
-#   mono2 = slot 10 (brightgreen)
-#   mono3 = slot 11 (brightyellow)
-#   mono4 = slot 12 (brightblue)
-#   mono5 = slot 7  (white)
-#   mono6 = slot 14 (brightcyan)
-#   mono7 = slot 15 (brightwhite)
-export THEME_MONO0="$THEME_BR_BLACK"
-export THEME_MONO1="$THEME_BLACK"
-export THEME_MONO2="$THEME_BR_GREEN"
-export THEME_MONO3="$THEME_BR_YELLOW"
-export THEME_MONO4="$THEME_BR_BLUE"
-export THEME_MONO5="$THEME_WHITE"
-export THEME_MONO6="$THEME_BR_CYAN"
-export THEME_MONO7="$THEME_BR_WHITE"
+_theme_apply_palette
 
 # delta picks its light/dark profile via DELTA_FEATURES; the git config
 # defines [delta "gensho-dark"] and [delta "gensho-light"].
