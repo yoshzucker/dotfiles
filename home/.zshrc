@@ -2,6 +2,8 @@
 # Interactive shells only. Early env/PATH already provided by .zshenv.
 # Modules are sourced explicitly so load order is visible.
 
+# colors.sh stays first: zsh.sh's prompt and fzf.sh's FZF_DEFAULT_OPTS both
+# read THEME_MONO* at source time, not at use time.
 source ~/.config/shell/zsh/colors.sh   # theme, truecolor, OSC palette, THEME_MONO*
 source ~/.config/shell/zsh/fzf.sh      # fzf widgets/opts (ZLE only, no compinit dep at source time)
 source ~/.config/shell/zsh/zsh.sh      # compinit, prompt, keybinds (key section has final say)
