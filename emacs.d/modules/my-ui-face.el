@@ -101,7 +101,19 @@ Themes without an entry simply leave previous settings as-is.")
 ;; mode-line / mode-line-inactive themselves carry the EDGE color, so
 ;; the auto-fill area at the right of the mode-line is naturally edge-
 ;; colored.  The center content area is overlaid with the LINE faces
-;; below to restore the mono0 (active) / mono1 (inactive) center.
+;; below to restore the active / inactive center.
+;;
+;; The edge is one stratum and does not move: the ground a bar is drawn
+;; on, the same one the tab-bar sits on.  What tells active from inactive
+;; is the center, by taking the current level or the idle one.  Which
+;; makes the two bars the same object in two positions --
+;;
+;;   tab-bar    bar mono3, selected tab mono1, inactive tab mono2
+;;   mode-line  edge mono3, active center mono1, inactive center mono2
+;;
+;; -- and the reason to keep it that way even where only one of them is
+;; drawn, which is what happens the moment there is a single line for the
+;; frame rather than one per window.
 (defface my/mode-line-line '((t (:inherit mode-line)))
   "Background of the active mode-line center content area.")
 
@@ -191,25 +203,35 @@ Safe to call even if dired-rainbow is not yet loaded (guarded by featurep)."
 (defconst my/tab-slant-right "\xe0b8"
   "Glyph placed after the current tab name to widen its right edge.")
 
+;; A wedge paints one neighbour's background as its own foreground, so its
+;; colors cannot be inherited and have to be derived from whatever the theme
+;; gave the two surfaces it bridges.  They are carried by faces rather than
+;; written into the propertized string, because the tab bar keeps the string
+;; it built for as long as the tab names hold: only the face symbols in it are
+;; resolved again at draw time, and a color written in would survive a theme
+;; change until the tab set does.
+(defface my/tab-bar-wedge '((t nil))
+  "Wedge bridging the current tab to the bar it sits on.")
+
+(defface my/tab-bar-wedge-inactive '((t nil))
+  "Wedge bridging an inactive tab to the bar it sits on.")
+
 (defun my/tab-bar-tab-name-format (tab _i)
   "Wrap each tab with slanted edges that fan outward to body.
 The slant glyphs use the `tab-bar' bg above the diagonal and the
 tab's own bg below, producing a trapezoidal tab whose lower edge
-merges with the chrome layer underneath (the active tab merges
-with body `mono0', the inactive with the chrome neutral `mono1').
+merges with the chrome layer underneath.
 Both current and inactive tabs share the same format, so the
 visual width is constant across switches."
   (let* ((current-p (eq (car tab) 'current-tab))
          (face (if current-p 'tab-bar-tab 'tab-bar-tab-inactive))
+         (wedge (if current-p 'my/tab-bar-wedge 'my/tab-bar-wedge-inactive))
          (name (alist-get 'name tab))
-         (text (concat " " name " "))
-         (bar-bg (face-background 'tab-bar nil 'default))
-         (tab-bg (face-background face nil 'default))
-         (slant `(:foreground ,tab-bg :background ,bar-bg)))
+         (text (concat " " name " ")))
     (concat
-     (propertize my/tab-slant-left  'face slant)
-     (propertize text                'face face)
-     (propertize my/tab-slant-right 'face slant))))
+     (propertize my/tab-slant-left  'face wedge)
+     (propertize text               'face face)
+     (propertize my/tab-slant-right 'face wedge))))
 
 (setq tab-bar-tab-name-format-function #'my/tab-bar-tab-name-format)
 
@@ -226,18 +248,21 @@ visual width is constant across switches."
 (defconst my/tab-bar-clock-slant "\xe0b8"
   "Lower-left triangle drawn at the left edge of the org-clock area.")
 
+(defface my/org-clock-wedge '((t nil))
+  "Wedge bridging the tab-bar into the org-clock area.")
+
+(defface my/org-clock-wedge-overrun '((t nil))
+  "Wedge bridging the tab-bar into an overrunning org-clock area.")
+
 (defun my/org-clock-decorate (string)
   "Filter-return advice for `org-clock-get-clock-string'.
 Color STRING by `org-clock-task-overrun' and prepend a slant
 glyph whose fg paints a `tab-bar' chrome wedge on a solid clock-
 colored bg, producing a triangular bridge into the clock area."
-  (let* ((face (if org-clock-task-overrun
-                   'my/mode-line-over
-                 'my/mode-line-under))
-         (clock-bg (face-background face nil 'default))
-         (bar-bg (face-background 'tab-bar nil 'default))
-         (slant `(:foreground ,bar-bg :background ,clock-bg)))
-    (concat (propertize my/tab-bar-clock-slant 'face slant)
+  (let* ((overrun org-clock-task-overrun)
+         (face  (if overrun 'my/mode-line-over 'my/mode-line-under))
+         (wedge (if overrun 'my/org-clock-wedge-overrun 'my/org-clock-wedge)))
+    (concat (propertize my/tab-bar-clock-slant 'face wedge)
             (propertize string 'face face))))
 
 (with-eval-after-load 'org-clock
@@ -356,7 +381,7 @@ connecting visually to the surrounding edge fill."
                            (my/org-wait :inverse-video t :inherit font-lock-comment-face)
                            (my/mode-line-over :foreground ,mono0 :background ,red)
                            (my/mode-line-under :foreground ,mono0 :background ,cyan)
-                           (mode-line :background ,mono1)
+                           (mode-line :background ,mono2)
                            (mode-line-inactive :background ,mono2)
                            (my/mode-line-line :background ,mono0)
                            (my/mode-line-inactive-line :background ,mono1)
@@ -374,27 +399,28 @@ connecting visually to the surrounding edge fill."
                              (mono0  (alist-get 'mono0  colors))
                              (mono1  (alist-get 'mono1  colors))
                              (mono2  (alist-get 'mono2  colors))
+                             (mono3  (alist-get 'mono3  colors))
                              (red    (alist-get 'red    colors))
                              (orange (alist-get 'orange colors))
                              (green  (alist-get 'green  colors))
                              (cyan   (alist-get 'cyan   colors))
                              (blue   (alist-get 'blue   colors)))
-                        (setq smartrep-mode-line-active-bg mono2)
+                        (setq smartrep-mode-line-active-bg mono3)
                         (my/set-dired-rainbow-faces
                          `((("docx" "docm") . ,blue)
                            (("xlsx" "xlsm") . ,green)
                            (("pptx" "pptm") . ,orange)
                            (("pdf")         . ,red)))
                         (my/set-faces
-                         `((my/wdired-edit-face :background ,mono1)
+                         `((my/wdired-edit-face :background ,mono2)
                            (my/org-ongo :inverse-video t :foreground ,orange :background ,mono0)
                            (my/org-wait :inverse-video t :inherit font-lock-comment-face)
                            (my/mode-line-over :foreground ,mono0 :background ,red)
                            (my/mode-line-under :foreground ,mono0 :background ,cyan)
-                           (mode-line :background ,mono1)
-                           (mode-line-inactive :background ,mono2)
-                           (my/mode-line-line :background ,mono0)
-                           (my/mode-line-inactive-line :background ,mono1)
+                           (mode-line :background ,mono3)
+                           (mode-line-inactive :background ,mono3)
+                           (my/mode-line-line :background ,mono1)
+                           (my/mode-line-inactive-line :background ,mono2)
                            (my/calendar-iso-week-header :inherit font-lock-function-name-face)))
                         )))
               (assq-delete-all 'gensho my/theme-special-setups))))
@@ -410,6 +436,25 @@ connecting visually to the surrounding edge fill."
 
 ;; Core setup
 
+(defun my/refresh-wedge-faces ()
+  "Point every wedge face at the two surfaces it bridges.
+Run after the theme and its per-theme face overrides are in place,
+since a wedge takes its colors from its neighbours rather than from
+a spec of its own."
+  (let ((bar (face-background 'tab-bar nil 'default)))
+    (set-face-attribute 'my/tab-bar-wedge nil
+                        :foreground (face-background 'tab-bar-tab nil 'default)
+                        :background bar)
+    (set-face-attribute 'my/tab-bar-wedge-inactive nil
+                        :foreground (face-background 'tab-bar-tab-inactive nil 'default)
+                        :background bar)
+    (set-face-attribute 'my/org-clock-wedge nil
+                        :foreground bar
+                        :background (face-background 'my/mode-line-under nil 'default))
+    (set-face-attribute 'my/org-clock-wedge-overrun nil
+                        :foreground bar
+                        :background (face-background 'my/mode-line-over nil 'default))))
+
 (defun my/setup-theme ()
   (mapc #'disable-theme custom-enabled-themes)
   (setq frame-background-mode my/frame-background)
@@ -419,7 +464,9 @@ connecting visually to the surrounding edge fill."
   (my/apply-font-emoji)
   (let ((fn (alist-get my/theme-name my/theme-special-setups)))
     (when (functionp fn)
-      (funcall fn))))
+      (funcall fn)))
+  (my/refresh-wedge-faces))
+
 
 (defun my/toggle-theme ()
   "Interactively select theme and background variant."
