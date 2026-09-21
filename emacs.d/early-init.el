@@ -7,6 +7,24 @@
 
 (setq package-enable-at-startup nil)
 
+;; Chrome the frame is never going to have, said before there is a frame.
+;;
+;; `tool-bar-mode -1' later does the same thing the long way round: the tool
+;; bar is built with the frame, then torn off it, and the frame is measured
+;; again around the space that frees -- 128 ms of it, measured, for something
+;; no session ever shows.  Asked for here it is simply never made.
+;;
+;; `menu-bar-lines' is the same shape of saving and none of the cost on macOS,
+;; where the menu bar is the system's and takes no room in the frame; it is
+;; here for the other platforms, and for the symmetry.
+;;
+;; Only these two.  Everything else a frame is given -- fringes, transparency,
+;; where it sits -- is `my/frame-default-alist' in my-ui-frame.el, and belongs
+;; in one place; these are here for the one reason a setting has to be, which
+;; is that afterwards is too late.
+(push '(tool-bar-lines . 0) default-frame-alist)
+(push '(menu-bar-lines . 0) default-frame-alist)
+
 ;; Windows: one C toolchain, and it has to be chosen before anything compiles.
 ;;
 ;; Two things here want a C compiler and they are not interchangeable.

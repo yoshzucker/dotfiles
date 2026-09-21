@@ -11,9 +11,19 @@
 (when (file-exists-p custom-file)
   (load custom-file 'noerror))
 
-;; Load shell environment variables (for GUI Emacs) 
+;; Load shell environment variables (for GUI Emacs)
+;;
+;; A login shell, not an interactive one.  The package's default asks for both,
+;; which runs the whole of ~/.zshrc to read a PATH that ~/.zshenv has already
+;; finished setting -- the same twenty-four entries either way, checked against
+;; each other.  What the interactive half adds is the prompt, the completion
+;; system, and the palette `colors.sh' writes to the terminal: those escape
+;; sequences arrive in the output this package is parsing, which it survives
+;; but should not have to.  Measured at 74 ms against 29 ms.
 (use-package exec-path-from-shell
   :if (or (memq window-system '(mac ns x)) (daemonp))
+  :init
+  (setq exec-path-from-shell-arguments '("-l"))
   :config
   (exec-path-from-shell-initialize))
 
