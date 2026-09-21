@@ -5,8 +5,28 @@
 ;;; Code:
 
 (use-package migemo
-  :after evil
   :if (executable-find "cmigemo")
+  ;; Reached by a search and by nothing else: the advice below hands evil
+  ;; `migemo-forward' in place of `search-forward', and calling it is what
+  ;; brings the package.  Starting here rather than at startup keeps two
+  ;; subprocesses out of the start -- `brew --prefix' to find the dictionary,
+  ;; and cmigemo itself -- and a session that searches nothing starts neither.
+  ;;
+  ;; `:commands' because migemo autoloads nothing of its own, and an advice
+  ;; that returns the name of a function nobody has defined returns nothing.
+  :defer t
+  :commands (migemo-forward migemo-backward)
+  :init
+  ;; In `:init' so that the first `/' is already a migemo search.  Left in
+  ;; `:config' it would take a search to install the advice that a search is
+  ;; supposed to go through.
+  (with-eval-after-load 'evil-search
+    (setq evil-regexp-search nil)
+    (defun my/evil-migemo-search-function (arg)
+      (car (cl-sublis '((search-forward . migemo-forward)
+                        (search-backward . migemo-backward))
+                      (list arg))))
+    (advice-add 'evil-search-function :filter-return #'my/evil-migemo-search-function))
   :config
   (setq migemo-command "cmigemo"
         migemo-options '("--quiet" "--emacs")
@@ -29,14 +49,6 @@
                               "~/.local/share/cmigemo/dict/cp932/migemo-dict")
 	       migemo-directory (expand-file-name "~/.local/share/cmigemo"))))
   
-  (with-eval-after-load 'evil-search
-    (setq evil-regexp-search nil)
-    (defun my/evil-migemo-search-function (arg)
-      (car (cl-sublis '((search-forward . migemo-forward)
-                        (search-backward . migemo-backward))
-                      (list arg))))
-    (advice-add 'evil-search-function :filter-return #'my/evil-migemo-search-function))
-
   (migemo-init))
 
 (use-package deadgrep
