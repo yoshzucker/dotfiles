@@ -1295,6 +1295,10 @@ answering yes deletes it without putting anything back."
   (advice-add 'org-pomodoro-update-mode-line :override #'my/org-pomodoro-update-mode-line))
 
 (use-package calendar
+  ;; Drawn by the agenda, by the diary, or by `M-x calendar', and by nothing
+  ;; at startup.  Everything below is read when the calendar is drawn, which
+  ;; is after this has loaded.
+  :defer t
   :config
   (add-hook 'calendar-today-visible-hook #'calendar-mark-today)
 

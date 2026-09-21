@@ -682,7 +682,11 @@ cp932 so that mojibake doesn't occur in file names."
          "/" (lookup-key evil-motion-state-map "/"))))
 
 (use-package ibuffer
-  :config
+  ;; One key, against the command Emacs autoloads, so the listing arrives when
+  ;; it is asked for.  In `:config' the key was what kept the package in the
+  ;; start: a deferring keyword there would have left `C-x C-b' unbound.
+  :defer t
+  :init
   (my/define-key
    (:map global-map :key "C-x C-b" #'ibuffer)))
 
