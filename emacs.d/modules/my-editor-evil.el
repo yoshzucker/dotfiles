@@ -203,20 +203,41 @@
          "C-p" #'comint-previous-input
          "C-n" #'comint-next-input)))
 
+;; The editing extensions -- the operators, the text objects, a better `f' --
+;; each install themselves as a global minor mode over evil's own keymaps, and
+;; not one of them is reachable before there is a file open: a splash screen
+;; takes no operator.  Armed at the first visit instead of at the start, and
+;; the hook stands down once it has fired.
+;;
+;; Turned on by calling the same functions the packages' `:config' used to
+;; call, which is also what loads them -- every one of these is autoloaded.
+;; Nothing of their keymaps is written out here: a configuration that copied
+;; which key each package binds would be a copy going quietly out of date.
+(defun my/arm-evil-extensions ()
+  "Turn on the evil editing extensions, once, and stand down."
+  (remove-hook 'find-file-hook #'my/arm-evil-extensions)
+  (evil-lion-mode 1)
+  (evil-commentary-mode 1)
+  (global-evil-surround-mode 1)
+  (evil-exchange-cx-install)
+  (global-evil-visualstar-mode 1)
+  (evil-snipe-override-mode 1))
+
+(add-hook 'find-file-hook #'my/arm-evil-extensions)
+
 (use-package evil-lion
-  :after evil
-  :config
-  (evil-lion-mode 1))
+  :defer t)
 
 (use-package evil-commentary
-  :after evil
-  :diminish evil-commentary-mode
-  :config
-  (evil-commentary-mode 1))
+  :defer t
+  :diminish evil-commentary-mode)
 
 (use-package evil-textobj-anyblock
+  ;; No mode to turn on: two text objects, both autoloaded, so the bindings
+  ;; below reach them and pressing one is what brings the package.
   :after evil
-  :config
+  :defer t
+  :init
   (my/define-key
    (:map evil-inner-text-objects-map
          :key
@@ -225,10 +246,8 @@
          :key "b" #'evil-textobj-anyblock-a-block)))
 
 (use-package evil-surround
-  :after evil
+  :defer t
   :config
-  (global-evil-surround-mode 1)
-
   (defun my/evil-surround-function ()
     "Surround with a function call using minibuffer input."
     (let ((fname (evil-surround-read-from-minibuffer "function: " "")))
@@ -237,14 +256,11 @@
   (advice-add 'evil-surround-function :override #'my/evil-surround-function))
 
 (use-package evil-exchange
-  :after evil
-  :config
-  (evil-exchange-cx-install))
+  :defer t)
 
 (use-package evil-visualstar
-  :after evil
+  :defer t
   :config
-  (global-evil-visualstar-mode)
   (setq evil-visualstar/persistent t))
 
 (use-package evil-iedit-state
@@ -265,8 +281,15 @@
    (:map evil-visual-state-map :key "C-n" #'evil-iedit-state/iedit-mode)))
 
 (use-package evil-snipe
-  :after evil
+  :defer t
   :diminish evil-snipe-local-mode
+  :init
+  ;; In `:init' so that a dired or magit buffer opened before any file still
+  ;; turns the override off -- and does it by reaching the package, which is
+  ;; a trigger of its own.
+  (my/add-hook
+   (:hook magit-mode-hook dired-mode-hook
+          :func #'turn-off-evil-snipe-override-mode))
   :config
   (defcustom evil-snipe-emurate-feature 'clever-f
     "clever-f affects to f/F/t/T. vim-sneak affects s/S in addition."
@@ -277,17 +300,11 @@
   (when (eq evil-snipe-emurate-feature 'vim-sneak)
     (evil-snipe-mode 1))
 
-  (evil-snipe-override-mode 1)
-
   (setq evil-snipe-smart-case t
         evil-snipe-repeat-keys nil
         evil-snipe-show-prompt nil
         evil-snipe-enable-incremental-highlight nil
-        evil-snipe-scope 'whole-buffer)
-
-  (my/add-hook
-   (:hook magit-mode-hook dired-mode-hook
-          :func #'turn-off-evil-snipe-override-mode)))
+        evil-snipe-scope 'whole-buffer))
 
 (use-package avy
   ;; One key, and `evil-avy-goto-char-timer' is evil-integration's rather than
