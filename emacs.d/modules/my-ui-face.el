@@ -16,7 +16,7 @@
 (defcustom my/theme-name 'gensho
   "Theme to use."
   :type 'symbol
-  :options '(nord rustcity gensho)
+  :options '(rustcity gensho)
   :group 'my/ui)
 
 (defcustom my/frame-background 'light
@@ -430,9 +430,6 @@ connecting visually to the surrounding edge fill."
                            (my/calendar-iso-week-header :inherit font-lock-function-name-face)))
                         )))
               (assq-delete-all 'gensho my/theme-special-setups))))
-
-(use-package nord-theme
-  :defer t)
 
 (use-package auto-dim-other-buffers
   :config
