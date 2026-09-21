@@ -17,18 +17,23 @@
 (use-package flyspell
   :if (executable-find "aspell")
   :diminish flyspell-mode
+  ;; The hook is what brings it: `flyspell-mode\=' is autoloaded, so the first
+  ;; text buffer of a session loads the package and a session that opens none
+  ;; loads nothing.  The hook has to be in `:init' for that -- in `:config' it
+  ;; would only be registered by whatever loaded flyspell first.
+  :defer t
   :init
   (setq-default ispell-program-name "aspell")
-  :config
-  ;; Skip non-ASCII regions when checking spelling
-  (add-to-list 'ispell-skip-region-alist '("[^\000-\377]+"))
 
   ;; `text-mode-hook\=' alone: org-mode derives from text-mode, so an Org buffer
   ;; runs it already and naming `org-mode-hook\=' beside it only calls
   ;; `flyspell-mode\=' a second time on the buffers where it costs most.
   (my/add-hook
    (:hook text-mode-hook
-          :func #'flyspell-mode)))
+          :func #'flyspell-mode))
+  :config
+  ;; Skip non-ASCII regions when checking spelling
+  (add-to-list 'ispell-skip-region-alist '("[^\000-\377]+")))
 
 (use-package flycheck
   :defer t
