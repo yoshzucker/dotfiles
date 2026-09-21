@@ -36,9 +36,7 @@
   :init
   (my/add-hook
    (:hook python-mode-hook slime-lisp-mode-hook ess-mode-hook c-mode-common-hook
-          :func #'flycheck-mode)
-   (:hook org-mode-hook
-          :func (lambda () (flycheck-mode -1)))))
+          :func #'flycheck-mode)))
 
 (use-package flymake
   :defer t)

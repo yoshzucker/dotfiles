@@ -921,12 +921,42 @@ unaffected."
 
   (add-hook 'org-after-todo-state-change-hook #'my/org-handover-on-state-change)
   
+  ;; Which link types Org teaches itself, which is also which programs it
+  ;; loads to do it.  The default list is eleven handlers and it is the
+  ;; expensive thing about opening the first Org file of a session: `ol-gnus'
+  ;; brings Gnus and with it nnimap, nnmail, message, sendmail, smime and the
+  ;; mm- and mml- families; `ol-eww' brings eww, shr and the url stack;
+  ;; `ol-docview' brings doc-view, image-mode and exif.  Eighty-one libraries,
+  ;; measured, for link types nothing here writes.
+  ;;
+  ;; What is left is what has somewhere to go.  `ol-info' because Info is
+  ;; already here; `ol-doi' because it costs one small library.  PDFs are not
+  ;; missing from this list: `docview:' addresses a page of a document opened
+  ;; in `doc-view-mode', and `pdf-loader-install' below hands every PDF to
+  ;; pdf-tools instead, so doc-view never opens one.  `org-pdftools' is what
+  ;; addresses those, down to an annotation rather than a page -- though only
+  ;; from the moment pdf-tools itself loads, which is the first PDF opened.
+  (setq org-modules '(ol-doi ol-info))
+
   ;; Babel
-  ;; Load R here.  agent-shell is registered later by `ob-agent-shell' in
-  ;; my-app-agent.el (which appends rather than clobbering this list).
-  (org-babel-do-load-languages
-   'org-babel-load-languages
-   '((R . t)))
+  ;;
+  ;; `org-babel-do-load-languages' requires each backend as it is told about
+  ;; it, and nothing requires one later: `org-babel-execute-src-block' looks
+  ;; `org-babel-execute:LANG' up as a function and gives up if it is not
+  ;; there.  So the list is set directly and the require happens at the one
+  ;; moment it is needed, which for a language used a few times a year is not
+  ;; every startup.  agent-shell is added to this list by `ob-agent-shell' in
+  ;; my-app-agent.el, and is lazy for the same reason without saying so.
+  (setq org-babel-load-languages '((emacs-lisp . t) (R . t)))
+
+  (defun my/org-babel-require-backend (&rest _)
+    "Load the backend for the source block at point, if it is not loaded."
+    (when-let* ((lang (car (ignore-errors (org-babel-get-src-block-info 'no-eval))))
+                (fn (intern (concat "org-babel-execute:" lang))))
+      (unless (fboundp fn)
+        (require (intern (concat "ob-" lang)) nil t))))
+
+  (advice-add 'org-babel-execute-src-block :before #'my/org-babel-require-backend)
   
   (setq org-confirm-babel-evaluate nil
         org-src-window-setup 'current-window)
@@ -1028,10 +1058,13 @@ With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_arc
   ;; forward reference here; the dispatcher only calls it when invoked.
   (add-to-list 'org-attach-commands
                '((?p) my/org-attach-screenshot
-                 "Capture and attach a screenshot"))
+                 "Attach a picture, copied or captured"))
 
   (defconst my/org-attach-screenshot-timestamp-format "%Y-%m-%dT%H-%M-%S-"
     "`format-time-string' spec used as the attached PNG filename prefix.")
+
+  (defconst my/org-attach-screenshot-wait 60
+    "Seconds to wait for a snip, where the snipper answers by clipboard.")
 
   (defvar my/org-attach-origin nil
     "Where point was when the `org-attach' dispatcher was called.")
@@ -1052,39 +1085,127 @@ is the last place the caller's position still exists."
 
   (advice-add 'org-attach :around #'my/org-attach--remember-origin)
 
-  (defun my/org-attach-screenshot--capture (target)
-    "Invoke the platform screenshot backend and write the image to TARGET."
+  ;; Two ways a picture arrives, and the same key for both.
+  ;;
+  ;; It is either already copied -- from a browser, from a chat, from the snip
+  ;; taken a moment ago -- or it is still on the screen.  Asking the clipboard
+  ;; first costs nothing when it is empty and saves the whole gesture when it
+  ;; is not, so that is the order: take what is there, and reach for the
+  ;; screen only when nothing is.
+  ;;
+  ;; Which also settles what the two platforms used to disagree about.  The
+  ;; Windows side pasted and the macOS side selected a region, so one key did
+  ;; different things depending on the machine.  Now each does both.
+
+  (defconst my/org-attach-clipboard-applescript
+    (mapconcat
+     #'identity
+     '("on run argv"
+       "  try"
+       "    set png to the clipboard as «class PNGf»"
+       "  on error"
+       "    return"
+       "  end try"
+       "  set fh to open for access (POSIX file (item 1 of argv)) with write permission"
+       "  set eof fh to 0"
+       "  write png to fh"
+       "  close access fh"
+       "end run")
+     "\n")
+    "Write the clipboard's picture to the file named by the first argument.
+
+Coercing to PNG is what asks the question: the clipboard answers with a
+picture whatever form it is holding -- the TIFF a screenshot leaves, the PNG
+a browser copies -- and errors when it holds none, which is the case that has
+to be told apart.  Doing it here rather than through `pngpaste' keeps the
+command working on a Mac with nothing installed on it.")
+
+  (defun my/org-attach-screenshot--have (target)
+    "Return non-nil when TARGET exists and is not empty."
+    (when-let* ((attrs (file-attributes target)))
+      (> (file-attribute-size attrs) 0)))
+
+  (defun my/org-attach-screenshot--clipboard (target)
+    "Write the picture on the clipboard to TARGET.
+Return non-nil when there was one to write."
     (pcase system-type
       ('windows-nt
        (let ((script (locate-file "save-clipboard-image" exec-path '(".ps1"))))
          (unless script
            (user-error "save-clipboard-image.ps1 not found on exec-path"))
-         (let ((code (call-process "powershell" nil nil nil
-                                   "-NoProfile" "-ExecutionPolicy" "Bypass"
-                                   "-File" script "-OutputPath" target)))
-           (unless (and (integerp code) (zerop code))
-             (user-error "powershell exited with %s" code)))))
+         ;; It reports an empty clipboard on stdout and exits zero all the
+         ;; same, so the file is the answer -- here and on the other platform.
+         (call-process "powershell" nil nil nil
+                       "-NoProfile" "-ExecutionPolicy" "Bypass"
+                       "-File" script "-OutputPath" target)))
       ('darwin
-       (unless (zerop (call-process "screencapture" nil nil nil "-i" target))
-         (user-error "screencapture failed")))
+       (call-process "osascript" nil nil nil
+                     "-e" my/org-attach-clipboard-applescript target))
+      ('gnu/linux
+       (when-let* ((wayland (string= "wayland" (getenv "XDG_SESSION_TYPE")))
+                   (paste (executable-find (if wayland "wl-paste" "xclip"))))
+         (with-temp-buffer
+           (set-buffer-multibyte nil)
+           (when (zerop (apply #'call-process paste nil t nil
+                               (if wayland
+                                   '("-t" "image/png")
+                                 '("-selection" "clipboard" "-t" "image/png" "-o"))))
+             (let ((coding-system-for-write 'no-conversion))
+               (write-region (point-min) (point-max) target nil 'quiet)))))))
+    (my/org-attach-screenshot--have target))
+
+  (defun my/org-attach-screenshot--screen (target)
+    "Ask for a region of the screen and write it to TARGET.
+Return non-nil when one was taken."
+    (pcase system-type
+      ('darwin
+       (call-process "screencapture" nil nil nil "-i" target))
+      ('windows-nt
+       ;; The snipping tool hands its result to the clipboard rather than to a
+       ;; file, so the waiting happens inside the one PowerShell that will
+       ;; read it, rather than in a poll from here that would pay for a
+       ;; process per glance.
+       (let ((script (locate-file "save-clipboard-image" exec-path '(".ps1"))))
+         (unless script
+           (user-error "save-clipboard-image.ps1 not found on exec-path"))
+         (call-process
+          "powershell" nil nil nil "-NoProfile" "-ExecutionPolicy" "Bypass"
+          "-Command"
+          (format (concat "Add-Type -AssemblyName System.Windows.Forms; "
+                          "Start-Process 'ms-screenclip:'; "
+                          "$deadline = (Get-Date).AddSeconds(%d); "
+                          "while ((Get-Date) -lt $deadline) { "
+                          "Start-Sleep -Milliseconds 300; "
+                          "if ([System.Windows.Forms.Clipboard]::GetImage()) { break } "
+                          "}; "
+                          "& '%s' -OutputPath '%s'")
+                  my/org-attach-screenshot-wait script target))))
       ('gnu/linux
        (with-temp-buffer
          (set-buffer-multibyte nil)
-         (unless (zerop (call-process "flameshot" nil t nil "gui" "--raw"))
-           (user-error "flameshot failed"))
-         (let ((coding-system-for-write 'no-conversion))
-           (write-region (point-min) (point-max) target))))
+         (when (zerop (call-process "flameshot" nil t nil "gui" "--raw"))
+           (let ((coding-system-for-write 'no-conversion))
+             (write-region (point-min) (point-max) target nil 'quiet)))))
       (_
-       (user-error "No screenshot backend for system-type %s" system-type))))
+       (user-error "No screenshot backend for system-type %s" system-type)))
+    (my/org-attach-screenshot--have target))
+
+  (defun my/org-attach-screenshot--capture (target)
+    "Put a picture at TARGET: the copied one, or one taken off the screen."
+    (or (my/org-attach-screenshot--clipboard target)
+        (my/org-attach-screenshot--screen target)
+        (user-error "Nothing was copied, and nothing was captured")))
 
   (defun my/org-attach-screenshot ()
-    "Capture a screenshot and attach it to the current Org node.
+    "Attach a picture to the current Org node: the copied one, or a new one.
 
-Writes directly into the attach directory instead of routing through
-`org-download-screenshot'. That path calls `org-attach-attach' with
-method \\='none on a file already at its destination, which fires a
-spurious overwrite prompt whose \"yes\" branch deletes the file
-without replacing it."
+Takes whatever picture is on the clipboard.  With none there, asks for a
+region of the screen instead and takes that.
+
+Writes into the attach directory itself.  Handing the file to
+`org-attach-attach' with method \='none instead, which is the usual route,
+asks whether to overwrite a file already at its destination -- and
+answering yes deletes it without putting anything back."
     (interactive)
     (unless (derived-mode-p 'org-mode)
       (user-error "Not in an Org buffer"))
@@ -1105,8 +1226,6 @@ without replacing it."
                                ".png"))
              (target (expand-file-name basename attach-dir)))
         (my/org-attach-screenshot--capture target)
-        (unless (file-exists-p target)
-          (user-error "No image was saved (empty clipboard?)"))
         (org-attach-tag)
         (run-hook-with-args 'org-attach-after-change-hook attach-dir)
         (goto-char origin)
@@ -1124,13 +1243,6 @@ without replacing it."
           (unless (eolp) (forward-char 1)))
         (insert (format "[[attachment:%s]]" (org-link-escape basename)))
         (org-display-inline-images)))))
-
-(use-package org-download
-  :after org
-  :init
-  (setq org-download-timestamp "%Y-%m-%dT%H-%M-%S-")
-  :config
-  (setq org-download-method 'attach))
 
 (use-package org-pomodoro
   ;; Deferred to the first timer.  The key that starts one is bound when Org
@@ -1176,9 +1288,6 @@ without replacing it."
                     (calendar-absolute-from-gregorian
                      (list month (- day (1- calendar-week-start-day)) year)))))
           'font-lock-face 'my/calendar-iso-week-header)))
-
-(use-package org-clock-split
-  :after org)
 
 (use-package ox-pandoc
   ;; An export backend is reachable from one place, the export dispatcher, and
