@@ -6,6 +6,26 @@
 
 ;;; Code:
 
+;; What opening a file asks git, and what it is asked for.
+;;
+;; `vc-refresh-state' runs on `find-file-hook', and for a file in a Git
+;; repository it spawns git four times: `ls-files' to see whether the file is
+;; registered, `status' for its state, `rev-parse' for the working revision and
+;; `symbolic-ref' for the branch.  Almost none of that is git working -- a bare
+;; `git --version' costs 8 ms here -- it is four process spawns, which is the
+;; expensive thing about starting a program at all and several times more so on
+;; Windows.  Measured on macOS: 35 ms to open a .el, 48 ms a .md, against 1.8 ms
+;; with this off.  consult-buffer's preview opens a file per candidate, so it
+;; was paying that for every candidate moved over.
+;;
+;; What the four buy is the branch name in the mode line, and nothing else.
+;; `vc-backend' still answers, so `C-x v' and diff-hl still find the repository
+;; and work exactly as before -- checked against a repository with edits in it,
+;; where diff-hl found the same two hunks either way.  Magit never used any of
+;; it.  The branch is a magit buffer away, and magit is how this repository is
+;; actually worked in.
+(remove-hook 'find-file-hook #'vc-refresh-state)
+
 (use-package magit
   :after evil
   :defer t
