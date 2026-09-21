@@ -125,6 +125,31 @@ Claude Code can create/link/tag/search org-roam notes and inspect backlinks in t
 - **Requirements**: a running Emacs server (started by `emacs.d` config) and `emacsclient` on `PATH` (provided by emacs-plus). Verify with `emacsclient --eval "t"`.
 - **Backend**: this setup stays on org-roam (no vulpea); the plugin auto-selects the org-roam backend. Usage is primarily from `agent-shell` inside Emacs.
 
+## Measuring It
+
+Two profilers live in `emacs.d/`, neither loaded by `init.el`.
+
+`profile-init.el` ranks a startup by file, with children excluded, so the
+column names a culprit rather than a container. Run it in place of a normal
+startup: `emacs -Q -l ~/dotfiles/emacs.d/profile-init.el`. Read the first row
+with suspicion — advising `load` and `require` costs something, and it lands
+on whichever frame was open first.
+
+`profile-ops.el` ranks what happens afterwards: opening an Org file, building
+an agenda, the scans the Org packages here do. Load it into a working Emacs
+and run `M-x profile-ops`. It measures the real corpus and a generated copy of
+it side by side, and reads the real files for their shape only — counts, never
+content — so the report is safe to paste into a mail, which is how a result
+gets off a machine that has no other way back.
+
+Where the two shape columns disagree, `profile-ops-shape` is not yet saying
+what the real files do; correcting it there is how the generated corpus comes
+to stand in for one that cannot travel.
+
+Neither is a regression test. A configuration that grows takes longer, and
+that is not a fault. They are for the occasional look, to find the work
+nothing asked for.
+
 ## Requirements
 
 - Unix: bash, curl, git (git and curl are typically pulled in early on minimal systems via the bootstrap process on Linux).
