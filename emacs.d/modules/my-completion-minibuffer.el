@@ -118,13 +118,22 @@
       (add-to-list 'completion-category-overrides entry))))
 
 (use-package consult
-  :after evil vertico
-  :config
+  ;; Reached by the keys below and by xref, all of which name commands consult
+  ;; autoloads.  It used to ride in on vertico, which made it part of every
+  ;; start whether or not anything was looked up -- and took tabspaces with it,
+  ;; since that said `:after consult'.
+  :defer t
+  :init
   (my/define-key
    (:map global-map
          :key
          "C-s" #'consult-line)
    (:map evil-motion-state-map
+         ;; `:after evil' because the modules load in name order and this file
+         ;; is read before my-editor-evil.el: without evil the map these keys
+         ;; go into does not exist yet.  It was in `:config' before, where
+         ;; consult having waited for evil made it exist.
+         :after evil
          :key
          "gs" #'consult-buffer
          "g]" #'consult-imenu
@@ -137,10 +146,9 @@
          "g/" #'consult-ripgrep)
    (:map org-mode-map
          :state motion
+         :after evil
          :key
          "g]" #'consult-org-heading))
-
-  (consult-customize consult-buffer :preview-key '(:debounce 0.5 any))
 
   ;; Fire async searches (ripgrep/fd) at 2 chars instead of 3, so 2-char
   ;; Japanese terms trigger a search.  Affects all consult async commands.
@@ -242,16 +250,6 @@ the alternative is to leave the prompt, remember the path, and type it.")
                           recentf-list)
                   (lambda (a b) (string< (car a) (car b))))))
 
-  (setq consult-buffer-sources
-        (mapcar
-         (lambda (src)
-           (let* ((resolved (if (symbolp src) (symbol-value src) src))
-                  (copied (copy-sequence resolved)))
-             (if (eq resolved consult-source-recent-file)
-                 (plist-put copied :items #'my/sort-recentf-by-directory)
-               src)))
-         consult-buffer-sources))
-
   ;; Xref
   (defun my/toggle-xref-show-destination (&optional arg)
     "Toggle between `consult' and default xref UI for displaying results."
@@ -276,7 +274,19 @@ the alternative is to leave the prompt, remember the path, and type it.")
                    "My Music/"
                    "My Pictures/"
                    "My Videos/"))
-      (add-to-list 'completion-ignored-extensions pat))))
+      (add-to-list 'completion-ignored-extensions pat)))
+  :config
+  (consult-customize consult-buffer :preview-key '(:debounce 0.5 any))
+
+  (setq consult-buffer-sources
+        (mapcar
+         (lambda (src)
+           (let* ((resolved (if (symbolp src) (symbol-value src) src))
+                  (copied (copy-sequence resolved)))
+             (if (eq resolved consult-source-recent-file)
+                 (plist-put copied :items #'my/sort-recentf-by-directory)
+               src)))
+         consult-buffer-sources)))
 
 (use-package marginalia
   :config
