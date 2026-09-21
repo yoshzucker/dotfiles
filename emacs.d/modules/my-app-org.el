@@ -297,7 +297,7 @@ agenda file set does not depend on whether rg is installed -- rg's own
       ("\\.pptx\\'" . 'default)
       ("\\.url\\'"  . 'default)
       ("\\.lnk\\'"  . 'default)
-      ("\\.png\\'"  . ,(if (display-graphic-p) "sxiv %s" nil))
+      ("\\.png\\'"  . 'default)
       (directory    . ,(when my/wsl-p "wsl-open %s"))
       (default      . ,(when my/wsl-p "wsl-open %s"))))
 
@@ -1628,128 +1628,6 @@ block already shows what is out with them, as a live query."
   (setq org-noter-always-create-frame nil
         org-noter-notes-search-path (list org-directory)
         org-noter-doc-property-in-notes t))
-
-(use-package deft
-  :after evil
-  :config
-  (my/define-key
-   (:map global-map
-         :key
-         "C-c n d" #'deft)
-   (:map deft-mode-map
-         :key
-         "C-RET" #'deft-complete
-         "C-c C-c" #'deft-new-file
-         "C-j" (lambda ()
-                 (interactive)
-                 (evil-next-line)
-                 (my/deft-open-close-file))
-         "C-k" (lambda ()
-                 (interactive)
-                 (evil-previous-line)
-                 (my/deft-open-close-file)))
-   (:map deft-mode-map
-         :state normal
-         :key
-         "TAB" #'my/deft-open-close-file
-         "d" #'deft-filter-clear
-         "p" #'deft-filter-yank
-         "o" #'my/deft-switch-file-other-window
-         "gr" #'deft-refresh
-         "q" #'quit-window))
-
-  (defun my/clear-button-key ()
-    (define-key button-map (kbd "TAB") nil)
-    (define-key button-map (kbd "BACKTAB") nil)
-    (define-key button-map (kbd "C-RET") nil))
-
-  (add-hook 'deft-mode-hook #'my/clear-button-key)
-
-  (setq deft-directory org-directory
-        deft-archive-directory "archive/"
-        deft-default-extension "org"
-        deft-ignore-file-regexp (concat "\\(?:" "^$" "\\)" "\\|.#")
-        deft-recursive nil
-        deft-recursive-ignore-dir-regexp (concat "\\(?:" "\\."
-                                                 "\\|\\.\\." "\\)$"
-                                                 "\\|\\bdata$"
-                                                 "\\|.org-attaches$"
-                                                 "\\|\\b[Aa]rchive$")
-        deft-new-file-format "%Y-%m-%dT%H-%M-%S"
-        deft-use-filter-string-for-filename t
-        deft-use-filename-as-title nil
-        deft-file-naming-rules '((noslash . "-") (nospace . "-"))
-        deft-org-mode-title-prefix t
-        deft-markdown-mode-title-level 1
-        deft-auto-save-interval 0)
-
-  (defun my/deft-parse-title (file contents)
-    (if deft-use-filename-as-title
-        (deft-base-filename file)
-      (let ((begin (string-match "^#\\+title.+$" contents)))
-        (if begin
-            (funcall deft-parse-title-function
-                     (substring contents begin (match-end 0)))))))
-  (advice-add 'deft-parse-title :override #'my/deft-parse-title)
-
-  (setq deft-strip-summary-regexp
-        (concat
-         deft-strip-summary-regexp
-         "\\|^#.*$"
-         "\\|^:PROPERTIES:.*$"
-         "\\|^:ID:.*$"
-         "\\|^:ROAM_REFS:.*$"
-         "\\|^:END:.*$"
-         "\\|- tags ::.*$"
-         "\\|- source ::.*$"
-         "\\|^;; -\\*-.*-\\*-$"
-         "\\|\\(?:\\[\\[.*\\]\\(?:\\[.*\\]\\)?\\]\\)"))
-
-  ;; Evil state helpers
-  (defun my/deft-evil-normal-state (&rest args)
-    (interactive)
-    (set-face-attribute 'deft-header-face nil :inverse-video nil)
-    (evil-normal-state args))
-
-  ;; File opening/closing
-  (defun my/deft-switch-file-other-window ()
-    (interactive)
-    (deft-open-file-other-window '(4)))
-  (advice-add 'deft-complete :before #'my/deft-evil-normal-state)
-  (advice-add 'deft-switch-file-other-window :before #'my/deft-evil-normal-state)
-
-  (add-hook 'deft-mode-hook (lambda () (setq-local truncate-lines t)))
-
-  (defun my/deft-open-close-file ()
-    (interactive)
-    (let ((filename (deft-filename-at-point)))
-      (when filename
-        (let* ((buffer (get-file-buffer filename))
-               (window (get-buffer-window buffer)))
-          (if (not buffer)
-              (deft-open-file-other-window)
-            (cond ((not window)
-                   (deft-open-file-other-window))
-                  (t
-                   (delete-window window)
-                   (kill-buffer buffer))))))))
-
-  (defun my/deft-close-file ()
-    (interactive)
-    (let ((filename (deft-filename-at-point)))
-      (when filename
-        (let* ((buffer (get-file-buffer filename))
-               (window (get-buffer-window buffer)))
-          (when buffer
-            (when window (delete-window window))
-            (kill-buffer buffer))))))
-
-  (when (fboundp 'migemo-forward)
-    (defun my/deft-search-forward-migemo (str)
-      (if deft-incremental-search
-          (migemo-forward str nil t)
-        (re-search-forward str nil t)))
-    (advice-add 'deft-search-forward :override #'my/deft-search-forward-migemo)))
 
 ;;;; Finding the line that takes a second to step onto
 

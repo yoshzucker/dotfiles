@@ -310,8 +310,6 @@ Default RET/f remain `find-file', which already honors
 (with-eval-after-load 'embark
   (my/embark-bind-file-open-actions))
 
-(use-package unify-opening)
-
 (use-package dired
   :straight nil
   :defer t
@@ -682,18 +680,6 @@ cp932 so that mojibake doesn't occur in file names."
          :key
          "C-c /" #'dired-filter-map
          "/" (lookup-key evil-motion-state-map "/"))))
-
-(use-package dired-sidebar
-  :after dired
-  :config
-  (my/define-key (:map global-map :key "C-x C-n" #'dired-sidebar-toggle-sidebar))
-  (my/add-hook (:hook dired-sidebar-mode-hook :func #'my/dired-enable-auto-revert))
-
-  (setq dired-sidebar-width 20
-        dired-sidebar-no-delete-other-windows t)
-
-  (push 'toggle-window-split dired-sidebar-toggle-hidden-commands)
-  (push 'rotate-windows dired-sidebar-toggle-hidden-commands))
 
 (use-package ibuffer
   :config

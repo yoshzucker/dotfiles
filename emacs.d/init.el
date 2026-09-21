@@ -256,9 +256,22 @@ git processes behind to finish into a command that has gone."
          ;; idle.  What that costs is collections, not messages, and they
          ;; are silent now.
          (gc-cons-threshold (max gc-cons-threshold (* 256 1024 1024)))
+         ;; The repositories a recipe points at, which is what the merge
+         ;; half will go on to visit.  Walking the directory instead fetched
+         ;; every clone that has ever been made here -- fifty-seven of a
+         ;; hundred and ninety-one were for packages nothing declares any
+         ;; more, and each one is a round trip to a server for an answer
+         ;; nothing reads.
+         (wanted (let ((names (make-hash-table :test #'equal)))
+                   (maphash (lambda (_package recipe)
+                              (straight--with-plist recipe (local-repo)
+                                (when local-repo (puthash local-repo t names))))
+                            straight--recipe-cache)
+                   names))
          (queue (seq-filter
                  (lambda (dir)
-                   (and (file-directory-p dir)
+                   (and (gethash (file-name-nondirectory dir) wanted)
+                        (file-directory-p dir)
                         ;; A worktree keeps a file there rather than a
                         ;; directory, and a repository of mine is a symlink
                         ;; to one I edit -- both are repositories to fetch.

@@ -22,8 +22,13 @@
 	          (c-set-offset 'arglist-intro '+))))
 
 (use-package preproc-font-lock
-  :config
-  (preproc-font-lock-global-mode 1))
+  ;; The global mode checks `preproc-font-lock-modes' in every buffer opened;
+  ;; the hook asks the same question once, of the buffers it can be true of.
+  :defer t
+  :init
+  (my/add-hook
+   (:hook c-mode-hook c++-mode-hook c-ts-mode-hook c++-ts-mode-hook
+          :func #'preproc-font-lock-mode)))
 
 (use-package eglot
   :after cc-mode

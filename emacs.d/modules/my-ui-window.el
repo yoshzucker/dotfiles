@@ -59,13 +59,12 @@
 (my/allocate-window-global-mode -1)
 
 (defun my/non-side-windows ()
-  "Return a list of non-side windows, excluding sidebars and Treemacs."
+  "Return a list of windows that are not a side window.
+Which is what a sidebar is made of, and what the sill's own row is, so one
+test covers every window that is there to be looked at rather than worked
+in."
   (seq-filter
-   (lambda (win)
-     (let ((buf (window-buffer win)))
-       (and (not (window-parameter win 'window-side))
-            (not (string-prefix-p "*Treemacs" (buffer-name buf)))
-            (not (eq (buffer-local-value 'major-mode buf) 'treemacs-mode)))))
+   (lambda (win) (not (window-parameter win 'window-side)))
    (window-list nil 'nomini)))
 
 (defun my/toggle-window-split-direction ()
