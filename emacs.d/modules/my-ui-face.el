@@ -343,13 +343,20 @@ connecting visually to the surrounding edge fill."
 
 ;; Theme helper packages
 
-(use-package rainbow-mode)
+(use-package rainbow-mode
+  ;; Turned on where colours are being written, which is a thing done
+  ;; deliberately rather than everywhere.  Nothing here turns it on, so
+  ;; `M-x rainbow-mode' is the whole of how it is reached, and an autoload is
+  ;; the whole of what has to exist for that.
+  :defer t)
 
 (use-package transwin
-  :after smartrep
-  :config
-  (smartrep-define-key global-map "C-w" '(("i" . transwin-inc)
-                                          ("d" . transwin-dec))))
+  ;; The two commands, reached from the `C-w' repeat map that smartrep builds
+  ;; -- and that map is defined in my-editor-evil.el beside the rest of `C-w',
+  ;; naming these two as symbols.  A symbol is enough: smartrep looks them up
+  ;; when the key is pressed, and the autoload does the rest.
+  :defer t
+  :commands (transwin-inc transwin-dec))
 
 ;; Theme packages
 

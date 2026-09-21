@@ -95,20 +95,71 @@
 
 (use-package org
   :straight org-contrib
-  ;; Loaded at startup, deliberately.  Org is the first thing reached for here,
-  ;; and a pause on reaching for it is worse than a slower start.  It can afford
-  ;; to be: what made Org expensive was never Org but the ecosystem that used to
-  ;; load beside it, and that now waits to be asked for.
+  ;; Waited for, because the keys that reach it do not need it yet.
+  ;;
+  ;; It used to be demanded, on the argument that Org is the first thing
+  ;; reached for here and a pause on reaching for it is worse than a slower
+  ;; start.  What made that argument necessary was where the keys were bound:
+  ;; every one of them sat in `:config', so a deferring keyword anywhere in
+  ;; this form left `C-c a' unbound until something else pulled Org in.
+  ;;
+  ;; The keys that have to work before Org exists are the ones on `global-map',
+  ;; and they are below in `:init' now, against commands Org autoloads -- so
+  ;; `C-c a' is bound from the start and loads Org when it is pressed.  The
+  ;; rest are in `org-mode-map', which cannot be reached without Org anyway.
+  ;;
+  ;; `:hook' is still not used here: it autoloads the function it hooks, which
+  ;; use-package turns into a `:commands', and the hooked functions are defined
+  ;; in `:config'.  They go through `my/add-hook' there instead.
   :after evil
-  ;; Said rather than left to fall out of which keywords happen to be here.
-  ;; A deferring keyword anywhere in this form stops Org loading at startup,
-  ;; and with it every key bound in `:config' -- `C-c a' stays unbound until
-  ;; something else pulls Org in.  `:hook' is one of them: it autoloads the
-  ;; function it hooks, which use-package turns into a `:commands'.  Hooks
-  ;; here go through `my/add-hook' in `:config' for that reason, and this
-  ;; says out loud what the comment above has always claimed.
-  :demand t
+  :defer t
   :init
+  ;; Reached by one of the keys below, and wanting nothing from Org but the
+  ;; directory: `consult-org-heading' is consult's, and opening what it finds
+  ;; is what loads Org.  Defined here rather than in `:config' for that
+  ;; reason -- a key bound before Org exists has to call something that does.
+  ;; Corpus heading nav: jump to any heading under `org-directory'.  The
+  ;; heading layer, vs `consult-org-roam-search' which searches body text.
+  (defun my/consult-org-headings-all (&optional archivep)
+    "Consult all headings under `org-directory` (archives directory excluded).
+With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_archive files."
+    (interactive "P")
+    (unless (and org-directory (file-directory-p org-directory))
+      (user-error "Please set a valid `org-directory`"))
+
+    (let* ((ext (if archivep "\\.org\\(_archive\\)?$" "\\.org$"))
+           (files (directory-files-recursively
+                   org-directory
+                   ext
+                   nil
+                   (lambda (d)
+                     (not (string-match-p "/archive/" d))))))
+      (consult-org-heading nil files)))
+
+  ;; The keys that reach Org from outside it.  Bound before it loads, to the
+  ;; commands it autoloads, which is what makes waiting for it possible.
+  (my/define-key
+   (:map global-map
+         :prefix "C-c"
+         :key
+         "t" #'toggle-truncate-lines
+         "l" #'org-store-link
+         "c" #'org-capture
+         "a" #'org-agenda
+         "p" #'org-cliplink
+         "]" #'my/consult-org-headings-all)
+   (:map global-map
+         :prefix "C-c C-x"
+         :key
+         "C-i" #'org-clock-in
+         "C-o" #'org-clock-out
+         "C-j" #'org-clock-goto
+         "C-|" #'org-clock-goto
+         ;; Clocking into something already clocked once is Org's own
+         ;; `C-u C-c C-x C-i', which offers the recent ones to choose from.
+         "C-z" #'org-resolve-clocks
+         "C-e" #'org-clock-modify-effort-estimate))
+
   (setq system-time-locale "C")
   ;; Set `org-directory' here in `:init' (not `:config') so it is bound before
   ;; org.el loads rather than after.  The agenda-file discovery below depends on
@@ -190,26 +241,6 @@ agenda file set does not depend on whether rg is installed -- rg's own
   (my/add-hook
    (:hook org-mode-hook :func #'hl-line-mode))
   (my/define-key
-   (:map global-map
-         :prefix "C-c"
-         :key
-         "t" #'toggle-truncate-lines
-         "l" #'org-store-link
-         "c" #'org-capture
-         "a" #'org-agenda
-         "p" #'org-cliplink
-         "]" #'my/consult-org-headings-all)
-   (:map global-map
-         :prefix "C-c C-x"
-         :key
-         "C-i" #'org-clock-in
-         "C-o" #'org-clock-out
-         "C-j" #'org-clock-goto
-         "C-|" #'org-clock-goto
-         ;; Clocking into something already clocked once is Org's own
-         ;; `C-u C-c C-x C-i', which offers the recent ones to choose from.
-         "C-z" #'org-resolve-clocks
-         "C-e" #'org-clock-modify-effort-estimate)
    (:map org-mode-map
          :prefix "C-c"
          :key
@@ -970,24 +1001,6 @@ unaffected."
   
   ;; Export
   (setq org-export-preserve-breaks nil)
-
-  ;; Corpus heading nav: jump to any heading under `org-directory'.  The
-  ;; heading layer, vs `consult-org-roam-search' which searches body text.
-  (defun my/consult-org-headings-all (&optional archivep)
-    "Consult all headings under `org-directory` (archives directory excluded).
-With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_archive files."
-    (interactive "P")
-    (unless (and org-directory (file-directory-p org-directory))
-      (user-error "Please set a valid `org-directory`"))
-
-    (let* ((ext (if archivep "\\.org\\(_archive\\)?$" "\\.org$"))
-           (files (directory-files-recursively
-                   org-directory
-                   ext
-                   nil
-                   (lambda (d)
-                     (not (string-match-p "/archive/" d))))))
-      (consult-org-heading nil files)))
 
   ;; Shorten
   (defun my/org-shorten-string (s maxlength)
