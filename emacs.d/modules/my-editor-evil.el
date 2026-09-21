@@ -248,11 +248,21 @@
   (setq evil-visualstar/persistent t))
 
 (use-package evil-iedit-state
+  ;; Entered through the package's own command, not through `iedit-mode'.
+  ;; What this package is for is the state around iedit -- `<E>', where the
+  ;; occurrences can be moved over and changed with normal-state keys -- and
+  ;; that state is put on by `evil-iedit-state/iedit-mode' and by nothing
+  ;; else: the package hangs no hook on iedit.  Calling iedit directly gets
+  ;; the editing without the state, which is the package not running.
+  ;;
+  ;; It autoloads nothing of its own, so the commands are named here.
   :after evil
-  :config
+  :defer t
+  :commands (evil-iedit-state/iedit-mode)
+  :init
   (my/define-key
-   (:map evil-normal-state-map :key "g C-n" #'iedit-mode)
-   (:map evil-visual-state-map :key "C-n" #'iedit-mode)))
+   (:map evil-normal-state-map :key "g C-n" #'evil-iedit-state/iedit-mode)
+   (:map evil-visual-state-map :key "C-n" #'evil-iedit-state/iedit-mode)))
 
 (use-package evil-snipe
   :after evil
