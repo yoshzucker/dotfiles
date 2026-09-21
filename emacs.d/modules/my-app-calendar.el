@@ -31,8 +31,52 @@
 (use-package org-calsync
   :straight (org-calsync :host github :repo "yoshzucker/org-calsync"
                          :files ("*.el" ("script" "script/*")))
-  :after org
+  ;; No key reaches this one: what wants it is the agenda, which cannot show
+  ;; a meeting it has not been told about.  `:init' below is what fetches it,
+  ;; on the agenda rather than on Org, so opening a plain Org file does not.
+  :defer t
+  :init
+  ;; Keep the feature self-contained: rather than hard-coding calendar.org into
+  ;; `my/org-agenda-files-refresh', advise it, so deleting this file takes the
+  ;; calendar out of the agenda on its own.
+  ;;
+  ;; In `:init' rather than `:config' because the agenda can be asked for
+  ;; before the timer below has fired, and an agenda built without this advice
+  ;; is an agenda with no meetings in it -- silently, which is the worst way
+  ;; for a calendar to be missing.
+  ;;
+  ;; It asks whether the package is here rather than fetching it: the refresh
+  ;; runs from `emacs-startup-hook', and a `require' in this body would drag
+  ;; Org in there, which is the one place the whole of this arrangement is
+  ;; trying not to be.
+  (defun my/org-calendar--add-to-agenda-files (&rest _)
+    "Append the calendar file to `org-agenda-files' when it exists.
+Does nothing until org-calsync is loaded: the name of the file is the
+package's to say, and `org-agenda' below is where it is asked for."
+    (when (featurep 'org-calsync)
+      (let ((cal (org-calsync-file)))
+        (when (and cal (file-exists-p cal))
+          (add-to-list 'org-agenda-files cal)))))
+
+  (advice-add 'my/org-agenda-files-refresh :after
+              #'my/org-calendar--add-to-agenda-files)
+
+  ;; The agenda is the one thing that has to have the calendar in the list
+  ;; already, so it is the trigger as well -- whichever comes first, this or
+  ;; the timer.  Asking again is what puts the file in a list that was built
+  ;; before there was a package to name it.
+  (with-eval-after-load 'org-agenda
+    (require 'org-calsync)
+    (my/org-agenda-files-refresh))
+
+  ;; A first sync creates calendar.org where there was none, and the agenda
+  ;; list here is built by hand rather than from a directory, so it has to be
+  ;; asked again once the file exists.
+  (add-hook 'org-calsync-after-sync-hook #'my/org-agenda-files-refresh)
   :config
+  ;; Arriving on the timer with no agenda yet: the list was built before this
+  ;; package could name its file, so it is asked once more now that it can.
+  (my/org-agenda-files-refresh)
   (pcase system-type
     ('windows-nt
      (require 'org-calsync-outlook)
@@ -75,24 +119,7 @@
              ("Family"   . "family")
              ("Event"    . "event")
              ("Work"     . "work"))
-           org-calsync-macos-days 60)))
-
-  ;; Keep the feature self-contained: rather than hard-coding calendar.org into
-  ;; `my/org-agenda-files-refresh', advise it, so deleting this file takes the
-  ;; calendar out of the agenda on its own.
-  (defun my/org-calendar--add-to-agenda-files (&rest _)
-    "Append the calendar file to `org-agenda-files' when it exists."
-    (let ((cal (org-calsync-file)))
-      (when (and cal (file-exists-p cal))
-        (add-to-list 'org-agenda-files cal))))
-
-  (advice-add 'my/org-agenda-files-refresh :after
-              #'my/org-calendar--add-to-agenda-files)
-
-  ;; A first sync creates calendar.org where there was none, and the agenda
-  ;; list here is built by hand rather than from a directory, so it has to be
-  ;; asked again once the file exists.
-  (add-hook 'org-calsync-after-sync-hook #'my/org-agenda-files-refresh))
+           org-calsync-macos-days 60))))
 
 (provide 'my-app-calendar)
 ;;; my-app-calendar.el ends here

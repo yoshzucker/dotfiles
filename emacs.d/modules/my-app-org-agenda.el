@@ -640,7 +640,12 @@ org's existing key table stays the single source of truth."
 
 (use-package org-dayflow
   :straight (:host github :repo "yoshzucker/org-dayflow")
-  :after (org evil)
+  ;; `C-c d' in `:init' against the package's own autoload, so the key is
+  ;; live from the start and nothing is read until it is pressed.
+  :defer t
+  :init
+  (my/define-key
+   (:map global-map :key "C-c d" #'org-dayflow))
   :config
   ;; Personal category coloring for the timeline.  Category names live ONLY here
   ;; (never in the org-dayflow package); adjust to match your calendar sources.
@@ -663,9 +668,6 @@ org's existing key table stays the single source of truth."
                 (lookup-key evil-motion-state-map (kbd key))))
 
   (my/define-key
-   (:map global-map
-         :key
-         "C-c d" #'org-dayflow)
    (:map org-dayflow-mode-map
          :key
          my/backslash #'evil-avy-goto-char-timer))
@@ -677,7 +679,12 @@ org's existing key table stays the single source of truth."
 
 (use-package org-timeblock
   :straight (:host github :repo "ichernyshovvv/org-timeblock")
-  :after (org evil)
+  ;; `C-c b' in `:init', for the same reason as `C-c d' above.
+  :defer t
+  :commands (org-timeblock)
+  :init
+  (my/define-key
+   (:map global-map :key "C-c b" #'org-timeblock))
   :config
   ;; `org-timeblock-files' defaults to `(org-agenda-files)', which includes
   ;; calendar.org (via the advice in my-app-calendar.el), so meetings and
@@ -689,10 +696,7 @@ org's existing key table stays the single source of truth."
   ;; Same hour range for every column so days line up (the default hides past
   ;; hours per day, giving each column a different start/end).  Integer hours
   ;; only -- org-timeblock renders on whole-hour lines.
-  (setq org-timeblock-scale-options '(6 . 23))
-
-  (my/define-key
-   (:map global-map :key "C-c b" #'org-timeblock)))
+  (setq org-timeblock-scale-options '(6 . 23)))
 
 (provide 'my-app-org-agenda)
 
