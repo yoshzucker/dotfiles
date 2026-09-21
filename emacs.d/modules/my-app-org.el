@@ -111,6 +111,11 @@
   ;; `:hook' is still not used here: it autoloads the function it hooks, which
   ;; use-package turns into a `:commands', and the hooked functions are defined
   ;; in `:config'.  They go through `my/add-hook' there instead.
+  ;;
+  ;; What made the wait long was not Org but what was tied to it: the packages
+  ;; below each said `:after org\=', so reaching for any one of them brought
+  ;; all of them.  They are on their own autoloads now, and Org comes to
+  ;; whichever is actually asked for.
   :after evil
   :defer t
   :init
@@ -1879,7 +1884,41 @@ what to look at."
 (use-package org-convect
   :straight (org-convect :host github :repo "yoshzucker/org-convect"
                          :files ("*.el"))
-  :after org
+  ;; The heaviest of the Org packages here, and the one asked for least
+  ;; often -- a ladder is read when there is something to think through.  On
+  ;; its own autoloads it costs the sessions that read one and no others.
+  :defer t
+  :init
+  ;; Opening the space to think a project through, from either place it is
+  ;; wanted: in the agenda the thought is "this needs breaking down", in the
+  ;; file it is already being written.  The same letter in both, so there is
+  ;; one thing to remember rather than two.
+  ;;
+  ;; `K' is one of the four letters org leaves unbound in the agenda (`K', `V',
+  ;; `W', `Y') and the only one on the home row.  Every other key in this
+  ;; config's agenda map had to displace something and say why; this one costs
+  ;; nothing.  `k' beside it is `org-agenda-previous-line' -- a motion, not
+  ;; something this could be mistaken for.
+  ;;
+  ;; The other two doors are `M-x': `org-convect-open' writes the frame and
+  ;; `org-convect-add' writes a rung.  The frame, its guidance and the
+  ;; `#+COLUMNS' line all come from the package and want no help below -- the
+  ;; names are GTD's, kept in English so that anything written about the model
+  ;; reads against the file directly, and the overlay adds its own two columns
+  ;; when it loads.  The :GUIDE: drawers say what each rung is; they are
+  ;; folded, nothing reads them back, and they are meant to be deleted once
+  ;; they have done their job.
+  (my/define-key
+   (:map org-mode-map
+         :after org
+         :prefix "C-c"
+         :key
+         "k" #'org-convect-plan))
+  (with-eval-after-load 'org-agenda
+    (my/define-key
+     (:map org-agenda-mode-map
+           :key
+           "K" #'org-convect-plan)))
   :config
   (setq org-convect-files (list (concat org-directory "horizons.org")))
 
@@ -1894,37 +1933,7 @@ what to look at."
   ;; gets skipped, and skipping is a habit.
   (setq org-convect-act-domains
         '("work" "family" "health" "learning" "friendship" "leisure"))
-
-  ;; The frame, its guidance and the `#+COLUMNS' line all come from the package
-  ;; and want no help here.  The names are GTD's, kept in English so that
-  ;; anything written about the model reads against the file directly, and the
-  ;; overlay adds its own two columns when it loads.
-  ;;
-  ;; `M-x org-convect-open' writes the frame, `M-x org-convect-add' writes a
-  ;; rung.  The :GUIDE: drawers in the frame say what each rung is; they are
-  ;; folded, nothing reads them back, and they are meant to be deleted once
-  ;; they have done their job.
-
-  ;; Opening the space to think a project through, from either place it is
-  ;; wanted: in the agenda the thought is "this needs breaking down", in the
-  ;; file it is already being written.  The same letter in both, so there is
-  ;; one thing to remember rather than two.
-  ;;
-  ;; `K' is one of the four letters org leaves unbound in the agenda (`K', `V',
-  ;; `W', `Y') and the only one on the home row.  Every other key in this
-  ;; config's agenda map had to displace something and say why; this one costs
-  ;; nothing.  `k' beside it is `org-agenda-previous-line' -- a motion, not
-  ;; something this could be mistaken for.
-  (my/define-key
-   (:map org-mode-map
-         :prefix "C-c"
-         :key
-         "k" #'org-convect-plan))
-  (with-eval-after-load 'org-agenda
-    (my/define-key
-     (:map org-agenda-mode-map
-           :key
-           "K" #'org-convect-plan))))
+)
 
 ;;;; Files rising to the heading that is being lived
 ;; org-foresight is when, on the day.  org-convect takes purpose from
@@ -1942,33 +1951,13 @@ what to look at."
 (use-package org-upwell
   :straight (org-upwell :host github :repo "yoshzucker/org-upwell"
                         :files ("*.el" ("script" "script/*")))
-  :after org
-  :config
-  ;; The package holds the mechanism and no directory of mine.  These are
-  ;; the trees a file that moved is actually looked for in, and where a new
-  ;; one is put when the heading does not say.
-  (setq org-upwell-open-function #'my/open-file
-        org-upwell-search-roots (list "~/Documents/project/"
-                                      "~/Documents/upwell/"
-                                      "~/Downloads/")
-        org-upwell-create-directory "~/Documents/upwell/"
-        ;; The agenda designs the day; the bench is where its files are
-        ;; opened from.  Org's own follow (`F') would open each entry's file
-        ;; in a third window on every j/k; this keeps the two panes.
-        org-upwell-agenda-follow t)
-  (org-upwell-mode 1)
-  ;; The bench follows the heading point is on, from the start.  Which files
-  ;; a heading has is a question asked by arriving at it, not by pressing a
-  ;; key afterwards -- and `C-c u u' is then for the heading you are *not*
-  ;; standing on, or for asking again after `q'.  Global minor mode, and the
-  ;; package deliberately leaves it off: it draws in a window somebody did
-  ;; not ask for, which is a choice a configuration makes, not a package.
-  (org-upwell-follow-mode 1)
-  ;; And Org's own follow, which is a different thing: it opens the entry's
-  ;; file, upwell draws the bench, and neither switch turns the other on.
-  ;; Both on from the start -- the two answers wanted on arriving at a row
-  ;; are what the work is and where it lives, and they come from the two.
-  (setq org-agenda-start-with-follow-mode t)
+  ;; Reached by its own keys, and it brings Org with it because it works on
+  ;; headings.  Nothing else comes: `:after org\=' used to put this in the same
+  ;; load as every other Org package here, whichever one had been asked for.
+  :defer t
+  :commands (org-upwell-bench org-upwell-work-directory
+             org-upwell-find-work-directory org-upwell-follow-mode)
+  :init
   ;; A prefix of its own.  There are two things wanted from this package
   ;; without looking at a listing first -- the heading's files, and the
   ;; directory its work is done in -- and a package with two doors is a
@@ -2053,6 +2042,47 @@ still appears, under the command's own, rather than going unmentioned."
      (:map org-agenda-mode-map
            :key
            "V" #'org-upwell-bench)))
+  ;; With the rest of the `g' family, which is where a command that is a way
+  ;; of getting somewhere belongs -- `gs' is buffers, `g.' is files, `g[' is
+  ;; headings, and this is the folders work is done in.  `g@' because it is
+  ;; free in every evil state (`gu' and `gw' are not: they are operators in
+  ;; normal state, so binding either would give a key that works in dired and
+  ;; the agenda and not in a file, with nothing on the screen to say why), and
+  ;; because `@' is unshifted on the keyboard this is typed on.
+  ;; `:after evil' because this file is read before my-editor-evil.el is --
+  ;; the modules load in name order -- and until now this binding was in
+  ;; `:config', where Org having waited for evil made the map exist.
+  (my/define-key
+   (:map evil-motion-state-map
+         :after evil
+         :key
+         "g@" #'org-upwell-find-work-directory))
+  :config
+  ;; The package holds the mechanism and no directory of mine.  These are
+  ;; the trees a file that moved is actually looked for in, and where a new
+  ;; one is put when the heading does not say.
+  (setq org-upwell-open-function #'my/open-file
+        org-upwell-search-roots (list "~/Documents/project/"
+                                      "~/Documents/upwell/"
+                                      "~/Downloads/")
+        org-upwell-create-directory "~/Documents/upwell/"
+        ;; The agenda designs the day; the bench is where its files are
+        ;; opened from.  Org's own follow (`F') would open each entry's file
+        ;; in a third window on every j/k; this keeps the two panes.
+        org-upwell-agenda-follow t)
+  (org-upwell-mode 1)
+  ;; The bench follows the heading point is on, from the start.  Which files
+  ;; a heading has is a question asked by arriving at it, not by pressing a
+  ;; key afterwards -- and `C-c u u' is then for the heading you are *not*
+  ;; standing on, or for asking again after `q'.  Global minor mode, and the
+  ;; package deliberately leaves it off: it draws in a window somebody did
+  ;; not ask for, which is a choice a configuration makes, not a package.
+  (org-upwell-follow-mode 1)
+  ;; And Org's own follow, which is a different thing: it opens the entry's
+  ;; file, upwell draws the bench, and neither switch turns the other on.
+  ;; Both on from the start -- the two answers wanted on arriving at a row
+  ;; are what the work is and where it lives, and they come from the two.
+  (setq org-agenda-start-with-follow-mode t)
   ;; Package default: `g' and `r' both redraw.  Here `g' is motion/search, as
   ;; in agenda and dayflow, so redraw is `gr' as well as the package's `r'.
   (dolist (key '("z" "g" "/" "n" "N" ":"))
@@ -2082,18 +2112,8 @@ still appears, under the command's own, rather than going unmentioned."
    (:map org-upwell-bench-mode-map
          :state emacs motion normal
          :key
-         "gr" #'org-upwell-bench-redraw))
-  ;; With the rest of the `g' family, which is where a command that is a way
-  ;; of getting somewhere belongs -- `gs' is buffers, `g.' is files, `g[' is
-  ;; headings, and this is the folders work is done in.  `g@' because it is
-  ;; free in every evil state (`gu' and `gw' are not: they are operators in
-  ;; normal state, so binding either would give a key that works in dired and
-  ;; the agenda and not in a file, with nothing on the screen to say why), and
-  ;; because `@' is unshifted on the keyboard this is typed on.
-  (my/define-key
-   (:map evil-motion-state-map
-         :key
-         "g@" #'org-upwell-find-work-directory)))
+         "gr" #'org-upwell-bench-redraw)))
+
 
 (provide 'my-app-org)
 ;;; my-app-org.el ends here
