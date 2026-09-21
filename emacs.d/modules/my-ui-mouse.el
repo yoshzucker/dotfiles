@@ -70,10 +70,8 @@
      menu nil
      (easy-menu-create-menu
       "Dired"
-      '(["Open"                 dired-jump                   t]
-        ["Open in Other Window" dired-jump-other-window      t]
-        "---"
-        ["Toggle Sidebar"       dired-sidebar-toggle-sidebar t]))))
+      '(["Open"                 dired-jump              t]
+        ["Open in Other Window" dired-jump-other-window t]))))
   menu)
 
 ;; Register so the visual order top-to-bottom is Frame, Window, Buffer, Dired.

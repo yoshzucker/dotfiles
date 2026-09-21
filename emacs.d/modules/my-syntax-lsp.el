@@ -61,10 +61,17 @@
         (message "pyright in use: %s" pyright-path))))))
 
 (use-package apheleia
+  ;; Where code is written, and not where anything else is.  The global mode
+  ;; turns it on in every buffer there is and leaves it to each one's major
+  ;; mode to have no formatter; a hook says the same thing without loading a
+  ;; formatter to open a text file.
   :diminish apheleia-mode
   :if (memq system-type '(darwin gnu/linux))
-  :config
-  (apheleia-global-mode +1))
+  :defer t
+  :init
+  (my/add-hook
+   (:hook prog-mode-hook
+          :func #'apheleia-mode)))
 
 (provide 'my-syntax-lsp)
 ;;; my-syntax-lsp.el ends here

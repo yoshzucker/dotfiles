@@ -27,8 +27,5 @@
    (:hook sh-mode-hook bash-ts-mode-hook
           :func #'my/setup-sh-indentation)))
 
-(use-package powershell
-  :defer t)
-
 (provide 'my-lang-shell)
 ;;; my-lang-shell.el ends here

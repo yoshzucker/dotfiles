@@ -6,11 +6,6 @@
 
 ;;; Code:
 
-(use-package dockerfile-mode
-  :mode ("\\Dockerfile\\'" . dockerfile-mode)
-  :config
-  (setq dockerfile-indent-offset 2))
-
 (use-package yaml-mode
   :mode "\\.ya?ml\\'"
   :config

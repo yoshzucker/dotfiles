@@ -127,23 +127,6 @@ is a reason to look at `gcmh-high-cons-threshold'."
                ;; and two days of nothing.
                (format-seconds "%Y %D %z%hh %mm" span)))))
 
-(use-package symon
-  ;; What the machine underneath is doing, in the echo area when nothing else
-  ;; is being said.  Here rather than among the application integrations
-  ;; because its subject is the process and the machine it runs on, which is
-  ;; what the rest of this file is about.
-  :config
-  (defvar my/symon--last-message nil
-    "Last echo-area string symon produced, to tell its own output from foreign messages.")
-  (define-advice symon--display-update (:around (orig) my/yield-echo-area)
-    "Let real echo-area messages and y/n prompts win over symon.
-Only draw when the echo area is empty or still shows symon's own last output."
-    (let ((cur (current-message)))
-      (when (or (null cur) (equal cur my/symon--last-message))
-        (funcall orig)
-        (setq my/symon--last-message (current-message)))))
-  (symon-mode))
-
 (use-package immortal-scratch
   :config
   (setq eval-expression-print-length nil
