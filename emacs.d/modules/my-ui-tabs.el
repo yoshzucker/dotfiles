@@ -114,7 +114,14 @@
   (evil-ex-define-cmd "q[uit]" #'my/evil-quit))
 
 (use-package tabspaces
-  :after consult
+  ;; Turned on at the end of init, which is what `:init' below says -- it said
+  ;; it from `:config' before, behind `:after consult', so the mode this
+  ;; package exists for came on only because consult happened to be loaded
+  ;; first.  Deferring consult would have stopped it silently.
+  :defer t
+  :init
+  (my/add-hook
+   (:hook after-init-hook :func #'tabspaces-mode))
   :config
   (setq tabspaces-include-buffers '("*GNU Emacs*" "*scratch*" "*Messages*" "*Warnings*" "*Backtrace*"))
 
@@ -139,33 +146,38 @@ Derived modes are matched via `provided-mode-derived-p'.")
   
   (advice-add 'tabspaces--local-buffer-p :around #'my/tabspaces-include-prefix)
 
-  (consult-customize consult-source-buffer :hidden t :default nil)
-  (defvar consult--source-workspace
-    (list :name     "Workspace Buffers"
-          :narrow   ?w
-          :history  'buffer-name-history
-          :category 'buffer
-          :state    #'consult--buffer-state
-          :default  t
-          :items    (lambda () (consult--buffer-query
-                                :predicate #'tabspaces--local-buffer-p
-                                :sort 'visibility
-                                :as #'buffer-name)))
-    "Set workspace buffer list for consult-buffer.")
-  (add-to-list 'consult-buffer-sources 'consult--source-workspace)
+  ;; The workspace source belongs to both packages, so it is written where
+  ;; both are.  Turning the mode on does not bring consult -- that arrives
+  ;; with the first `gs' -- so the source, and the hook that follows the mode,
+  ;; are put in place then, and the state is settled once on the spot: by the
+  ;; time consult arrives the mode has usually been on for a while.
+  (with-eval-after-load 'consult
+    (defvar consult--source-workspace
+      (list :name     "Workspace Buffers"
+            :narrow   ?w
+            :history  'buffer-name-history
+            :category 'buffer
+            :state    #'consult--buffer-state
+            :default  t
+            :items    (lambda () (consult--buffer-query
+                                  :predicate #'tabspaces--local-buffer-p
+                                  :sort 'visibility
+                                  :as #'buffer-name)))
+      "Set workspace buffer list for consult-buffer.")
 
-  (defun my--consult-tabspaces ()
-    "Deactivate isolated buffers when not using tabspaces."
-    (cond (tabspaces-mode
-           (consult-customize consult-source-buffer :hidden t :default nil)
-           (add-to-list 'consult-buffer-sources 'consult--source-workspace))
-          (t
-           (consult-customize consult-source-buffer :hidden nil :default t)
-           (setq consult-buffer-sources (remove #'consult--source-workspace consult-buffer-sources)))))
+    (defun my--consult-tabspaces ()
+      "Deactivate isolated buffers when not using tabspaces."
+      (cond (tabspaces-mode
+             (consult-customize consult-source-buffer :hidden t :default nil)
+             (add-to-list 'consult-buffer-sources 'consult--source-workspace))
+            (t
+             (consult-customize consult-source-buffer :hidden nil :default t)
+             (setq consult-buffer-sources
+                   (remove #'consult--source-workspace consult-buffer-sources)))))
 
-  (my/add-hook
-   (:hook after-init-hook :func #'tabspaces-mode)
-   (:hook tabspaces-mode-hook :func #'my--consult-tabspaces))
+    (my/add-hook
+     (:hook tabspaces-mode-hook :func #'my--consult-tabspaces))
+    (my--consult-tabspaces))
 
   (defun my/switch-scratch-tab-new-around (orig-fn &rest args)
     "Switch to *scratch* buffer for the new tab if `tabspaces-mode' is active."
