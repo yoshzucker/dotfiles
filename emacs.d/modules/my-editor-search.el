@@ -40,18 +40,13 @@
   (migemo-init))
 
 (use-package deadgrep
+  ;; A search, started by `:memex', `:reference' or `:project' on the ex line
+  ;; and by nothing else.  Those three have to be typeable from the start, so
+  ;; they and the functions behind them are in `:init'; how the search runs is
+  ;; in `:config', which the search itself brings on.
   :after evil
-  :config
-  (setq deadgrep-executable "rga")
-  (setq deadgrep-extra-arguments
-        (list "--no-config"
-              (format "--rga-config-file=%s"
-                      (expand-file-name "~/.config/ripgrep-all/config.jsonc"))))
-
-  (when (eq system-type 'windows-nt)
-    (add-to-list 'process-coding-system-alist
-                 '("rg" utf-8-dos . cp932-dos)))
-
+  :defer t
+  :init
   (defcustom my/deadgrep-reference-directory
     (file-name-as-directory "~/Documents/reference/")
     "Directory searched by `my/deadgrep-reference'."
@@ -67,7 +62,13 @@
   (defun my/deadgrep-in (dir)
     "Run `deadgrep' rooted at DIR, ignoring any enclosing VC/project root.
 `deadgrep--project-root' otherwise walks up to a parent `.git' (e.g. ~/.git),
-so pin the search root to DIR explicitly."
+so pin the search root to DIR explicitly.
+
+The `require' is not ceremony.  `deadgrep-project-root-function' is only a
+special variable once deadgrep has defined it, and a `let' over a name that
+is not special yet binds it lexically -- which deadgrep would never see, and
+which would fail by searching the wrong tree rather than by complaining."
+    (require 'deadgrep)
     (let* ((dir (expand-file-name dir))
            (default-directory dir)
            (deadgrep-project-root-function (lambda () dir)))
@@ -79,7 +80,18 @@ so pin the search root to DIR explicitly."
 
   (evil-ex-define-cmd "memex"       #'my/deadgrep-memex)
   (evil-ex-define-cmd "ref[erence]" #'my/deadgrep-reference)
-  (evil-ex-define-cmd "pro[ject]"   #'my/deadgrep-project))
+  (evil-ex-define-cmd "pro[ject]"   #'my/deadgrep-project)
+
+  :config
+  (setq deadgrep-executable "rga")
+  (setq deadgrep-extra-arguments
+        (list "--no-config"
+              (format "--rga-config-file=%s"
+                      (expand-file-name "~/.config/ripgrep-all/config.jsonc"))))
+
+  (when (eq system-type 'windows-nt)
+    (add-to-list 'process-coding-system-alist
+                 '("rg" utf-8-dos . cp932-dos))))
 
 (provide 'my-editor-search)
 ;;; my-editor-search.el ends here

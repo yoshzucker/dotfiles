@@ -280,12 +280,17 @@
           :func #'turn-off-evil-snipe-override-mode)))
 
 (use-package avy
+  ;; One key, and `evil-avy-goto-char-timer' is evil-integration's rather than
+  ;; avy's -- so the binding stands without avy, and pressing it reaches
+  ;; `avy-goto-char-timer', which avy autoloads.
   :after evil
-  :config
+  :defer t
+  :init
   (my/define-key
    (:map evil-motion-state-map evil-normal-state-map evil-operator-state-map
          :key
          my/backslash #'evil-avy-goto-char-timer))
+  :config
   (setq avy-timeout-seconds 0.25))
 
 (use-package avy-migemo
@@ -299,9 +304,17 @@
   (global-hungry-delete-mode 1))
 
 (use-package origami
+  ;; Folding, reached by the `z' keys and by nothing else, so it waits for one
+  ;; of them.  `:commands' is what makes that possible: origami autoloads its
+  ;; modes and not the commands underneath, so without this the first `za'
+  ;; would find nothing to call.  `global-origami-mode' then comes on in
+  ;; `:config', which reaches the buffer already open as well as the next.
   :after evil
-  :config
-  (global-origami-mode)
+  :defer t
+  :commands (origami-toggle-node origami-close-node origami-close-all-nodes
+             origami-open-node origami-open-all-nodes
+             origami-open-node-recursively)
+  :init
   (my/define-key
    (:map evil-normal-state-map
          :key
@@ -310,13 +323,17 @@
          "zm" #'origami-close-all-nodes
          "zo" #'origami-open-node
          "zr" #'origami-open-all-nodes
-         "zO" #'origami-open-node-recursively)))
+         "zO" #'origami-open-node-recursively))
+  :config
+  (global-origami-mode))
 
 (use-package smartrep
   :after evil
   :config
   (smartrep-define-key global-map "C-w"
-    '(("+" . evil-window-increase-height)
+    '(("i" . transwin-inc)
+      ("d" . transwin-dec)
+      ("+" . evil-window-increase-height)
       ("-" . evil-window-decrease-height)
       (">" . evil-window-increase-width)
       ("<" . evil-window-decrease-width)
