@@ -109,7 +109,11 @@ Eight packages are written here rather than merely used. Each has its own reposi
 
 `bootstrap` links each of them from `~/Developer/<name>` into straight.el's repository directory, so what Emacs loads is the checkout being edited. A package left out of that list is cloned from GitHub instead, which succeeds quietly and then stops reflecting local edits — so a new package has to be added there as well as used.
 
-A package dropped from the configuration leaves its clone behind, and after a few years of that the repository directory holds more of what is gone than of what is used. `M-x my/straight-prune-repos` sorts every directory there into what a recipe names, what is a link to `~/Developer`, what Emacs ships anyway, and what nothing accounts for; it shows that before it asks, and never touches a link or straight itself. Run it from a session that finished starting — from `emacs -Q` nothing has registered a recipe and everything would look abandoned, which is why it refuses there. `\\[universal-argument]` shows the listing without offering to delete.
+A package dropped from the configuration leaves its clone behind, and after a few years of that the repository directory holds more of what is gone than of what is used. `M-x my/straight-prune-repos` sorts every directory there and shows the sort before it asks anything.
+
+What counts as still wanted is every recipe the session registered — which is wider than what is written in a `use-package` form, because a dependency gets one too: `transient` is wanted because magit asks for it, and 45 of the repositories are wanted that way. Neither a `:if` that is false nor a package that has not loaded hides one, so what is left over really is what nothing asks for at first hand or second. The one thing that does hide them is a session that has not read the modules, so it refuses there rather than call everything abandoned.
+
+Three kinds are never deleted: a link into `~/Developer`, straight itself, and any clone holding something uncommitted, stashed, or on a branch no remote has — asked of each candidate rather than assumed. What that leaves can be cloned again and lose nothing but the time, which is the one thing worth being asked about. `C-u` shows the listing without offering to delete.
 
 Everything that is true only of *this* setup — which machine runs org-upwell's watcher, how straight.el is pointed at `~/Developer`, which keys go where, and where the data sits — is in [`doc/org-packages.md`](doc/org-packages.md).
 
