@@ -235,6 +235,15 @@ the same thing and a difference between them is a difference in the code."
 
 (defvar profile-ops--rows nil)
 
+(defvar profile-ops--notes nil
+  "Things a measurement learned that are not a number of milliseconds.")
+
+(defvar profile-ops--details nil
+  "Alist of a row's label to the parts it broke into, each a label and seconds.
+Kept apart from the rows so the parts stay under the whole: sorted in with
+them, the pieces of a slow operation scatter through the pieces of a fast
+one and the report reads as a list of unrelated facts.")
+
 (defmacro profile-ops--time (label times &rest body)
   "Run BODY TIMES times under LABEL and record the mean.
 
@@ -324,6 +333,47 @@ pointed at the corpus, and the window configuration is put back."
 ;; would print the same number twice.  They are measured once, and everything
 ;; here that writes writes into the profiler's own directory.
 
+;;; What the machine is, rather than what it did
+;;
+;; The timings say which operation is slow; these say why it could be.  On a
+;; machine where starting a process is the expense, the question every row
+;; here raises is the same one -- is this the number of processes or the work
+;; inside them -- and it cannot be answered from a total.  So: what one
+;; trivial process costs, how many a status starts, and the handful of git
+;; settings that decide whether a status has to look at every file.
+
+(defun profile-ops--git (&rest args)
+  "Run git with ARGS and return its output, trimmed, or nil."
+  (with-temp-buffer
+    (and (eq 0 (apply #'process-file "git" nil t nil args))
+         (string-trim (buffer-string)))))
+
+(defun profile-ops--environment (repo)
+  "Return what REPO and the git behind it are, as an alist of strings."
+  (let ((default-directory (or repo default-directory)))
+    (list
+     (cons "emacs" (format "%s on %s" emacs-version system-type))
+     (cons "git executable"
+           (or (and (boundp 'magit-git-executable) (symbol-value 'magit-git-executable))
+               (executable-find "git") "not found"))
+     (cons "git resolves to" (or (executable-find "git") "not found"))
+     (cons "git version" (or (profile-ops--git "--version") "-"))
+     (cons "repository" (abbreviate-file-name (or repo "-")))
+     (cons "files it tracks"
+           (let ((out (profile-ops--git "ls-files")))
+             (if out (number-to-string (length (split-string out "\n" t))) "-")))
+     (cons "core.fsmonitor" (or (profile-ops--git "config" "core.fsmonitor") "unset"))
+     (cons "core.untrackedCache" (or (profile-ops--git "config" "core.untrackedCache") "unset"))
+     (cons "core.preloadIndex" (or (profile-ops--git "config" "core.preloadIndex") "unset"))
+     (cons "status.showUntrackedFiles"
+           (or (profile-ops--git "config" "status.showUntrackedFiles") "unset"))
+     (cons "one trivial git process"
+           (let ((n 20))
+             (format "%.1f ms"
+                     (/ (* 1000 (benchmark-elapse
+                                 (dotimes (_ n) (profile-ops--git "rev-parse" "--git-dir"))))
+                        (float n))))))))
+
 (defun profile-ops--measure-editing (directory)
   "Time the operations that do not depend on the corpus.
 DIRECTORY is where anything that has to be written goes.  The window
@@ -331,6 +381,8 @@ configuration is put back, the buffers made here are killed, and the one
 repository read is read and not touched."
   (let ((profile-ops--rows nil)
         (recentf-exclude '(".*")))
+    (setq profile-ops--notes nil
+          profile-ops--details nil)
     (save-window-excursion
       ;; Saving.  What is being timed is the hooks, not the write: the file is
       ;; one line long and lives beside the corpus.
@@ -355,6 +407,28 @@ repository read is read and not touched."
           (dotimes (_ 12) (ignore-errors (insert "x") (save-buffer)))
           (profile-ops--time "save a file" 10
             (progn (insert "x") (save-buffer)))
+          ;; And which of the things hooked onto a save takes it.  Each is
+          ;; timed where it runs rather than called on its own, so whatever
+          ;; it reads about the buffer reads true.  `t' in a buffer-local
+          ;; hook means the global value as well, which is why both are
+          ;; walked.
+          (let ((timings nil)
+                (hooks (append (remq t after-save-hook)
+                               (and (memq t after-save-hook)
+                                    (default-value 'after-save-hook)))))
+            (let ((after-save-hook
+                   (mapcar (lambda (fn)
+                             (lambda ()
+                               (push (cons fn (benchmark-elapse
+                                               (ignore-errors (funcall fn))))
+                                     timings)))
+                           hooks)))
+              (dotimes (_ 3) (insert "x") (save-buffer)))
+            (dolist (cell (nreverse timings))
+              (when (> (cdr cell) 0.002)
+                (push (cons (format "%s" (car cell)) (cdr cell))
+                      (alist-get "save a file" profile-ops--details
+                                 nil nil #'equal)))))
           (set-buffer-modified-p nil)
           (kill-buffer))
         (ignore-errors (delete-file file)))
@@ -388,14 +462,16 @@ repository read is read and not touched."
       ;; have a repository of its own -- an empty `git init' nobody meant --
       ;; and reading that one measures a directory with nothing in it.
       (when (fboundp 'magit-status-setup-buffer)
-        (let* ((here (file-truename
+        (let* ((magit-row nil)
+               (here (file-truename
                       (or (and (boundp 'profile-ops--file) profile-ops--file)
                           default-directory)))
                (repo (locate-dominating-file here ".git")))
           (when repo
-            (profile-ops--time (format "magit-status on %s"
-                                       (file-name-nondirectory
-                                        (directory-file-name repo)))
+            (profile-ops--time (setq magit-row
+                                     (format "magit-status on %s"
+                                             (file-name-nondirectory
+                                              (directory-file-name repo))))
               3
               (magit-status-setup-buffer repo))
             ;; And which part of it, because on a machine where spawning is
@@ -420,9 +496,30 @@ repository read is read and not touched."
                        "\\`  \\([^ ]+\\) +\\([0-9]+\\.[0-9]+\\)" line)
                   (let ((seconds (string-to-number (match-string 2 line))))
                     (when (> seconds 0.01)
-                      (push (cons (format "  magit: %s" (match-string 1 line))
-                                  seconds)
-                            profile-ops--rows))))))
+                      (push (cons (match-string 1 line) seconds)
+                            (alist-get magit-row profile-ops--details
+                                       nil nil #'equal)))))))
+            ;; And how many processes that was.  With the cost of one in the
+            ;; environment block above, this is the whole question: a status
+            ;; that starts eighty of them on a machine where each costs a
+            ;; tenth of a second is not slow git, it is arithmetic, and what
+            ;; to do about it is to ask for fewer sections rather than to
+            ;; tune the ones that are asked for.
+            (let ((spawns 0))
+              (cl-letf* ((process-file-orig (symbol-function 'process-file))
+                         (call-process-orig (symbol-function 'call-process))
+                         ((symbol-function 'process-file)
+                          (lambda (&rest args)
+                            (setq spawns (1+ spawns))
+                            (apply process-file-orig args)))
+                         ((symbol-function 'call-process)
+                          (lambda (&rest args)
+                            (setq spawns (1+ spawns))
+                            (apply call-process-orig args))))
+                (ignore-errors (magit-status-setup-buffer repo)))
+              (push (cons "processes one magit-status starts"
+                          (number-to-string spawns))
+                    profile-ops--notes))
             (dolist (buffer (buffer-list))
               (when (string-match-p "\\`magit" (buffer-name buffer))
                 (kill-buffer buffer))))))
@@ -489,11 +586,19 @@ repository read is read and not touched."
   (concat
    (format "  %10s   %s\n" "time" "operation")
    (format "  %10s   %s\n" "----------" "---------")
-   (mapconcat (lambda (row) (format "  %10s   %s"
-                                    (format "%.1f ms" (* 1000 (cdr row)))
-                                    (car row)))
-              (sort (copy-sequence rows) (lambda (a b) (> (cdr a) (cdr b))))
-              "\n")
+   (mapconcat
+    (lambda (row)
+      (concat
+       (format "  %10s   %s" (format "%.1f ms" (* 1000 (cdr row))) (car row))
+       (mapconcat
+        (lambda (part) (format "\n  %10s     %s"
+                               (format "%.1f ms" (* 1000 (cdr part))) (car part)))
+        (sort (copy-sequence
+               (alist-get (car row) profile-ops--details nil nil #'equal))
+              (lambda (a b) (> (cdr a) (cdr b))))
+        "")))
+    (sort (copy-sequence rows) (lambda (a b) (> (cdr a) (cdr b))))
+    "\n")
    "\n"))
 
 ;;;###autoload
@@ -525,9 +630,14 @@ content -- so the report carries nothing that cannot be sent."
     (with-current-buffer (get-buffer-create profile-ops-buffer)
       (let ((inhibit-read-only t))
         (erase-buffer)
-        (insert (format "Operation profile -- %s\n%s on %s\n\n"
-                        (format-time-string "%Y-%m-%d %H:%M")
-                        emacs-version system-type))
+        (insert (format "Operation profile -- %s\n\n"
+                        (format-time-string "%Y-%m-%d %H:%M")))
+        (insert "The machine\n")
+        (dolist (cell (profile-ops--environment
+                       (and profile-ops--file
+                            (locate-dominating-file (file-truename profile-ops--file) ".git"))))
+          (insert (format "  %-26s %s\n" (car cell) (cdr cell))))
+        (insert "\n")
         (insert (profile-ops--format-shape "Real corpus" real-shape))
         (insert "\n")
         (insert (profile-ops--format-shape "Generated corpus" generated-shape))
@@ -544,7 +654,13 @@ content -- so the report carries nothing that cannot be sent."
         (insert (profile-ops--format-editing editing))
         (insert "\nOne column, because none of these grows with the number of Org\n"
                 "files.  The motion rows are a hundred keystrokes each: divide by a\n"
-                "hundred for what one costs, and that is what is paid on every key.\n"))
+                "hundred for what one costs, and that is what is paid on every key.\n")
+        (when profile-ops--notes
+          (insert "\nCounted rather than timed\n\n")
+          (dolist (cell (nreverse profile-ops--notes))
+            (insert (format "  %-34s %s\n" (car cell) (cdr cell))))
+          (insert "\nAgainst the cost of one process above, that count says whether an\n"
+                  "operation is slow git or arithmetic.\n")))
       (goto-char (point-min))
       (special-mode))
     (message "profile-ops: done")
