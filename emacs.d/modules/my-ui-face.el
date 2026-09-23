@@ -317,7 +317,13 @@ connecting visually to the surrounding edge fill."
   (propertize " " 'face (my/mode-line-edge-face)))
 
 (defvar my/mode-line-default-format
-  (default-value 'mode-line-format)
+  ;; Without `mode-line-misc-info', which is `global-mode-string' and
+  ;; nothing else.  That string is drawn in the tab bar already -- see
+  ;; `tab-bar-format-global' in my-app-org.el -- so a mode line carrying it
+  ;; too says everything twice.  The running clock is what makes that
+  ;; visible rather than merely redundant: it arrives with a slant drawn for
+  ;; the tab bar, and a slant in a mode line is a wedge pointing at nothing.
+  (remq 'mode-line-misc-info (default-value 'mode-line-format))
   "Snapshot of the standard `mode-line-format' before our wrappers.")
 
 (setq-default mode-line-format
