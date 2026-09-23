@@ -398,6 +398,31 @@ repository read is read and not touched."
                                         (directory-file-name repo)))
               3
               (magit-status-setup-buffer repo))
+            ;; And which part of it, because on a machine where spawning is
+            ;; the expense this row is the largest thing in the report and a
+            ;; total names nothing.  magit keeps the arithmetic itself --
+            ;; `magit-refresh-verbose' makes it time each section and say so
+            ;; -- so this listens rather than measures, and reports the ones
+            ;; worth a line.
+            (let ((said nil))
+              (cl-letf (((symbol-function 'message)
+                         (lambda (format-string &rest args)
+                           (push (apply #'format format-string args) said)
+                           nil)))
+                (let ((magit-refresh-verbose t))
+                  (ignore-errors (magit-status-setup-buffer repo))))
+              (dolist (line (nreverse said))
+                ;; Not anchored at the end: magit writes its own marks after
+                ;; the number -- one `!' for slow and two for slower -- and
+                ;; those are its judgement, which this has no business
+                ;; requiring or repeating.
+                (when (string-match
+                       "\\`  \\([^ ]+\\) +\\([0-9]+\\.[0-9]+\\)" line)
+                  (let ((seconds (string-to-number (match-string 2 line))))
+                    (when (> seconds 0.01)
+                      (push (cons (format "  magit: %s" (match-string 1 line))
+                                  seconds)
+                            profile-ops--rows))))))
             (dolist (buffer (buffer-list))
               (when (string-match-p "\\`magit" (buffer-name buffer))
                 (kill-buffer buffer))))))
