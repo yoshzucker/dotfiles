@@ -139,6 +139,9 @@
                                    (tags . "  %i %-5c %-7e")
                                    (search . " %i %-12c"))
         org-agenda-timegrid-use-ampm nil
+        ;; Hours padded to two digits, so the time column is a column and a
+        ;; day of rows can be read down it.
+        org-agenda-time-leading-zero t
         ;; The agenda opens with no log at all, and `v' asks for it in three
         ;; levels:
         ;;   v l  (Log)         . clock                 (this variable)
@@ -300,87 +303,6 @@ org's existing key table stays the single source of truth."
             (lambda ()
               (setq truncate-lines t)
               (adaptive-wrap-prefix-mode t))))
-
-(use-package org-clock-convenience
-  :after org-agenda
-  :config
-  (my/define-key
-   (:map org-agenda-mode-map
-         :key
-         "C-j" #'org-clock-convenience-timestamp-up
-         "C-k" #'org-clock-convenience-timestamp-down
-         "C-o" #'org-clock-convenience-fill-gap))
-
-  ;; `org-clock-convenience' re-parses time out of the *rendered* agenda text
-  ;; rather than any data structure, so its regexp expects a fixed 2-char hour
-  ;; field -- `org-agenda-time-leading-zero' (a core agenda display setting)
-  ;; lives here, not with the other prefix-format settings, specifically to
-  ;; keep that assumption true.
-  ;;
-  ;; It is coupled to the *order* of the prefix too, which is easy to forget
-  ;; and silent when broken.  Upstream joins the time range to the literal
-  ;; `Clocked:' with `[[:space:]]+', which assumes nothing sits between them.
-  ;; Putting the effort in front of `% s' puts `0:45' there, the join fails,
-  ;; and the regexp falls into the `\|.*' branch that exists for a *running*
-  ;; clock -- so the end-time groups come back nil and `C-j' / `C-k' stop
-  ;; working on the clock-out while still working on the clock-in.  Worse, it
-  ;; keeps working on entries that have no effort, which is what makes it look
-  ;; like an intermittent fault rather than a settings clash.
-  ;;
-  ;; The extra group below is that hole: an optional duration between the
-  ;; range and `Clocked:'.
-  ;;
-  ;; The category group is lazy for a related reason.  Upstream ends it at a
-  ;; literal colon, which Org's own prefix supplies (`%-12:c'); this one does
-  ;; not (`%-8.8c'), so a greedy `[^:]+' runs on until the colon inside the
-  ;; clock-in time and only backtracks as far as it must.  It stops one
-  ;; character too late, and since the field lookup counts a boundary as
-  ;; belonging to the earlier field, the first digit of the clock-in -- the
-  ;; leading zero, the natural place to land coming from the left -- reads as
-  ;; category and nothing happens there.  Lazy, it stops at the name.
-  (setq org-agenda-time-leading-zero t
-        org-clock-convenience-clocked-agenda-re
-        (concat "^ +\\([^:]*?\\)[[:space:]]*"
-                "\\(\\([ \t012][0-9]\\):\\([0-5][0-9]\\)\\)"        ; clock-in
-                "\\(?:-\\(\\([ 012][0-9]\\):\\([0-5][0-9]\\)\\)\\|.*\\)?" ; clock-out
-                "\\(?:[[:space:]]+[0-9]+:[0-5][0-9]\\)?"              ; the effort field
-                "[[:space:]]+Clocked:[[:space:]]+"
-                "\\(([0-9]+:[0-5][0-9])\\|(-)\\)"))
-
-  ;; Why nothing happened, in a sentence rather than in a backtrace.
-  ;;
-  ;; These three read the rendered line, so they act on one kind of row -- the
-  ;; `Clocked:' log line -- and on the two time fields in it, and nowhere
-  ;; else.  Off them they fail inside the field lookup with "No such field
-  ;; name: nil", which names an internal no key on this keyboard asked for.
-  ;;
-  ;; The common case is worse than a bad message.  `v l' shows `closed' alone,
-  ;; so on an ordinary day the page carries no eligible row at all and every
-  ;; keystroke fails the same way, which reads as a broken command rather than
-  ;; as a view that is not showing clocks.  `v L' and `v c' are what put them
-  ;; on the page.
-  (defun my/org-clock-convenience-say-why (orig &rest args)
-    "Run ORIG with ARGS, or name what would have to be true first."
-    (let* ((row (save-excursion
-                  (beginning-of-line)
-                  (looking-at org-clock-convenience-clocked-agenda-re)))
-           (field (and row (ignore-errors
-                             (org-clock-convenience-at-timefield-p)))))
-      (cond
-       (field (apply orig args))
-       (row (user-error "Put point on one of the two clock times on this row"))
-       ((save-excursion
-          (goto-char (point-min))
-          (re-search-forward org-clock-convenience-clocked-agenda-re nil t))
-        (user-error
-         "This row carries no clock; the rows that do read \"Clocked:\""))
-       (t (user-error
-           "No clocked rows on this page -- `v L' or `v c' shows them")))))
-
-  (dolist (cmd '(org-clock-convenience-timestamp-up
-                 org-clock-convenience-timestamp-down
-                 org-clock-convenience-fill-gap))
-    (advice-add cmd :around #'my/org-clock-convenience-say-why)))
 
 ;;;; org-foresight -- the forward-looking half of the day
 
@@ -607,6 +529,17 @@ org's existing key table stays the single source of truth."
          ;; nothing is displaced; read it as *when*, which is the only
          ;; question the command asks.
          "W" #'org-foresight-clock-switch
+         ;; A minute either side of a spell, from the row that shows it.  The
+         ;; commonest repair a day needs: the clock was started late, or
+         ;; stopped after the fact.  Point picks which of the four numbers --
+         ;; the hour or the minute, of the start or the end -- and Org
+         ;; recomputes the total.
+         ;;
+         ;; `C-j' up and `C-k' down, which is the direction the pair has in
+         ;; every other place a value is nudged here, and not the direction
+         ;; `j' and `k' move a cursor.
+         "C-j" #'org-foresight-clock-later
+         "C-k" #'org-foresight-clock-earlier
          ;; Preparation is decided one invitation at a time.  The bulk
          ;; command offers every meeting that has none, which is the right
          ;; shape once a week and the wrong one for the invitation that just
