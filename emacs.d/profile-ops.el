@@ -46,18 +46,30 @@
 (require 'recentf)
 
 (defvar profile-ops-shape
-  '((files             . 60)
-    (headings-per-file . 51)
-    (max-depth         . 3)
-    (scheduled         . 0.60)
-    (deadline          . 0.30)
-    (clocked           . 0.50)
-    (clocks-per-entry  . 3)
-    (tagged            . 0.50)
-    (bytes-per-heading  . 1000))
+  '((files             . 3)
+    (headings-per-file . 315)
+    (max-depth         . 6)
+    (mean-depth        . 3.03)
+    (scheduled         . 0.02)
+    (deadline          . 0.00)
+    (clocked           . 0.54)
+    (clocks-per-entry  . 1.59)
+    (tagged            . 0.05)
+    (with-properties   . 0.54)
+    (keyworded         . 0.53)
+    (todo-open         . 161)
+    (todo-done         . 343)
+    (bytes-per-heading . 328))
   "What a generated corpus should look like.
 Measured from a real one by `profile-ops', which prints both columns so
-this can be corrected.  The fractions are of all headings.")
+this can be corrected.  The fractions are of all headings.
+
+These are the working corpus on the machine that has one: few files, three
+hundred headings in each, half of them carrying a clock and a keyword and
+almost none of them scheduled.  A corpus of notes that work has happened
+against, in other words, rather than the list of appointments the earlier
+guess here described -- which mattered, because what an agenda costs
+follows the first shape and not the second.")
 
 (defvar profile-ops-corpus-directory
   (expand-file-name "profile-ops-corpus/" temporary-file-directory)
@@ -200,11 +212,19 @@ the same thing and a difference between them is a difference in the code."
                                (funcall in-days (funcall next 30))))))
             (when (funcall chance (alist-get 'clocked shape))
               (insert ":LOGBOOK:\n")
-              (dotimes (_ (max 1 (round (alist-get 'clocks-per-entry shape))))
+              ;; A rate of 1.59 is one clock on every entry and a second on
+              ;; three in five, not two on all of them.  Rounding made the
+              ;; generated corpus carry a quarter more clock lines than the
+              ;; real one at the same heading count, which is a quarter more
+              ;; of the work every clock row of an agenda does.
+              (let* ((rate (or (alist-get 'clocks-per-entry shape) 1))
+                     (n (+ (floor rate)
+                           (if (funcall chance (- rate (floor rate))) 1 0))))
+                (dotimes (_ (max 1 n))
                 (let ((day (format-time-string
                             "%Y-%m-%d %a"
                             (funcall in-days (- (funcall next 21))))))
-                  (insert (format "CLOCK: [%s 09:00]--[%s 10:30] =>  1:30\n" day day))))
+                  (insert (format "CLOCK: [%s 09:00]--[%s 10:30] =>  1:30\n" day day)))))
               (insert ":END:\n"))
             (insert (make-string (max 0 (- target-bytes (- (point) entry-start))) ?x)
                     "\n\n"))))
