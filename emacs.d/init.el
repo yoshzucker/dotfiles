@@ -481,16 +481,24 @@ and everything looks abandoned; it refuses rather than offer that."
      ;; A question that can be answered.  Asking whether to delete a list of
      ;; fifty names invites a judgement nobody has -- half of them arrived as
      ;; somebody else's dependency.  What can be judged is the guarantee.
-     ((yes-or-no-p
-       (format (concat "Delete %d abandoned %s?  "
-                       "Each is committed, unstashed and on its remote; "
-                       "%d link%s, straight itself%s are kept. ")
-               (length orphans)
-               (if (= 1 (length orphans)) "repository" "repositories")
-               (length linked) (if (= 1 (length linked)) "" "s")
-               (if holding
-                   (format " and %d holding local work" (length holding))
-                 "")))
+     ;;
+     ;; Read rather than asked with `yes-or-no-p', which my-emacs-ops.el maps
+     ;; onto `y-or-n-p': one keystroke for one sentence, which is right for
+     ;; the prompts that mapping was made for and wrong for a command that
+     ;; deletes fifty directories.  A word has to be typed here, and the
+     ;; mapping cannot shorten a `read-string'.
+     ((equal "yes"
+             (read-string
+              (format (concat "Delete %d abandoned %s?  "
+                              "Each is committed, unstashed and on its remote; "
+                              "%d link%s, straight itself%s are kept.  "
+                              "Type yes to go ahead: ")
+                      (length orphans)
+                      (if (= 1 (length orphans)) "repository" "repositories")
+                      (length linked) (if (= 1 (length linked)) "" "s")
+                      (if holding
+                          (format " and %d holding local work" (length holding))
+                        ""))))
       (let (failed)
         (dolist (name orphans)
           (let ((path (expand-file-name name (straight--repos-dir))))
