@@ -351,6 +351,113 @@ and there is nothing in a handful for parallelism to hide."
     (my/straight-fetch-at-once)
     (straight-merge-all from-upstream)))
 
+(defun my/straight-repo-status ()
+  "Say what every directory under straight's repos is, as an alist.
+
+The cdr is one of:
+
+  `named'     a recipe in this session points at it
+  `linked'    a symbolic link -- a package written here, kept elsewhere
+  `straight'  straight itself
+  `built-in'  Emacs ships it; `straight-built-in-pseudo-packages' names it,
+              and the clone is what was fetched before that was true
+  `orphan'    none of the above"
+  (let ((named (let (repos)
+                 (maphash (lambda (_ recipe)
+                            (when-let* ((repo (plist-get recipe :local-repo)))
+                              (cl-pushnew repo repos :test #'equal)))
+                          straight--recipe-cache)
+                 repos))
+        (built-in (mapcar #'symbol-name
+                          (bound-and-true-p straight-built-in-pseudo-packages)))
+        (directory (straight--repos-dir)))
+    (mapcar
+     (lambda (name)
+       (let ((path (expand-file-name name directory)))
+         (cons name
+               (cond ((file-symlink-p path)      'linked)
+                     ((equal name "straight.el") 'straight)
+                     ((member name named)        'named)
+                     ((member name built-in)     'built-in)
+                     (t                          'orphan)))))
+     (seq-filter (lambda (name) (file-directory-p (expand-file-name name directory)))
+                 (directory-files directory nil "\\`[^.]")))))
+
+(defun my/straight-prune-repos (&optional list-only)
+  "Delete the cloned repositories that nothing in this configuration names.
+
+Shows what it proposes and asks.  With LIST-ONLY it only shows.
+
+Two kinds of directory are never touched, whatever the listing says.  A
+symbolic link is a package written here and kept somewhere else, and
+deleting one recursively would take the source with it rather than the
+link.  And straight's own repository is what would be doing the deleting.
+
+What makes the answer trustworthy is that every `use-package' form here
+is at top level and every module is loaded, so each one registers its
+recipe whether or not the package is used: a `:if' that is false stops the
+package loading and not the recipe (verified -- corfu-terminal keeps its
+recipe under a window system, where its `:if' is nil).
+
+So it has to be run from a session that finished starting.  From `emacs
+-Q', or before the modules have been read, nothing has registered anything
+and everything looks abandoned; it refuses rather than offer that."
+  (interactive "P")
+  (when (< (hash-table-count straight--recipe-cache) 20)
+    (user-error
+     "Only %d recipes are registered -- this session has not read the modules"
+     (hash-table-count straight--recipe-cache)))
+  (let* ((status (my/straight-repo-status))
+         (orphans (mapcar #'car (seq-filter (lambda (e) (eq (cdr e) 'orphan)) status)))
+         (buffer (get-buffer-create "*straight repositories*")))
+    (with-current-buffer buffer
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert (format "%d directories under %s\n\n"
+                        (length status) (straight--repos-dir)))
+        (dolist (kind '(named linked straight built-in orphan))
+          (let ((names (sort (mapcar #'car (seq-filter (lambda (e) (eq (cdr e) kind)) status))
+                             #'string<)))
+            (when names
+              (insert (format "%s (%d)\n  " kind (length names))
+                      (string-join names " ") "\n\n"))))
+        (insert "`linked' and `straight' are never deleted.  `built-in' is Emacs' own\n"
+                "and the clone is a leftover, though straight may fetch it again.\n\n"
+                "`named' is every recipe this session registered, which is every\n"
+                "package configured here -- a `:if' that is false stops the package\n"
+                "and not the recipe.  So `orphan' is what nothing configures.\n"))
+      (goto-char (point-min))
+      (special-mode))
+    (display-buffer buffer)
+    (cond
+     (list-only
+      (message "%d orphaned of %d" (length orphans) (length status)))
+     ((null orphans)
+      (message "Nothing to prune"))
+     ((yes-or-no-p (format "Delete %d repositories, keeping %d? "
+                           (length orphans) (- (length status) (length orphans))))
+      (let (failed)
+        (dolist (name orphans)
+          (let ((path (expand-file-name name (straight--repos-dir))))
+            (condition-case err
+                (progn
+                  ;; Git keeps its objects read-only, and on Windows that is
+                  ;; enough to stop a delete.  Elsewhere the mode of a file
+                  ;; does not, and walking the tree to say so costs time for
+                  ;; nothing.
+                  (when (eq system-type 'windows-nt)
+                    (dolist (file (directory-files-recursively path "" t))
+                      (ignore-errors (set-file-modes file #o700))))
+                  (delete-directory path 'recursive delete-by-moving-to-trash))
+              (error (push (cons name (error-message-string err)) failed)))))
+        (message "Pruned %d, kept %d%s"
+                 (- (length orphans) (length failed))
+                 (- (length status) (length orphans))
+                 (if failed
+                     (format ", %d refused: %s" (length failed)
+                             (string-join (mapcar #'car failed) " "))
+                   "")))))))
+
 ;; Install and use use-package via straight
 (straight-use-package 'use-package)
 (setq straight-use-package-by-default t)
