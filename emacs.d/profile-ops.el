@@ -145,7 +145,15 @@ the same thing and a difference between them is a difference in the code."
          ;; mean is the width that has that mean, clamped to the depth seen.
          (mean-depth (or (alist-get 'mean-depth shape) 2.0))
          (depth-span (max 1 (min depth (round (- (* 2 mean-depth) 1)))))
-         (today (time-to-days (current-time)))
+         ;; Dates are made by adding days to now, never by counting them from
+         ;; the calendar's own zero.  `time-to-days' answers in absolute
+         ;; Gregorian days -- seven hundred and thirty-nine thousand of them
+         ;; by now -- and `days-to-time' reads its argument as days since
+         ;; 1970, so handing one to the other dated this corpus to the year
+         ;; 3995.  Emacs formatted it here without complaint and refused it
+         ;; on Windows, which is how it was found; what it cost everywhere
+         ;; was an agenda measured over a corpus with nothing in range.
+         (in-days (lambda (n) (time-add (current-time) (days-to-time n))))
          ;; A generator of its own, so the corpus does not depend on whatever
          ;; else in the session has drawn from the global one.
          ;; How many of the keyworded headings are still open.  A coin would
@@ -184,18 +192,18 @@ the same thing and a difference between them is a difference in the code."
               (insert (format "SCHEDULED: %s\n"
                               (format-time-string
                                "<%Y-%m-%d %a 10:00-11:30>"
-                               (days-to-time (+ today (- (funcall next 60) 30)))))))
+                               (funcall in-days (- (funcall next 60) 30))))))
             (when (funcall chance (alist-get 'deadline shape))
               (insert (format "DEADLINE: %s\n"
                               (format-time-string
                                "<%Y-%m-%d %a>"
-                               (days-to-time (+ today (funcall next 30)))))))
+                               (funcall in-days (funcall next 30))))))
             (when (funcall chance (alist-get 'clocked shape))
               (insert ":LOGBOOK:\n")
               (dotimes (_ (max 1 (round (alist-get 'clocks-per-entry shape))))
                 (let ((day (format-time-string
                             "%Y-%m-%d %a"
-                            (days-to-time (- today (funcall next 21))))))
+                            (funcall in-days (- (funcall next 21))))))
                   (insert (format "CLOCK: [%s 09:00]--[%s 10:30] =>  1:30\n" day day))))
               (insert ":END:\n"))
             (insert (make-string (max 0 (- target-bytes (- (point) entry-start))) ?x)
