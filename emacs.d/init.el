@@ -356,9 +356,16 @@ and there is nothing in a handful for parallelism to hide."
 
 Three ways it can.  Something uncommitted, something stashed, or a commit
 on a branch that no remote has.  A repository with none of them can be
-cloned again and lose nothing but the time; one with any of them cannot."
+cloned again and lose nothing but the time; one with any of them cannot.
+
+A directory that is not a repository at all counts as holding work, and
+the check has to be made rather than left to git: asked from a directory
+with no `.git' of its own, git answers for whichever repository is above
+it -- and there is one above these, so every such directory would report
+its neighbours' untracked files as its own."
   (let ((default-directory (file-name-as-directory path)))
-    (or (file-exists-p (expand-file-name ".git/refs/stash" path))
+    (or (not (file-exists-p (expand-file-name ".git" path)))
+        (file-exists-p (expand-file-name ".git/refs/stash" path))
         (with-temp-buffer
           (and (eq 0 (call-process "git" nil t nil "status" "--porcelain"))
                (> (buffer-size) 0)))
@@ -481,24 +488,16 @@ and everything looks abandoned; it refuses rather than offer that."
      ;; A question that can be answered.  Asking whether to delete a list of
      ;; fifty names invites a judgement nobody has -- half of them arrived as
      ;; somebody else's dependency.  What can be judged is the guarantee.
-     ;;
-     ;; Read rather than asked with `yes-or-no-p', which my-emacs-ops.el maps
-     ;; onto `y-or-n-p': one keystroke for one sentence, which is right for
-     ;; the prompts that mapping was made for and wrong for a command that
-     ;; deletes fifty directories.  A word has to be typed here, and the
-     ;; mapping cannot shorten a `read-string'.
-     ((equal "yes"
-             (read-string
-              (format (concat "Delete %d abandoned %s?  "
-                              "Each is committed, unstashed and on its remote; "
-                              "%d link%s, straight itself%s are kept.  "
-                              "Type yes to go ahead: ")
-                      (length orphans)
-                      (if (= 1 (length orphans)) "repository" "repositories")
-                      (length linked) (if (= 1 (length linked)) "" "s")
-                      (if holding
-                          (format " and %d holding local work" (length holding))
-                        ""))))
+     ((yes-or-no-p
+       (format (concat "Delete %d abandoned %s?  "
+                       "Each is committed, unstashed and on its remote; "
+                       "%d link%s, straight itself%s are kept. ")
+               (length orphans)
+               (if (= 1 (length orphans)) "repository" "repositories")
+               (length linked) (if (= 1 (length linked)) "" "s")
+               (if holding
+                   (format " and %d holding local work" (length holding))
+                 "")))
       (let (failed)
         (dolist (name orphans)
           (let ((path (expand-file-name name (straight--repos-dir))))
@@ -513,13 +512,29 @@ and everything looks abandoned; it refuses rather than offer that."
                       (ignore-errors (set-file-modes file #o700))))
                   (delete-directory path 'recursive delete-by-moving-to-trash))
               (error (push (cons name (error-message-string err)) failed)))))
-        (message "Pruned %d, kept %d%s"
-                 (- (length orphans) (length failed))
-                 (- (length status) (length orphans))
-                 (if failed
-                     (format ", %d refused: %s" (length failed)
-                             (string-join (mapcar #'car failed) " "))
-                   "")))))))
+        ;; Written into the report as well as said.  The echo area holds the
+        ;; outcome until the next thing prints, and moving fifty directories
+        ;; to the trash gives several other things the chance -- so the one
+        ;; line saying what happened is the first line of the buffer that is
+        ;; already on screen, where it stays.
+        (let ((outcome
+               (format "Pruned %d, kept %d.%s  %s\n"
+                       (- (length orphans) (length failed))
+                       (- (length status) (length orphans))
+                       (if failed
+                           (format "  %d refused: %s." (length failed)
+                                   (string-join (mapcar #'car failed) " "))
+                         "")
+                       (if delete-by-moving-to-trash
+                           "They are in the trash, so this is reversible."
+                         "`delete-by-moving-to-trash' is nil, so they are gone."))))
+          (with-current-buffer buffer
+            (let ((inhibit-read-only t))
+              (goto-char (point-min))
+              (insert outcome
+                      (make-string (1- (length outcome)) ?-) "\n"
+                      "The listing below is how things stood before that.\n\n")))
+          (message "%s" (string-trim outcome))))))))
 
 ;; Install and use use-package via straight
 (straight-use-package 'use-package)
