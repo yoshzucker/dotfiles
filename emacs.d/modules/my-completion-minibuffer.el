@@ -83,12 +83,21 @@
         completion-ignore-case t
         orderless-matching-styles '(orderless-literal orderless-flex orderless-regexp))
 
-  (with-eval-after-load 'migemo
+  ;; Not behind `with-eval-after-load\=' migemo, which is where this used to
+  ;; be: migemo waits for the first search now, so that never fired and the
+  ;; style was simply never installed -- silently, since orderless falls back
+  ;; to the styles above it and a prompt that matches nothing looks like a
+  ;; prompt with nothing to match.  The one function that needs migemo asks
+  ;; for it, and says nothing when it cannot be had.
+  (progn
     (defun my/orderless-migemo-matcher (arg)
-      (let ((pattern (migemo-get-pattern arg)))
-        (condition-case nil
-            (progn (string-match-p pattern "") pattern)
-          (invalid-regexp nil))))
+      "Match ARG through migemo, or not at all when migemo cannot be had.
+Returning nil leaves the styles beside this one to answer."
+      (when (require 'migemo nil t)
+        (let ((pattern (migemo-get-pattern arg)))
+          (condition-case nil
+              (progn (string-match-p pattern "") pattern)
+            (invalid-regexp nil)))))
 
     (defun my/orderless-dot-dispatcher (pattern _index _total)
       "Treat '.' in PATTERN as '.*' (regex wildcard match)."

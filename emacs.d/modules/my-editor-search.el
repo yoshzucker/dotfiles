@@ -6,16 +6,16 @@
 
 (use-package migemo
   :if (executable-find "cmigemo")
-  ;; Reached by a search and by nothing else: the advice below hands evil
-  ;; `migemo-forward' in place of `search-forward', and calling it is what
-  ;; brings the package.  Starting here rather than at startup keeps two
-  ;; subprocesses out of the start -- `brew --prefix' to find the dictionary,
-  ;; and cmigemo itself -- and a session that searches nothing starts neither.
-  ;;
-  ;; `:commands' because migemo autoloads nothing of its own, and an advice
-  ;; that returns the name of a function nobody has defined returns nothing.
-  :defer t
-  :commands (migemo-forward migemo-backward)
+  ;; Started with evil, deliberately, after deferring it was tried and
+  ;; measured.  Waiting costs more than it saves and costs it in a worse
+  ;; place: cmigemo loads its dictionary in the background once `migemo-init'
+  ;; has started it, so a session that starts it at the beginning answers its
+  ;; first query in 7 ms.  Started on demand instead, the first query waits
+  ;; for that dictionary -- about 250 ms with the package load -- and the
+  ;; thing that asks first is not a search but the first prompt of the
+  ;; session, because the orderless style in my-completion-minibuffer.el
+  ;; goes through `migemo-get-pattern'.  84 ms at the start buys that.
+  :after evil
   :init
   ;; In `:init' so that the first `/' is already a migemo search.  Left in
   ;; `:config' it would take a search to install the advice that a search is
