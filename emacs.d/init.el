@@ -226,10 +226,10 @@ waiting rather than computing, so this is not a count of cores.")
   "Run `git fetch' in every straight repository, several at a time.
 
 Return a plist: `:refused' names the repositories git would not fetch,
-newest first, and `:moved' names the ones a remote-tracking ref actually
-changed in.  The second is what lets the merge half skip the rest --
-nothing arrived, so there is nothing to merge -- and it is exact rather
-than a guess, being the same question asked before and after.
+newest first, and `:moved' names the ones something actually arrived in.
+The second is what lets the merge half skip the rest -- nothing arrived,
+so there is nothing to merge -- and git says it for free: onto a pipe it
+prints when a ref moves and is silent when none did.
 
 Says how far it has got as it goes.  Sixteen seconds here is one machine
 on one network, and neither is the slow case: a Windows box walking its
@@ -290,48 +290,41 @@ git processes behind to finish into a command that has gone."
                     0 total))
          (procs nil)
          (live 0) (done 0) (failed nil) (moved nil)
-         ;; What every remote-tracking ref in a repository points at.  Taken
-         ;; before the fetch and again after it: unchanged means the fetch
-         ;; brought nothing, and a repository that was brought nothing has
-         ;; nothing to merge from any remote, fork and upstream included.
-         ;; The call is a list of hashes out of the ref store and costs
-         ;; nothing measurable.
-         (remotes-of (lambda (dir)
-                       (let ((default-directory dir))
-                         (with-temp-buffer
-                           (and (eq 0 (call-process "git" nil t nil
-                                                    "rev-parse" "--remotes"))
-                                (buffer-string)))))))
+         ;; Which repositories something arrived in.  `--quiet' is gone so
+         ;; that git will say: onto a pipe it writes a line when a ref moves
+         ;; and nothing at all when none did, which is the question the merge
+         ;; half wants answered and costs no process to ask.  Asking it
+         ;; instead with `git rev-parse --remotes' before and after was two
+         ;; more processes per repository -- eight milliseconds each here and
+         ;; a multiple of that on a machine where spawning is the expense,
+         ;; which is exactly the machine this is for.
+         (spoke (make-hash-table :test #'equal)))
     (unwind-protect
         (progn
           (while (or queue (> live 0))
             (while (and queue (< live my/straight-fetch-jobs))
               (let* ((dir (pop queue))
                      (name (file-name-nondirectory (directory-file-name dir)))
-                     (before (funcall remotes-of dir))
                      (default-directory dir))
                 (setq live (1+ live))
                 (push
                  (make-process
                   :name (concat "straight-fetch-" name)
-                  :command '("git" "fetch" "--quiet")
+                  :command '("git" "fetch")
                   :noquery t
                   :connection-type 'pipe
                   :buffer nil
-                  ;; Nothing reads it, and a process whose output nobody
-                  ;; drains can block on a full pipe.
-                  :filter #'ignore
+                  ;; Drained rather than read: what it says does not matter,
+                  ;; only that it said anything, and a process whose output
+                  ;; nobody takes can block on a full pipe.
+                  :filter (lambda (_proc _chunk) (puthash name t spoke))
                   :sentinel
                   (lambda (proc _event)
                     (unless (process-live-p proc)
                       (setq live (1- live)
                             done (1+ done))
                       (if (eq 0 (process-exit-status proc))
-                          ;; Unsure counts as moved: a repository whose refs
-                          ;; could not be read is one to hand on rather than
-                          ;; one to skip.
-                          (unless (and before (equal before (funcall remotes-of dir)))
-                            (push name moved))
+                          (when (gethash name spoke) (push name moved))
                         (push name failed))
                       (progress-reporter-update reporter done))))
                  procs)))
