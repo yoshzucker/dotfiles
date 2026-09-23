@@ -146,6 +146,12 @@ Where the two shape columns disagree, `profile-ops-shape` is not yet saying
 what the real files do; correcting it there is how the generated corpus comes
 to stand in for one that cannot travel.
 
+A second section measures what no corpus reaches — saving, splitting a window,
+moving, `magit-status`, opening a capture — in one column, once, since none of
+it grows with the number of Org files. Saving has two rows because it has two
+numbers: the first save of a session is where whatever formats on save
+arrives, and a mean taken across that reports a figure no save ever takes.
+
 Neither is a regression test. A configuration that grows takes longer, and
 that is not a fault. They are for the occasional look, to find the work
 nothing asked for.
