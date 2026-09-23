@@ -351,6 +351,23 @@ and there is nothing in a handful for parallelism to hide."
     (my/straight-fetch-at-once)
     (straight-merge-all from-upstream)))
 
+(defun my/straight--repo-holds-work-p (path)
+  "Say whether PATH holds anything that is not also on its remote.
+
+Three ways it can.  Something uncommitted, something stashed, or a commit
+on a branch that no remote has.  A repository with none of them can be
+cloned again and lose nothing but the time; one with any of them cannot."
+  (let ((default-directory (file-name-as-directory path)))
+    (or (file-exists-p (expand-file-name ".git/refs/stash" path))
+        (with-temp-buffer
+          (and (eq 0 (call-process "git" nil t nil "status" "--porcelain"))
+               (> (buffer-size) 0)))
+        (with-temp-buffer
+          (and (eq 0 (call-process "git" nil t nil
+                                   "log" "--branches" "--not" "--remotes"
+                                   "--oneline" "-1"))
+               (> (buffer-size) 0))))))
+
 (defun my/straight-repo-status ()
   "Say what every directory under straight's repos is, as an alist.
 
@@ -361,7 +378,9 @@ The cdr is one of:
   `straight'  straight itself
   `built-in'  Emacs ships it; `straight-built-in-pseudo-packages' names it,
               and the clone is what was fetched before that was true
-  `orphan'    none of the above"
+  `holds-work' nothing names it, but it holds something its remote does not
+  `orphan'    none of the above, and nothing in it that a fetch would not
+              bring back"
   (let ((named (let (repos)
                  (maphash (lambda (_ recipe)
                             (when-let* ((repo (plist-get recipe :local-repo)))
@@ -379,6 +398,10 @@ The cdr is one of:
                      ((equal name "straight.el") 'straight)
                      ((member name named)        'named)
                      ((member name built-in)     'built-in)
+                     ;; Asked only of the ones that would otherwise go, since
+                     ;; it is two git processes each and the answer changes
+                     ;; nothing for a repository that is staying.
+                     ((my/straight--repo-holds-work-p path) 'holds-work)
                      (t                          'orphan)))))
      (seq-filter (lambda (name) (file-directory-p (expand-file-name name directory)))
                  (directory-files directory nil "\\`[^.]")))))
@@ -388,10 +411,13 @@ The cdr is one of:
 
 Shows what it proposes and asks.  With LIST-ONLY it only shows.
 
-Two kinds of directory are never touched, whatever the listing says.  A
+Three kinds of directory are never touched, whatever the listing says.  A
 symbolic link is a package written here and kept somewhere else, and
 deleting one recursively would take the source with it rather than the
-link.  And straight's own repository is what would be doing the deleting.
+link.  straight's own repository is what would be doing the deleting.  And
+a clone holding something uncommitted, stashed, or on a branch no remote
+has is the one case where deleting costs more than a fetch -- that is
+asked of each candidate, not assumed.
 
 `named' is wider than what is written here, and deliberately: a recipe is
 registered for every dependency as well, so `transient' is named although
@@ -416,25 +442,34 @@ and everything looks abandoned; it refuses rather than offer that."
      "Only %d recipes are registered -- this session has not read the modules"
      (hash-table-count straight--recipe-cache)))
   (let* ((status (my/straight-repo-status))
-         (orphans (mapcar #'car (seq-filter (lambda (e) (eq (cdr e) 'orphan)) status)))
+         (kind (lambda (k) (mapcar #'car (seq-filter (lambda (e) (eq (cdr e) k)) status))))
+         (orphans (funcall kind 'orphan))
+         (linked (funcall kind 'linked))
+         (holding (funcall kind 'holds-work))
          (buffer (get-buffer-create "*straight repositories*")))
     (with-current-buffer buffer
       (let ((inhibit-read-only t))
         (erase-buffer)
         (insert (format "%d directories under %s\n\n"
                         (length status) (straight--repos-dir)))
-        (dolist (kind '(named linked straight built-in orphan))
+        (dolist (kind '(named linked straight built-in holds-work orphan))
           (let ((names (sort (mapcar #'car (seq-filter (lambda (e) (eq (cdr e) kind)) status))
                              #'string<)))
             (when names
               (insert (format "%s (%d)\n  " kind (length names))
                       (string-join names " ") "\n\n"))))
-        (insert "`linked' and `straight' are never deleted.  `built-in' is Emacs' own\n"
-                "and the clone is a leftover, though straight may fetch it again.\n\n"
-                "`named' is every recipe this session registered: what is written in\n"
-                "a `use-package' form, and everything those depend on.  Neither a\n"
-                "false `:if' nor a deferred package hides one.  So `orphan' is what\n"
-                "nothing here asks for, at first or second hand.\n"))
+        (insert "`named' is every recipe this session registered: what is written in\n"
+                "a `use-package' form, and everything those depend on -- transient is\n"
+                "named because magit asks for it.  Neither a false `:if' nor a\n"
+                "deferred package hides one, so `orphan' is what nothing here asks\n"
+                "for, at first hand or second.\n\n"
+                "Never deleted: `linked' (a package written here, kept in ~/Developer),\n"
+                "`straight' (what would be doing the deleting), and `holds-work' --\n"
+                "a clone with something uncommitted, stashed, or on no remote.\n\n"
+                "`built-in' is Emacs' own and the clone is a leftover, though straight\n"
+                "may fetch it again.\n\n"
+                "So everything offered below can be cloned again and lose nothing but\n"
+                "the time.\n"))
       (goto-char (point-min))
       (special-mode))
     (display-buffer buffer)
@@ -443,8 +478,19 @@ and everything looks abandoned; it refuses rather than offer that."
       (message "%d orphaned of %d" (length orphans) (length status)))
      ((null orphans)
       (message "Nothing to prune"))
-     ((yes-or-no-p (format "Delete %d repositories, keeping %d? "
-                           (length orphans) (- (length status) (length orphans))))
+     ;; A question that can be answered.  Asking whether to delete a list of
+     ;; fifty names invites a judgement nobody has -- half of them arrived as
+     ;; somebody else's dependency.  What can be judged is the guarantee.
+     ((yes-or-no-p
+       (format (concat "Delete %d abandoned %s?  "
+                       "Each is committed, unstashed and on its remote; "
+                       "%d link%s, straight itself%s are kept. ")
+               (length orphans)
+               (if (= 1 (length orphans)) "repository" "repositories")
+               (length linked) (if (= 1 (length linked)) "" "s")
+               (if holding
+                   (format " and %d holding local work" (length holding))
+                 "")))
       (let (failed)
         (dolist (name orphans)
           (let ((path (expand-file-name name (straight--repos-dir))))
