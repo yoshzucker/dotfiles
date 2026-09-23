@@ -23,7 +23,7 @@
 ;; ---- File open policy (system / emacs / pandoc text) ----
 
 (defcustom my/open-with-system-extensions
-  '("app" "exe" "png" "svg" "lnk" "url" "docx" "xlsx" "pptx")
+  '("app" "exe" "png" "svg" "lnk" "url" "docx" "xlsx" "xlsm" "pptx")
   "File extensions opened with the OS default app under method `auto'.
 
 Used when FORCE is nil.  Plain C-u force prefers in-Emacs open instead
@@ -32,7 +32,7 @@ Used when FORCE is nil.  Plain C-u force prefers in-Emacs open instead
   :group 'my-config)
 
 (defcustom my/open-as-text-extensions
-  '("docx" "xlsx" "pptx")
+  '("docx" "xlsx" "xlsm" "pptx")
   "File extensions opened as pandoc-converted text under method `text'.
 
 Also used under method `auto' when FORCE is a plain C-u."
