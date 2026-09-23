@@ -540,6 +540,13 @@ org's existing key table stays the single source of truth."
          ;; `j' and `k' move a cursor.
          "C-j" #'org-foresight-clock-later
          "C-k" #'org-foresight-clock-earlier
+         ;; And the gap between two spells, given to the one under point:
+         ;; back to where the row above ended, or forward to where the row
+         ;; below begins.  `C' beside it is the other answer to a hole --
+         ;; that one gives it a name of its own, this one gives it to the
+         ;; work it was the tail of.  Which is wanted depends on the hole,
+         ;; and a day in clock check has both.
+         "C-o" #'org-foresight-clock-stretch
          ;; Preparation is decided one invitation at a time.  The bulk
          ;; command offers every meeting that has none, which is the right
          ;; shape once a week and the wrong one for the invitation that just
