@@ -109,6 +109,8 @@ Eight packages are written here rather than merely used. Each has its own reposi
 
 `bootstrap` links each of them from `~/Developer/<name>` into straight.el's repository directory, so what Emacs loads is the checkout being edited. A package left out of that list is cloned from GitHub instead, which succeeds quietly and then stops reflecting local edits — so a new package has to be added there as well as used.
 
+A package dropped from the configuration leaves its clone behind, and after a few years of that the repository directory holds more of what is gone than of what is used. `M-x my/straight-prune-repos` sorts every directory there into what a recipe names, what is a link to `~/Developer`, what Emacs ships anyway, and what nothing accounts for; it shows that before it asks, and never touches a link or straight itself. Run it from a session that finished starting — from `emacs -Q` nothing has registered a recipe and everything would look abandoned, which is why it refuses there. `\\[universal-argument]` shows the listing without offering to delete.
+
 Everything that is true only of *this* setup — which machine runs org-upwell's watcher, how straight.el is pointed at `~/Developer`, which keys go where, and where the data sits — is in [`doc/org-packages.md`](doc/org-packages.md).
 
 ## Claude Code + Org-roam (claude-orgmode)
