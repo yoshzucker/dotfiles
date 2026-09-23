@@ -393,11 +393,19 @@ symbolic link is a package written here and kept somewhere else, and
 deleting one recursively would take the source with it rather than the
 link.  And straight's own repository is what would be doing the deleting.
 
-What makes the answer trustworthy is that every `use-package' form here
-is at top level and every module is loaded, so each one registers its
-recipe whether or not the package is used: a `:if' that is false stops the
-package loading and not the recipe (verified -- corfu-terminal keeps its
-recipe under a window system, where its `:if' is nil).
+`named' is wider than what is written here, and deliberately: a recipe is
+registered for every dependency as well, so `transient' is named although
+nothing writes it -- magit asks for it.  Forty-five of the named repos are
+like that.
+
+What makes the answer trustworthy is two things, both checked rather than
+assumed.  Every `use-package' form here is at top level and every module
+is read, so each registers its recipe whether or not the package is used:
+a `:if' that is false stops the package loading and not the recipe
+(corfu-terminal keeps its recipe under a window system, where its `:if' is
+nil).  And a dependency is registered when its parent's recipe is, not
+when the parent loads, so a deferred package does not hide what it needs
+(magit is unloaded in a fresh session and transient is named all the same).
 
 So it has to be run from a session that finished starting.  From `emacs
 -Q', or before the modules have been read, nothing has registered anything
@@ -423,9 +431,10 @@ and everything looks abandoned; it refuses rather than offer that."
                       (string-join names " ") "\n\n"))))
         (insert "`linked' and `straight' are never deleted.  `built-in' is Emacs' own\n"
                 "and the clone is a leftover, though straight may fetch it again.\n\n"
-                "`named' is every recipe this session registered, which is every\n"
-                "package configured here -- a `:if' that is false stops the package\n"
-                "and not the recipe.  So `orphan' is what nothing configures.\n"))
+                "`named' is every recipe this session registered: what is written in\n"
+                "a `use-package' form, and everything those depend on.  Neither a\n"
+                "false `:if' nor a deferred package hides one.  So `orphan' is what\n"
+                "nothing here asks for, at first or second hand.\n"))
       (goto-char (point-min))
       (special-mode))
     (display-buffer buffer)
