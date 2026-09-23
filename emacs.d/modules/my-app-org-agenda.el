@@ -321,12 +321,19 @@ org's existing key table stays the single source of truth."
 ;; but not what it was for.
 (use-package activity-watch-mode
   :diminish (activity-watch-mode " aw")
-  ;; Started two seconds after the keyboard goes quiet, rather than during
-  ;; startup.  `:defer\=' with a number is `run-with-idle-timer\=': the package
-  ;; is required once the first pause comes, so its cost lands where nobody is
-  ;; waiting on it.  Watching a second of the session go unrecorded is not a
-  ;; cost worth the name, and it is a second nobody was working in.
-  :defer 2
+  ;; Started with the session, because that is what it is for.  It hooks
+  ;; `pre-command-hook\=' and `after-save-hook\=' in each buffer, so it has to be
+  ;; on before there is anything to record -- and every way of putting that
+  ;; off lands the cost somewhere worse: on an idle timer it is unpredictable,
+  ;; on the first command it is a pause on a keystroke.
+  ;;
+  ;; It costs 145 ms, and nine tenths of that is two requires the package does
+  ;; not need until it sends: `request\=', which only the two functions that
+  ;; talk to the server use, and `ert\=' -- the test framework -- for one
+  ;; private time formatter.  Either could be moved into the function that
+  ;; wants it, which is a patch to somebody else's package rather than a
+  ;; setting here.
+  :demand t
   :config
   (setopt activity-watch-org-clock-active t)
   (global-activity-watch-mode))
