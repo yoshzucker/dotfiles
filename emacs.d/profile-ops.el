@@ -66,6 +66,9 @@ this can be corrected.  The fractions are of all headings.")
 (defvar profile-ops-buffer "*operation profile*"
   "Where the report goes.")
 
+(defvar profile-ops--file (or load-file-name buffer-file-name)
+  "Where this file is, which is how it finds a repository to read.")
+
 ;;; Reading a corpus for its shape, and nothing else
 ;;
 ;; Counts only.  A heading's text, a tag's name and a property's value are all
@@ -205,11 +208,16 @@ the same thing and a difference between them is a difference in the code."
 (defvar profile-ops--rows nil)
 
 (defmacro profile-ops--time (label times &rest body)
-  "Run BODY TIMES times under LABEL and record the mean."
+  "Run BODY TIMES times under LABEL and record the mean.
+
+Collects first, so a row starts from a known heap rather than from
+whatever the row before it left."
   (declare (indent 2))
-  `(push (cons ,label (/ (benchmark-elapse (dotimes (_ ,times) (ignore-errors ,@body)))
-                         (float ,times)))
-         profile-ops--rows))
+  `(progn
+     (garbage-collect)
+     (push (cons ,label (/ (benchmark-elapse (dotimes (_ ,times) (ignore-errors ,@body)))
+                           (float ,times)))
+           profile-ops--rows)))
 
 (defun profile-ops--measure (files &optional first-in-session)
   "Time the operations this configuration does over FILES.
@@ -252,6 +260,15 @@ pointed at the corpus, and the window configuration is put back."
       (profile-ops--time "agenda week" 2 (org-agenda-list nil nil 'week))
       (profile-ops--time "todo list" 3 (org-todo-list))
 
+      ;; What `C-c C-w' waits for.  The target list is rebuilt on every refile
+      ;; unless `org-refile-use-cache' says otherwise, and the default targets
+      ;; here reach every agenda file to six levels -- so this row and the
+      ;; heading walk above should be within sight of each other.  Measured
+      ;; against the agenda files alone: the `nil' entry in `org-refile-targets'
+      ;; means the buffer point happens to be in, which here is the profiler's.
+      (let ((org-refile-targets '((org-agenda-files :maxlevel . 6))))
+        (profile-ops--time "refile: collect targets" 3 (org-refile-get-targets)))
+
       (when (fboundp 'org-foresight-clock-scan)
         (profile-ops--time "foresight: clocks over a day" 3 (org-foresight-clock-scan 1))
         (profile-ops--time "foresight: clocks over a month" 2 (org-foresight-clock-scan 30)))
@@ -270,6 +287,107 @@ pointed at the corpus, and the window configuration is put back."
                 (funcall items)))))))
     (when-let* ((buffer (get-buffer "*operation profile agenda*")))
       (kill-buffer buffer))
+    (nreverse profile-ops--rows)))
+
+;;; The operations a corpus has nothing to do with
+;;
+;; Saving, moving, splitting a window, reading a repository.  None of these
+;; grows with the number of Org files, so measuring them against both corpora
+;; would print the same number twice.  They are measured once, and everything
+;; here that writes writes into the profiler's own directory.
+
+(defun profile-ops--measure-editing (directory)
+  "Time the operations that do not depend on the corpus.
+DIRECTORY is where anything that has to be written goes.  The window
+configuration is put back, the buffers made here are killed, and the one
+repository read is read and not touched."
+  (let ((profile-ops--rows nil)
+        (recentf-exclude '(".*")))
+    (save-window-excursion
+      ;; Saving.  What is being timed is the hooks, not the write: the file is
+      ;; one line long and lives beside the corpus.
+      ;;
+      ;; The first save of a session is a row of its own for the same reason
+      ;; the first agenda build is -- it is where whatever `after-save-hook'
+      ;; names arrives, and averaging it into the nine after it reports a
+      ;; number no save will ever take.  An Elisp buffer, because that is what
+      ;; the formatters and checkers here are hooked onto.
+      ;; Two rows and a warm-up between them, because there are two numbers.
+      ;; The first save of a session is where `after-save-hook' fetches
+      ;; whatever formats or checks; the dozen after it are where that
+      ;; machinery finishes arriving -- measured here, ten saves cost 857 ms
+      ;; and the ten after them 36.  A mean across that reports a figure no
+      ;; save takes.  The warm-up is run and not recorded, so the second row
+      ;; says what a save costs for the rest of the day.
+      (let ((file (expand-file-name "profile-ops-save.el" directory)))
+        (with-temp-file file (insert "(defun profile-ops--sample () nil)\n"))
+        (with-current-buffer (find-file-noselect file)
+          (profile-ops--time "save a file, the first of a session" 1
+            (progn (insert "x") (save-buffer)))
+          (dotimes (_ 12) (ignore-errors (insert "x") (save-buffer)))
+          (profile-ops--time "save a file" 10
+            (progn (insert "x") (save-buffer)))
+          (set-buffer-modified-p nil)
+          (kill-buffer))
+        (ignore-errors (delete-file file)))
+
+      ;; Windows.  A split and a delete is what every `C-x 2' costs, and on a
+      ;; frame with a sill it is also a redraw of the sill.
+      (profile-ops--time "split a window and close it" 20
+        (progn (split-window-below) (other-window 1) (delete-window)))
+
+      ;; Moving.  Per keystroke this is small and it is paid on every one, so
+      ;; it is measured in hundreds and divided back down in the reading.
+      (with-current-buffer (get-buffer-create " *profile-ops-motion*")
+        (erase-buffer)
+        (dotimes (i 500)
+          (insert (format "line %d with a few words on it for a word motion\n" i)))
+        (when (fboundp 'evil-local-mode) (evil-local-mode 1))
+        (when (fboundp 'evil-normal-state) (evil-normal-state))
+        (when (fboundp 'evil-next-line)
+          (goto-char (point-min))
+          (profile-ops--time "evil: 100 lines down" 5
+            (progn (goto-char (point-min)) (evil-next-line 100)))
+          (profile-ops--time "evil: 100 words forward" 5
+            (progn (goto-char (point-min)) (evil-forward-word-begin 100))))
+        (kill-buffer))
+
+      ;; The repository this file is in, read once.  `magit-status' is the
+      ;; slowest thing most days ask for that is not an agenda.
+      ;;
+      ;; Through `file-truename', because a configuration deployed as symlinks
+      ;; is read at its link and lives at its source: the link's directory can
+      ;; have a repository of its own -- an empty `git init' nobody meant --
+      ;; and reading that one measures a directory with nothing in it.
+      (when (fboundp 'magit-status-setup-buffer)
+        (let* ((here (file-truename
+                      (or (and (boundp 'profile-ops--file) profile-ops--file)
+                          default-directory)))
+               (repo (locate-dominating-file here ".git")))
+          (when repo
+            (profile-ops--time (format "magit-status on %s"
+                                       (file-name-nondirectory
+                                        (directory-file-name repo)))
+              3
+              (magit-status-setup-buffer repo))
+            (dolist (buffer (buffer-list))
+              (when (string-match-p "\\`magit" (buffer-name buffer))
+                (kill-buffer buffer))))))
+
+      ;; Capture, opened and thrown away.  A template of this profiler's own,
+      ;; pointing at a file of its own: the user's templates write where they
+      ;; are told to, and that is not somewhere a measurement may go.
+      (when (fboundp 'org-capture)
+        (let* ((file (expand-file-name "profile-ops-capture.org" directory))
+               (org-capture-templates
+                `(("p" "profile" entry (file+headline ,file "Inbox") "* %?\n"))))
+          (profile-ops--time "capture: open a template and abort" 5
+            (progn (org-capture nil "p") (org-capture-kill)))
+          (dolist (buffer (buffer-list))
+            (when (equal (buffer-file-name buffer) file)
+              (with-current-buffer buffer (set-buffer-modified-p nil))
+              (kill-buffer buffer)))
+          (ignore-errors (delete-file file)))))
     (nreverse profile-ops--rows)))
 
 ;;; Reporting
@@ -313,6 +431,18 @@ pointed at the corpus, and the window configuration is put back."
       labels "\n")
      "\n")))
 
+(defun profile-ops--format-editing (rows)
+  "Render ROWS as one column, longest first."
+  (concat
+   (format "  %10s   %s\n" "time" "operation")
+   (format "  %10s   %s\n" "----------" "---------")
+   (mapconcat (lambda (row) (format "  %10s   %s"
+                                    (format "%.1f ms" (* 1000 (cdr row)))
+                                    (car row)))
+              (sort (copy-sequence rows) (lambda (a b) (> (cdr a) (cdr b))))
+              "\n")
+   "\n"))
+
 ;;;###autoload
 (defun profile-ops ()
   "Time what this configuration does, against the real corpus and a copy of it.
@@ -336,7 +466,9 @@ content -- so the report carries nothing that cannot be sent."
          (_ (message "profile-ops: measuring the real corpus..."))
          (real (profile-ops--measure real-files 'first))
          (_ (message "profile-ops: measuring the generated one..."))
-         (synthetic (profile-ops--measure generated)))
+         (synthetic (profile-ops--measure generated))
+         (_ (message "profile-ops: measuring the operations no corpus reaches..."))
+         (editing (profile-ops--measure-editing profile-ops-corpus-directory)))
     (with-current-buffer (get-buffer-create profile-ops-buffer)
       (let ((inhibit-read-only t))
         (erase-buffer)
@@ -354,7 +486,12 @@ content -- so the report carries nothing that cannot be sent."
                 "follows how deep headings are on average, not how deep one got.\n\n")
         (insert (profile-ops--format-measurements real synthetic))
         (insert "\nThe first agenda build is a row of its own because it fills caches\n"
-                "every later build uses; the day and week rows are means of warm ones.\n"))
+                "every later build uses; the day and week rows are means of warm ones.\n")
+        (insert "\nOperations a corpus has nothing to do with\n\n")
+        (insert (profile-ops--format-editing editing))
+        (insert "\nOne column, because none of these grows with the number of Org\n"
+                "files.  The motion rows are a hundred keystrokes each: divide by a\n"
+                "hundred for what one costs, and that is what is paid on every key.\n"))
       (goto-char (point-min))
       (special-mode))
     (message "profile-ops: done")
