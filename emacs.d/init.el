@@ -536,6 +536,107 @@ and everything looks abandoned; it refuses rather than offer that."
                       "The listing below is how things stood before that.\n\n")))
           (message "%s" (string-trim outcome))))))))
 
+(defun my/straight-build-status ()
+  "Say what every directory under straight\\='s build tree is, as an alist.
+
+The cdr is `named\\=' when a recipe in this session registered a package of
+that name, and `orphan\\=' when none did.
+
+Named by *package*, where the repositories are named by `:local-repo\\=' --
+`dash\\=' is built from a repository called dash.el, `magit-section\\=' from
+one called magit.  Comparing the two trees by name answers a question
+neither of them was asked."
+  (let ((packages (let (ps)
+                    (maphash (lambda (package _) (push (format "%s" package) ps))
+                             straight--recipe-cache)
+                    ps))
+        (directory (straight--build-dir)))
+    (mapcar
+     (lambda (name)
+       (cons name (if (member name packages) 'named 'orphan)))
+     (seq-filter (lambda (name) (file-directory-p (expand-file-name name directory)))
+                 (directory-files directory nil "\\`[^.]")))))
+
+(defun my/straight-prune-builds (&optional list-only)
+  "Delete the built copies that no package in this configuration answers to.
+
+Shows what it proposes and asks.  With LIST-ONLY it only shows.
+
+Sibling of `my/straight-prune-repos\\=', and the easier half: a build
+directory is made rather than fetched -- symbolic links into the repository
+and the byte-compiled files beside them -- so nothing here is the only copy
+of anything.  Deleting one that is still wanted costs a rebuild and no more,
+which is why this asks about the guarantee rather than about the names.
+
+Recursive deletion is safe over those links: `delete-directory\\=' removes a
+symbolic link as a link and does not follow it, so the repository it points
+into is untouched."
+  (interactive "P")
+  (when (< (hash-table-count straight--recipe-cache) 20)
+    (user-error
+     "Only %d recipes are registered -- this session has not read the modules"
+     (hash-table-count straight--recipe-cache)))
+  (let* ((status (my/straight-build-status))
+         (orphans (mapcar #'car (seq-filter (lambda (e) (eq (cdr e) 'orphan)) status)))
+         (buffer (get-buffer-create "*straight builds*")))
+    (with-current-buffer buffer
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert (format "%d directories under %s\n\n"
+                        (length status) (straight--build-dir)))
+        (dolist (kind '(named orphan))
+          (let ((names (sort (mapcar #'car (seq-filter (lambda (e) (eq (cdr e) kind)) status))
+                             #'string<)))
+            (when names
+              (insert (format "%s (%d)\n  " kind (length names))
+                      (string-join names " ") "\n\n"))))
+        (insert "Named by package, not by repository: `dash' is built from a\n"
+                "repository called dash.el and `magit-section' from one called\n"
+                "magit, so the two trees cannot be compared by name.\n\n"
+                "Nothing here is the only copy of anything -- a build directory is\n"
+                "links into the repository and the compiled files beside them -- so\n"
+                "the worst a mistake costs is a rebuild.\n"))
+      (goto-char (point-min))
+      (special-mode))
+    (display-buffer buffer)
+    (cond
+     (list-only (message "%d of %d build directories answer to nothing"
+                         (length orphans) (length status)))
+     ((null orphans) (message "Nothing to prune"))
+     ((yes-or-no-p
+       (format "Delete %d built %s nothing answers to?  A rebuild is all one costs. "
+               (length orphans)
+               (if (= 1 (length orphans)) "copy" "copies")))
+      (let (failed)
+        (dolist (name orphans)
+          (let ((path (expand-file-name name (straight--build-dir))))
+            (condition-case err
+                (progn
+                  (when (eq system-type 'windows-nt)
+                    (dolist (file (directory-files-recursively path "" t))
+                      (ignore-errors (set-file-modes file #o700))))
+                  (delete-directory path 'recursive delete-by-moving-to-trash))
+              (error (push (cons name (error-message-string err)) failed)))))
+        (let ((outcome
+               (format "Pruned %d, kept %d.%s  %s\n"
+                       (- (length orphans) (length failed))
+                       (- (length status) (length orphans))
+                       (if failed
+                           (format "  %d refused: %s." (length failed)
+                                   (string-join (mapcar #'car failed) " "))
+                         "")
+                       (if delete-by-moving-to-trash
+                           "They are in the trash, so this is reversible."
+                         "`delete-by-moving-to-trash' is nil, so they are gone."))))
+          (with-current-buffer buffer
+            (let ((inhibit-read-only t))
+              (goto-char (point-min))
+              (insert outcome
+                      (make-string (1- (length outcome)) ?-) "\n"
+                      "The listing below is how things stood before that.\n\n")))
+          (message "%s" (string-trim outcome))))))))
+
+
 ;; Install and use use-package via straight
 (straight-use-package 'use-package)
 (setq straight-use-package-by-default t)

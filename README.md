@@ -115,6 +115,8 @@ What counts as still wanted is every recipe the session registered — which is 
 
 Three kinds are never deleted: a link into `~/Developer`, straight itself, and any clone holding something uncommitted, stashed, or on a branch no remote has — asked of each candidate rather than assumed. What that leaves can be cloned again and lose nothing but the time, which is the one thing worth being asked about. `C-u` shows the listing without offering to delete.
 
+`M-x my/straight-prune-builds` is the sibling, over the tree of built copies. It is the easier half: a build directory is links into the repository and the compiled files beside them, so nothing there is the only copy of anything and a mistake costs a rebuild. The one thing it cannot do is compare the two trees by name — a build directory is named by package and a repository by `:local-repo`, so `dash` is built from one called dash.el and `magit-section` from one called magit — which is why it asks the recipes instead.
+
 Everything that is true only of *this* setup — which machine runs org-upwell's watcher, how straight.el is pointed at `~/Developer`, which keys go where, and where the data sits — is in [`doc/org-packages.md`](doc/org-packages.md).
 
 ## Claude Code + Org-roam (claude-orgmode)
