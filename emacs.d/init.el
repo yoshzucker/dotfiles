@@ -224,7 +224,12 @@ waiting rather than computing, so this is not a count of cores.")
 
 (defun my/straight-fetch-at-once ()
   "Run `git fetch' in every straight repository, several at a time.
-Return the names of the repositories git refused, newest first.
+
+Return a plist: `:refused' names the repositories git would not fetch,
+newest first, and `:moved' names the ones a remote-tracking ref actually
+changed in.  The second is what lets the merge half skip the rest --
+nothing arrived, so there is nothing to merge -- and it is exact rather
+than a guess, being the same question asked before and after.
 
 Says how far it has got as it goes.  Sixteen seconds here is one machine
 on one network, and neither is the slow case: a Windows box walking its
@@ -284,13 +289,26 @@ git processes behind to finish into a command that has gone."
                     (format "straight: fetching %d repositories..." total)
                     0 total))
          (procs nil)
-         (live 0) (done 0) (failed nil))
+         (live 0) (done 0) (failed nil) (moved nil)
+         ;; What every remote-tracking ref in a repository points at.  Taken
+         ;; before the fetch and again after it: unchanged means the fetch
+         ;; brought nothing, and a repository that was brought nothing has
+         ;; nothing to merge from any remote, fork and upstream included.
+         ;; The call is a list of hashes out of the ref store and costs
+         ;; nothing measurable.
+         (remotes-of (lambda (dir)
+                       (let ((default-directory dir))
+                         (with-temp-buffer
+                           (and (eq 0 (call-process "git" nil t nil
+                                                    "rev-parse" "--remotes"))
+                                (buffer-string)))))))
     (unwind-protect
         (progn
           (while (or queue (> live 0))
             (while (and queue (< live my/straight-fetch-jobs))
               (let* ((dir (pop queue))
                      (name (file-name-nondirectory (directory-file-name dir)))
+                     (before (funcall remotes-of dir))
                      (default-directory dir))
                 (setq live (1+ live))
                 (push
@@ -308,7 +326,12 @@ git processes behind to finish into a command that has gone."
                     (unless (process-live-p proc)
                       (setq live (1- live)
                             done (1+ done))
-                      (unless (eq 0 (process-exit-status proc))
+                      (if (eq 0 (process-exit-status proc))
+                          ;; Unsure counts as moved: a repository whose refs
+                          ;; could not be read is one to hand on rather than
+                          ;; one to skip.
+                          (unless (and before (equal before (funcall remotes-of dir)))
+                            (push name moved))
                         (push name failed))
                       (progress-reporter-update reporter done))))
                  procs)))
@@ -316,13 +339,13 @@ git processes behind to finish into a command that has gone."
             ;; as each one finishes.
             (accept-process-output nil 0.05))
           (progress-reporter-done reporter)
-          (message "straight: fetched %d repositories in %.0fs%s"
-                   done (- (float-time) began)
+          (message "straight: fetched %d repositories in %.0fs; %d changed%s"
+                   done (- (float-time) began) (length moved)
                    (if failed
                        (format "; %d refused: %s" (length failed)
                                (string-join (reverse failed) ", "))
                      ""))
-          failed)
+          (list :refused failed :moved moved))
       (dolist (proc procs)
         (when (process-live-p proc)
           (set-process-sentinel proc #'ignore)
@@ -348,8 +371,28 @@ and there is nothing in a handful for parallelism to hide."
   (interactive "P")
   (if predicate
       (straight-pull-all from-upstream predicate)
-    (my/straight-fetch-at-once)
-    (straight-merge-all from-upstream)))
+    (let* ((fetched (my/straight-fetch-at-once))
+           (moved (plist-get fetched :moved)))
+      (if (null moved)
+          (message "straight: nothing to merge")
+        ;; Only the repositories something arrived in.  Merging one costs
+        ;; thirty-seven git processes -- the merge itself is one of them and
+        ;; the rest are questions about which branch, whose remote and what
+        ;; is an ancestor of what -- so asking that of a repository the fetch
+        ;; brought nothing to is a third of a second for a certain answer of
+        ;; no.  Over a hundred and thirty-nine of them it is most of a minute.
+        ;;
+        ;; `straight-merge-all' takes the predicate by package and the fetch
+        ;; answers by repository, which are not the same list: several
+        ;; packages can share one.
+        (message "straight: merging %d of %d..." (length moved)
+                 (hash-table-count straight--recipe-cache))
+        (straight-merge-all
+         from-upstream
+         (lambda (package)
+           (when-let* ((recipe (gethash package straight--recipe-cache))
+                       (local-repo (plist-get recipe :local-repo)))
+             (member local-repo moved))))))))
 
 (defun my/straight--repo-holds-work-p (path)
   "Say whether PATH holds anything that is not also on its remote.
