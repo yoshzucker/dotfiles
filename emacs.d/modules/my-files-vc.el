@@ -73,10 +73,63 @@
             (default-value 'magit-status-headers-hook))
       "The section and header lists magit came with, before they were cut.")
 
+
+    ;; The branch line, its upstream and the distance between them, from one
+    ;; process instead of two sections' worth.  magit asks those separately
+    ;; -- `magit-insert-head-branch-header' and
+    ;; `magit-insert-upstream-branch-header' -- which is right where starting
+    ;; a process is cheap and is 2.4 of the 8.9 seconds here.
+    ;;
+    ;; `git status --porcelain=v2 --branch' answers all three at once, and it
+    ;; is the only porcelain that does.  What is given up is the subject line
+    ;; of the commit at HEAD, which magit reads with a second call; the hash
+    ;; comes free in the same output, and the subject is one `l' away.
+    (defun my/magit-insert-branch-header ()
+      "Insert the branch, what it tracks, and how far apart they are.
+Asked in a single `git status', because on this machine the asking is the
+expense and not the answering."
+      (let (oid head upstream ahead behind)
+        (with-temp-buffer
+          (when (eq 0 (process-file "git" nil t nil "status" "--porcelain=v2"
+                                    "--branch" "--untracked-files=no"))
+            (goto-char (point-min))
+            (while (re-search-forward "^# branch\\.\\([a-z]+\\) \\(.*\\)$" nil t)
+              (let ((field (match-string 1))
+                    (value (match-string 2)))
+                (pcase field
+                  ("oid" (setq oid value))
+                  ("head" (setq head value))
+                  ("upstream" (setq upstream value))
+                  ("ab" (when (string-match "\\`\\+\\([0-9]+\\) -\\([0-9]+\\)\\'" value)
+                          (setq ahead (string-to-number (match-string 1 value))
+                                behind (string-to-number (match-string 2 value))))))))))
+        (when head
+          (magit-insert-section (branch head)
+            (insert (format "%-10s" "Head: "))
+            (when (and oid (not (equal oid "(initial)")))
+              (insert (propertize (substring oid 0 (min 7 (length oid)))
+                                  'font-lock-face 'magit-hash)
+                      ?\s))
+            (insert (propertize head 'font-lock-face
+                                (if (equal head "(detached)")
+                                    'magit-head 'magit-branch-local)))
+            (insert ?\n)))
+        (when upstream
+          (magit-insert-section (branch upstream)
+            (insert (format "%-10s" "Merge: "))
+            (insert (propertize upstream 'font-lock-face 'magit-branch-remote))
+            (when (and ahead behind (> (+ ahead behind) 0))
+              (insert (format "  (%s)"
+                              (string-join
+                               (delq nil
+                                     (list (and (> ahead 0) (format "ahead %d" ahead))
+                                           (and (> behind 0) (format "behind %d" behind))))
+                               ", "))))
+            (insert ?\n)))))
+
     (setq magit-status-headers-hook
           '(magit-insert-error-header
-            magit-insert-head-branch-header
-            magit-insert-upstream-branch-header)
+            my/magit-insert-branch-header)
           magit-status-sections-hook
           '(magit-insert-status-headers
             magit-insert-merge-log
