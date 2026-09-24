@@ -531,12 +531,6 @@ repository read is read and not touched."
                       (push (cons (match-string 1 line) seconds)
                             (alist-get magit-row profile-ops--details
                                        nil nil #'equal)))))))
-            ;; And how many processes that was.  With the cost of one in the
-            ;; environment block above, this is the whole question: a status
-            ;; that starts eighty of them on a machine where each costs a
-            ;; tenth of a second is not slow git, it is arithmetic, and what
-            ;; to do about it is to ask for fewer sections rather than to
-            ;; tune the ones that are asked for.
             ;; And the same status as magit ships it, in the same run.  A
             ;; configuration that cuts sections wants to know what the
             ;; cutting bought, and the machine this matters on moves by half
@@ -574,6 +568,10 @@ repository read is read and not touched."
                                 (misses (cdar magit--refresh-cache)))
                             (format "%d of %d" hits (+ hits misses))))
                     profile-ops--notes))
+            ;; And how many processes that was.  Beside the cost of one in
+            ;; the environment block above, this is the whole question: a
+            ;; status that starts thirty of them where each costs a third of
+            ;; a second is not slow git, it is arithmetic.
             (let ((spawns 0))
               (cl-letf* ((process-file-orig (symbol-function 'process-file))
                          (call-process-orig (symbol-function 'call-process))

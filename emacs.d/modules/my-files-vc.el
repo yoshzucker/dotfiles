@@ -39,19 +39,20 @@
          "gh" #'my/find-file-from-base
          "gs" #'consult-buffer))
 
-  ;; magit keeps the answers to its git calls, but only for the length of a
-  ;; refresh -- and a status does a good deal before the refresh begins.  In
-  ;; that stretch it asks `rev-parse --show-toplevel' and `--show-cdup'
-  ;; eight times each, because the memory those answers would go in has not
-  ;; been opened yet.  Opened around the whole of it, sixteen of them become
-  ;; two.
+  ;; magit remembers the answers to its git calls, but only for the length of
+  ;; a refresh -- and a status does a good deal of work before the refresh
+  ;; begins.  In that stretch it asks `rev-parse --show-toplevel' ten times
+  ;; and `--show-cdup' nine, outside the memory those answers would have gone
+  ;; in.  Held open around the whole call, nineteen of them become two, and
+  ;; the status starts twenty-nine processes where it started forty-six.
   ;;
-  ;; Nothing can go stale inside it: what is remembered is where the
-  ;; repository is, and it is not going to move between the moment a status
-  ;; is asked for and the moment it is drawn.
+  ;; Nothing can go stale inside that window: what is remembered is where the
+  ;; repository is, and it does not move between a status being asked for and
+  ;; being drawn.
   ;;
-  ;; Everywhere, not just where it shows.  It costs four milliseconds here
-  ;; and five seconds on a machine where starting a process is the expense.
+  ;; Everywhere rather than only where it shows -- four milliseconds on a
+  ;; machine where starting a process is cheap, and two seconds on one where
+  ;; it is not.
   (define-advice magit-status-setup-buffer
       (:around (orig &rest args) my/hold-the-refresh-cache)
     "Keep magit's answers for the whole of a status, not only its refresh."
@@ -68,45 +69,44 @@
             :func (lambda ()
                     (set-buffer-file-coding-system 'utf-8))))
 
-    ;; A status that can be waited for.  Starting a process costs 174 ms on
-    ;; this machine -- `cmd /c exit' costs that, so it is the making of a
-    ;; process and not anything about git -- and a full status starts
-    ;; sixty-four of them, which is seven and a half seconds.  magit already
-    ;; answers three fifths of its own questions from a cache; the rest are
-    ;; distinct, so the only thing left to do is ask fewer.
+    ;; A status short enough to wait for.  Starting a process costs 261 ms
+    ;; here -- `cmd /c exit' costs that, so it is the making of a process and
+    ;; nothing about git -- and a status as magit ships it starts enough of
+    ;; them to take ten seconds.  What follows brings that to five and a
+    ;; half, measured side by side in one run.
     ;;
-    ;; What is kept is what a commit needs: which branch and how far it is
-    ;; from its upstream, the files nothing is tracking yet, what has
-    ;; changed, and what is staged.  The ahead-and-behind *counts* stay in
-    ;; the upstream line -- it is the *lists* of those commits that go -- so
-    ;; "there is something to push" is still on the screen.
+    ;; Two things are done about it and they are different in kind.  Asking
+    ;; one process to answer several questions is free: the branch header
+    ;; below does that.  Asking for fewer sections is not free, and what goes
+    ;; is chosen by what a commit needs.
     ;;
-    ;; The interrupted-operation sections stay whatever they cost.  Being
+    ;; Kept: which branch and how far it is from its upstream, the files
+    ;; nothing tracks yet, what has changed, what is staged.  The
+    ;; ahead-and-behind counts stay in the upstream line -- it is the lists
+    ;; of those commits that go -- so "there is something to push" is still
+    ;; on the screen.
+    ;;
+    ;; Kept whatever it costs: the interrupted-operation sections.  Being
     ;; told that a merge or a rebase is half done is the one thing a status
     ;; is for that cannot be worked out from the files, and a saving made
     ;; there would be paid for on the worst possible day.
-    ;; Taken before the cut, which is the whole of its value: read after,
-    ;; it is a copy of the short list and the key below toggles nothing.
-    (defvar my/magit-status-full
-      (cons (default-value 'magit-status-sections-hook)
-            (default-value 'magit-status-headers-hook))
-      "The section and header lists magit came with, before they were cut.")
-
-
-    ;; The branch line, its upstream and the distance between them, from one
-    ;; process instead of two sections' worth.  magit asks those separately
-    ;; -- `magit-insert-head-branch-header' and
-    ;; `magit-insert-upstream-branch-header' -- which is right where starting
-    ;; a process is cheap and is 2.4 of the 8.9 seconds here.
     ;;
-    ;; `git status --porcelain=v2 --branch' answers all three at once, and it
-    ;; is the only porcelain that does.  What is given up is the subject line
-    ;; of the commit at HEAD, which magit reads with a second call; the hash
-    ;; comes free in the same output, and the subject is one `l' away.
+    ;; Gone: the lists of unpushed and unpulled commits, the stashes, the
+    ;; nearest tag, the diff-filter reminder.  Each answers a question asked
+    ;; occasionally, so `C-c C-a' asks it.
+
     (defun my/magit-insert-branch-header ()
       "Insert the branch, what it tracks, and how far apart they are.
-Asked in a single `git status', because on this machine the asking is the
-expense and not the answering."
+
+`git status --porcelain=v2 --branch' answers all three in one process,
+where magit asks them across `magit-insert-head-branch-header' and
+`magit-insert-upstream-branch-header' and spends six -- which is right
+where starting a process is cheap, and more than a second of the ten
+where it is not.
+
+What is given up is the subject line of the commit at HEAD, which magit
+reads with a call of its own.  The hash comes free in the same output and
+the subject is one \\<magit-status-mode-map>\\[magit-log] away."
       (let (oid head upstream ahead behind)
         (with-temp-buffer
           (when (eq 0 (process-file "git" nil t nil "status" "--porcelain=v2"
@@ -146,6 +146,13 @@ expense and not the answering."
                                ", "))))
             (insert ?\n)))))
 
+    ;; Read before the cut below, which is the whole of its value: read
+    ;; after, it is a copy of the short lists and the key toggles nothing.
+    (defvar my/magit-status-full
+      (cons (default-value 'magit-status-sections-hook)
+            (default-value 'magit-status-headers-hook))
+      "The section and header lists magit came with, before they were cut.")
+
     (setq magit-status-headers-hook
           '(magit-insert-error-header
             my/magit-insert-branch-header)
@@ -162,10 +169,6 @@ expense and not the answering."
             magit-insert-unstaged-changes
             magit-insert-staged-changes))
 
-    ;; And the rest when it is wanted.  Everything dropped above is an
-    ;; answer to a question asked occasionally -- what have I not pushed,
-    ;; what is waiting to be pulled, what did I stash, which tag is nearest
-    ;; -- so it is one key away rather than in every status.
     (defun my/magit-status-toggle-everything ()
       "Draw this status with every section magit has, or with the few again."
       (interactive)
@@ -181,8 +184,7 @@ expense and not the answering."
     (my/define-key
      (:map magit-status-mode-map
            :key
-           "C-c C-a" #'my/magit-status-toggle-everything))
-))
+           "C-c C-a" #'my/magit-status-toggle-everything))))
 
 (use-package git-timemachine
   :defer t)
