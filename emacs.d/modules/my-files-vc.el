@@ -39,6 +39,25 @@
          "gh" #'my/find-file-from-base
          "gs" #'consult-buffer))
 
+  ;; magit keeps the answers to its git calls, but only for the length of a
+  ;; refresh -- and a status does a good deal before the refresh begins.  In
+  ;; that stretch it asks `rev-parse --show-toplevel' and `--show-cdup'
+  ;; eight times each, because the memory those answers would go in has not
+  ;; been opened yet.  Opened around the whole of it, sixteen of them become
+  ;; two.
+  ;;
+  ;; Nothing can go stale inside it: what is remembered is where the
+  ;; repository is, and it is not going to move between the moment a status
+  ;; is asked for and the moment it is drawn.
+  ;;
+  ;; Everywhere, not just where it shows.  It costs four milliseconds here
+  ;; and five seconds on a machine where starting a process is the expense.
+  (define-advice magit-status-setup-buffer
+      (:around (orig &rest args) my/hold-the-refresh-cache)
+    "Keep magit's answers for the whole of a status, not only its refresh."
+    (let ((magit--refresh-cache (or magit--refresh-cache (list (cons 0 0)))))
+      (apply orig args)))
+
   (when (eq system-type 'windows-nt)
     (my/add-hook
      (:hook after-init-hook
