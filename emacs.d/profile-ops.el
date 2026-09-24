@@ -523,6 +523,21 @@ repository read is read and not touched."
             ;; tenth of a second is not slow git, it is arithmetic, and what
             ;; to do about it is to ask for fewer sections rather than to
             ;; tune the ones that are asked for.
+            ;; What magit's own memory already saves.  It keeps the answers
+            ;; to git calls for the length of one refresh, so a question
+            ;; asked twice is asked once -- which means the processes
+            ;; counted below are distinct questions and not repetitions,
+            ;; and that the way to have fewer of them is to ask for fewer
+            ;; sections rather than to look for duplication that is already
+            ;; gone.  The counters live in a variable magit binds and
+            ;; discards, so it is bound here to be read afterwards.
+            (let ((magit--refresh-cache (list (cons 0 0))))
+              (ignore-errors (magit-status-setup-buffer repo))
+              (push (cons "git calls magit's cache answered"
+                          (let ((hits (caar magit--refresh-cache))
+                                (misses (cdar magit--refresh-cache)))
+                            (format "%d of %d" hits (+ hits misses))))
+                    profile-ops--notes))
             (let ((spawns 0))
               (cl-letf* ((process-file-orig (symbol-function 'process-file))
                          (call-process-orig (symbol-function 'call-process))
