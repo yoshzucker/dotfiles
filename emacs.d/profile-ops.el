@@ -372,7 +372,25 @@ pointed at the corpus, and the window configuration is put back."
              (format "%.1f ms"
                      (/ (* 1000 (benchmark-elapse
                                  (dotimes (_ n) (profile-ops--git "rev-parse" "--git-dir"))))
-                        (float n))))))))
+                        (float n)))))
+     ;; The same question with git taken out of it.  If starting anything at
+     ;; all costs what starting git costs, then no amount of choosing a
+     ;; different git or configuring the one in hand will move a row: what
+     ;; is being measured is the making of a process, and the only answer
+     ;; open to a configuration is to ask for fewer of them.
+     (cons "one trivial process, not git"
+           (let* ((n 20)
+                  (command (if (eq system-type 'windows-nt)
+                               '("cmd" "/c" "exit")
+                             '("true")))
+                  (seconds
+                   (benchmark-elapse
+                     (dotimes (_ n)
+                       (ignore-errors
+                         (apply #'process-file (car command) nil nil nil
+                                (cdr command)))))))
+             (format "%.1f ms  (%s)" (/ (* 1000 seconds) (float n))
+                     (string-join command " ")))))))
 
 (defun profile-ops--measure-editing (directory)
   "Time the operations that do not depend on the corpus.
