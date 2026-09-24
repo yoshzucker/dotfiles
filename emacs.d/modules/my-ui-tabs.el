@@ -120,8 +120,27 @@
   ;; first.  Deferring consult would have stopped it silently.
   :defer t
   :init
+  ;; Turned on at the first file rather than at the end of init.  What the
+  ;; mode does is set a buffer predicate on the frames, hook the ones made
+  ;; afterwards, and advise a couple of tab commands -- all of which applies
+  ;; to the frames that exist when it runs, so running it later loses
+  ;; nothing that running it earlier would have caught.
+  ;;
+  ;; And it keeps no list of its own: `tabspaces--local-buffer-p' reads the
+  ;; frame's buffer list, which Emacs maintains whether this package is here
+  ;; or not.  So there is no window in which buffers go untracked, which is
+  ;; what this was held back over.
+  ;;
+  ;; consult as well, because `gs' is the other place the filtering shows,
+  ;; and a session can reach it without having opened a file.
+  (defun my/tabspaces-arm ()
+    "Turn tabspaces on, once, and stand down."
+    (remove-hook 'find-file-hook #'my/tabspaces-arm)
+    (tabspaces-mode 1))
+
   (my/add-hook
-   (:hook after-init-hook :func #'tabspaces-mode))
+   (:hook find-file-hook :func #'my/tabspaces-arm))
+  (with-eval-after-load 'consult (my/tabspaces-arm))
   :config
   (setq tabspaces-include-buffers '("*GNU Emacs*" "*scratch*" "*Messages*" "*Warnings*" "*Backtrace*"))
 
