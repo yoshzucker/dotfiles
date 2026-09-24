@@ -348,6 +348,21 @@ pointed at the corpus, and the window configuration is put back."
     (and (eq 0 (apply #'process-file "git" nil t nil args))
          (string-trim (buffer-string)))))
 
+(defun profile-ops--process-cost (directory)
+  "Return what starting the most trivial process costs in DIRECTORY."
+  (let* ((default-directory (or directory default-directory))
+         (n 20)
+         (command (if (eq system-type 'windows-nt)
+                      '("cmd" "/c" "exit")
+                    '("true")))
+         (seconds
+          (benchmark-elapse
+            (dotimes (_ n)
+              (ignore-errors
+                (apply #'process-file (car command) nil nil nil (cdr command)))))))
+    (format "%.1f ms  (%s)" (/ (* 1000 seconds) (float n))
+            (string-join command " "))))
+
 (defun profile-ops--environment (repo)
   "Return what REPO and the git behind it are, as an alist of strings."
   (let ((default-directory (or repo default-directory)))
@@ -379,18 +394,17 @@ pointed at the corpus, and the window configuration is put back."
      ;; is being measured is the making of a process, and the only answer
      ;; open to a configuration is to ask for fewer of them.
      (cons "one trivial process, not git"
-           (let* ((n 20)
-                  (command (if (eq system-type 'windows-nt)
-                               '("cmd" "/c" "exit")
-                             '("true")))
-                  (seconds
-                   (benchmark-elapse
-                     (dotimes (_ n)
-                       (ignore-errors
-                         (apply #'process-file (car command) nil nil nil
-                                (cdr command)))))))
-             (format "%.1f ms  (%s)" (/ (* 1000 seconds) (float n))
-                     (string-join command " ")))))))
+           (profile-ops--process-cost repo))
+     ;; The same process started somewhere else.  A working directory the
+     ;; system has to resolve through something -- a sync filter, a
+     ;; redirected profile, a network drive -- is charged for on every
+     ;; process started in it, and every git a status runs is started in the
+     ;; repository.  If these two differ, where the repository lives is the
+     ;; expense and no amount of asking for fewer sections reaches it.
+     (cons "the same, from a plain directory"
+           (profile-ops--process-cost temporary-file-directory))
+     (cons "where the repository really is"
+           (if repo (file-truename repo) "-")))))
 
 (defun profile-ops--measure-editing (directory)
   "Time the operations that do not depend on the corpus.
