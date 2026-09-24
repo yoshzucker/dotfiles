@@ -537,6 +537,28 @@ repository read is read and not touched."
             ;; tenth of a second is not slow git, it is arithmetic, and what
             ;; to do about it is to ask for fewer sections rather than to
             ;; tune the ones that are asked for.
+            ;; And the same status as magit ships it, in the same run.  A
+            ;; configuration that cuts sections wants to know what the
+            ;; cutting bought, and the machine this matters on moves by half
+            ;; again between one run and the next -- so the two have to be
+            ;; measured beside each other or not at all.  `standard-value'
+            ;; is magit's own list, which is the honest thing to compare
+            ;; against: whatever this configuration has done to the hooks,
+            ;; that is what it did it to.
+            (when-let* ((sections (get 'magit-status-sections-hook 'standard-value))
+                        (headers (get 'magit-status-headers-hook 'standard-value))
+                        (stock-sections (eval (car sections) t))
+                        (stock-headers (eval (car headers) t))
+                        ;; Asked before the binding, not after: binding the
+                        ;; variable is what makes the two agree.
+                        (_ (not (equal stock-sections
+                                       (default-value
+                                        'magit-status-sections-hook)))))
+              (let ((magit-status-sections-hook stock-sections)
+                    (magit-status-headers-hook stock-headers))
+                (profile-ops--time "the same, with magit's own sections" 3
+                  (magit-status-setup-buffer repo))))
+
             ;; What magit's own memory already saves.  It keeps the answers
             ;; to git calls for the length of one refresh, so a question
             ;; asked twice is asked once -- which means the processes
