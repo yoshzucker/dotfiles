@@ -29,9 +29,18 @@ export THEME_VARIANT="${THEME_VARIANT:-light}"      # dark | light
 # Truecolor — terminal-wide, not theme-specific.
 export COLORTERM=truecolor
 # Ensure xterm-24bits terminfo entry exists (mintty's default xterm-256color
-# lacks the Tc capability). tic writes to ~/.terminfo/x/.
-[ -f "$HOME/.terminfo/x/xterm-24bits" ] || \
-  tic -x -o "$HOME/.terminfo" "$HOME/dotfiles/config/terminfo/24bit.src" 2>/dev/null
+# lacks the Tc capability).
+#
+# Both layouts are tested because ncurses picks one per platform: a letter
+# directory (x/) where filenames are cheap, a hashed one (78/, the hex of
+# `x') on macOS.  Testing only the first meant the guard never matched here
+# and `tic' ran on every interactive shell -- silently, since the errors
+# went to /dev/null along with the successes.  A process is a fifth of a
+# second on the Windows machine, paid before every prompt.
+if [ ! -f "$HOME/.terminfo/x/xterm-24bits" ] && \
+   [ ! -f "$HOME/.terminfo/78/xterm-24bits" ]; then
+  tic -x -o "$HOME/.terminfo" "$HOME/dotfiles/config/terminfo/24bit.src"
+fi
 # xterm-24bits is just xterm-256color + Tc; only needed where Tc is missing
 # (e.g. mintty default xterm-256color terminfo on Windows). Skip on terminals
 # whose own terminfo already advertises Tc (Ghostty, *-direct, tmux-256color),
