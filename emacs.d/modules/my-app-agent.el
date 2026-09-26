@@ -1,14 +1,19 @@
 ;;; my-app-agent.el --- AI agent setup -*- lexical-binding: t -*-
 ;;; Commentary:
-;; Provides AI agent configuration using agent-shell and other.
+;; Two ways to reach an agent from Emacs, which do different things.
+;; agent-shell talks to several providers in a buffer of its own, and is
+;; reached by name.  claude-code-ide talks only to Claude Code, over the
+;; protocol its VS Code and JetBrains extensions speak, and is reached by a
+;; key because it is the one used daily.
 
 ;;; Code:
 (use-package agent-shell
-  ;; Loaded on first use.  Everything in `:config' below adjusts agent-shell
-  ;; itself -- its keymap, its header rendering, its UI padding -- and none of
-  ;; it means anything until agent-shell exists.  Three things do have to hold
-  ;; for the whole session, so they live in `:init': the keys that reach the
-  ;; command, the interpreters it shells out to, and its entry in the project
+  ;; Loaded on first use, by name: no key of its own, since this is the
+  ;; second way in and `M-x' is enough for it.  Everything in `:config' below
+  ;; adjusts agent-shell itself -- its keymap, its header rendering, its UI
+  ;; padding -- and none of it means anything until agent-shell exists.  Two
+  ;; things do have to hold for the whole session, so they live in `:init':
+  ;; the interpreters it shells out to, and its entry in the project
   ;; switcher, which would otherwise appear only after the first visit.
   :defer t
   :commands (agent-shell agent-shell-toggle)
@@ -19,13 +24,6 @@
                         (expand-file-name "~/scoop/apps/msys2/current/usr/bin")))
       (add-to-list 'exec-path path)
       (setenv "PATH" (concat path ";" (getenv "PATH")))))
-
-  (my/define-key
-   (:map global-map
-         :prefix "C-c"
-         :key
-         "x" #'agent-shell
-         "h" #'agent-shell-toggle))
 
   (with-eval-after-load 'project
     (add-to-list 'project-switch-commands
@@ -347,124 +345,49 @@ via a font-weight= presence check."
   ;; "Org mode fontification error" on src blocks.
   (add-to-list 'org-src-lang-modes '("agent-shell" . text)))
 
-(use-package agent-shell-org-transcript
-  :straight (:host github :repo "lllShamanlll/agent-shell-org-transcript")
-  :after (agent-shell org org-roam)
-  :config
-  (setq agent-shell-org-transcript-directory org-directory))
+;;;; Claude Code as an editor integration
 
-(use-package agent-shell-manager
-  :straight (:host github :repo "jethrokuan/agent-shell-manager")
-  ;; Deferred alongside agent-shell, so the key that summons it is bound here
-  ;; rather than in `:config' -- otherwise the manager could only be reached
-  ;; after something else had already loaded agent-shell.
+;; The same CLI that runs in a terminal, connected to Emacs over the protocol
+;; its VS Code and JetBrains extensions speak.  What that buys over running
+;; `claude' in a terminal is the direction of the arrow: Claude can ask Emacs
+;; things.  The file being looked at and the region marked arrive without
+;; being pasted, diffs come back through ediff to be edited before they are
+;; applied, and `claude-code-ide-emacs-tools-setup' hands over xref, imenu,
+;; tree-sitter, the project's shape and its diagnostics as tools to call.
+;;
+;; That last part is worth more on Windows than anywhere else.  A reference
+;; search answered by xref costs nothing; the same question answered by
+;; ripgrep costs a process to start, and starting one there is a fifth
+;; of a second.  It
+;; is worth saying so in a project's CLAUDE.md where it matters.
+;;
+;; This sits beside agent-shell rather than replacing it.  agent-shell speaks
+;; to several providers and lives in a buffer of its own; this speaks only to
+;; Claude Code and lives in the project.
+
+(use-package claude-code-ide
+  :straight (:host github :repo "manzaltu/claude-code-ide.el")
+  ;; Reached through the transient, which is the entry point the package
+  ;; intends: every other command is on it.
   :defer t
-  :commands (agent-shell-manager-toggle)
+  :commands (claude-code-ide claude-code-ide-menu)
   :init
+  ;; One key, because the transient carries the rest: showing and hiding the
+  ;; project's windows, switching to the buffer, sending the region.  Reading
+  ;; a Claude buffer needs no key of its own either -- `consult-buffer' finds
+  ;; it like any other.
   (my/define-key
-   (:map global-map :key "C-c s m" #'agent-shell-manager-toggle))
+   (:map global-map :key "C-c x" #'claude-code-ide-menu))
   :custom
-  ;; Route display through `display-buffer-alist' (configured below in
-  ;; :config) instead of the package's fixed 30%-of-frame side window.
-  (agent-shell-manager-side nil)
+  ;; ghostel rather than the default vterm.  vterm needs a native module that
+  ;; does not build on Windows at all, and ghostel is the backend the package
+  ;; itself recommends for rendering the TUI.
+  (claude-code-ide-terminal-backend 'ghostel)
   :config
-  ;; agent-shell-manager-mode is a read-only tabulated-list buffer.
-  ;; Use evil `motion' state as the initial state: it preserves hjkl,
-  ;; g-prefix, and search bindings while leaving operator keys
-  ;; (`c'/`d'/`r'/`m'/`x' etc.) free for mode-specific commands.
-  ;; The mode-map's single-letter keys otherwise lose to evil.
-  (evil-set-initial-state 'agent-shell-manager-mode 'motion)
-
-  (defcustom my/agent-shell-manager-max-height 10
-    "Maximum body-line height for the *Agent-Shell Buffers* side window.
-Body lines exclude header-line, tab-line, and mode-line."
-    :type 'integer
-    :group 'agent-shell-manager)
-  (defcustom my/agent-shell-manager-min-height 2
-    "Minimum body-line height for the *Agent-Shell Buffers* side window.
-Body lines exclude header-line, tab-line, and mode-line.  Keeps
-the window from collapsing when the agent list is empty."
-    :type 'integer
-    :group 'agent-shell-manager)
-
-  (defun my/agent-shell-manager-fit (win)
-    "Fit WIN so its body shows one line per agent plus one blank row.
-Clamped to [`my/agent-shell-manager-min-height',
-`my/agent-shell-manager-max-height'] body lines.  Header-line,
-tab-line, and mode-line are added on top of the body target so
-`fit-window-to-buffer' (which sizes the total window) produces the
-intended body height."
-    (let* ((buf (window-buffer win))
-           (agent-lines (with-current-buffer buf
-                          (count-lines (point-min) (point-max))))
-           (decoration (with-current-buffer buf
-                         (+ (if header-line-format 1 0)
-                            (if mode-line-format 1 0)
-                            (if tab-line-format 1 0))))
-           (desired-body (max my/agent-shell-manager-min-height
-                              (min my/agent-shell-manager-max-height
-                                   (1+ agent-lines))))
-           (desired-total (+ desired-body decoration)))
-      (fit-window-to-buffer win desired-total desired-total)))
-
-  (add-to-list
-   'display-buffer-alist
-   '("\\*Agent-Shell Buffers\\*"
-     (display-buffer-in-side-window)
-     (side . bottom)
-     (slot . 0)
-     (window-height . my/agent-shell-manager-fit)
-     (window-parameters . ((no-delete-other-windows . t)))))
-
-  (defun my/agent-shell-manager-refit (&rest _)
-    "Re-fit the manager window height when its content grows/shrinks.
-The package refreshes the list every 2 seconds but does not
-recompute the window height; without this advice a newly added
-shell would either overflow or leave dead space."
-    (when-let* ((buf (get-buffer "*Agent-Shell Buffers*"))
-                (win (get-buffer-window buf)))
-      (my/agent-shell-manager-fit win)))
-  (advice-add 'agent-shell-manager-refresh :after
-              #'my/agent-shell-manager-refit)
-
-  (my/define-key
-   (:map agent-shell-manager-mode-map
-         :state motion
-         :key
-         "RET" #'agent-shell-manager-goto
-         ;; g single is reserved as the user's g-prefix; use gr for
-         ;; refresh (evil-collection convention; gr is user-blacklisted
-         ;; from evil-collection so it is available).
-         "gr"  #'agent-shell-manager-refresh
-         "q"   #'quit-window
-         ;; Relocate keys that collide with fundamental motion:
-         ;;   k -> x (kill agent; k is up)
-         ;;   l -> L (toggle logging; l is right)
-         "x"   #'agent-shell-manager-kill
-         "c"   #'agent-shell-manager-new
-         "r"   #'agent-shell-manager-restart
-         "d"   #'agent-shell-manager-delete-killed
-         "m"   #'agent-shell-manager-set-mode
-         "M"   #'agent-shell-manager-set-model
-         "t"   #'agent-shell-manager-view-traffic
-         "L"   #'agent-shell-manager-toggle-logging
-         "C-c C-c" #'agent-shell-manager-interrupt)))
-
-(use-package knockknock
-  :straight (:host github :repo "konrad1977/knockknock")
-  ;; Nothing calls into this directly; agent-shell-knockknock requires it, and
-  ;; that is the only path by which its posframe and nerd-icons ever need to
-  ;; load.
-  :defer t)
-
-(use-package agent-shell-knockknock
-  :straight (:host github :repo "xenodium/agent-shell-knockknock")
-  ;; Only agent-shell is waited on.  `knockknock' does not belong in this list:
-  ;; agent-shell-knockknock requires it at its top level, so naming it here
-  ;; would mean waiting for a load that nothing else ever performs.
-  :after agent-shell
-  :config
-  (agent-shell-knockknock-mode 1))
+  ;; The CLI is exec'd directly rather than through a shell, so on Windows it
+  ;; is the native `claude' and both sides speak the same path form.  Nothing
+  ;; to arrange for that; it is only worth knowing when a path looks wrong.
+  (claude-code-ide-emacs-tools-setup))
 
 (provide 'my-app-agent)
 ;;; my-app-agent.el ends here
