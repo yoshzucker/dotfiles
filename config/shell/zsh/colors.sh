@@ -35,8 +35,8 @@ export COLORTERM=truecolor
 # directory (x/) where filenames are cheap, a hashed one (78/, the hex of
 # `x') on macOS.  Testing only the first meant the guard never matched here
 # and `tic' ran on every interactive shell -- silently, since the errors
-# went to /dev/null along with the successes.  A process is a fifth of a
-# second on the Windows machine, paid before every prompt.
+# went to /dev/null along with the successes.  Starting a process is a
+# fifth of a second on the Windows machine, paid before every prompt.
 if [ ! -f "$HOME/.terminfo/x/xterm-24bits" ] && \
    [ ! -f "$HOME/.terminfo/78/xterm-24bits" ]; then
   tic -x -o "$HOME/.terminfo" "$HOME/dotfiles/config/terminfo/24bit.src"
