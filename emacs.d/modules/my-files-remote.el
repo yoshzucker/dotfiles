@@ -20,8 +20,6 @@
   ;; reach, and that is the part Windows charges for.
   :defer t
   :config
-  (setenv "SHELL" "/bin/bash")
-
   (setq vc-ignore-dir-regexp
         (format "\\(%s\\)\\|\\(%s\\)" vc-ignore-dir-regexp
                 tramp-file-name-regexp)))
