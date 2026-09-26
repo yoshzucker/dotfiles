@@ -63,8 +63,16 @@ fi
 
 # Scoop shims. Appended (not prepended) so pacman/ucrt64 binaries take
 # precedence when both exist (e.g. fzf), while scoop-only tools (e.g. claude)
-# still resolve. pp converts USERPROFILE (Windows path) to POSIX form.
-if [ -n "${USERPROFILE:-}" ]; then
+# still resolve.
+#
+# $HOME is already in POSIX form and normally names the same directory as
+# USERPROFILE, so the common case needs no conversion at all.  pp would
+# spend two `tr' processes on it, and a process costs a fifth of a second
+# here -- paid by every shell that starts, before the prompt appears.  The
+# conversion stays as the fallback for a HOME that points elsewhere.
+if [ -d "$HOME/scoop/shims" ]; then
+  PATH="$PATH:$HOME/scoop/shims"
+elif [ -n "${USERPROFILE:-}" ]; then
   __scoop_shims="$(pp "$USERPROFILE")/scoop/shims"
   [ -d "$__scoop_shims" ] && PATH="$PATH:$__scoop_shims"
   unset __scoop_shims
