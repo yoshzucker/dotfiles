@@ -67,7 +67,7 @@ fi
 #
 # $HOME is already in POSIX form and normally names the same directory as
 # USERPROFILE, so the common case needs no conversion at all.  pp would
-# spend two `tr' processes on it, and a process costs a fifth of a second
+# spend two `tr' processes on it, and starting one costs a fifth of a second
 # here -- paid by every shell that starts, before the prompt appears.  The
 # conversion stays as the fallback for a HOME that points elsewhere.
 if [ -d "$HOME/scoop/shims" ]; then

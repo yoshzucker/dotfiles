@@ -6,9 +6,9 @@
 # Modifies: PATH (Homebrew bin, gnubin)
 
 # `$OSTYPE' rather than `uname': both bash and zsh set it, and this file is
-# only ever sourced by those two.  Asking the system costs a process, which
-# is a fifth of a second on the Windows machine -- spent there by every
-# shell that starts, only to learn that it is not a Mac.
+# only ever sourced by those two.  Asking the system means starting a
+# process, which is a fifth of a second on the Windows machine -- spent by
+# every shell that starts, only to learn that it is not a Mac.
 case "$OSTYPE" in
   darwin*) ;;
   *) return 0 ;;
