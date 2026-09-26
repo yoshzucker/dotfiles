@@ -17,7 +17,31 @@ setopt nobeep auto_pushd auto_cd interactive_comments prompt_subst
 zmodload zsh/complist
 zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'l:|=* r:|=*'
 zstyle ':completion:*' menu select=2  # 1 match → insert; 2+ → menu
-autoload -Uz compinit && compinit -d ~/.zcompdump
+# compinit's audit stats every file in every fpath directory, and the
+# endpoint scanner on the Windows machine inspects them one at a time: half
+# a second, before every prompt.  The audit earns its keep -- it is what
+# notices a completion installed since yesterday -- but not once per shell.
+# So it runs once a day and the rest of the day starts from the dump.
+#
+# The stamp is separate from the dump because compinit rewrites the dump
+# only when something changed, which would leave a quiet day looking like a
+# day the audit never ran.
+#
+# The `for' is how the age is read without starting anything: `[[ ]]' does
+# not expand patterns, so the glob qualifier has to land somewhere that
+# does.  It matches at most one file, or none when the stamp is old or
+# absent.
+autoload -Uz compinit
+() {
+  local fresh=0
+  for _ in ~/.zcompdump-stamp(N.mh-24); do fresh=1; done
+  if (( fresh )); then
+    compinit -C -d ~/.zcompdump
+  else
+    compinit -d ~/.zcompdump
+    print -n > ~/.zcompdump-stamp
+  fi
+}
 
 # ma= must include fg explicitly: zsh applies it standalone, not layered over di=.
 () {
@@ -120,6 +144,18 @@ bindkey -M menuselect '^K' up-history
 bindkey -M menuselect '^F' accept-line
 
 # ----- zoxide -----
-command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init zsh)"
+# `zoxide init' prints the same shell code every time and costs a process to
+# print it.  Kept on disk instead, and regenerated only when the binary it
+# came from is newer: `$commands' is zsh's own hash of what is on PATH, so
+# deciding that starts nothing.
+if command -v zoxide >/dev/null 2>&1; then
+  __zoxide_init="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zoxide.zsh"
+  if [ ! -s "$__zoxide_init" ] || [ "$commands[zoxide]" -nt "$__zoxide_init" ]; then
+    mkdir -p "${__zoxide_init:h}"
+    zoxide init zsh >| "$__zoxide_init"
+  fi
+  source "$__zoxide_init"
+  unset __zoxide_init
+fi
 
 # --- end of zsh.sh -------------------------------------------------------
