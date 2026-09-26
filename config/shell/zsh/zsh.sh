@@ -56,6 +56,16 @@ ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=${THEME_MONO4},italic"
 [[ -r $ZPLUGDIR/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && \
   source $ZPLUGDIR/zsh-autosuggestions/zsh-autosuggestions.zsh
 
+# The plugin turns async on by itself for zsh 5.0.8 and newer, and async
+# means a fork on every keystroke.  Windows has no fork: MSYS2 emulates it by
+# copying the address space, and the endpoint scanner inspects each new
+# process, which together put about half a second between a key and its
+# character.  Searching 1000 history entries in-process costs nothing, so
+# only the machine that pays for fork gives async up.
+#
+# `unset', not `=0': the plugin tests whether the variable exists.
+[[ -n ${MSYSTEM:-} ]] && unset ZSH_AUTOSUGGEST_USE_ASYNC
+
 # ----- Keybindings -----
 bindkey -e
 
