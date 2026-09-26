@@ -52,6 +52,6 @@ unzip:          # extract font source zips (msys base repo)
 # Scoop shims appended in config/shell/env/msys.sh:
 #   gitleaks
 #
-# zsh plugins (fzf-tab, zsh-autosuggestions, fast-syntax-highlighting) are not
-# packaged: `bootstrap` git-clones them into $XDG_DATA_HOME/zsh/plugins and
-# config/shell/zsh/zsh.sh sources them directly (no plugin manager).
+# zsh-autosuggestions is not packaged: `bootstrap` git-clones it into
+# $XDG_DATA_HOME/zsh/plugins and config/shell/zsh/zsh.sh sources it directly
+# (no plugin manager).

@@ -12,7 +12,7 @@
 | `Ctrl-/`            | fzf 内: preview トグル                       |
 | `Ctrl-y`            | fzf 内: 選択を pbcopy して終了               |
 | `Alt-a` / `Alt-d`   | fzf 内: 全選択 / 全解除                      |
-| `Tab`               | fzf-tab: 補完を fzf 化 + preview             |
+| `Tab`               | zsh 補完メニュー (候補 2 以上で menu select) |
 | `Up`                | zsh prefix history search                    |
 | `Ctrl-h` / `Ctrl-l` | backward / forward word                      |
 
