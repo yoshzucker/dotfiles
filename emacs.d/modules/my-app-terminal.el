@@ -52,10 +52,31 @@
     ;; /etc/profile reads it to build PATH for the ucrt64 tree, and
     ;; config/shell/env/msys.sh returns immediately without it.  Reading
     ;; /etc/profile at all is what `-l' is for.
+    ;;
+    ;; TERMINFO, because ncurses reads it as a colon-separated search path
+    ;; and ghostel names the directory in Windows form: MSYS2's ncurses
+    ;; splits `c:/Users/...' at the drive letter, looks in `c' and in
+    ;; `/Users/...', and finds no xterm-ghostty in either.  A shell that
+    ;; cannot read its terminfo cannot erase a character, so backspace walks
+    ;; the cursor rightwards instead of deleting.  The same directory in
+    ;; MSYS2's own form carries no colon.  `ghostel-environment' is
+    ;; prepended to the spawn environment, so this wins over ghostel's own.
+    ;;
+    ;; LANG, because Windows hands Emacs `JPN', which is not a POSIX locale
+    ;; name: MSYS2 fails to set it, falls back to C, and stops reading the
+    ;; stream as UTF-8.  mintty runs this same shell as ja_JP.UTF-8.
     (setq ghostel-shell
           (list (expand-file-name "~/scoop/apps/msys2/current/usr/bin/zsh.exe")
                 "-l")
-          ghostel-environment '("MSYSTEM=UCRT64"))))
+          ghostel-environment
+          (list "MSYSTEM=UCRT64"
+                "LANG=ja_JP.UTF-8"
+                (concat "TERMINFO="
+                        (replace-regexp-in-string
+                         "\\`\\([A-Za-z]\\):" "/\\1"
+                         (expand-file-name
+                          "etc/terminfo"
+                          (file-name-directory (locate-library "ghostel")))))))))
 
 ;; Evil's operators over a line that the shell owns: `d' and `c' clamp to the
 ;; input and apply it over the PTY, `i' and `a' drive the shell's cursor to
