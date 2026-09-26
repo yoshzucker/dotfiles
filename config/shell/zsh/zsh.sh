@@ -30,15 +30,52 @@ autoload -Uz compinit && compinit -d ~/.zcompdump
 }
 
 # ----- Prompt & VCS Info -----
-autoload -Uz vcs_info add-zsh-hook
-zstyle ':vcs_info:*' enable git
-zstyle ':vcs_info:git:*' formats ' %b'
-zstyle ':vcs_info:git:*' actionformats ' %b|%a'
-add-zsh-hook precmd vcs_info
+autoload -Uz add-zsh-hook
+
+# What `vcs_info' gave, without the processes it spent on giving it.  It runs
+# git several times per prompt, and a git process costs a third of a second
+# on the Windows machine -- paid again after every command, in every
+# repository.  None of it is needed: the branch is the one line in
+# .git/HEAD, and an interrupted operation is a file or directory beside it,
+# so this reads them with zsh builtins and starts nothing at all.
+#
+# `%' is doubled because PROMPT runs under `prompt_subst' and a branch may
+# legally contain one.
+git_prompt_info() {
+  git_prompt_msg=''
+  local dir=$PWD gitdir head action
+  while [[ -n $dir ]]; do
+    if [[ -d $dir/.git ]]; then
+      gitdir=$dir/.git
+      break
+    elif [[ -f $dir/.git ]]; then      # linked worktree or submodule
+      read -r gitdir < $dir/.git
+      gitdir=${gitdir#gitdir: }
+      [[ $gitdir == /* ]] || gitdir=$dir/$gitdir
+      break
+    fi
+    dir=${dir%/*}
+  done
+  [[ -n $gitdir && -r $gitdir/HEAD ]] || return
+  read -r head < $gitdir/HEAD
+  if [[ $head == ref:* ]]; then
+    head=${head#ref: refs/heads/}
+  else
+    head=${head[1,7]}                  # detached: the short hash
+  fi
+  if   [[ -d $gitdir/rebase-merge || -d $gitdir/rebase-apply ]]; then action=rebase
+  elif [[ -f $gitdir/MERGE_HEAD ]];        then action=merge
+  elif [[ -f $gitdir/CHERRY_PICK_HEAD ]];  then action=cherry-pick
+  elif [[ -f $gitdir/REVERT_HEAD ]];       then action=revert
+  elif [[ -f $gitdir/BISECT_LOG ]];        then action=bisect
+  fi
+  git_prompt_msg=" ${head//\%/%%}${action:+|$action}"
+}
+add-zsh-hook precmd git_prompt_info
 
 # Two-line PROMPT: top=path + vcs_info, bottom=❯ colored by $?.
 PROMPT=$'\n%F{'"${THEME_MONO7}"$'}%(4~|.../%2~|%~)%f'\
-$' %F{'"${THEME_MONO5}"$'}${vcs_info_msg_0_}%f\n'\
+$' %F{'"${THEME_MONO5}"$'}${git_prompt_msg}%f\n'\
 $'%(?.%F{'"${THEME_MONO6}"$'}.%F{red})❯%f '
 
 # RPROMPT: SSH shows user@host; root shows user; otherwise empty.
