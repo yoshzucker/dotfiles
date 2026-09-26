@@ -1,8 +1,15 @@
-;;; my-ui-terminal.el --- UI-level terminal integration for pane movement -*- lexical-binding: t; -*-
+;;; my-ui-tmux.el --- Window movement across the tmux boundary -*- lexical-binding: t; -*-
 
 ;;; Commentary:
-;; Enhances terminal-based navigation by integrating Emacs with tmux panes
-;; and overriding evil window movement commands.
+;; What Emacs needs when it is the guest: running in a tmux pane, inside a
+;; terminal.  `tmux-pane' carries evil's window motions past the edge of
+;; Emacs into the neighbouring panes, so one set of keys moves through both.
+;; It is gated on there being no display, because crossing that edge only
+;; means anything when Emacs is in a pane itself; `emamux', which sends
+;; commands the other way into a pane, works from a graphical Emacs too.
+;;
+;; The terminals that run the other way round, inside Emacs, are in
+;; my-app-terminal.el.
 
 ;;; Code:
 
@@ -49,5 +56,5 @@
   (advice-add 'evil-window-down  :override #'my/evil-omni-window-down)
   (advice-add 'evil-window-up    :override #'my/evil-omni-window-up))
 
-(provide 'my-ui-terminal)
-;;; my-ui-terminal.el ends here
+(provide 'my-ui-tmux)
+;;; my-ui-tmux.el ends here

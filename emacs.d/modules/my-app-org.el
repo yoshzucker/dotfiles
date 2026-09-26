@@ -147,7 +147,6 @@ With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_arc
    (:map global-map
          :prefix "C-c"
          :key
-         "t" #'toggle-truncate-lines
          "l" #'org-store-link
          "c" #'org-capture
          "a" #'org-agenda
