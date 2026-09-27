@@ -392,6 +392,18 @@ via a font-weight= presence check."
                         :local-repo "emacs-web-server-eschulte")
   :defer t)
 
+
+;; The package drives a CLI it does not install: `claude', from scoop's
+;; `claude-code' on Windows and from the Claude Code installer on the Mac.
+;; scoop's `claude' is a different thing -- the desktop application -- and
+;; both are in the scoopfile because both are wanted, not because either
+;; stands in for the other.
+;;
+;; Worth naming because of how its absence reads.  `claude-code-ide' looks
+;; for the CLI with `executable-find', which answers for Emacs; what runs it
+;; is the shell the terminal backend starts, which has a PATH of its own.
+;; Where those two differ the session starts, says so, and the window shuts
+;; a moment later -- see the MSYS2_PATH_TYPE note in my-app-terminal.el.
 (use-package claude-code-ide
   :straight (:host github :repo "manzaltu/claude-code-ide.el")
   ;; Reached through the transient, which is the entry point the package

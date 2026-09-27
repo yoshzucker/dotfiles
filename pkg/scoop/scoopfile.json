@@ -71,6 +71,10 @@
       "Source": "main"
     },
     {
+      "Name": "claude-code",
+      "Source": "main"
+    },
+    {
       "Name": "marp",
       "Source": "main"
     },
@@ -84,6 +88,10 @@
     },
     {
       "Name": "emacs",
+      "Source": "extras"
+    },
+    {
+      "Name": "claude",
       "Source": "extras"
     },
     {

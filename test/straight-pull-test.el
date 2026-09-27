@@ -33,7 +33,7 @@
                  (locate-dominating-file
                   (or load-file-name buffer-file-name default-directory)
                   "emacs.d"))
-                "my/straight--")
+                "my/straight")
   "How many definitions were taken out of init.el.")
 
 (ert-deftest straight-pull-test-definitions-are-there ()
@@ -48,8 +48,11 @@
                 my/straight--ref
                 my/straight--head-branch
                 my/straight--level-p
-                my/straight--behind-repos))
-    (should (fboundp fn))))
+                my/straight--behind-repos
+                my/straight-fetch-at-once))
+    (should (fboundp fn)))
+  (should (boundp 'my/straight-fetch-timeout))
+  (should (boundp 'my/straight-fetch-environment)))
 
 ;;;; A repository to try it on
 
@@ -233,6 +236,72 @@ a question nobody asked."
     (straight-pull-test--git clone "checkout" "--detach" "HEAD")
     (let ((default-directory clone))
       (should-not (my/straight--behind-count "main")))))
+
+;;;; A fetch that never answers
+
+(ert-deftest straight-pull-test-gives-up-on-a-fetch-that-hangs ()
+  "One repository that never answers does not become the whole command.
+
+A `git fetch' with nobody to ask waits for an answer that cannot
+arrive -- for credentials, or for an unknown host key to be accepted --
+and says nothing while it waits, so with sixteen in flight the count
+simply stops and the only way out is `C-g'.  git is told not to ask; this
+is the net under that, for every other way a fetch can stop answering.
+
+The git here is a script that sleeps, which is the same thing from the
+outside and does not need a network to arrange."
+  (straight-pull-test--with clone
+    (let* ((bin (expand-file-name "bin" straight-pull-test--root))
+           (fake (expand-file-name "git" bin))
+           (straight--recipe-cache (make-hash-table :test #'equal))
+           (my/straight-fetch-timeout 1)
+           (exec-path (cons bin exec-path)))
+      (puthash "pkg" (straight-pull-test--recipe clone) straight--recipe-cache)
+      (make-directory bin t)
+      (with-temp-file fake (insert "#!/bin/sh\nsleep 30\n"))
+      (set-file-modes fake #o755)
+      (let* ((began (float-time))
+             (result (my/straight-fetch-at-once))
+             (took (- (float-time) began)))
+        (should (member "pkg" (plist-get result :abandoned)))
+        (should (member "pkg" (plist-get result :refused)))
+        (should-not (plist-get result :moved))
+        ;; Back well inside the sleep it would otherwise have waited out.
+        (should (< took 15))))))
+
+(ert-deftest straight-pull-test-the-fetches-run-with-that-environment ()
+  "And the fetches are actually started with it.
+
+Naming the variables somewhere is not the same as git being handed them,
+and it is the handing over that stops the hang.  So the git here writes
+down what it was given."
+  (straight-pull-test--with clone
+    (let* ((bin (expand-file-name "bin" straight-pull-test--root))
+           (fake (expand-file-name "git" bin))
+           (seen (expand-file-name "seen" straight-pull-test--root))
+           (straight--recipe-cache (make-hash-table :test #'equal))
+           (exec-path (cons bin exec-path)))
+      (puthash "pkg" (straight-pull-test--recipe clone) straight--recipe-cache)
+      (make-directory bin t)
+      (with-temp-file fake
+        (insert "#!/bin/sh\n"
+                "printf '%s|%s\\n' \"$GIT_TERMINAL_PROMPT\" \"$GIT_SSH_COMMAND\" > "
+                seen "\n"))
+      (set-file-modes fake #o755)
+      (my/straight-fetch-at-once)
+      (should (file-readable-p seen))
+      (let ((line (with-temp-buffer (insert-file-contents seen)
+                                    (buffer-string))))
+        (should (string-prefix-p "0|" line))
+        (should (string-match-p "BatchMode=yes" line))))))
+
+(ert-deftest straight-pull-test-tells-git-not-to-ask ()
+  "The environment the fetches run in leaves git nobody to ask."
+  (should (member "GIT_TERMINAL_PROMPT=0" my/straight-fetch-environment))
+  (should (seq-find (lambda (entry)
+                      (and (string-prefix-p "GIT_SSH_COMMAND=" entry)
+                           (string-match-p "BatchMode=yes" entry)))
+                    my/straight-fetch-environment)))
 
 ;;;; What the ref files say, with no git at all
 
