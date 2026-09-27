@@ -117,6 +117,14 @@ Themes without an entry simply leave previous settings as-is.")
 (defface my/mode-line-line '((t (:inherit mode-line)))
   "Background of the active mode-line center content area.")
 
+(defface my/mode-line-misc '((t (:inherit mode-line)))
+  "Band behind `mode-line-misc-info', a step between the line and the edge.")
+
+(defface my/mode-line-inactive-misc '((t (:inherit mode-line-inactive)))
+  "Band behind `mode-line-misc-info' where the window is not selected.
+The chrome's own colour, so the stair flattens to a single step and an
+unselected line stays as quiet as it was before there was a band.")
+
 (defface my/mode-line-inactive-line '((t (:inherit mode-line-inactive)))
   "Background of the inactive mode-line center content area.")
 
@@ -290,6 +298,12 @@ colored bg, producing a triangular bridge into the clock area."
       'my/mode-line-line
     'my/mode-line-inactive-line))
 
+(defun my/mode-line-misc-face ()
+  "Return the misc-info band face for the current mode-line."
+  (if (mode-line-window-selected-p)
+      'my/mode-line-misc
+    'my/mode-line-inactive-misc))
+
 (defun my/mode-line-edge-face ()
   "Return the edge face for the current mode-line.
 The `mode-line' / `mode-line-inactive' faces themselves carry the
@@ -299,18 +313,26 @@ mode-line is naturally edge-colored."
       'mode-line
     'mode-line-inactive))
 
+(defun my/mode-line-wedge (glyph over under)
+  "Return GLYPH as a diagonal between the OVER and UNDER faces.
+The glyph's bg is OVER's, so that band carries on across the top of
+the cell; its fg is UNDER's, filling the corner the glyph cuts away.
+Which corner that is belongs to the glyph, so the caller picks the
+pair to suit it."
+  (propertize glyph 'face
+              (list :foreground (face-background under nil 'default)
+                    :background (face-background over nil 'default))))
+
 (defun my/mode-line-slant (side)
   "Return a slant glyph for SIDE (`left' or `right') of the mode-line.
 The glyph's bg uses the line color (matches the center content),
 and its fg paints the edge color as a wedge in the lower corner,
 connecting visually to the surrounding edge fill."
-  (let* ((line-bg (face-background (my/mode-line-line-face) nil 'default))
-         (edge-bg (face-background (my/mode-line-edge-face) nil 'default))
-         (face `(:foreground ,edge-bg :background ,line-bg))
-         (glyph (if (eq side 'left)
-                    my/mode-line-slant-left
-                  my/mode-line-slant-right)))
-    (propertize glyph 'face face)))
+  (my/mode-line-wedge (if (eq side 'left)
+                          my/mode-line-slant-left
+                        my/mode-line-slant-right)
+                      (my/mode-line-line-face)
+                      (my/mode-line-edge-face)))
 
 (defun my/mode-line-edge-pad ()
   "Return a 1-char space carrying the edge (mode-line) face."
@@ -344,17 +366,37 @@ breaking the line."
           (remq (assq 'global-mode-string mode-line-misc-info)
                 mode-line-misc-info)))
 
+(defun my/mode-line-misc-band ()
+  "Close the mode-line, carrying `mode-line-misc-info' in a band of its own.
+
+A step and not a separate chip.  The content band, this one and the
+chrome are three shades of the same grey, one apart, and each pair meets
+over a slant of the same hand, so the end of the row reads as a stair
+down to the frame.  That is what puts it here, hard against the modes,
+rather than out at the frame's right edge: a gradient needs its ends
+touching, and a piece parked in open chrome is a label, not a step.
+
+Nothing to say -- which is most buffers -- and the content band closes
+against the chrome in one step instead, as it did before there was
+anything to put between them."
+  (let ((content (string-trim (format-mode-line (my/mode-line-misc-info)))))
+    (concat
+     (if (string-empty-p content)
+         (my/mode-line-slant 'right)
+       (concat (my/mode-line-wedge my/mode-line-slant-right
+                                   (my/mode-line-line-face)
+                                   (my/mode-line-misc-face))
+               (propertize (concat " " content " ")
+                           'face (my/mode-line-misc-face))
+               (my/mode-line-wedge my/mode-line-slant-right
+                                   (my/mode-line-misc-face)
+                                   (my/mode-line-edge-face))))
+     (my/mode-line-edge-pad))))
+
 (defvar my/mode-line-default-format
-  ;; Before the modes rather than after them, where the standard format has
-  ;; it: which language server a file is attached to is read more often than
-  ;; the minor modes are, and the end of the line is where the eye stops
-  ;; going.
-  (let ((misc '(:eval (my/mode-line-misc-info))))
-    (mapcan (lambda (element)
-              (cond ((eq element 'mode-line-misc-info) nil)
-                    ((eq element 'mode-line-modes) (list misc element))
-                    (t (list element))))
-            (default-value 'mode-line-format)))
+  ;; Without `mode-line-misc-info': `my/mode-line-misc-band' draws it, in
+  ;; a band of its own a shade along from this one.
+  (remq 'mode-line-misc-info (default-value 'mode-line-format))
   "Snapshot of the standard `mode-line-format' before our wrappers.")
 
 (setq-default mode-line-format
@@ -362,8 +404,7 @@ breaking the line."
                 (:eval (my/mode-line-slant 'left))
                 (:eval (propertize (format-mode-line my/mode-line-default-format)
                                    'face (my/mode-line-line-face)))
-                (:eval (my/mode-line-slant 'right))
-                (:eval (my/mode-line-edge-pad))))
+                (:eval (my/mode-line-misc-band))))
 
 ;; And one of it, on a row of its own at the foot of the frame, rather than
 ;; one per window.  The line above is unchanged and is what gets drawn there:
@@ -429,6 +470,8 @@ breaking the line."
                            (mode-line-inactive :background ,mono3)
                            (my/mode-line-line :background ,mono1)
                            (my/mode-line-inactive-line :background ,mono2)
+                           (my/mode-line-misc :background ,mono2)
+                           (my/mode-line-inactive-misc :background ,mono3)
                            (my/calendar-iso-week-header :inherit font-lock-function-name-face))))))
               (assq-delete-all 'rustcity my/theme-special-setups))))
 
@@ -464,6 +507,8 @@ breaking the line."
                            (mode-line-inactive :background ,mono3)
                            (my/mode-line-line :background ,mono1)
                            (my/mode-line-inactive-line :background ,mono2)
+                           (my/mode-line-misc :background ,mono2)
+                           (my/mode-line-inactive-misc :background ,mono3)
                            (my/calendar-iso-week-header :inherit font-lock-function-name-face)))
                         )))
               (assq-delete-all 'gensho my/theme-special-setups))))
