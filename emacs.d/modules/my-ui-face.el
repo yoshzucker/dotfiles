@@ -330,15 +330,31 @@ suggests.  Packages add themselves there: eglot puts its server
 indicator in it, and dropping the variable wholesale dropped that too,
 so a buffer with a language server attached said nothing about it
 anywhere.  Read at draw time rather than snapshotted, because a package
-that has not loaded yet has not added itself yet."
-  (remq (assq 'global-mode-string mode-line-misc-info) mode-line-misc-info))
+that has not loaded yet has not added itself yet.
+
+eglot wraps its own in brackets.  Every other field here is told apart
+by a space, so it is unwrapped on the way past -- cosmetic, and matched
+by name, so a rename upstream puts the brackets back rather than
+breaking the line."
+  (mapcar (lambda (element)
+            (pcase element
+              (`(eglot--managed-mode . ,_)
+               '(eglot--managed-mode (" " eglot--mode-line-format)))
+              (_ element)))
+          (remq (assq 'global-mode-string mode-line-misc-info)
+                mode-line-misc-info)))
 
 (defvar my/mode-line-default-format
-  (mapcar (lambda (element)
-            (if (eq element 'mode-line-misc-info)
-                '(:eval (my/mode-line-misc-info))
-              element))
-          (default-value 'mode-line-format))
+  ;; Before the modes rather than after them, where the standard format has
+  ;; it: which language server a file is attached to is read more often than
+  ;; the minor modes are, and the end of the line is where the eye stops
+  ;; going.
+  (let ((misc '(:eval (my/mode-line-misc-info))))
+    (mapcan (lambda (element)
+              (cond ((eq element 'mode-line-misc-info) nil)
+                    ((eq element 'mode-line-modes) (list misc element))
+                    (t (list element))))
+            (default-value 'mode-line-format)))
   "Snapshot of the standard `mode-line-format' before our wrappers.")
 
 (setq-default mode-line-format
