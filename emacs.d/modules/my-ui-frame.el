@@ -75,8 +75,33 @@ INDEX is 1-based (1 = first entry in `my/frame-size-list`)."
          (new-pos (my/frame-new-position next-size)))
     (my/frame-apply-size-and-position next-size new-pos)))
 
+(defun my/frame--chrome-width ()
+  "Pixels of this frame that are not text: borders, fringes, scroll bars."
+  (- (frame-pixel-width) (frame-text-width)))
+
+(defun my/frame--on-screen (x width)
+  "Return X moved as little as needed to keep a frame WIDTH pixels wide on screen.
+
+`set-frame-position\=' reads a negative coordinate as a distance from the
+*right* edge of the display, not as a position left of the origin.  So a
+frame asked to move further left than the origin does not edge left: it
+appears at the other side of the screen.  Nothing here ever means that,
+and whether a position goes negative depends on the width of a character
+-- which is why the same arithmetic is quiet on one machine and throws
+the frame across the screen on another.
+
+Measured against the monitor this frame is on rather than against zero,
+because a display to the left of the primary one has a negative origin
+of its own and a frame there is where it belongs."
+  (let* ((area (frame-monitor-workarea))
+         (left (nth 0 area))
+         (right (+ left (nth 2 area))))
+    (max left (min x (- right width)))))
+
 (defun my/frame-new-position (next-size)
-  "Calculate the new position for NEXT-SIZE to keep it aligned with `my/frame-base-side`."
+  "Where a frame of NEXT-SIZE goes, keeping `my/frame-base-side\=' still.
+On the monitor, whatever the arithmetic comes to -- see
+`my/frame--on-screen\='."
   (let* ((prev-width (frame-width))
          (next-width (car next-size))
          (prev-pos (frame-position))
@@ -86,7 +111,9 @@ INDEX is 1-based (1 = first entry in `my/frame-size-list`)."
                        ('center (/ (- prev-width next-width) 2))
                        ('right (- prev-width next-width))
                        (_ 0)))))
-    (cons (+ (car prev-pos) delta-x)
+    (cons (my/frame--on-screen
+           (+ (car prev-pos) delta-x)
+           (+ (* next-width (frame-char-width)) (my/frame--chrome-width)))
           (cdr prev-pos))))
 
 (defun my/frame-apply-size-and-position (size pos)
@@ -134,8 +161,7 @@ side of the screen.")
 
 (defun my/frame--text-columns-available ()
   "Columns of text this frame's monitor has room for, its borders counted out."
-  (/ (- (nth 2 (frame-monitor-workarea))
-        (- (frame-pixel-width) (frame-text-width)))
+  (/ (- (nth 2 (frame-monitor-workarea)) (my/frame--chrome-width))
      (frame-char-width)))
 
 (defun my/frame--widest-size ()
