@@ -4,36 +4,40 @@
 ;; Provides LSP configuration for various languages development in Emacs.
 
 ;;; Code:
-;; Named by a hook that is registered before eglot loads, so it is defined
-;; here rather than in eglot's `:config': the hook would otherwise call a
-;; function that does not exist yet.  Nothing in it is eglot's anyway.
-(defun my/ensure-pyright-available ()
-  "Check current pyright usage and show guidance for reproducibility."
+(defconst my/language-tools
+  '(("pyright-langserver" "Python" "uv tool install pyright")
+    ("ruff"               "Python" "uv tool install ruff")
+    ("clangd"             "C/C++"  "Xcode on macOS | scoop install llvm")
+    ("clang-format"       "C/C++"  "brew install clang-format | scoop install llvm")
+    ("xcrun"              "Swift"  "Xcode -- sourcekit-lsp and swift-format are inside it"))
+  "The programs outside Emacs that the modes configured here look for.
+
+One of each on PATH, and every checkout uses that one.  A language
+server is not a dependency of the code it reads -- nothing imports
+pyright -- so a copy per project is the same download repeated and an
+editor that has to be told which is which.  `install_python_tools' in
+bootstrap installs the Python half of this list.")
+
+(defun my/language-tools-report ()
+  "Say which of `my/language-tools' this machine has, and where the rest come from.
+
+Nothing says so while editing, on purpose: a file opens whether or not
+its toolchain is installed, `my/eglot-ensure-when-available' starts no
+server it cannot find and apheleia skips a formatter it cannot find.
+This is where to ask instead -- after a bootstrap, or on a machine set
+up for one language and not another."
   (interactive)
-  (let* ((pyright-path (executable-find "pyright-langserver"))
-         (project-root (or (project-root (project-current)) default-directory))
-         (version-file (locate-dominating-file project-root ".python-version"))
-         (venv-dir (locate-dominating-file project-root ".venv"))
-         (venv-bin (when venv-dir (expand-file-name "bin/pyright-langserver" venv-dir))))
-    (cond
-     ((null pyright-path)
-      (message "pyright not found. Install with: npm install -g pyright"))
-     
-     ((and venv-bin (file-exists-p venv-bin)
-           (file-equal-p pyright-path venv-bin))
-      (message "pyright is project-local: %s" pyright-path))
-     
-     ((string-match-p "\\.npm" pyright-path)
-      (let ((base-msg (format "Using global pyright: %s." pyright-path))
-            (advice
-             (cond
-              (version-file "Consider: pip install pyright in your venv")
-              (venv-dir "Consider: poetry add --group dev pyright")
-              (t "Consider using a virtualenv or poetry"))))
-        (message "%s %s" base-msg advice)))
-     
-     (t
-      (message "pyright in use: %s" pyright-path)))))
+  (with-current-buffer (get-buffer-create "*Language Tools*")
+    (let ((inhibit-read-only t))
+      (erase-buffer)
+      (dolist (entry my/language-tools)
+        (pcase-let ((`(,program ,language ,install) entry))
+          (insert (format "%-10s %-21s %s\n" language program
+                          (or (executable-find program)
+                              (concat "-- " install)))))))
+    (special-mode)
+    (goto-char (point-min))
+    (display-buffer (current-buffer))))
 
 (defconst my/eglot-servers
   '((swift-mode     . "xcrun")
@@ -84,12 +88,11 @@ answer for the other two from the live image or session -- xref included
   (my/add-hook
    (:hook swift-mode-hook swift-ts-mode-hook
           c-mode-hook c-ts-mode-hook c++-mode-hook c++-ts-mode-hook
-          :func #'my/eglot-ensure-when-available)
-   ;; The parent of python-mode and python-ts-mode both, and the hook pet
-   ;; runs on first -- so the executables it finds are the ones looked for
-   ;; here.
-   (:hook python-base-mode-hook
-          :func #'my/eglot-ensure-when-available #'my/ensure-pyright-available))
+          ;; The parent of python-mode and python-ts-mode both, and the one
+          ;; pet runs on first -- so the executables found here are the
+          ;; ones the project's own environment put there.
+          python-base-mode-hook
+          :func #'my/eglot-ensure-when-available))
   :config
   ;; Prevent eglot from hijacking imenu or other features
   (setq eglot-stay-out-of '(imenu))
