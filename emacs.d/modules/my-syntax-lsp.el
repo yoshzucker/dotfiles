@@ -58,6 +58,17 @@
   ;; Prevent eglot from hijacking imenu or other features
   (setq eglot-stay-out-of '(imenu))
 
+  ;; Take the server's log lines however they are shaped.  eglot declares
+  ;; this notification as `&key _type _message' with no `&allow-other-keys',
+  ;; so a server that adds a field to it -- sourcekit-lsp sends `logName' --
+  ;; makes the keyword parsing fail, once per line logged, while the handler
+  ;; it failed to reach is a noop that discards them anyway.  Same shape
+  ;; eglot gives `telemetry/event', and same specializers as the method it
+  ;; replaces.
+  (cl-defmethod eglot-handle-notification
+    (_server (_method (eql window/logMessage)) &rest _any)
+    "Discard the server's log lines, whatever fields they carry.")
+
   ;; Swift
   (dolist (mode '(swift-mode swift-ts-mode))
     (add-to-list 'eglot-server-programs
