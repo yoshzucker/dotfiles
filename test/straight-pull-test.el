@@ -44,7 +44,11 @@
                 my/straight--origin-default-branch
                 my/straight--origin-url
                 my/straight--ordinary-recipe-p
-                my/straight--recipes-by-repo))
+                my/straight--recipes-by-repo
+                my/straight--ref
+                my/straight--head-branch
+                my/straight--level-p
+                my/straight--behind-repos))
     (should (fboundp fn))))
 
 ;;;; A repository to try it on
@@ -230,6 +234,56 @@ a question nobody asked."
     (let ((default-directory clone))
       (should-not (my/straight--behind-count "main")))))
 
+;;;; What the ref files say, with no git at all
+
+(ert-deftest straight-pull-test-reads-a-loose-ref ()
+  "A branch that is still a file of its own."
+  (straight-pull-test--with clone
+    (should (equal (my/straight--ref clone "refs/heads/main")
+                   (straight-pull-test--git clone "rev-parse" "HEAD")))))
+
+(ert-deftest straight-pull-test-reads-a-packed-ref ()
+  "And one git has tidied away into packed-refs."
+  (straight-pull-test--with clone
+    (let ((head (straight-pull-test--git clone "rev-parse" "HEAD")))
+      (straight-pull-test--git clone "pack-refs" "--all")
+      (should-not (file-exists-p (expand-file-name ".git/refs/heads/main" clone)))
+      (should (equal (my/straight--ref clone "refs/heads/main") head)))))
+
+(ert-deftest straight-pull-test-reads-the-branch-head-is-on ()
+  "HEAD names a branch, until it does not."
+  (straight-pull-test--with clone
+    (should (equal (my/straight--head-branch clone) "main"))
+    (straight-pull-test--git clone "checkout" "--detach" "HEAD")
+    (should-not (my/straight--head-branch clone))))
+
+(ert-deftest straight-pull-test-level-is-the-two-refs-agreeing ()
+  "Behind is not level; caught up is."
+  (straight-pull-test--with clone
+    (should-not (my/straight--level-p clone "main"))
+    (straight-pull-test--git clone "merge" "--ff-only" "origin/main")
+    (should (my/straight--level-p clone "main"))))
+
+(ert-deftest straight-pull-test-level-wants-head-on-that-branch ()
+  "A branch level with its remote, while HEAD is somewhere else."
+  (straight-pull-test--with clone
+    (straight-pull-test--git clone "merge" "--ff-only" "origin/main")
+    (straight-pull-test--git clone "checkout" "-q" "--detach" "HEAD")
+    (should-not (my/straight--level-p clone "main"))))
+
+(ert-deftest straight-pull-test-behind-repos-does-not-need-the-fetch-to-say-so ()
+  "A repository the last run left behind is found again on the next one.
+
+This is the whole reason the merge asks what is behind rather than what
+the fetch brought: the second fetch of an already-fetched ref brings
+nothing, so a merge that did not happen would never be retried."
+  (straight-pull-test--with clone
+    (let ((straight--recipe-cache (make-hash-table :test #'equal)))
+      (puthash "pkg" (straight-pull-test--recipe clone) straight--recipe-cache)
+      (should (equal (my/straight--behind-repos) '("pkg")))
+      (straight-pull-test--git clone "merge" "--ff-only" "origin/main")
+      (should-not (my/straight--behind-repos)))))
+
 ;;;; Which recipes count as ordinary
 
 (ert-deftest straight-pull-test-plain-recipe-is-ordinary ()
@@ -268,6 +322,21 @@ a question nobody asked."
     (should-not (straight-pull-test--level-p clone))
     (should (my/straight--fast-forward "pkg" (list (straight-pull-test--recipe clone))))
     (should (straight-pull-test--level-p clone))))
+
+(ert-deftest straight-pull-test-tells-straight-the-repository-moved ()
+  "A merge straight did not do is one straight has to be told about.
+
+It rebuilds a package whose repository changed, and on Windows the only
+thing that tells it so is this marker -- the startup walk that would
+otherwise notice costs half a minute there and is turned off."
+  (straight-pull-test--with clone
+    (let ((marker (expand-file-name "straight/modified/pkg"
+                                    straight-pull-test--root))
+          (straight-safe-mode nil))
+      (should-not (file-exists-p marker))
+      (should (my/straight--fast-forward
+               "pkg" (list (straight-pull-test--recipe clone))))
+      (should (file-exists-p marker)))))
 
 (ert-deftest straight-pull-test-says-yes-when-already-level ()
   "Nothing to merge is still nothing for straight to do."
