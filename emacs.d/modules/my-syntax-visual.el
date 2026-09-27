@@ -39,12 +39,39 @@
   :defer t
   :diminish (flycheck-mode "flyc")
   :init
+  ;; Both spellings of the modes that `major-mode-remap-alist' below sends
+  ;; to tree-sitter.  A -ts- mode derives from `prog-mode', not from the
+  ;; mode it replaces, so `python-mode-hook' never runs in a buffer that is
+  ;; in `python-ts-mode' -- and the checker that was asked for quietly never
+  ;; arrives.  The old names stay for the case where the remap is off.
   (my/add-hook
-   (:hook python-mode-hook slime-lisp-mode-hook ess-mode-hook c-mode-common-hook
+   (:hook python-mode-hook python-ts-mode-hook
+          c-mode-common-hook c-ts-mode-hook c++-ts-mode-hook
+          slime-lisp-mode-hook ess-mode-hook
           :func #'flycheck-mode)))
 
+(defun my/elisp-flymake-setup ()
+  "Turn flymake on for Emacs Lisp, minus the backend a process costs too much.
+
+`emacs-lisp-mode' offers two: `elisp-flymake-checkdoc', which reads the
+buffer in this process, and `elisp-flymake-byte-compile', which starts an
+Emacs of its own for every check -- `make-process' against
+`invocation-name'.  That is nothing here and a fifth of a second on the
+Windows machine, paid over and over while typing, so there it keeps
+checkdoc alone.
+
+The unbalanced paren and the compiler's warnings come from the
+byte-compile one, which is the half worth having and the half that costs."
+  (when (eq system-type 'windows-nt)
+    (remove-hook 'flymake-diagnostic-functions #'elisp-flymake-byte-compile t))
+  (flymake-mode 1))
+
 (use-package flymake
-  :defer t)
+  ;; Reached by the hook below, which names an autoloaded mode.
+  :defer t
+  :init
+  (my/add-hook
+   (:hook emacs-lisp-mode-hook :func #'my/elisp-flymake-setup)))
 
 (use-package treesit
   :straight nil
