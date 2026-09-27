@@ -245,18 +245,22 @@ a second.")
 (defconst my/straight-fetch-environment
   '("GIT_TERMINAL_PROMPT=0"
     "GIT_SSH_COMMAND=ssh -o BatchMode=yes -o ConnectTimeout=10")
-  "Environment that stops `git fetch' from asking anybody anything.
+  "Environment that stops `git fetch\=' from asking anybody anything.
 
-A fetch run from a command loop has nowhere to ask.  git writes its
-prompts to the terminal rather than to the pipe this reads, so a
-repository wanting credentials, or ssh wanting to be told an unknown
-host key is fine, waits for an answer that cannot arrive and is
-invisible while it waits -- and with sixteen in flight, the count simply stops.
+Nothing here is cloned with an account: the recipes name public
+repositories and git reads them anonymously.  That is not the same as
+never being asked a question.  A host answers 401 rather than 404 for a
+repository it will not show -- renamed, deleted, made private -- and git
+then asks who you are; and the packages written here are cloned over
+ssh, which wants an unknown host key confirmed the first time.  Neither
+question can be answered: git writes to the terminal, and a fetch run
+from a command loop has none.  With sixteen in flight the count stops
+and nothing says why.
 
 So they are told not to ask.  What was a command that hung is then a
-repository in the refused list, with a name, which is something to go and
-fix.  BatchMode does not stop an agent from answering: a key
-already unlocked is still offered.")
+repository in the refused list, with a name, which is something to go
+and fix.  BatchMode does not stop an agent from answering: a key already
+unlocked is still offered.")
 
 (defun my/straight-fetch-at-once ()
   "Run `git fetch' in every straight repository, several at a time.
@@ -337,12 +341,17 @@ git processes behind to finish into a command that has gone."
          (spoke (make-hash-table :test #'equal)))
     (unwind-protect
         (progn
-          ;; How many are running is counted rather than kept.  A count
-          ;; that is kept is a count that can be lost: a sentinel missed for
-          ;; any reason leaves it above zero for good, and then this loop
-          ;; never ends -- and the timeout below cannot save it, because
-          ;; there is no live process left to kill.  A hang no timeout
-          ;; catches is the one worth not building.
+          ;; No sentinels, and nothing counted that is not counted from
+          ;; the processes themselves.  A tally kept by sentinels is a tally
+          ;; that can be lost -- one missed leaves it above zero for good,
+          ;; the loop never ends, and the timeout below cannot save it
+          ;; because there is no live process left to kill.  Deriving the
+          ;; count instead removes that, and then ending the loop the moment
+          ;; nothing is live introduces the opposite fault: a process is
+          ;; dead before its sentinel runs, so a sentinel is the wrong place
+          ;; to learn how it ended.  Both go away by asking the process:
+          ;; `process-exit-status' answers for a dead one whether or not
+          ;; anything was notified.
           (while (or queue (seq-some #'process-live-p procs))
             (while (and queue
                         (< (seq-count #'process-live-p procs)
@@ -369,15 +378,7 @@ git processes behind to finish into a command that has gone."
                   ;; Drained rather than read: what it says does not matter,
                   ;; only that it said anything, and a process whose output
                   ;; nobody takes can block on a full pipe.
-                  :filter (lambda (_proc _chunk) (puthash name t spoke))
-                  ;; Classification only.  What is finished is worked out
-                  ;; in the loop, from the processes themselves.
-                  :sentinel
-                  (lambda (proc _event)
-                    (unless (process-live-p proc)
-                      (if (eq 0 (process-exit-status proc))
-                          (when (gethash name spoke) (push name moved))
-                        (push name failed)))))
+                  :filter (lambda (_proc _chunk) (puthash name t spoke)))
                  procs)
                 (process-put (car procs) 'my/straight-repo name)
                 (process-put (car procs) 'my/straight-began (float-time))))
@@ -387,9 +388,9 @@ git processes behind to finish into a command that has gone."
             (progress-reporter-update
              reporter (- total (length queue)
                          (seq-count #'process-live-p procs)))
-            ;; And what notices one that is never going to finish.  Killing
-            ;; it runs its sentinel, which counts it and puts it among the
-            ;; refused, so the command goes on and says so at the end.
+            ;; And what notices one that is never going to finish.  A
+            ;; killed process has an exit status like any other, so it is
+            ;; classified below with the rest and named in the report.
             (dolist (proc procs)
               (when (and (process-live-p proc)
                          (> (- (float-time)
@@ -397,6 +398,15 @@ git processes behind to finish into a command that has gone."
                             my/straight-fetch-timeout))
                 (push (process-get proc 'my/straight-repo) abandoned)
                 (delete-process proc))))
+          ;; Each one asked how it ended, now that none of them is running.
+          ;; Whatever they said reached the filter on the way: the loop
+          ;; above cannot leave while a process is live, and the waiting it
+          ;; does there is what reads their output.
+          (dolist (proc (reverse procs))
+            (let ((name (process-get proc 'my/straight-repo)))
+              (if (eq 0 (process-exit-status proc))
+                  (when (gethash name spoke) (push name moved))
+                (push name failed))))
           (progress-reporter-done reporter)
           (message "straight: fetched %d repositories in %.0fs; %d changed%s%s"
                    total (- (float-time) began) (length moved)
