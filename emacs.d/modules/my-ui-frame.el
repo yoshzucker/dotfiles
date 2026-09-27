@@ -101,51 +101,75 @@ INDEX is 1-based (1 = first entry in `my/frame-size-list`)."
                       cmd)))
       (send-string-to-terminal wrapped))))
 
-(defun my/frame-sidebar-adjust (delta)
-  "Adjust current frame width by DELTA columns, keeping base side alignment."
-  (let* ((fw (frame-width))
-         (fh (frame-height))
-         (next (cons (+ fw delta) fh))
-         (pos  (my/frame-new-position next)))
-    (my/frame-apply-size-and-position next pos)))
+;; A window docked to the left or right takes its width out of the text, and
+;; on a frame that is one column of text wide there is not enough to take.
+;; So the frame moves to the widest shape in `my/frame-size-list' the monitor
+;; has room for, and back to the shape it left when the docked window goes.
+;;
+;; Shapes rather than columns.  Growing by the width of whatever appeared
+;; puts the frame anywhere at all -- past the edge of the screen, for a
+;; terminal that asks for a hundred columns beside an eighty-column frame --
+;; and growing by as much as is left over puts a useless sliver beside the
+;; text.  The list is the set of sizes this frame is meant to have, and one
+;; of them is the two-column shape, which is what a docked window wants.
+;;
+;; A frame already at that shape has nowhere to move to, and neither has a
+;; maximized one: their windows divide what is there, which is what two
+;; panes of a wide frame should do anyway.
 
-(defvar my/sidebar--in-adjust nil
-  "Reentrancy guard for auto sidecar width adjustment.")
+(defconst my/frame--restore-parameter 'my/frame-size-before-docking
+  "Frame parameter holding the shape to return to, or nil for none.")
 
-(defun my/sidebar--applied-width ()
-  (or (frame-parameter nil 'my/sidecar-comp-width-applied) 0))
+(defvar my/frame--in-adjust nil
+  "Reentrancy guard: resizing a frame changes its window configuration.")
 
-(defun my/sidebar--set-applied-width (cols)
-  (set-frame-parameter nil 'my/sidecar-comp-width-applied cols))
+(defun my/frame--text-columns-available ()
+  "Columns of text this frame's monitor has room for, its borders counted out."
+  (/ (- (nth 2 (frame-monitor-workarea))
+        (- (frame-pixel-width) (frame-text-width)))
+     (frame-char-width)))
 
-(defun my/sidebar--clear-applied-width (&rest _)
-  "Invalidate the currently applied sidebar width so the next frame size change."
-  (my/sidebar--set-applied-width 0))
+(defun my/frame--widest-size ()
+  "The widest shape in `my/frame-size-list' that fits the monitor, or nil."
+  (let ((room (my/frame--text-columns-available)))
+    (car (last (seq-filter (lambda (size) (<= (car size) room))
+                           my/frame-size-list)))))
 
-(defun my/sidebar--compute-desired-width ()
-  "Return the total number of columns occupied by all active side windows — the sum of each side’s maximum width plus one."
-  (let ((left 0) (right 0))
-    (dolist (w (window-list nil 'nomini))
-      (pcase (window-parameter w 'window-side)
-        ('left  (setq left  (max left  (window-total-width w t))))
-        ('right (setq right (max right (window-total-width w t))))))
-    (+ (if (> left 0)  (1+ left)  0)
-       (if (> right 0) (1+ right) 0))))
+(defun my/frame--docked-window-p ()
+  "Non-nil when a window is docked to the left or right of this frame.
 
-(defun my/sidebar--auto-adjust (&rest _)
-  "Automatically adjust the frame width to match the current side window configuration."
-  (unless my/sidebar--in-adjust
-    (let* ((desired (my/sidebar--compute-desired-width))
-           (applied (my/sidebar--applied-width))
-           (delta   (- desired applied)))
-      (when (/= delta 0)
-        (let ((my/sidebar--in-adjust t))
-          (my/frame-sidebar-adjust delta)
-          (my/sidebar--set-applied-width desired))))))
+The foot of the frame is not asked about: the row sill draws there and the
+menus transient opens take height, and the width of the text is what this
+is about."
+  (seq-find (lambda (window)
+              (memq (window-parameter window 'window-side) '(left right)))
+            (window-list nil 'nomini)))
 
-(add-hook 'window-configuration-change-hook #'my/sidebar--auto-adjust)
-(advice-add 'my/cycle-frame-size :before #'my/sidebar--clear-applied-width)
-(advice-add 'my/cycle-frame-size :after #'my/sidebar--auto-adjust)
+(defun my/frame--forget-docking (&rest _)
+  "Let go of the shape to return to.
+A size chosen by hand is the choice that wins, and going back to what was
+there before a sidebar opened would undo it."
+  (set-frame-parameter nil my/frame--restore-parameter nil))
+
+(defun my/frame--adjust-for-docking (&rest _)
+  "Take the wide shape while a window is docked beside the text."
+  (unless (or my/frame--in-adjust (frame-parameter nil 'fullscreen))
+    (let ((my/frame--in-adjust t)
+          (saved (frame-parameter nil my/frame--restore-parameter))
+          (docked (my/frame--docked-window-p)))
+      (cond
+       ((and docked (not saved))
+        (when-let* ((wide (my/frame--widest-size))
+                    ((> (car wide) (frame-width))))
+          (set-frame-parameter nil my/frame--restore-parameter
+                               (cons (frame-width) (frame-height)))
+          (my/frame-apply-size-and-position wide (my/frame-new-position wide))))
+       ((and saved (not docked))
+        (set-frame-parameter nil my/frame--restore-parameter nil)
+        (my/frame-apply-size-and-position saved (my/frame-new-position saved)))))))
+
+(add-hook 'window-configuration-change-hook #'my/frame--adjust-for-docking)
+(advice-add 'my/cycle-frame-size :before #'my/frame--forget-docking)
 
 (defun my/frame-setup ()
   "Initialize frame configuration and title."
