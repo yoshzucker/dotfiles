@@ -235,15 +235,39 @@ Enough to hide the round trips behind each other, and not so many that a
 rate limit or a laptop fan becomes the thing being measured.  The work is
 waiting rather than computing, so this is not a count of cores.")
 
+(defvar my/straight-fetch-timeout 60
+  "Seconds to let one `git fetch' run before giving up on it.
+
+Long enough that a slow repository on a slow line finishes, short enough
+that a stuck one does not become the whole command.  One fetch here takes
+a second.")
+
+(defconst my/straight-fetch-environment
+  '("GIT_TERMINAL_PROMPT=0"
+    "GIT_SSH_COMMAND=ssh -o BatchMode=yes -o ConnectTimeout=10")
+  "Environment that stops `git fetch' from asking anybody anything.
+
+A fetch run from a command loop has nowhere to ask.  git writes its
+prompts to the terminal rather than to the pipe this reads, so a
+repository wanting credentials, or ssh wanting to be told an unknown
+host key is fine, waits for an answer that cannot arrive and is
+invisible while it waits -- and with sixteen in flight, the count simply stops.
+
+So they are told not to ask.  What was a command that hung is then a
+repository in the refused list, with a name, which is something to go and
+fix.  BatchMode does not stop an agent from answering: a key
+already unlocked is still offered.")
+
 (defun my/straight-fetch-at-once ()
   "Run `git fetch' in every straight repository, several at a time.
 
-Return a plist: `:refused' names the repositories git would not fetch,
-newest first, and `:moved' names the ones something actually arrived in.
-The second is for the report and not for the merge, which asks what is
-behind instead -- see `my/straight--behind-repos'.  git says it for
-free: onto a pipe it prints when a ref moves and is silent when none
-did.
+Return a plist.  `:refused' names the repositories git would not fetch,
+newest first; `:abandoned' the ones killed for taking longer than
+`my/straight-fetch-timeout'; `:moved' the ones something actually
+arrived in.  The last is for the report and not for the merge, which
+asks what is behind instead -- see `my/straight--behind-repos'.  git
+says it for free: onto a pipe it prints when a ref moves and is silent
+when none did.
 
 Says how far it has got as it goes.  Sixteen seconds here is one machine
 on one network, and neither is the slow case: a Windows box walking its
@@ -297,8 +321,11 @@ git processes behind to finish into a command that has gone."
          (reporter (make-progress-reporter
                     (format "straight: fetching %d repositories..." total)
                     0 total))
+         ;; Told not to ask anything, because there is nobody to ask.
+         (process-environment (append my/straight-fetch-environment
+                                      process-environment))
          (procs nil)
-         (live 0) (done 0) (failed nil) (moved nil)
+         (live 0) (done 0) (failed nil) (moved nil) (abandoned nil)
          ;; Which repositories something arrived in.  `--quiet' is gone so
          ;; that git will say: onto a pipe it writes a line when a ref moves
          ;; and nothing at all when none did, which is the question the merge
@@ -336,18 +363,35 @@ git processes behind to finish into a command that has gone."
                           (when (gethash name spoke) (push name moved))
                         (push name failed))
                       (progress-reporter-update reporter done))))
-                 procs)))
+                 procs)
+                (process-put (car procs) 'my/straight-repo name)
+                (process-put (car procs) 'my/straight-began (float-time))))
             ;; Short, because this loop is also what starts the next process
             ;; as each one finishes.
-            (accept-process-output nil 0.05))
+            (accept-process-output nil 0.05)
+            ;; And what notices one that is never going to finish.  Killing
+            ;; it runs its sentinel, which counts it and puts it among the
+            ;; refused, so the command goes on and says so at the end.
+            (dolist (proc procs)
+              (when (and (process-live-p proc)
+                         (> (- (float-time)
+                               (process-get proc 'my/straight-began))
+                            my/straight-fetch-timeout))
+                (push (process-get proc 'my/straight-repo) abandoned)
+                (delete-process proc))))
           (progress-reporter-done reporter)
-          (message "straight: fetched %d repositories in %.0fs; %d changed%s"
+          (message "straight: fetched %d repositories in %.0fs; %d changed%s%s"
                    done (- (float-time) began) (length moved)
                    (if failed
                        (format "; %d refused: %s" (length failed)
                                (string-join (reverse failed) ", "))
+                     "")
+                   (if abandoned
+                       (format "; %d gave no answer in %ds: %s"
+                               (length abandoned) my/straight-fetch-timeout
+                               (string-join (reverse abandoned) ", "))
                      ""))
-          (list :refused failed :moved moved))
+          (list :refused failed :moved moved :abandoned abandoned))
       (dolist (proc procs)
         (when (process-live-p proc)
           (set-process-sentinel proc #'ignore)
