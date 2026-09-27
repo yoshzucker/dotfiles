@@ -1668,6 +1668,29 @@ function Update-RPackages {
     Write-PrintLine $leftMessage "Finished."
 }
 
+function Install-PythonTools {
+    # Puts the Python tools that are not a project's own on PATH, with uv.
+    #
+    # One copy rather than one per project.  A language server is not a
+    # dependency of the code it reads -- nothing imports pyright -- so
+    # installing it into every virtualenv means the same package downloaded
+    # again for each checkout, and an editor that has to be told where each
+    # one is.  `uv tool install` keeps one, on PATH, for all of them.  That
+    # matters more here than on the Mac: every download and every process
+    # this machine starts is inspected on the way.
+    if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+        return
+    }
+
+    $leftMessage = "Installing Python tools"
+    Write-PrintLine $leftMessage "Started."
+
+    uv tool install --quiet pyright 2>$null
+    uv tool install --quiet ruff 2>$null
+
+    Write-PrintLine $leftMessage "Finished."
+}
+
 function Install-ZshPlugins {
     # Clones the zsh plugins listed in pkg/zsh-plugins/plugins.txt by invoking
     # the Scoop-installed MSYS2 bash, so the repos land in exactly the path the
@@ -1873,6 +1896,7 @@ function Perform-FullBootstrap {
     Enable-EmacsNativeComp
     Install-Fonts
     Install-RPackages
+    Install-PythonTools
     Install-ZshPlugins
     Setup-Links
     Setup-DevPackages

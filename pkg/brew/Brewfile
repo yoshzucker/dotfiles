@@ -54,6 +54,15 @@ brew "sevenzip"                 # yazi preview: archives
 
 # --- Languages & runtimes ----------------------------------------------------
 brew "python"
+# uv manages Python itself -- interpreters, virtualenvs and the tools that
+# live outside a project -- so pyenv, virtualenv and pipx are not separately
+# installed.  `install_python_tools' in bootstrap puts pyright on PATH with
+# it; see doc/ for why that is one copy rather than one per project.
+brew "uv"
+# clang-format alone rather than the whole of llvm: a formatter is all that
+# is wanted from it, and clangd (the language server) ships with the Xcode
+# command line tools.
+brew "clang-format"
 brew "r"
 brew "sbcl"
 brew "node"
