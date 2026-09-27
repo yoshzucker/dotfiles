@@ -656,8 +656,19 @@ none of the ordinary case below."
   (interactive "P")
   (if (or predicate from-upstream)
       (straight-pull-all from-upstream predicate)
-    (let* ((garbage-collection-messages nil))
-      (my/straight-fetch-at-once)
+    (let* ((garbage-collection-messages nil)
+           ;; What the fetch could not reach.  Said again here because the
+           ;; fetch says it and is then talked over: the merge finishes a
+           ;; moment later and its message is the one left on screen.  And
+           ;; a repository that was not fetched looks, to everything after
+           ;; this, exactly like one with nothing to fetch -- it is where
+           ;; its remote was last known to be, so it is skipped, silently,
+           ;; and stays a version behind with nothing to show for it.
+           (unreachable (plist-get (my/straight-fetch-at-once) :refused))
+           (aside (if unreachable
+                      (format "; %d not reached: %s" (length unreachable)
+                              (string-join (reverse unreachable) ", "))
+                    "")))
       ;; Only the repositories that are behind.  Merging one costs
       ;; thirty-seven git processes -- the merge itself is one of them and
       ;; the rest are questions about which branch, whose remote and what is
@@ -667,7 +678,7 @@ none of the ordinary case below."
       ;; minute here and four times that on Windows.
       (let ((behind (my/straight--behind-repos)))
         (if (null behind)
-            (message "straight: nothing to merge")
+            (message "straight: nothing to merge%s" aside)
           (let* ((recipes (my/straight--recipes-by-repo))
                  (total (length behind))
                  (reporter (make-progress-reporter
@@ -681,12 +692,13 @@ none of the ordinary case below."
                 (push repo left))
               (progress-reporter-update reporter (cl-incf done)))
             (progress-reporter-done reporter)
-            (message "straight: merged %d of %d repositories in %.0fs%s"
+            (message "straight: merged %d of %d repositories in %.0fs%s%s"
                      (- total (length left)) total (- (float-time) began)
                      (if left
                          (format "; %d to look at: %s" (length left)
                                  (string-join (reverse left) ", "))
-                       ""))
+                       "")
+                     aside)
             ;; And those, the way they have always been done.  straight
             ;; narrates one repository at a time here rather than counting,
             ;; which is the right way round now: this is the list that can

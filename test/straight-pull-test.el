@@ -49,7 +49,8 @@
                 my/straight--head-branch
                 my/straight--level-p
                 my/straight--behind-repos
-                my/straight-fetch-at-once))
+                my/straight-fetch-at-once
+                my/straight-pull-all))
     (should (fboundp fn)))
   (should (boundp 'my/straight-fetch-timeout))
   (should (boundp 'my/straight-fetch-environment)))
@@ -302,6 +303,68 @@ down what it was given."
                       (and (string-prefix-p "GIT_SSH_COMMAND=" entry)
                            (string-match-p "BatchMode=yes" entry)))
                     my/straight-fetch-environment)))
+
+(ert-deftest straight-pull-test-says-which-repositories-were-not-reached ()
+  "A repository the fetch could not reach is named at the end.
+
+It is otherwise invisible twice over.  The fetch says so and the merge
+talks over it a moment later; and a repository that was not fetched is
+indistinguishable, afterwards, from one with nothing to fetch -- it is
+where its remote was last known to be, so nothing merges it and nothing
+mentions it.  This is the case that has to be tested with the repository
+level, because that is the one where the merge would otherwise say
+nothing at all."
+  (straight-pull-test--with clone
+    (straight-pull-test--git clone "merge" "--ff-only" "origin/main")
+    (let* ((bin (expand-file-name "bin" straight-pull-test--root))
+           (fake (expand-file-name "git" bin))
+           (straight--recipe-cache (make-hash-table :test #'equal))
+           (exec-path (cons bin exec-path))
+           (said nil))
+      (puthash "pkg" (straight-pull-test--recipe clone) straight--recipe-cache)
+      (make-directory bin t)
+      (with-temp-file fake (insert "#!/bin/sh\nexit 1\n"))
+      (set-file-modes fake #o755)
+      (cl-letf (((symbol-function 'message)
+                 (lambda (fmt &rest args)
+                   (when fmt (push (apply #'format fmt args) said)))))
+        (my/straight-pull-all))
+      (should (seq-find (lambda (line)
+                          (and (string-match-p "not reached" line)
+                               (string-match-p "pkg" line)))
+                        said)))))
+
+(ert-deftest straight-pull-test-names-them-alongside-what-did-merge ()
+  "Including when there was something to merge, which is the other message.
+
+A repository can be both: out of reach now and behind from before, in
+which case it still merges from the refs it already has -- and is still
+worth naming, because what it merged is not what is on the remote."
+  (straight-pull-test--with clone
+    (let* ((real (executable-find "git"))
+           (bin (expand-file-name "bin" straight-pull-test--root))
+           (fake (expand-file-name "git" bin))
+           (straight--recipe-cache (make-hash-table :test #'equal))
+           (exec-path (cons bin exec-path))
+           (said nil))
+      (puthash "pkg" (straight-pull-test--recipe clone) straight--recipe-cache)
+      (make-directory bin t)
+      ;; Refuses to fetch and does everything else, which is the shape of a
+      ;; repository whose remote cannot be reached from here.
+      (with-temp-file fake
+        (insert "#!/bin/sh\n"
+                "if [ \"$1\" = fetch ]; then exit 1; fi\n"
+                "exec " real " \"$@\"\n"))
+      (set-file-modes fake #o755)
+      (cl-letf (((symbol-function 'message)
+                 (lambda (fmt &rest args)
+                   (when fmt (push (apply #'format fmt args) said)))))
+        (my/straight-pull-all))
+      (should (straight-pull-test--level-p clone))
+      (should (seq-find (lambda (line)
+                          (and (string-match-p "merged 1 of 1" line)
+                               (string-match-p "not reached: pkg" line)))
+                        said)))))
 
 ;;;; What the ref files say, with no git at all
 
