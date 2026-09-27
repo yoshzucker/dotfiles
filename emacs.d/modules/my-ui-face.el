@@ -316,14 +316,29 @@ connecting visually to the surrounding edge fill."
   "Return a 1-char space carrying the edge (mode-line) face."
   (propertize " " 'face (my/mode-line-edge-face)))
 
+(defun my/mode-line-misc-info ()
+  "`mode-line-misc-info', less the part the tab bar already draws.
+
+`global-mode-string' is in the tab bar -- see `tab-bar-format-global' in
+my-app-org.el -- so a mode line carrying it too says everything twice.
+The running clock is what makes that visible rather than merely
+redundant: it arrives with a slant drawn for the tab bar, and a slant in
+a mode line is a wedge pointing at nothing.
+
+The rest of `mode-line-misc-info' is not that string, whatever its name
+suggests.  Packages add themselves there: eglot puts its server
+indicator in it, and dropping the variable wholesale dropped that too,
+so a buffer with a language server attached said nothing about it
+anywhere.  Read at draw time rather than snapshotted, because a package
+that has not loaded yet has not added itself yet."
+  (remq (assq 'global-mode-string mode-line-misc-info) mode-line-misc-info))
+
 (defvar my/mode-line-default-format
-  ;; Without `mode-line-misc-info', which is `global-mode-string' and
-  ;; nothing else.  That string is drawn in the tab bar already -- see
-  ;; `tab-bar-format-global' in my-app-org.el -- so a mode line carrying it
-  ;; too says everything twice.  The running clock is what makes that
-  ;; visible rather than merely redundant: it arrives with a slant drawn for
-  ;; the tab bar, and a slant in a mode line is a wedge pointing at nothing.
-  (remq 'mode-line-misc-info (default-value 'mode-line-format))
+  (mapcar (lambda (element)
+            (if (eq element 'mode-line-misc-info)
+                '(:eval (my/mode-line-misc-info))
+              element))
+          (default-value 'mode-line-format))
   "Snapshot of the standard `mode-line-format' before our wrappers.")
 
 (setq-default mode-line-format
