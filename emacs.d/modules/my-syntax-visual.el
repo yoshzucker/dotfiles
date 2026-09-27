@@ -35,21 +35,6 @@
   ;; Skip non-ASCII regions when checking spelling
   (add-to-list 'ispell-skip-region-alist '("[^\000-\377]+")))
 
-(use-package flycheck
-  :defer t
-  :diminish (flycheck-mode "flyc")
-  :init
-  ;; Both spellings of the modes that `major-mode-remap-alist' below sends
-  ;; to tree-sitter.  A -ts- mode derives from `prog-mode', not from the
-  ;; mode it replaces, so `python-mode-hook' never runs in a buffer that is
-  ;; in `python-ts-mode' -- and the checker that was asked for quietly never
-  ;; arrives.  The old names stay for the case where the remap is off.
-  (my/add-hook
-   (:hook python-mode-hook python-ts-mode-hook
-          c-mode-common-hook c-ts-mode-hook c++-ts-mode-hook
-          slime-lisp-mode-hook ess-mode-hook
-          :func #'flycheck-mode)))
-
 (defun my/elisp-flymake-setup ()
   "Turn flymake on for Emacs Lisp, minus the backend a process costs too much.
 
@@ -69,6 +54,10 @@ byte-compile one, which is the half worth having and the half that costs."
 (use-package flymake
   ;; Reached by the hook below, which names an autoloaded mode.
   :defer t
+  :custom
+  ;; Three letters, like every other lighter here.  The counters that follow
+  ;; it are the part worth reading.
+  (flymake-mode-line-lighter "fly")
   :init
   (my/add-hook
    (:hook emacs-lisp-mode-hook :func #'my/elisp-flymake-setup)))
