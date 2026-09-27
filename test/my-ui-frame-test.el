@@ -43,6 +43,8 @@ text dimensions; the position does not, which is the case being tested."
   `(let ((applied nil)
          (width 81) (height 24)
          (position '(400 . 100))
+         (monitor '(0 0 1920 1080))
+         (chrome 20)
          (docked nil)
          (my/frame-base-side 'center))
      (cl-letf (((symbol-function 'my/frame--docked-window-p) (lambda () docked))
@@ -51,12 +53,16 @@ text dimensions; the position does not, which is the case being tested."
                ((symbol-function 'frame-height) (lambda (&rest _) height))
                ((symbol-function 'frame-position) (lambda (&rest _) position))
                ((symbol-function 'frame-char-width) (lambda (&rest _) 10))
+               ((symbol-function 'frame-monitor-workarea) (lambda (&rest _) monitor))
+               ((symbol-function 'frame-text-width) (lambda (&rest _) (* width 10)))
+               ((symbol-function 'frame-pixel-width)
+                (lambda (&rest _) (+ (* width 10) chrome)))
                ((symbol-function 'my/frame-apply-size-and-position)
                 (lambda (size pos)
                   (push (list size pos) applied)
                   (setq width (car size) height (cdr size)))))
        (set-frame-parameter nil my/frame--restore-parameter nil)
-       (ignore docked position)
+       (ignore docked position monitor chrome)
        ,@body)))
 
 (ert-deftest my-ui-frame-test-widens-when-a-sidebar-opens ()
@@ -65,6 +71,49 @@ text dimensions; the position does not, which is the case being tested."
     (setq docked t)
     (my/frame--adjust-for-docking)
     (should (equal (car (car applied)) '(163 . 34)))))
+
+(ert-deftest my-ui-frame-test-never-asks-for-a-negative-position ()
+  "Widening near the left edge does not throw the frame across the screen.
+
+`set-frame-position\=' reads a negative coordinate as a distance from the
+right edge of the display, so the arithmetic going one pixel below the
+origin does not nudge the frame left -- it teleports it.  From 400, with
+a ten-pixel character, centring a frame eighty-two columns wider asks
+for -10."
+  (my-ui-frame-test--with-frame
+    (setq docked t)
+    (my/frame--adjust-for-docking)
+    (should (equal (car applied) '((163 . 34) (0 . 100))))))
+
+(ert-deftest my-ui-frame-test-keeps-the-frame-on-its-own-monitor ()
+  "And the clamp is the monitor's edge, not zero.
+
+A display to the left of the primary one has a negative origin, and a
+frame on it is where it belongs; clamping such a frame to zero would be
+the same bug pointed the other way."
+  (my-ui-frame-test--with-frame
+    (setq monitor '(-1920 0 1920 1080)
+          position '(-1520 . 100)
+          docked t)
+    (my/frame--adjust-for-docking)
+    (should (equal (car applied) '((163 . 34) (-1920 . 100))))))
+
+(ert-deftest my-ui-frame-test-keeps-the-right-edge-on-screen-too ()
+  "A frame near the right edge is brought back rather than hung off it."
+  (my-ui-frame-test--with-frame
+    (setq position '(1800 . 100) docked t)
+    (my/frame--adjust-for-docking)
+    ;; 1920 of monitor, less 163 columns of ten pixels and 20 of chrome.
+    (should (equal (car applied) '((163 . 34) (270 . 100))))))
+
+(ert-deftest my-ui-frame-test-leaves-a-position-that-fits-alone ()
+  "Where the arithmetic lands on screen, it is used as it is.
+From 600, centring the wider shape asks for 190, which is on the
+monitor and to the left of the 270 the right edge allows."
+  (my-ui-frame-test--with-frame
+    (setq position '(600 . 100) docked t)
+    (my/frame--adjust-for-docking)
+    (should (equal (car applied) '((163 . 34) (190 . 100))))))
 
 (ert-deftest my-ui-frame-test-returns-to-where-it-was ()
   "And closing it puts the frame back, at the size and the place it had.
