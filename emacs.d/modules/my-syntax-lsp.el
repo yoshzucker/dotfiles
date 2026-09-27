@@ -85,7 +85,10 @@ answer for the other two from the live image or session -- xref included
    (:hook swift-mode-hook swift-ts-mode-hook
           c-mode-hook c-ts-mode-hook c++-mode-hook c++-ts-mode-hook
           :func #'my/eglot-ensure-when-available)
-   (:hook python-mode-hook python-ts-mode-hook
+   ;; The parent of python-mode and python-ts-mode both, and the hook pet
+   ;; runs on first -- so the executables it finds are the ones looked for
+   ;; here.
+   (:hook python-base-mode-hook
           :func #'my/eglot-ensure-when-available #'my/ensure-pyright-available))
   :config
   ;; Prevent eglot from hijacking imenu or other features
