@@ -117,8 +117,17 @@ INDEX is 1-based (1 = first entry in `my/frame-size-list`)."
 ;; maximized one: their windows divide what is there, which is what two
 ;; panes of a wide frame should do anyway.
 
-(defconst my/frame--restore-parameter 'my/frame-size-before-docking
-  "Frame parameter holding the shape to return to, or nil for none.")
+(defconst my/frame--restore-parameter 'my/frame-shape-before-docking
+  "Frame parameter holding the geometry to return to, or nil for none.
+
+Both halves of it: `((WIDTH . HEIGHT) LEFT . TOP)\='.  Where the frame was
+has to be remembered rather than worked out again on the way back,
+because `set-frame-position\=' asks the window manager and does not wait
+for it.  Read the position a moment later -- which is what the return
+trip would do -- and the answer may still be where the frame was before
+it moved, so the return moves it by the width of the sidebar all over
+again, in the same direction.  Twice around and the frame is off the
+side of the screen.")
 
 (defvar my/frame--in-adjust nil
   "Reentrancy guard: resizing a frame changes its window configuration.")
@@ -162,11 +171,12 @@ there before a sidebar opened would undo it."
         (when-let* ((wide (my/frame--widest-size))
                     ((> (car wide) (frame-width))))
           (set-frame-parameter nil my/frame--restore-parameter
-                               (cons (frame-width) (frame-height)))
+                               (cons (cons (frame-width) (frame-height))
+                                     (frame-position)))
           (my/frame-apply-size-and-position wide (my/frame-new-position wide))))
        ((and saved (not docked))
         (set-frame-parameter nil my/frame--restore-parameter nil)
-        (my/frame-apply-size-and-position saved (my/frame-new-position saved)))))))
+        (my/frame-apply-size-and-position (car saved) (cdr saved)))))))
 
 (add-hook 'window-configuration-change-hook #'my/frame--adjust-for-docking)
 (advice-add 'my/cycle-frame-size :before #'my/frame--forget-docking)
