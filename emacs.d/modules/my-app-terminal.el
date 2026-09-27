@@ -65,11 +65,25 @@
     ;; LANG, because Windows hands Emacs `JPN', which is not a POSIX locale
     ;; name: MSYS2 fails to set it, falls back to C, and stops reading the
     ;; stream as UTF-8.  mintty runs this same shell as ja_JP.UTF-8.
+    ;;
+    ;; MSYS2_PATH_TYPE, so the shell can run what Emacs can run.  /etc/profile
+    ;; builds PATH from scratch, and unset this is `minimal': the MSYS2 tree
+    ;; plus the Windows system directories, and nothing else.  Everything
+    ;; installed per-user on this machine is somewhere else -- scoop's shims,
+    ;; npm's global prefix, the ~/.local/bin `uv tool install' writes to --
+    ;; so a program Emacs finds with `executable-find' is not found by the
+    ;; shell Emacs starts, which reads as the program not being installed.
+    ;; `inherit' appends what was passed in instead of discarding it, after
+    ;; the MSYS2 directories rather than before, so pacman's binaries still
+    ;; win where both have one.  It has to be in the environment rather than
+    ;; in a shell file: ~/.zshenv runs before /etc/profile, so anything it
+    ;; adds to PATH is thrown away a moment later.
     (setq ghostel-shell
           (list (expand-file-name "~/scoop/apps/msys2/current/usr/bin/zsh.exe")
                 "-l")
           ghostel-environment
           (list "MSYSTEM=UCRT64"
+                "MSYS2_PATH_TYPE=inherit"
                 "LANG=ja_JP.UTF-8"
                 (concat "TERMINFO="
                         (replace-regexp-in-string
