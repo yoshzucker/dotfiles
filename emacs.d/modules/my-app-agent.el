@@ -355,15 +355,42 @@ via a font-weight= presence check."
 ;; applied, and `claude-code-ide-emacs-tools-setup' hands over xref, imenu,
 ;; tree-sitter, the project's shape and its diagnostics as tools to call.
 ;;
-;; That last part is worth more on Windows than anywhere else.  A reference
-;; search answered by xref costs nothing; the same question answered by
-;; ripgrep costs a process to start, and starting one there is a fifth
-;; of a second.  It
-;; is worth saying so in a project's CLAUDE.md where it matters.
+;; What that is worth depends on the language.  Emacs answers from what it
+;; has already parsed -- imenu's outline, tree-sitter's tree, project.el's
+;; shape, the obarray behind elisp's apropos -- and those cost no process
+;; at all, which is a fifth of a second saved on the Windows machine every
+;; time one is not started.
+;;
+;; References are the exception worth knowing.  With eglot attached the
+;; language server answers them, but Emacs Lisp has no backend for
+;; references, so `xref-find-references' falls to a default that runs find
+;; and grep over the project and its external roots.  Asked who calls an
+;; elisp function, ripgrep is the better tool and Claude is right to reach
+;; for it.
 ;;
 ;; This sits beside agent-shell rather than replacing it.  agent-shell speaks
 ;; to several providers and lives in a buffer of its own; this speaks only to
 ;; Claude Code and lives in the project.
+
+;; claude-code-ide's MCP tools server is an HTTP server, and the library it
+;; runs on is `web-server' -- eschulte's.  `simple-httpd' is skeeto's, and
+;; both are published from a repository called emacs-web-server.  straight
+;; keys its clones by that name, so the second one asked for finds the first
+;; one's checkout: org-roam-ui pulls in simple-httpd, and `web-server' then
+;; resolved to a directory holding simple-httpd.el and no web-server.el.
+;;
+;; The failure is quiet.  claude-code-ide requires the library inside a
+;; `condition-case' that reports through its debug log, which is off, and
+;; the tools server then declines to start -- so Claude is handed the
+;; editor connection but none of the Emacs tools, and answers questions
+;; about the code by shelling out to ripgrep instead of asking xref.
+;;
+;; Named here, before the module that brings in org-roam-ui, so the clone
+;; this one needs is its own.
+(use-package web-server
+  :straight (web-server :type git :host github :repo "eschulte/emacs-web-server"
+                        :local-repo "emacs-web-server-eschulte")
+  :defer t)
 
 (use-package claude-code-ide
   :straight (:host github :repo "manzaltu/claude-code-ide.el")
@@ -390,6 +417,33 @@ via a font-weight= presence check."
   ;; room -- see `my/frame--adjust-for-docking' in my-ui-frame.el -- and
   ;; this number is then how that width is divided: one column of text each.
   (claude-code-ide-window-width 81)
+
+  ;; The tools reach Claude and are not reached for: asked what calls a
+  ;; function, it runs ripgrep, which is what it would do without an editor
+  ;; attached.  So the preference is stated once, here, rather than in every
+  ;; project's CLAUDE.md -- the package appends this to the system prompt of
+  ;; every session it starts.
+  ;;
+  ;; No `;', `&' or `|' in this string.  The value is shell-quoted into the
+  ;; command line that starts the CLI, and the backend then splits that line
+  ;; back apart with `split-string-shell-command' -- which honours those
+  ;; three as command separators even after `shell-quote-argument' has
+  ;; escaped them, and returns only the words after the last one.  The
+  ;; program name is among the words thrown away, so what fails is the exec,
+  ;; reporting the tail of this sentence as a program it cannot find.
+  (claude-code-ide-system-prompt
+   (concat "Emacs is attached as an editor and answers some questions from "
+           "what it has already parsed, without starting a process: "
+           "claude-code-ide-mcp-imenu-list-symbols for a file's outline, "
+           "claude-code-ide-mcp-treesit-info for syntax structure, "
+           "claude-code-ide-mcp-project-info for the shape of the project, "
+           "and claude-code-ide-mcp-xref-find-apropos to find a symbol by "
+           "part of its name. Prefer these over reading whole files or "
+           "searching text for those questions. "
+           "claude-code-ide-mcp-xref-find-references is worth preferring "
+           "where a language server is attached, since the server answers "
+           "it. Emacs Lisp has no such backend and it greps like any other "
+           "search, so grep is fine there."))
   :config
   ;; The CLI is exec'd directly rather than through a shell, so on Windows it
   ;; is the native `claude' and both sides speak the same path form.  Nothing
