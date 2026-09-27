@@ -55,9 +55,20 @@ byte-compile one, which is the half worth having and the half that costs."
   ;; Reached by the hook below, which names an autoloaded mode.
   :defer t
   :custom
-  ;; Three letters, like every other lighter here.  The counters that follow
-  ;; it are the part worth reading.
-  (flymake-mode-line-lighter "fly")
+  ;; `ewn[3 0 3]': three errors, no warnings, three notes.  The lighter
+  ;; carries the legend instead of a name, because which of flymake and
+  ;; flycheck is underneath is not a thing worth knowing while reading a
+  ;; buffer, and three columns is what every other lighter here costs.
+  ;;
+  ;; A legend once rather than a letter per field (`fly[3e 0w 3n]'): the
+  ;; counts are taken in as a shape and not read as prose, so the key
+  ;; wants to be out of the figure.  Once it is known it is skipped.
+  (flymake-mode-line-lighter "ewn")
+
+  ;; Which only holds while the positions are fixed.  Stock hides a zero
+  ;; note count, so `[0 0]' is errors and warnings where `[0 0 0]' is all
+  ;; three, and the third slot means whatever happens to be in it.
+  (flymake-suppress-zero-counters nil)
   :init
   (my/add-hook
    (:hook emacs-lisp-mode-hook :func #'my/elisp-flymake-setup)))
