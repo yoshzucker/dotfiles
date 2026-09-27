@@ -383,6 +383,13 @@ via a font-weight= presence check."
   ;; does not build on Windows at all, and ghostel is the backend the package
   ;; itself recommends for rendering the TUI.
   (claude-code-ide-terminal-backend 'ghostel)
+
+  ;; As wide as the text is, rather than the default hundred, which is more
+  ;; than a frame of this configuration is wide to begin with.  The window
+  ;; is docked to the right, so the frame takes its two-column shape to make
+  ;; room -- see `my/frame--adjust-for-docking' in my-ui-frame.el -- and
+  ;; this number is then how that width is divided: one column of text each.
+  (claude-code-ide-window-width 81)
   :config
   ;; The CLI is exec'd directly rather than through a shell, so on Windows it
   ;; is the native `claude' and both sides speak the same path form.  Nothing
