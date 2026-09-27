@@ -966,6 +966,30 @@ install_fonts() {
   print_line "$left_message" "Finished."
 }
 
+install_python_tools() {
+  # Puts the Python tools that are not a project's own on PATH, with uv.
+  #
+  # One copy rather than one per project.  A language server is not a
+  # dependency of the code it reads -- nothing imports pyright -- so
+  # installing it into every virtualenv means the same package downloaded
+  # again for each checkout, and an editor that has to be told where each
+  # one is.  `uv tool install' keeps one, on PATH, for all of them.
+  #
+  # A project that needs a pinned version can still have its own; Emacs
+  # looks for the executable and does not care which of the two it finds.
+  if ! command -v uv >/dev/null; then
+    return
+  fi
+
+  left_message="Installing Python tools"
+  print_line "$left_message" "Started."
+
+  uv tool install --quiet pyright || true
+  uv tool install --quiet ruff || true
+
+  print_line "$left_message" "Finished."
+}
+
 install_zsh_plugins() {
   # Clones the zsh plugins listed in pkg/zsh-plugins/plugins.txt, which
   # config/shell/zsh/zsh.sh sources directly (no plugin manager: sheldon forks a
@@ -1056,6 +1080,7 @@ perform_full_bootstrap() {
   install_fonts
   install_pacman_packages
   install_r_packages
+  install_python_tools
   install_zsh_plugins
   setup_links
   setup_dev_packages

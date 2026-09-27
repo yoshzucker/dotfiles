@@ -121,6 +121,10 @@
     {
       "Name": "activitywatch",
       "Source": "extras"
+    },
+    {
+      "Name": "uv",
+      "Source": "main"
     }
   ]
 }
