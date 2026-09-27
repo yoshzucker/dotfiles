@@ -306,16 +306,19 @@ down what it was given."
         (should (< (string-to-number (match-string 1 line))
                    my/straight-fetch-timeout))))))
 
-(ert-deftest straight-pull-test-finishes-even-if-nothing-reports ()
-  "The loop ends on what the processes are, not on a tally of them.
+(ert-deftest straight-pull-test-does-not-need-anything-to-be-notified ()
+  "Neither ending nor classifying waits on a process sentinel.
 
-A tally is kept by the sentinels, and one missed for any reason leaves
-it above zero for good.  The timeout cannot rescue that: there is no
-live process left to kill, so the loop spins on a number that will never
-come down -- a hang with no way out but C-g, which is the shape of the
-thing all of this was meant to remove.
+A tally kept by sentinels can be lost, and then the loop spins on a
+number that never comes down -- a hang the timeout cannot reach, since
+there is no live process left to kill.  Deriving the count fixes that
+and breaks the other half: a process is dead before its sentinel runs,
+so a loop that ends the moment nothing is live can end before anything
+has been told how it ended, and a failed fetch is quietly counted a
+success.  Asking the process settles both.
 
-Every sentinel is taken away here, which is that failure at its worst."
+Every sentinel is taken away here, which is that at its worst, and the
+fetch still has to come back knowing it failed."
   (straight-pull-test--with clone
     (let* ((bin (expand-file-name "bin" straight-pull-test--root))
            (fake (expand-file-name "git" bin))
@@ -324,7 +327,7 @@ Every sentinel is taken away here, which is that failure at its worst."
            (real (symbol-function 'make-process)))
       (puthash "pkg" (straight-pull-test--recipe clone) straight--recipe-cache)
       (make-directory bin t)
-      (with-temp-file fake (insert "#!/bin/sh\nexit 0\n"))
+      (with-temp-file fake (insert "#!/bin/sh\nexit 1\n"))
       (set-file-modes fake #o755)
       (cl-letf (((symbol-function 'make-process)
                  (lambda (&rest args)
@@ -334,7 +337,47 @@ Every sentinel is taken away here, which is that failure at its worst."
                          (setq kept (append kept (list (car rest) (cadr rest)))))
                        (setq rest (cddr rest)))
                      (apply real kept)))))
-        (should (with-timeout (10 nil) (my/straight-fetch-at-once) t))))))
+        (let ((result (with-timeout (10 :hung) (my/straight-fetch-at-once))))
+          (should-not (eq result :hung))
+          (should (member "pkg" (plist-get result :refused))))))))
+
+(ert-deftest straight-pull-test-notices-that-something-arrived ()
+  "A fetch that says a ref moved is reported as having moved one.
+
+git is silent onto a pipe when nothing changed and prints when
+something did, which is how this is known without asking a second
+time.  What it prints reaches the filter, so being told is a matter of
+that output having been read before the answer is worked out."
+  (straight-pull-test--with clone
+    (let* ((bin (expand-file-name "bin" straight-pull-test--root))
+           (fake (expand-file-name "git" bin))
+           (straight--recipe-cache (make-hash-table :test #'equal))
+           (exec-path (cons bin exec-path)))
+      (puthash "pkg" (straight-pull-test--recipe clone) straight--recipe-cache)
+      (make-directory bin t)
+      (with-temp-file fake
+        (insert "#!/bin/sh\n"
+                "echo '   abc1234..def5678  main -> origin/main'\n"
+                "exit 0\n"))
+      (set-file-modes fake #o755)
+      (let ((result (my/straight-fetch-at-once)))
+        (should (equal (plist-get result :moved) '("pkg")))
+        (should-not (plist-get result :refused))))))
+
+(ert-deftest straight-pull-test-says-nothing-moved-when-git-is-silent ()
+  "And one that prints nothing is not."
+  (straight-pull-test--with clone
+    (let* ((bin (expand-file-name "bin" straight-pull-test--root))
+           (fake (expand-file-name "git" bin))
+           (straight--recipe-cache (make-hash-table :test #'equal))
+           (exec-path (cons bin exec-path)))
+      (puthash "pkg" (straight-pull-test--recipe clone) straight--recipe-cache)
+      (make-directory bin t)
+      (with-temp-file fake (insert "#!/bin/sh\nexit 0\n"))
+      (set-file-modes fake #o755)
+      (let ((result (my/straight-fetch-at-once)))
+        (should-not (plist-get result :moved))
+        (should-not (plist-get result :refused))))))
 
 (ert-deftest straight-pull-test-tells-git-not-to-ask ()
   "The environment the fetches run in leaves git nobody to ask."
