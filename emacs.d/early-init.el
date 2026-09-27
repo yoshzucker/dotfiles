@@ -52,6 +52,28 @@
     (when (file-exists-p (expand-file-name "gcc.exe" mingw))
       (add-to-list 'exec-path mingw)
       (setenv "PATH" (concat mingw ";" (getenv "PATH"))))))
+
+;; And ~/.local/bin ahead of scoop's shims, because the shell puts it there
+;; and the two have to agree.
+;;
+;; A tool installed both by scoop and by its own installer is two programs
+;; under one name.  config/shell/env/common.sh prepends ~/.local/bin, so the
+;; shell runs the installer's; the Windows PATH appends it, so Emacs runs
+;; scoop's.  Claude Code is installed both ways here, and what Emacs found
+;; exits in a tenth of a second -- long enough for the editor integration to
+;; report a session it had just lost.  Anything `uv tool install' puts there
+;; -- pyright, ruff -- can divide the same way.
+;;
+;; The shell's answer is the one to match rather than a third one to invent:
+;; the installer's copy is the one keeping itself up to date.
+;;
+;; Ahead of mingw64 as well, which changes nothing: that entry is there to
+;; shadow ucrt64's gcc, and there is no gcc here.
+(when (eq system-type 'windows-nt)
+  (let ((local (expand-file-name "~/.local/bin")))
+    (when (file-directory-p local)
+      (add-to-list 'exec-path local)
+      (setenv "PATH" (concat local ";" (getenv "PATH"))))))
 (setq straight-built-in-pseudo-packages
       '(project xref jsonrpc flymake external-completion eglot))
 
