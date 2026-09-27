@@ -148,11 +148,23 @@ bindkey -M menuselect '^F' accept-line
 # print it.  Kept on disk instead, and regenerated only when the binary it
 # came from is newer: `$commands' is zsh's own hash of what is on PATH, so
 # deciding that starts nothing.
+#
+# Written beside the cache and moved into place, so what gets sourced is
+# either the whole of it or nothing.  A shell killed part way through the
+# write -- closing the window, logging out -- otherwise leaves a file that
+# is not empty and not newer than the binary, which is to say a file this
+# would go on sourcing for good.  Half a function definition sources
+# without complaint and breaks a builtin several commands later, a long way
+# from anything that looks like a cache.
 if command -v zoxide >/dev/null 2>&1; then
   __zoxide_init="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zoxide.zsh"
   if [ ! -s "$__zoxide_init" ] || [ "$commands[zoxide]" -nt "$__zoxide_init" ]; then
     mkdir -p "${__zoxide_init:h}"
-    zoxide init zsh >| "$__zoxide_init"
+    if zoxide init zsh >| "$__zoxide_init.$$"; then
+      mv -f "$__zoxide_init.$$" "$__zoxide_init"
+    else
+      rm -f "$__zoxide_init.$$"
+    fi
   fi
   source "$__zoxide_init"
   unset __zoxide_init
