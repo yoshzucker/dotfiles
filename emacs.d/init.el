@@ -576,12 +576,23 @@ and everything looks abandoned; it refuses rather than offer that."
   "Say what every directory under straight\\='s build tree is, as an alist.
 
 The cdr is `named\\=' when a recipe in this session registered a package of
-that name, and `orphan\\=' when none did.
+that name, `orphan\\=' when none did, and `hollow\\=' when one did but the
+directory holds no library by that name.
 
 Named by *package*, where the repositories are named by `:local-repo\\=' --
 `dash\\=' is built from a repository called dash.el, `magit-section\\=' from
 one called magit.  Comparing the two trees by name answers a question
-neither of them was asked."
+neither of them was asked.
+
+A hollow directory is what a collision between two `:local-repo\\=' names
+leaves behind.  Sharing one repository between packages is ordinary and
+straight allows it -- magit and magit-section come from the same clone --
+so it cannot tell that apart from two unrelated projects whose
+repositories happen to share a name, and the package asked for second is
+built from the first one\\='s checkout.  What comes out is a directory with
+the right name over somebody else\\='s files, and the package that needed
+it fails to load in whatever way its caller happens to report -- which in
+one case was not at all."
   (let ((packages (let (ps)
                     (maphash (lambda (package _) (push (format "%s" package) ps))
                              straight--recipe-cache)
@@ -589,7 +600,19 @@ neither of them was asked."
         (directory (straight--build-dir)))
     (mapcar
      (lambda (name)
-       (cons name (if (member name packages) 'named 'orphan)))
+       (cons name
+             (cond
+              ((not (member name packages)) 'orphan)
+              ;; Asked of `load-path' rather than of the directory listing,
+              ;; because loadable is the question: a library found anywhere
+              ;; but here is one this directory is not providing.
+              ((let ((library (locate-library name)))
+                 (and library
+                      (string-prefix-p (file-name-as-directory
+                                        (expand-file-name name directory))
+                                       (expand-file-name library))))
+               'named)
+              (t 'hollow))))
      (seq-filter (lambda (name) (file-directory-p (expand-file-name name directory)))
                  (directory-files directory nil "\\`[^.]")))))
 
@@ -620,7 +643,7 @@ into is untouched."
         (erase-buffer)
         (insert (format "%d directories under %s\n\n"
                         (length status) (straight--build-dir)))
-        (dolist (kind '(named orphan))
+        (dolist (kind '(named hollow orphan))
           (let ((names (sort (mapcar #'car (seq-filter (lambda (e) (eq (cdr e) kind)) status))
                              #'string<)))
             (when names
@@ -631,7 +654,10 @@ into is untouched."
                 "magit, so the two trees cannot be compared by name.\n\n"
                 "Nothing here is the only copy of anything -- a build directory is\n"
                 "links into the repository and the compiled files beside them -- so\n"
-                "the worst a mistake costs is a rebuild.\n"))
+                "the worst a mistake costs is a rebuild.\n\n"
+                "A hollow one is not deleted here: it is a name over the\n"
+                "wrong files, and what fixes it is a `:local-repo' of its\n"
+                "own in the recipe, after which the rebuild follows.\n"))
       (goto-char (point-min))
       (special-mode))
     (display-buffer buffer)
