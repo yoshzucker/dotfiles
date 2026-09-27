@@ -286,7 +286,7 @@ down what it was given."
       (make-directory bin t)
       (with-temp-file fake
         (insert "#!/bin/sh\n"
-                "printf '%s|%s\\n' \"$GIT_TERMINAL_PROMPT\" \"$GIT_SSH_COMMAND\" > "
+                "printf '%s|%s|%s\\n' \"$GIT_TERMINAL_PROMPT\" \"$GIT_SSH_COMMAND\" \"$*\" > "
                 seen "\n"))
       (set-file-modes fake #o755)
       (my/straight-fetch-at-once)
@@ -294,7 +294,47 @@ down what it was given."
       (let ((line (with-temp-buffer (insert-file-contents seen)
                                     (buffer-string))))
         (should (string-prefix-p "0|" line))
-        (should (string-match-p "BatchMode=yes" line))))))
+        (should (string-match-p "BatchMode=yes" line))
+        ;; Most of what is fetched here comes over HTTP with no account
+        ;; involved, and git has no timeout of its own there.
+        (should (string-match-p "http\\.lowSpeedLimit=[0-9]+" line))
+        ;; And soon enough to matter: a stalled transfer has to give up
+        ;; before `my/straight-fetch-timeout\=' kills it, so what comes back
+        ;; is git\='s own account of the failure rather than a process that
+        ;; was cut off saying nothing.
+        (should (string-match "http\\.lowSpeedTime=\\([0-9]+\\)" line))
+        (should (< (string-to-number (match-string 1 line))
+                   my/straight-fetch-timeout))))))
+
+(ert-deftest straight-pull-test-finishes-even-if-nothing-reports ()
+  "The loop ends on what the processes are, not on a tally of them.
+
+A tally is kept by the sentinels, and one missed for any reason leaves
+it above zero for good.  The timeout cannot rescue that: there is no
+live process left to kill, so the loop spins on a number that will never
+come down -- a hang with no way out but C-g, which is the shape of the
+thing all of this was meant to remove.
+
+Every sentinel is taken away here, which is that failure at its worst."
+  (straight-pull-test--with clone
+    (let* ((bin (expand-file-name "bin" straight-pull-test--root))
+           (fake (expand-file-name "git" bin))
+           (straight--recipe-cache (make-hash-table :test #'equal))
+           (exec-path (cons bin exec-path))
+           (real (symbol-function 'make-process)))
+      (puthash "pkg" (straight-pull-test--recipe clone) straight--recipe-cache)
+      (make-directory bin t)
+      (with-temp-file fake (insert "#!/bin/sh\nexit 0\n"))
+      (set-file-modes fake #o755)
+      (cl-letf (((symbol-function 'make-process)
+                 (lambda (&rest args)
+                   (let ((rest args) (kept nil))
+                     (while rest
+                       (unless (eq (car rest) :sentinel)
+                         (setq kept (append kept (list (car rest) (cadr rest)))))
+                       (setq rest (cddr rest)))
+                     (apply real kept)))))
+        (should (with-timeout (10 nil) (my/straight-fetch-at-once) t))))))
 
 (ert-deftest straight-pull-test-tells-git-not-to-ask ()
   "The environment the fetches run in leaves git nobody to ask."
@@ -353,7 +393,9 @@ worth naming, because what it merged is not what is on the remote."
       ;; repository whose remote cannot be reached from here.
       (with-temp-file fake
         (insert "#!/bin/sh\n"
-                "if [ \"$1\" = fetch ]; then exit 1; fi\n"
+                ;; The subcommand is no longer argv[1]: there are -c
+                ;; options in front of it now.
+                "for a; do [ \"$a\" = fetch ] && exit 1; done\n"
                 "exec " real " \"$@\"\n"))
       (set-file-modes fake #o755)
       (cl-letf (((symbol-function 'message)

@@ -325,7 +325,7 @@ git processes behind to finish into a command that has gone."
          (process-environment (append my/straight-fetch-environment
                                       process-environment))
          (procs nil)
-         (live 0) (done 0) (failed nil) (moved nil) (abandoned nil)
+         (failed nil) (moved nil) (abandoned nil)
          ;; Which repositories something arrived in.  `--quiet' is gone so
          ;; that git will say: onto a pipe it writes a line when a ref moves
          ;; and nothing at all when none did, which is the question the merge
@@ -337,16 +337,32 @@ git processes behind to finish into a command that has gone."
          (spoke (make-hash-table :test #'equal)))
     (unwind-protect
         (progn
-          (while (or queue (> live 0))
-            (while (and queue (< live my/straight-fetch-jobs))
+          ;; How many are running is counted rather than kept.  A count
+          ;; that is kept is a count that can be lost: a sentinel missed for
+          ;; any reason leaves it above zero for good, and then this loop
+          ;; never ends -- and the timeout below cannot save it, because
+          ;; there is no live process left to kill.  A hang no timeout
+          ;; catches is the one worth not building.
+          (while (or queue (seq-some #'process-live-p procs))
+            (while (and queue
+                        (< (seq-count #'process-live-p procs)
+                           my/straight-fetch-jobs))
               (let* ((dir (pop queue))
                      (name (file-name-nondirectory (directory-file-name dir)))
                      (default-directory dir))
-                (setq live (1+ live))
                 (push
                  (make-process
                   :name (concat "straight-fetch-" name)
-                  :command '("git" "fetch")
+                  ;; Aborted rather than waited on when the bytes stop
+                  ;; arriving: git has no timeout of its own over HTTP, so a
+                  ;; transfer that stalls part way -- a proxy that inspects
+                  ;; every connection, a link that drops -- waits forever.
+                  ;; Under a kilobyte a second for twenty seconds is not a
+                  ;; slow clone, it is a dead one.
+                  :command '("git"
+                             "-c" "http.lowSpeedLimit=1024"
+                             "-c" "http.lowSpeedTime=20"
+                             "fetch")
                   :noquery t
                   :connection-type 'pipe
                   :buffer nil
@@ -354,21 +370,23 @@ git processes behind to finish into a command that has gone."
                   ;; only that it said anything, and a process whose output
                   ;; nobody takes can block on a full pipe.
                   :filter (lambda (_proc _chunk) (puthash name t spoke))
+                  ;; Classification only.  What is finished is worked out
+                  ;; in the loop, from the processes themselves.
                   :sentinel
                   (lambda (proc _event)
                     (unless (process-live-p proc)
-                      (setq live (1- live)
-                            done (1+ done))
                       (if (eq 0 (process-exit-status proc))
                           (when (gethash name spoke) (push name moved))
-                        (push name failed))
-                      (progress-reporter-update reporter done))))
+                        (push name failed)))))
                  procs)
                 (process-put (car procs) 'my/straight-repo name)
                 (process-put (car procs) 'my/straight-began (float-time))))
             ;; Short, because this loop is also what starts the next process
             ;; as each one finishes.
             (accept-process-output nil 0.05)
+            (progress-reporter-update
+             reporter (- total (length queue)
+                         (seq-count #'process-live-p procs)))
             ;; And what notices one that is never going to finish.  Killing
             ;; it runs its sentinel, which counts it and puts it among the
             ;; refused, so the command goes on and says so at the end.
@@ -381,7 +399,7 @@ git processes behind to finish into a command that has gone."
                 (delete-process proc))))
           (progress-reporter-done reporter)
           (message "straight: fetched %d repositories in %.0fs; %d changed%s%s"
-                   done (- (float-time) began) (length moved)
+                   total (- (float-time) began) (length moved)
                    (if failed
                        (format "; %d refused: %s" (length failed)
                                (string-join (reverse failed) ", "))
