@@ -45,6 +45,10 @@ brew "espanso"                  # text expander / snippets
 # --- Dev tools ---------------------------------------------------------------
 brew "git"
 brew "gitleaks"
+# The CLI emacs.d/modules/my-app-agent.el drives.  A cask rather than a
+# formula because that is how it ships, and it keeps itself up to date after
+# the first run -- so this is the seed, not the version that will be there.
+cask "claude-code"        if OS.mac?
 
 # --- TUI file manager --------------------------------------------------------
 brew "yazi"
