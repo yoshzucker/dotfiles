@@ -29,7 +29,7 @@
   :defer t
   :config
   (setq corfu-auto t
-	    corfu-auto-delay 0
+	    corfu-auto-delay 0.2
 	    corfu-auto-prefix 2
 	    corfu-cycle t)
   (global-corfu-mode 1)
@@ -67,7 +67,18 @@
   :init
   (setq completion-cycle-threshold 3
         read-extended-command-predicate #'command-completion-default-include-p
-        tab-always-indent 'complete))
+        tab-always-indent 'complete)
+
+  ;; Text mode offers Ispell's word list as one more completion, and corfu
+  ;; asks for it on every keystroke that nothing earlier in the list matched.
+  ;; On Windows there is no word list -- none of the places
+  ;; `ispell-lookup-words' looks in exists -- so each of those keystrokes is
+  ;; an error.  corfu catches it, and the catching is the cost: it writes the
+  ;; whole backtrace into *Messages*, twenty-five milliseconds before the
+  ;; letter just typed is drawn, and more as *Messages* fills.  Org derives
+  ;; from Text mode, so that is every note.
+  (when (eq system-type 'windows-nt)
+    (setopt text-mode-ispell-word-completion nil)))
 
 (use-package corfu-terminal
   :straight (:host codeberg :repo "akib/emacs-corfu-terminal" :branch "master" :files ("*.el" "out"))
@@ -96,7 +107,12 @@
   ;; buffers and is now what puts it on.
   :defer t
   :init
-  (setq tempel-path (expand-file-name "etc/tempel/*.eld" user-emacs-directory))
+  ;; Read once a session, at the first completion that asks for them.
+  ;; Reloading lists the directory and reads every file's modification time
+  ;; on every completion, only to notice that a template has been edited; an
+  ;; edited template now waits for the next start.  tempel-collection is not
+  ;; affected -- it reads each mode's file once and keeps it.
+  (setq tempel-auto-reload nil)
 
   (defun tempel-setup-capf ()
     (setq-local completion-at-point-functions
@@ -106,6 +122,14 @@
    (:hook conf-mode-hook prog-mode-hook text-mode-hook
           :func #'tempel-setup-capf))
   :config
+  ;; Every file in the directory, and set here rather than in `:init'.
+  ;; no-littering sets `tempel-path' too, to templates.eld alone, and it loads
+  ;; after this file -- the modules are read in name order, and
+  ;; my-files-persistence.el comes later -- so a value set at startup is
+  ;; overwritten and marp.eld is never read.  tempel itself loads at the first
+  ;; completion, which is after both.
+  (setq tempel-path (expand-file-name "etc/tempel/*.eld" user-emacs-directory))
+
   (my/define-key
    (:map tempel-map
          :after evil
