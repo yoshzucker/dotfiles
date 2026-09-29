@@ -336,7 +336,61 @@ org's existing key table stays the single source of truth."
   :demand t
   :config
   (setopt activity-watch-org-clock-active t)
-  (global-activity-watch-mode))
+  (global-activity-watch-mode)
+
+  ;; Every heartbeat names the branch the file is on, and a heartbeat goes
+  ;; out every two seconds for as long as Emacs is in use.
+  ;; `magit-get-current-branch' answers by starting git and waiting for it,
+  ;; which on Windows is four hundred milliseconds -- and the timer runs
+  ;; between two keystrokes, so for that long nothing is read and nothing is
+  ;; drawn.  A key held down is where it shows: `j' down a folded outline
+  ;; stops, then lands a dozen headings on.
+  ;;
+  ;; The branch is one line of a file git keeps for the purpose, so it is read
+  ;; from there instead.  A detached HEAD holds a commit rather than a ref,
+  ;; and gives nil, as magit's answer does.
+  ;;
+  ;; Windows is where this was noticed and not where it stops being true: the
+  ;; same process runs every two seconds on the Mac, for an answer that was
+  ;; already on disk.
+  (defun my/activity-watch-branch ()
+    "Return the branch checked out where `default-directory' is, or nil.
+Read from the repository's HEAD file rather than asked of git."
+    (when-let* ((root (locate-dominating-file default-directory ".git"))
+                (dot-git (expand-file-name ".git" root))
+                (git-dir (if (file-directory-p dot-git)
+                             dot-git
+                           ;; A worktree or a submodule: `.git' is a file
+                           ;; naming the directory that is the repository.
+                           (with-temp-buffer
+                             (insert-file-contents dot-git)
+                             (when (looking-at "gitdir: *\\(.+\\)$")
+                               (expand-file-name (match-string 1) root)))))
+                (head (expand-file-name "HEAD" git-dir))
+                ((file-readable-p head)))
+      (with-temp-buffer
+        (insert-file-contents head)
+        (when (looking-at "ref: refs/heads/\\(.+\\)$")
+          (match-string 1)))))
+
+  (defun my/activity-watch-heartbeat-without-git (orig &rest args)
+    "Call ORIG with ARGS, finding the branch without starting git."
+    (cl-letf (((symbol-function 'magit-get-current-branch)
+               #'my/activity-watch-branch))
+      (apply orig args)))
+
+  (advice-add 'activity-watch--create-heartbeat :around
+              #'my/activity-watch-heartbeat-without-git)
+
+  ;; The project a heartbeat names is looked up once a buffer, down a list of
+  ;; resolvers, and the two after `project' ask magit.  They are reached only
+  ;; when project.el has found nothing -- a file in no repository -- and there
+  ;; they find nothing either, after six git processes: little where starting
+  ;; a process is cheap, most of a second on Windows, a moment after the file
+  ;; opens.  The first of them also `require's magit, so the first such file
+  ;; of a session pays for loading magit as well.  project.el reads the file
+  ;; system and finds the same repositories.
+  (setq activity-watch-project-name-resolvers '(projectile project)))
 
 (use-package org-foresight
   :straight (org-foresight :host github :repo "yoshzucker/org-foresight"
