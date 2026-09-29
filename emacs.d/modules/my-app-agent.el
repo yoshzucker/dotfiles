@@ -399,11 +399,11 @@ via a font-weight= presence check."
 ;; both are in the scoopfile because both are wanted, not because either
 ;; stands in for the other.
 ;;
-;; Worth naming because of how its absence reads.  `claude-code-ide' looks
-;; for the CLI with `executable-find', which answers for Emacs; what runs it
-;; is the shell the terminal backend starts, which has a PATH of its own.
-;; Where those two differ the session starts, says so, and the window shuts
-;; a moment later -- see the MSYS2_PATH_TYPE note in my-app-terminal.el.
+;; Its absence reads plainly: the package runs `claude --version' through
+;; `exec-path' before anything else, and refuses to start without it.  A
+;; session that does start, says so, and shuts its window a moment later is
+;; a CLI that was found and then rejected its own command line -- see the
+;; Windows note at the end of `:config'.
 (use-package claude-code-ide
   :straight (:host github :repo "manzaltu/claude-code-ide.el")
   ;; Reached through the transient, which is the entry point the package
@@ -460,7 +460,47 @@ via a font-weight= presence check."
   ;; The CLI is exec'd directly rather than through a shell, so on Windows it
   ;; is the native `claude' and both sides speak the same path form.  Nothing
   ;; to arrange for that; it is only worth knowing when a path looks wrong.
-  (claude-code-ide-emacs-tools-setup))
+  (claude-code-ide-emacs-tools-setup)
+
+  ;; On Windows the CLI exits as soon as it starts: the window opens, Claude
+  ;; reports "Invalid MCP configuration: MCP config file not found", and the
+  ;; window shuts a moment later.
+  ;;
+  ;; The package writes the command line as one string and then splits it
+  ;; back into words for ghostel, which execs them.  Writing, it escapes the
+  ;; double quotes of the MCP configuration -- JSON, passed inline -- with
+  ;; backslashes, and quotes the system prompt with `shell-quote-argument',
+  ;; which on Windows quotes for cmd.exe.  Reading, `split-string-shell-command'
+  ;; takes a backslash as an escape only where `shell-file-name-quote-list'
+  ;; is non-nil, and on Windows it is nil so that a path's backslashes
+  ;; survive.  So the JSON reaches the CLI with its backslashes still in it,
+  ;; is not JSON, and is taken for the name of a file to read the
+  ;; configuration from.  The prompt gets through only because it has none
+  ;; of the characters cmd.exe quotes: a `%' in it would arrive as `^%'.
+  ;;
+  ;; Both halves are made to speak POSIX, as they do on the Mac.  Nothing in
+  ;; the line has a backslash of its own to lose: the program is the bare
+  ;; name `claude', resolved to a path only after the split.
+  (when (eq system-type 'windows-nt)
+    (require 'shell)
+    (defvar shell-file-name-quote-list)   ; let-bound around the split
+
+    (defun my/claude-code-ide-posix-command-line (orig &rest args)
+      "Call ORIG with ARGS, quoting and splitting as for a POSIX shell."
+      ;; The quote list is the value shell.el gives it everywhere but Windows.
+      (let ((shell-file-name-quote-list
+             (append shell-delimiter-argument-list
+                     '(?\s ?$ ?\* ?\! ?\" ?\' ?\` ?\# ?\\))))
+        (cl-letf* ((quote-argument (symbol-function 'shell-quote-argument))
+                   ((symbol-function 'shell-quote-argument)
+                    (lambda (argument &optional _posix)
+                      (funcall quote-argument argument t))))
+          (apply orig args))))
+
+    (advice-add 'claude-code-ide--build-claude-command :around
+                #'my/claude-code-ide-posix-command-line)
+    (advice-add 'claude-code-ide--parse-command-string :around
+                #'my/claude-code-ide-posix-command-line)))
 
 (provide 'my-app-agent)
 ;;; my-app-agent.el ends here
