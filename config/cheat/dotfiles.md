@@ -22,7 +22,6 @@
 - `lt` — eza tree (深さ 2, gitignore 尊重)
 - `cat` — bat (`--paging=never`)
 - `y` — yazi 起動、抜けたら cd 追従
-- `z <q>` / `zi` — zoxide jump / picker
 - `?` / `cheat` — このファイル
 - `gitroot` — リポジトリルートへ cd
 
