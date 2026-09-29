@@ -452,6 +452,7 @@ anything to put between them."
         (cons (cons 'rustcity
                     (lambda ()
                       (let* ((colors (rustcity-palette))
+                             (mono0  (alist-get 'mono0  colors))
                              (mono1  (alist-get 'mono1  colors))
                              (mono2  (alist-get 'mono2  colors))
                              (mono3  (alist-get 'mono3  colors))
@@ -489,6 +490,7 @@ anything to put between them."
         (cons (cons 'gensho
                     (lambda ()
                       (let* ((colors (gensho-palette))
+                             (mono0  (alist-get 'mono0  colors))
                              (mono1  (alist-get 'mono1  colors))
                              (mono2  (alist-get 'mono2  colors))
                              (mono3  (alist-get 'mono3  colors))
