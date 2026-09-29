@@ -75,8 +75,19 @@
 ;; it is asked about.  What is given up is noticing a repository edited by
 ;; something else while Emacs was not looking, which `M-x straight-check-all'
 ;; answers on demand.
+;;
+;; `check-on-save' is two things, and only one of them is wanted here.  It is
+;; the `before-save-hook' that marks a repository modified when a file inside
+;; it is saved -- and it is also what makes straight read those marks back at
+;; startup, which is how `my/straight-pull-all' gets what it fast-forwards
+;; rebuilt.  So it stays in the list, and the hook is taken off: no package is
+;; edited on this machine, and the hook costs every save two `file-truename's,
+;; twenty or thirty milliseconds on Windows, to find that the file is not in a
+;; package.  Should one be edited here, `M-x straight-rebuild-package' is the
+;; step the hook would have taken.
 (when (eq system-type 'windows-nt)
-  (setq straight-check-for-modifications '(check-on-save find-when-checking)))
+  (setq straight-check-for-modifications '(check-on-save find-when-checking))
+  (straight-live-modifications-mode -1))
 
 ;; Where Emacs's own lisp sits in `load-path'.
 ;;
