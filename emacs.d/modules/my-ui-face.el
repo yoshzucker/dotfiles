@@ -96,7 +96,13 @@ Themes without an entry simply leave previous settings as-is.")
   "Calendar ISO week header face.")
 
 (defface my/wdired-edit-face '((t nil))
-  "Temporary face used while in wdired edit mode.")
+  "Temporary face used while in wdired edit mode.
+
+Recessed rather than raised, since the region moved to the step above
+the surface: a name selected for retyping has to be visible against it,
+and retyping names is what the mode is for.  Nothing is lost to the
+recess here -- `hl-line-mode\=' is on in Org and the agenda, not in
+dired.")
 
 ;; mode-line / mode-line-inactive themselves carry the EDGE color, so
 ;; the auto-fill area at the right of the mode-line is naturally edge-
@@ -461,7 +467,7 @@ anything to put between them."
                            (("pptx" "pptm") . ,orange)
                            (("pdf")         . ,red)))
                         (my/set-faces
-                         `((my/wdired-edit-face :background ,mono2)
+                         `((my/wdired-edit-face :background ,mono0)
                            (my/org-ongo :inverse-video t :foreground ,orange :background ,mono1)
                            (my/org-wait :inverse-video t :inherit font-lock-comment-face)
                            (my/mode-line-over :foreground ,mono1 :background ,red)
@@ -498,7 +504,7 @@ anything to put between them."
                            (("pptx" "pptm") . ,orange)
                            (("pdf")         . ,red)))
                         (my/set-faces
-                         `((my/wdired-edit-face :background ,mono2)
+                         `((my/wdired-edit-face :background ,mono0)
                            (my/org-ongo :inverse-video t :foreground ,orange :background ,mono1)
                            (my/org-wait :inverse-video t :inherit font-lock-comment-face)
                            (my/mode-line-over :foreground ,mono1 :background ,red)
