@@ -14,9 +14,6 @@ fzf:p
 eza:p
 bat:p
 
-# --- shell ergonomics ---
-zoxide:p
-
 # --- git / dev ---
 delta:p         # brew: git-delta
 git:            # msys base repo (coexists w/ Scoop git; ucrt64 takes precedence)
