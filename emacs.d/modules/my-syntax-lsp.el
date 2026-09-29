@@ -9,14 +9,22 @@
     ("ruff"               "Python" "uv tool install ruff")
     ("clangd"             "C/C++"  "Xcode on macOS | scoop install llvm")
     ("clang-format"       "C/C++"  "brew install clang-format | scoop install llvm")
-    ("xcrun"              "Swift"  "Xcode -- sourcekit-lsp and swift-format are inside it"))
+    ("xcrun"              "Swift"  "Xcode -- sourcekit-lsp and swift-format are inside it")
+    ("claude"             "Agent"  "scoop install claude-code, then it updates itself"))
   "The programs outside Emacs that the modes configured here look for.
 
 One of each on PATH, and every checkout uses that one.  A language
 server is not a dependency of the code it reads -- nothing imports
 pyright -- so a copy per project is the same download repeated and an
 editor that has to be told which is which.  `install_python_tools' in
-bootstrap installs the Python half of this list.")
+bootstrap installs the Python half of this list.
+
+`claude' is here for a different reason: not whether it is installed,
+but which of them is.  It can be present twice over -- scoop puts one
+under its shims, the CLI replaces itself in ~/.local/bin the first
+time it updates -- and running the wrong one looks nothing like a path
+problem.  The session starts, says so, and its window shuts.  The
+resolved path answers that in one line.")
 
 (defun my/language-tools-report ()
   "Say which of `my/language-tools' this machine has, and where the rest come from.

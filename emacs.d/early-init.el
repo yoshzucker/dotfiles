@@ -67,6 +67,10 @@
 ;; The shell's answer is the one to match rather than a third one to invent:
 ;; the installer's copy is the one keeping itself up to date.
 ;;
+;; Windows only because it is the only one that can diverge.  On the Mac
+;; `exec-path-from-shell' starts a login shell and takes its PATH whole
+;; (core/my-core-env.el), so Emacs is looking at the list the shell built.
+;;
 ;; Ahead of mingw64 as well, which changes nothing: that entry is there to
 ;; shadow ucrt64's gcc, and there is no gcc here.
 (when (eq system-type 'windows-nt)

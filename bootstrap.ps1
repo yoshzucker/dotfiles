@@ -827,6 +827,22 @@ function Install-ScoopPackages {
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Warning: Some packages from the scoopfile may have failed." -ForegroundColor Yellow
         }
+        # Two apps want the name `claude': claude-code, which is the CLI the
+        # Emacs integration drives, and claude, which is the desktop
+        # application.  Scoop gives the shim to whichever was installed first,
+        # so which one that name means would otherwise depend on the order a
+        # machine happened to be set up in.  `scoop reset' hands it back,
+        # every time, and does nothing where there is no contest.
+        #
+        # It settles one window rather than the usual case: the CLI replaces
+        # itself in ~/.local/bin the first time it updates, and that comes
+        # first on PATH for the shell (config/shell/env/common.sh) and for
+        # Emacs (emacs.d/early-init.el).  The shim is what runs until then --
+        # on a machine set up today, and on any day the update has not
+        # happened yet.
+        if (scoop list | Select-String "^claude-code\s") {
+            scoop reset claude-code | Out-Null
+        }
     } else {
         Write-Host "No scoopfile found. Using fallback list."
         $packages = @("git", "ripgrep", "fzf", "emacs", "r", "python", "sbcl")
