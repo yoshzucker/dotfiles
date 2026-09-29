@@ -26,6 +26,75 @@
 ;; actually worked in.
 (remove-hook 'find-file-hook #'vc-refresh-state)
 
+;; What opening a file asks git, again: `magit-auto-revert-mode'.
+;;
+;; magit keeps buffers in step with files that git operations rewrite -- a
+;; checkout, a pull, a rebase -- by turning `auto-revert-mode' on in each
+;; buffer whose file git tracks.  Deciding which those are is the cost: every
+;; file opened asks git for the repository and then for the file, several
+;; processes, and asks twice, because `normal-mode' runs
+;; `after-change-major-mode-hook' once for `fundamental-mode' before the real
+;; mode's `kill-all-local-variables' throws the first answer away.  Four
+;; hundred milliseconds a process in a repository on a synced folder on
+;; Windows, so seconds to open a file there.  And on Windows it can fail: git
+;; is MSYS2's and answers in /c/ paths, which `magit-toplevel' does not
+;; translate in its `--show-cdup' branch -- the one taken when the directory
+;; was reached through a junction -- and the error, from the first of the two
+;; runs, leaves the file in `fundamental-mode'.
+;;
+;; git is not the only thing that rewrites files under an open buffer.  A
+;; synced folder does it whenever the other machine saves.  So every file
+;; buffer follows its file instead, and there is nothing to decide:
+;; `global-auto-revert-mode' watches each file for a change and reverts an
+;; unmodified buffer when one comes, and magit, seeing it on, turns its own
+;; mode off and asks git nothing.  Measured: no difference to opening a file,
+;; and a fifth of a millisecond for the periodic check over thirty-seven
+;; buffers.
+;;
+;; On before magit loads, so that magit starts with its own mode off.
+(global-auto-revert-mode 1)
+
+;; And what saving a file asks git.  `basic-save-buffer' calls `vc-after-save',
+;; which for a file under Git runs `status' to learn whether it is now edited,
+;; and redraws the mode line's VC part with the answer -- after, the first time
+;; a file is saved in a session, `ls-files' to learn whether it is under Git at
+;; all.  Two to four hundred milliseconds on Windows for every save, which
+;; super-save makes every buffer switch.
+;;
+;; The mode line never shows that part here: the refresh above is gone, so it
+;; was never drawn to begin with.  So the save forgets the state instead of
+;; recomputing it, and whatever asks next -- `C-x v', diff-hl -- computes it
+;; then, from git, as it would have.
+(define-advice vc-after-save (:override () my/forget-rather-than-ask)
+  "Mark the saved file's VC state unknown, without asking the backend."
+  (when buffer-file-name
+    (vc-file-setprop buffer-file-name 'vc-state nil)
+    (vc-file-setprop buffer-file-name 'vc-checkout-time nil)
+    (when (bound-and-true-p vc-dir-buffers)
+      (vc-dir-resynch-file buffer-file-name))))
+
+;; Its partner before the save asks git the same question for nothing.
+;; `vc-before-save' keeps a copy of the pristine file for backends that make
+;; version backups, and asks first whether the file is up to date -- a
+;; `status' -- and only then whether the backend makes backups, which Git
+;; never does.  So the order is turned round, and the backend is the one
+;; already known for the file rather than one looked up for the save: a file
+;; no VC command has touched this session gets no backup, which on a
+;; repository that keeps them is the one thing given up.
+(define-advice vc-before-save (:override () my/backups-first)
+  "Keep a version backup only where the file's known backend makes them."
+  (let* ((file buffer-file-name)
+         (backend (and file (vc-file-getprop file 'vc-backend))))
+    (ignore-errors
+      (unless (file-exists-p file)
+        (vc-file-clearprops file))
+      (and backend
+           (not (eq backend 'none))
+           (vc-call-backend backend 'make-version-backups-p file)
+           (vc-up-to-date-p file)
+           (eq (vc-checkout-model backend (list file)) 'implicit)
+           (vc-make-version-backup file)))))
+
 (use-package magit
   :after evil
   :defer t
