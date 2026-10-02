@@ -22,7 +22,6 @@ $LinkScanSkipDirectoryNames = @(
     "myenv",
     ".venv",
     "venv",
-    "env",
     "node_modules",
     "__pycache__",
     ".mypy_cache",
@@ -248,7 +247,20 @@ function Test-LinkScanSkippedDirectory {
         return $false
     }
 
-    return $script:LinkScanSkipDirectoryNames -contains $Item.Name
+    if ($script:LinkScanSkipDirectoryNames -contains $Item.Name) {
+        return $true
+    }
+
+    # `env` is skipped only where it is a virtualenv.  The name is a word, and
+    # one of the directories this repository deploys is called it --
+    # config/shell/env, which holds the modules ~/.zshenv sources -- so
+    # skipping by name alone hid every link under it from the scan, in report
+    # mode as well as in fix mode.  A virtualenv carries a pyvenv.cfg (PEP 405).
+    if ($Item.Name -eq "env") {
+        return (Test-Path -LiteralPath (Join-Path $Item.FullName "pyvenv.cfg"))
+    }
+
+    return $false
 }
 
 function Test-LinkScanDescendableDirectory {
