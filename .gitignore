@@ -1,5 +1,9 @@
-# --- emacs --------------------------------------------------------------------
+# --- per-machine, never tracked -----------------------------------------------
+# Both are meant to live beside the deployed symlinks, in ~/.emacs.d and
+# ~/.config/shell/env, where the repository cannot reach them.  Named here as
+# well for the hand that edits the repository copy instead.
 local.el
+local.sh
 custom.el
 
 # --- leakseek -----------------------------------------------------------------
