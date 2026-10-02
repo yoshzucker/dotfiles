@@ -445,13 +445,19 @@ get_symlink_children() {
   local recurse="${2:-}"
   [ -d "$base_dir" ] || return 0
 
+  # `env' is pruned only where it is a virtualenv.  The name is a word, and
+  # one of the directories this repository deploys is called it --
+  # config/shell/env, which holds the modules ~/.zshenv sources -- so pruning
+  # by name alone hid every link under it from the scan, in report mode as
+  # well as in fix mode.  A virtualenv carries a pyvenv.cfg (PEP 405); the
+  # other three names are not words and need no such test.
   if [ "$recurse" = "--recurse" ]; then
     find "$base_dir" \
       -type d \( \
         -name "myenv" -o \
         -name ".venv" -o \
         -name "venv" -o \
-        -name "env" -o \
+        \( -name "env" -a -exec test -e "{}/pyvenv.cfg" \; \) -o \
         -name "node_modules" -o \
         -name "__pycache__" -o \
         -name ".mypy_cache" -o \
