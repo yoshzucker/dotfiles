@@ -35,14 +35,17 @@
 
   ;; OS-specific dictionary and encoding
   (pcase system-type
+    ;; The dictionary sits beside the program, in the prefix it was installed
+    ;; into: share/ next to bin/.  Found from where cmigemo is rather than by
+    ;; asking `brew --prefix', which costs a shell and a brew at every startup
+    ;; to say the same thing.
     ((or 'darwin 'gnu/linux)
-     (when (executable-find "brew")
-       (setq migemo-coding-system 'utf-8-unix
-             migemo-dictionary
-             (expand-file-name
-              "share/migemo/utf-8/migemo-dict"
-              (string-trim
-               (shell-command-to-string "brew --prefix cmigemo"))))))
+     (let ((dict (expand-file-name
+                  "../share/migemo/utf-8/migemo-dict"
+                  (file-name-directory (executable-find "cmigemo")))))
+       (when (file-exists-p dict)
+         (setq migemo-coding-system 'utf-8-unix
+               migemo-dictionary dict))))
     ('windows-nt
      (setq migemo-coding-system 'cp932-unix
            migemo-dictionary (expand-file-name
