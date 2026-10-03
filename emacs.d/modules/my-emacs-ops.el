@@ -19,6 +19,16 @@
 
 (fset 'yes-or-no-p 'y-or-n-p)
 
+;; Pipes to subprocesses as wide as Emacs reads from them.
+;;
+;; On Windows a pipe is made with the system's default buffer, four
+;; kilobytes, while Emacs reads up to `read-process-output-max' -- sixty-four
+;; -- at a time.  So a process that has a lot to say is read in many small
+;; pieces, each a wait and a wake: a magit diff, ripgrep's matches, a language
+;; server's reply.  The same width on both sides makes it one.
+(when (eq system-type 'windows-nt)
+  (setq w32-pipe-buffer-size read-process-output-max))
+
 (use-package server
   :demand t
   :config
