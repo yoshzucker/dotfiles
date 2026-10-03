@@ -150,8 +150,6 @@ bindkey -s $'\e[105;5u' '\t'  # Ghostty: CSI u (codepoint i=105)
 bindkey -s $'\e[9;5u'   '\t'  # kitty fallback
 bindkey -s $'\e[1;5n'   '\t'  # mintty: XTermModifyOtherKeys=1
 
-bindkey '^J' down-line-or-select
-
 # Delete, Home and End, as the terminals here send them: xterm's form from
 # Ghostty and mintty, the VT220 form from tmux.  The Mac's /etc/zshrc bound
 # these from terminfo, which names the application-mode sequences that are
