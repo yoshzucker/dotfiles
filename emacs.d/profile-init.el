@@ -130,6 +130,13 @@ A feature already present costs nothing and would only add a zero row."
   (setq elapsed (- (float-time) start))
   (puthash "early-init.el" (vector elapsed elapsed 1 nil) profile-init--files)
 
+  ;; The frame early-init.el asks for, untimed.  Under `-Q' the frame is made
+  ;; before early-init.el is read, so it still has the tool bar a real start
+  ;; never builds, and the `(tool-bar-mode -1)' in my-ui-frame.el would take
+  ;; it off under the clock: 0.13s charged to my-ui-frame, against 0.3ms when
+  ;; the frame is made after early-init.el as it is at a real start.
+  (modify-frame-parameters nil default-frame-alist)
+
   (advice-add 'load :around #'profile-init--load)
   (advice-add 'require :around #'profile-init--require)
   (profiler-start 'cpu)
