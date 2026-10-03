@@ -102,6 +102,19 @@ excluded here and forced to 1 in `my/char-width-setup'.")
 Ambiguous -> 1, combining -> 0.  Font independent (matches the terminal).")
 ;; <<< END ambig-narrow map <<<
 
+;; ---- Direction -------------------------------------------------------------
+
+;; Every paragraph runs left to right.
+;;
+;; Left at nil, the direction of each paragraph is worked out on every
+;; redisplay by reading its text for a right-to-left character, and the
+;; bracket-pairing pass the Unicode algorithm adds is run over every
+;; parenthesis on the screen -- which in Lisp is all of them.  Nothing written
+;; here is Arabic or Hebrew.  Should some arrive, it is still drawn right to
+;; left within its line; only the paragraph around it is not turned round.
+(setq-default bidi-paragraph-direction 'left-to-right)
+(setq bidi-inhibit-bpa t)
+
 ;; ---- Apply -----------------------------------------------------------------
 
 (defun my/char-width-apply-ranges (ranges)
