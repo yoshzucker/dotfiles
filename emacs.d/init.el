@@ -41,6 +41,27 @@
   (when (and lisp (not (file-exists-p (expand-file-name "subr.el.gz" lisp))))
     (setopt jka-compr-load-suffixes nil)))
 
+;; The recipe repositories every package here is found in, and no others.
+;;
+;; straight's bootstrap clones six of them and every pull fetches them all.
+;; What this configuration asks for comes from org-elpa, MELPA and the GNU
+;; ELPA mirror, or names its own recipe; the other three supplied nothing but
+;; an inherited lookup.  nongnu-elpa is the one that cost: the mirror is a
+;; single git history holding every package of that archive, 489 MB on disk,
+;; to supply popon -- which is now named where corfu-terminal is.  el-get is
+;; two thousand files, which the startup scan for modified repositories walks
+;; on macOS, for no recipe at all.
+;;
+;; Removed from the list rather than restated: what remains is straight's own
+;; definition of each, so it follows straight when that changes.  A package
+;; found only in one of these is reported as having no recipe, and takes one
+;; of its own beside its `use-package'.
+(with-eval-after-load 'straight
+  (setq straight-initial-recipe-repositories
+        (seq-remove (lambda (recipe)
+                      (memq (car recipe) '(nongnu-elpa el-get emacsmirror-mirror)))
+                    straight-initial-recipe-repositories)))
+
 ;; Bootstrap straight.el
 (defvar bootstrap-version)
 (let ((bootstrap-file (expand-file-name "straight/repos/straight.el/bootstrap.el"
