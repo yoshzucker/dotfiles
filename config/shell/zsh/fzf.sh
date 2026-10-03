@@ -1,47 +1,22 @@
 # --- fzf.sh --------------------------------------------------------------
 # fzf keybindings, completions, default opts/command (fd/rg), theme colors.
-# Searches multiple possible fzf install locations; prefers BREW_PREFIX.
+# Sources the zsh integration from wherever the package manager put it.
 
 [ -n "$ZSH_VERSION" ] || return 0
 
-typeset -g __FZF_SOURCED=0
-__fzf_try_source() {
-  local d
-  for d in "$1/share/fzf" "$1/shell"; do
-    if [[ -f "$d/key-bindings.zsh" ]]; then
-      source "$d/key-bindings.zsh"
-      __FZF_SOURCED=1
-    fi
-    if [[ -f "$d/completion.zsh" ]]; then
-      source "$d/completion.zsh"
-      __FZF_SOURCED=1
-    fi
-  done
-}
-
 if command -v fzf >/dev/null 2>&1; then
-  # Prefer centralized BREW_PREFIX from env/macos.sh, then common locations
-  typeset -a __FZF_BASES=(
-    "${BREW_PREFIX:+${BREW_PREFIX}/opt/fzf}"
-    "${HOMEBREW_PREFIX:+${HOMEBREW_PREFIX}/opt/fzf}"
-    /opt/homebrew/opt/fzf
-    /usr/local/opt/fzf
-    /mingw64
-    /ucrt64
-    /usr
-    "$HOME/.fzf"
-    "${USERPROFILE//\\/\/}/scoop/apps/fzf/current"
-  )
-  for base in "${__FZF_BASES[@]}"; do
-    [[ -n "$base" && -d "$base" ]] || continue
-    __fzf_try_source "$base"
-    (( __FZF_SOURCED )) && break
+  # Homebrew keeps the repository's shell/ directory; MSYS2's package
+  # installs the same files under share/fzf.  Read from disk rather than
+  # through `fzf --zsh', which would start fzf in every shell.
+  for __d in ${HOMEBREW_PREFIX:+$HOMEBREW_PREFIX/opt/fzf/shell} \
+             ${MINGW_PREFIX:+$MINGW_PREFIX/share/fzf}; do
+    [[ -r $__d/key-bindings.zsh ]] || continue
+    source $__d/key-bindings.zsh
+    source $__d/completion.zsh
+    break
   done
-fi
-unset -f __fzf_try_source
-unset __FZF_SOURCED __FZF_BASES
+  unset __d
 
-if command -v fzf >/dev/null 2>&1; then
   # Single-line FZF_DEFAULT_OPTS: third-party callers shell-parse this variable
   # and choke on embedded newlines or parenthesized actions
   # (e.g. execute-silent(...)). Persistent layout + safe binds only here;

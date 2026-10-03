@@ -47,7 +47,7 @@ fi
 # otherwise we'd force emacs onto a less accurate entry on macOS.
 case "$TERM" in
   xterm-ghostty|*-direct|tmux-256color|tmux-direct) ;;
-  *) alias emacs='env TERM=xterm-24bits emacs' ;;
+  *) alias emacs='TERM=xterm-24bits emacs' ;;
 esac
 
 [ "$THEME_NAME" = "gensho" ] || return 0
