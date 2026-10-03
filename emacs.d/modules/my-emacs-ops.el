@@ -7,8 +7,7 @@
 
 ;;; Code:
 
-(setq backup-directory-alist '((".*" . "~/.saves"))
-      delete-by-moving-to-trash t
+(setq delete-by-moving-to-trash t
       ring-bell-function 'ignore
       ;; Off, and `gcmh-verbose' on below instead.  This narrates *every*
       ;; collection, which during a long command is a second writer fighting
