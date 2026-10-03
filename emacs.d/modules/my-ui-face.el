@@ -72,6 +72,17 @@
   :type 'string
   :group 'my/ui)
 
+;; Fonts stay open once opened.
+;;
+;; A collection otherwise compacts the font caches, closing every font not on
+;; screen at that moment, and the next character that needs one opens it
+;; again.  Three families are in use here -- PlemolJP for text, Source Han for
+;; variable pitch, an emoji font -- and the kanji and the emoji fall back
+;; through the fontset, so what is closed is opened again on the next redraw
+;; that shows Japanese, which is most of them.  The memory kept is the fonts
+;; themselves, which are kept anyway for as long as they are on screen.
+(setq inhibit-compacting-font-caches t)
+
 (defvar my/theme-special-setups nil
   "Alist of (THEME-SYMBOL . FUNCTION) for applying theme-specific
 special package configurations (dired-rainbow, smartrep, etc.).
