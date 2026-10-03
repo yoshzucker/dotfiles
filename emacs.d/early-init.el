@@ -7,6 +7,17 @@
 
 (setq package-enable-at-startup nil)
 
+;; No collection until gcmh is on.
+;;
+;; At the stock 800k a startup collects thirty-one times, a quarter of a second
+;; out of a second and a third on macOS -- each one walking a heap that is only
+;; growing, for garbage the next few files will make again.  gcmh (my-emacs-ops.el)
+;; replaces this with its own high threshold the moment it is enabled, and
+;; collects when Emacs is idle from then on, so nothing here has to put the
+;; old value back.  The figure is gcmh's own high threshold: should gcmh
+;; ever fail to load, collections are rare rather than absent.
+(setq gc-cons-threshold (* 1024 1024 1024))
+
 ;; Chrome the frame is never going to have, said before there is a frame.
 ;;
 ;; `tool-bar-mode -1' later does the same thing the long way round: the tool
