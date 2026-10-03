@@ -26,8 +26,12 @@
 # Named features chosen at runtime via DELTA_FEATURES (set by colors.sh
 # based on $THEME_VARIANT). delta merges in the [delta "<name>"] section
 # for each entry in DELTA_FEATURES.
+#
+# Each names its side outright.  delta queries the terminal for its colours
+# unless `dark' or `light' is set -- `light = false' is neither -- and the
+# query holds the terminal in raw mode, racing the pager that starts next.
 [delta "gensho-dark"]
-	light = false
+	dark = true
 [delta "gensho-light"]
 	light = true
 
