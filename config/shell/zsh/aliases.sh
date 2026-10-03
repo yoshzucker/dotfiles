@@ -48,14 +48,20 @@ fi
 
 # ----- yazi (TUI file manager) with cd follow -----
 # `y` opens yazi; on exit, the shell cd's to yazi's final directory.
+#
+# The file yazi leaves its directory in is named after this shell instead of
+# made by mktemp, and read and removed with builtins: mktemp, cat and rm are
+# three processes around every visit, most of a second on Windows.
 if command -v yazi >/dev/null 2>&1; then
   y() {
-    local tmp cwd
-    tmp="$(mktemp -t yazi-cwd.XXXXXX)" || return 1
+    local tmp=${TMPDIR:-/tmp}
+    tmp=${tmp%/}/yazi-cwd.$$
+    local cwd
+    zmodload -F zsh/files b:zf_rm
     yazi "$@" --cwd-file="$tmp"
-    cwd="$(command cat -- "$tmp" 2>/dev/null)"
-    [ -n "$cwd" ] && [ "$cwd" != "$PWD" ] && builtin cd -- "$cwd"
-    rm -f -- "$tmp"
+    [[ -r $tmp ]] && cwd=$(<$tmp)
+    zf_rm -f -- $tmp
+    [[ -n $cwd && $cwd != $PWD ]] && builtin cd -- "$cwd"
   }
 fi
 
