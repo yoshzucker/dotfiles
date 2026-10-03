@@ -1,11 +1,43 @@
 # --- msys.sh -----------------------------------------------------------------
-# MSYS2/Mintty helpers: pp/wp (POSIX<->Windows path), open() command,
-# Scoop shims appended to PATH.
-# No-op on non-MSYS2 systems. Safe for bash and zsh.
-# Defines: pp(), wp(), open() (open only when powershell.exe is available)
-# Modifies: PATH (Scoop shims appended at low priority)
+# MSYS2: the part of /etc/profile a UCRT64 shell needs, pp/wp (POSIX<->Windows
+# path), Scoop shims appended to PATH.
+# No-op on non-MSYS2 systems.  zsh only: sourced by ~/.zshenv.
+# Exports: MSYSTEM (UCRT64 unless already set) and what /etc/msystem exports
+#          (MSYSTEM_PREFIX, MINGW_PREFIX, ...), SHELL, LANG (when no locale
+#          variable is set)
+# Defines: pp(), wp()
+# Modifies: PATH (MSYS2 directories prepended, Scoop shims appended)
 
-[ -n "${MSYSTEM:-}" ] || return 0
+# `$OSTYPE', not `$MSYSTEM': the latter is what this file sets, for a shell
+# started without it.
+case "$OSTYPE" in
+  msys*) ;;
+  *) return 0 ;;
+esac
+
+# What /etc/profile does for a UCRT64 zsh, without starting anything.
+# ~/.zshenv skips that file: on every login it runs `hostname' and `uname'
+# and forks a subshell for each of five globs and for `which zsh' -- about
+# nine processes, at a fifth of a second each, before the first prompt.
+#
+# MSYSTEM defaults here, so a launcher needs only to start zsh.  /etc/msystem
+# is MSYS2's own table for it and only assigns.  The MSYS2 directories go in
+# front of what common.sh put first and of the inherited Windows PATH, which
+# is where /etc/profile put them with MSYS2_PATH_TYPE=inherit: pacman's
+# binaries still win where both have one.  SHELL, because a shell started
+# from Emacs inherits its cmdproxy.exe, and fzf previews and tmux run what it
+# names.  LANG as /etc/profile.d/lang.sh set it, for a launcher that sets no
+# locale at all.
+#
+# Left out as nothing here uses them: HOSTNAME, TMP/TEMP pointed at /tmp,
+# the build variables (PKG_CONFIG_*, ACLOCAL_PATH, CONFIG_SITE), MANPATH and
+# INFOPATH (man finds pages from PATH), XDG_DATA_DIRS (bash-completion), and
+# the post-install scripts, which do their work on the first start only.
+export MSYSTEM="${MSYSTEM:-UCRT64}"
+. /etc/msystem
+PATH="${MINGW_PREFIX:+$MINGW_PREFIX/bin:}/usr/local/bin:/usr/bin:/bin:$PATH"
+export SHELL=/usr/bin/zsh
+[ -n "${LC_ALL:-${LC_CTYPE:-$LANG}}" ] || export LANG=ja_JP.UTF-8
 
 # pp: Windows path -> POSIX  (C:\foo\Bar -> /c/foo/Bar, \\srv\sh -> //srv/sh)
 pp() {
@@ -48,18 +80,6 @@ wp() {
   fi
   printf '%s\n' "$wpath"
 }
-
-if command -v powershell.exe >/dev/null 2>&1; then
-  open() {
-    local p
-    p="$(wp "${1:-.}")"
-    if [ -z "$p" ]; then
-      printf 'open: not found or inaccessible: %s\n' "${1:-.}" >&2
-      return 1
-    fi
-    powershell.exe -NoProfile -Command "Start-Process $p"
-  }
-fi
 
 # Scoop shims. Appended (not prepended) so pacman/ucrt64 binaries take
 # precedence when both exist (e.g. fzf), while scoop-only tools (e.g. claude)
