@@ -120,6 +120,15 @@ fi
 ZPLUGDIR="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/plugins"
 
 ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=${THEME_MONO4},italic"
+
+# The plugin wraps every ZLE widget so that each one refreshes the
+# suggestion, and by default it wraps them all again before every prompt --
+# six hundred widgets, 5 ms on the Mac, after every command.  Once is
+# enough: the wrapping still happens before the first prompt, after every
+# startup file has defined its widgets, and only a widget defined later --
+# by hand, at the prompt -- would go unwrapped.
+ZSH_AUTOSUGGEST_MANUAL_REBIND=1
+
 [[ -r $ZPLUGDIR/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && \
   source $ZPLUGDIR/zsh-autosuggestions/zsh-autosuggestions.zsh
 
@@ -127,11 +136,11 @@ ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=${THEME_MONO4},italic"
 # means a fork on every keystroke.  Windows has no fork: MSYS2 emulates it by
 # copying the address space, and the endpoint scanner inspects each new
 # process, which together put about half a second between a key and its
-# character.  Searching 1000 history entries in-process costs nothing, so
-# only the machine that pays for fork gives async up.
+# character.  The Mac forks cheaply, and still more slowly than the search
+# it hands off: 1000 history entries take 0.1 ms in-process, the fork 0.4.
 #
 # `unset', not `=0': the plugin tests whether the variable exists.
-[[ -n ${MSYSTEM:-} ]] && unset ZSH_AUTOSUGGEST_USE_ASYNC
+unset ZSH_AUTOSUGGEST_USE_ASYNC
 
 # ----- Keybindings -----
 bindkey -e
