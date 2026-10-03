@@ -124,13 +124,15 @@ Read before straight has added a package, so whatever lives under
 `user-emacs-directory' at this point belongs to straight rather than Emacs.")
 
 (defconst my/straight-packages-before-emacs-lisp
-  '("bind-key" "compat" "eglot" "eldoc" "external-completion" "flymake"
-    "jsonrpc" "let-alist" "map" "org" "peg" "project" "seq" "svg"
-    "transient" "use-package" "xref")
+  '("bind-key" "compat" "let-alist" "map" "org" "peg" "seq" "svg"
+    "transient" "use-package")
   "Packages that must stay ahead of Emacs's own lisp in `load-path'.
 Each ships at least one library Emacs also bundles, so behind Emacs's lisp
 the bundled copy would win and the installed package would be unreachable.
-Every other package straight builds is appended instead.")
+Every other package straight builds is appended instead.
+
+The packages `straight-built-in-pseudo-packages' names are not here: Emacs's
+copy is the one wanted, and straight never builds them.")
 
 (defun my/emacs-bundled-libraries ()
   "Return a hash table whose keys name every library Emacs itself bundles."
@@ -174,13 +176,19 @@ directory of Emacs's lisp."
   "Report every built package that shadows Emacs's own lisp undeclared.
 The post-build hook covers packages built from here on; this covers the ones
 already sitting in straight's build directory, which it has no reason to
-rebuild."
+rebuild.
+
+A built-in pseudo-package is passed over: a build directory under its name
+is left from before it was one, is never put on `load-path', and shadows
+nothing."
   (interactive)
   (let* ((bundled (my/emacs-bundled-libraries))
          (build (straight--build-dir))
          (packages (seq-filter
                     (lambda (name)
-                      (file-directory-p (expand-file-name name build)))
+                      (and (file-directory-p (expand-file-name name build))
+                           (not (memq (intern name)
+                                      straight-built-in-pseudo-packages))))
                     (directory-files build nil "\\`[^.]")))
          (undeclared
           (seq-filter
