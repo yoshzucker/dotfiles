@@ -260,6 +260,8 @@ the subject is one \\<magit-status-mode-map>\\[magit-log] away."
 
 (use-package grep
   :if (eq system-type 'windows-nt)
+  ;; The first grep or find command loads it, and this is in time for that.
+  :defer t
   :config
   (let ((find (expand-file-name "~/scoop/shims/find.exe")))
     (if (file-exists-p find)

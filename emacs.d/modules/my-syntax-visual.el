@@ -77,6 +77,9 @@ byte-compile one, which is the half worth having and the half that costs."
   :straight nil
   :when (and (fboundp 'treesit-available-p)
              (treesit-available-p))
+  ;; Everything below is a value or a command, and none of it needs treesit.el
+  ;; loaded: the first `-ts-mode' to open a buffer brings it.
+  :defer t
   :init
   ;; Define language grammar sources
   (setq treesit-language-source-alist
