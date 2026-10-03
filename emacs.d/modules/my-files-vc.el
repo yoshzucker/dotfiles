@@ -6,6 +6,15 @@
 
 ;;; Code:
 
+;; Git, and no other version control.
+;;
+;; Asking which backend a file is under tries each in turn, and Git is seventh
+;; of the eight Emacs knows.  The six before it look for their own marks --
+;; RCS and SCCS directories, CVS/Entries, and for Subversion and Bazaar a walk
+;; up every parent directory -- and find nothing, on every file asked about.
+;; Nothing here is kept in any of them.
+(setq vc-handled-backends '(Git))
+
 ;; What opening a file asks git, and what it is asked for.
 ;;
 ;; `vc-refresh-state' runs on `find-file-hook', and for a file in a Git
