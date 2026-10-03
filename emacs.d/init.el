@@ -1070,10 +1070,6 @@ into is untouched."
 (straight-use-package 'use-package)
 (setq straight-use-package-by-default t)
 
-(setq use-package-verbose t
-      use-package-compute-statistics t
-      use-package-minimum-reported-time 0)
-
 ;; Add core and module directories to load path
 (add-to-list 'load-path (expand-file-name "core" user-emacs-directory))
 (add-to-list 'load-path (expand-file-name "modules" user-emacs-directory))
