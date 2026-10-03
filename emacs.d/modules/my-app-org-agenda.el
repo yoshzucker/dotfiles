@@ -336,6 +336,20 @@ org's existing key table stays the single source of truth."
   :demand t
   :config
   (setopt activity-watch-org-clock-active t)
+
+  ;; One heartbeat in fifteen seconds for the same file, where the package
+  ;; sends one every second it can -- which, from its two-second timer, is
+  ;; every tick for as long as anything is being typed.  Each one is a `curl'
+  ;; started by request.el: little on macOS, and on Windows a process start
+  ;; landing between two keystrokes every two seconds.
+  ;;
+  ;; Nothing in the record is lost.  The server merges heartbeats that arrive
+  ;; within `activity-watch-pulse-time' -- thirty seconds -- of each other into
+  ;; one event, so fifteen keeps a span of work in one piece, and moving to
+  ;; another file still sends at once.  What fifteen costs is the last few
+  ;; seconds before a pause, at most.  The name says per second and the
+  ;; package reads it as seconds between.
+  (setq activity-watch-max-heartbeat-per-sec 15)
   (global-activity-watch-mode)
 
   ;; Every heartbeat names the branch the file is on, and a heartbeat goes
