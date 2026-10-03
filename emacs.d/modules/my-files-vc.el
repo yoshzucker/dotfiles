@@ -68,7 +68,7 @@
 ;; and redraws the mode line's VC part with the answer -- after, the first time
 ;; a file is saved in a session, `ls-files' to learn whether it is under Git at
 ;; all.  Two to four hundred milliseconds on Windows for every save, which
-;; super-save makes every buffer switch.
+;; super-save makes every pause in editing.
 ;;
 ;; The mode line never shows that part here: the refresh above is gone, so it
 ;; was never drawn to begin with.  So the save forgets the state instead of

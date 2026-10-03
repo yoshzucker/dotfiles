@@ -25,17 +25,29 @@
 (use-package super-save
   :diminish (super-save-mode " ss")
   :config
+  ;; Saved when Emacs is left alone for fifteen seconds and when another
+  ;; application takes the focus -- the two moments something outside Emacs
+  ;; is likely to read the file -- and not when a window is switched.
+  ;;
+  ;; A save is more than the write.  `after-save-hook' formats the buffer,
+  ;; reindexes an Org file into org-roam and tells ActivityWatch, and the
+  ;; formatting alone holds a two-thousand-line Emacs Lisp file for fifty
+  ;; to ninety milliseconds while it reindents.  Saving on a switch put all
+  ;; of that between the key and the other window appearing; saving when
+  ;; idle puts it where nobody is waiting.  What is given up is the file on
+  ;; disk being current the moment the window changes: for up to fifteen
+  ;; seconds afterwards it holds what was last saved.
   (setq auto-save-default nil
 	super-save-auto-save-when-idle t
-	super-save-idle-duration 15)
+	super-save-idle-duration 15
+	super-save-when-buffer-switched nil)
   (super-save-mode 1))
 
 ;; No lock files on Windows.
 ;;
 ;; A buffer takes a lock on its file at the first change after a save and
 ;; gives it up at the next save, and super-save makes that a cycle: every
-;; window switch and every quiet spell ends one, so the next keystroke begins
-;; another.  On macOS a lock is a symbolic link and costs nothing.  On Windows
+;; quiet spell ends one, so the next keystroke begins another.  On macOS a lock is a symbolic link and costs nothing.  On Windows
 ;; it is an ordinary file created beside the one being edited -- in a synced
 ;; folder, as most of them are here, a new file for the antivirus to open and
 ;; the sync client to notice, paid for on the first keystroke after each save.
