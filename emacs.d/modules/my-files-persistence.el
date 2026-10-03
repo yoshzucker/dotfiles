@@ -8,17 +8,6 @@
   :config
   (save-place-mode 1))
 
-(use-package no-littering
-  :config
-  (setq backup-directory-alist
-	`(("." . ,(no-littering-expand-var-file-name "backup/")))
-	make-backup-files t
-	backup-by-copying t
-	version-control t
-	delete-old-versions t
-	kept-new-versions 6
-	kept-old-versions 2))
-
 (use-package recentf
   :after no-littering
   :config

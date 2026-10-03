@@ -122,12 +122,10 @@
    (:hook conf-mode-hook prog-mode-hook text-mode-hook
           :func #'tempel-setup-capf))
   :config
-  ;; Every file in the directory, and set here rather than in `:init'.
-  ;; no-littering sets `tempel-path' too, to templates.eld alone, and it loads
-  ;; after this file -- the modules are read in name order, and
-  ;; my-files-persistence.el comes later -- so a value set at startup is
-  ;; overwritten and marp.eld is never read.  tempel itself loads at the first
-  ;; completion, which is after both.
+  ;; Every file in the directory.  no-littering sets `tempel-path' too, to
+  ;; templates.eld alone, which would leave marp.eld unread.  Set here, when
+  ;; tempel itself loads at the first completion, this is the value that
+  ;; stands -- no-littering has long since run, wherever it is read from.
   (setq tempel-path (expand-file-name "etc/tempel/*.eld" user-emacs-directory))
 
   (my/define-key

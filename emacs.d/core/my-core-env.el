@@ -4,6 +4,24 @@
 
 ;;; Code:
 
+;; Where packages keep their state: var/ and etc/ under `user-emacs-directory'.
+;;
+;; First, because no-littering sets those paths when it loads and a package
+;; reads its path when it starts.  savehist and saveplace start in the
+;; modules and read their files at once; behind no-littering they read the
+;; files no-littering has moved, and ahead of it they read the old ones and
+;; write the new, so what one session writes the next never reads.
+(use-package no-littering
+  :config
+  (setq backup-directory-alist
+	`(("." . ,(no-littering-expand-var-file-name "backup/")))
+	make-backup-files t
+	backup-by-copying t
+	version-control t
+	delete-old-versions t
+	kept-new-versions 6
+	kept-old-versions 2))
+
 (setq default-directory "~/"
       command-line-default-directory "~/"
       custom-file (expand-file-name "custom.el" user-emacs-directory))
