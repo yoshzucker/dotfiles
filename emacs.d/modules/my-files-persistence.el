@@ -30,5 +30,22 @@
 	super-save-idle-duration 15)
   (super-save-mode 1))
 
+;; No lock files on Windows.
+;;
+;; A buffer takes a lock on its file at the first change after a save and
+;; gives it up at the next save, and super-save makes that a cycle: every
+;; window switch and every quiet spell ends one, so the next keystroke begins
+;; another.  On macOS a lock is a symbolic link and costs nothing.  On Windows
+;; it is an ordinary file created beside the one being edited -- in a synced
+;; folder, as most of them are here, a new file for the antivirus to open and
+;; the sync client to notice, paid for on the first keystroke after each save.
+;;
+;; What the lock buys is a warning when a second Emacs starts editing the
+;; same file, and there is one Emacs here.  A change made on disk by anything
+;; else is still caught when saving, which compares the file's time with the
+;; one it was read at.
+(when (eq system-type 'windows-nt)
+  (setq create-lockfiles nil))
+
 (provide 'my-files-persistence)
 ;;; my-files-persistence.el ends here
