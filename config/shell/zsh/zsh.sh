@@ -7,7 +7,7 @@
 HISTFILE=$HOME/.zsh_history
 HISTSIZE=1000
 SAVEHIST=1000
-setopt hist_ignore_dups hist_ignore_all_dups hist_no_store hist_reduce_blanks
+setopt hist_ignore_all_dups hist_no_store hist_reduce_blanks
 setopt nobeep auto_pushd auto_cd interactive_comments prompt_subst
 # `correct` intentionally omitted: SPROMPT collides with the two-line PROMPT
 # below and the correction prompt ends up invisible.

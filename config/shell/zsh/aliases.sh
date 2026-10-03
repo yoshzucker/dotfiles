@@ -5,27 +5,21 @@
 [ -n "$ZSH_VERSION" ] || return 0
 
 # ----- shell-reset: flush derived state, reload fresh -----
-# Clears the tool-init caches (~/.cache/zsh/init_*.zsh) and the tmux server,
-# then re-execs a fresh login shell (which re-warms the tmux daemon). Use
-# after a theme/PATH change or a tool upgrade if anything looks stale.
-# Everything it removes is derived data and is regenerated -- nothing is lost.
+# Removes the completion dump and the stamp that dates its last full audit
+# (zsh.sh), then re-execs a fresh login shell, which rebuilds both.  Use after
+# installing a tool whose completion should not wait for tomorrow's audit,
+# or a theme/PATH change if anything looks stale.  Everything it removes is
+# derived data -- nothing is lost.
 shell-reset() {
-  rm -f "${XDG_CACHE_HOME:-$HOME/.cache}"/zsh/init_*.zsh
-  rm -f "${XDG_CACHE_HOME:-$HOME/.cache}"/zsh/completions.zwc  # completion digest; rebuilt on next start
-  if command -v tmux >/dev/null 2>&1; then
-    tmux kill-server 2>/dev/null
-    rm -f "/tmp/tmux-$(id -u)/default"
-  fi
+  rm -f ~/.zcompdump ~/.zcompdump-stamp
   exec zsh -l
 }
 
 # ----- open (cross-platform file/URL opener) -----
-# macOS has /usr/bin/open natively; provide a shim on MSYS2 and Linux.
+# macOS has /usr/bin/open natively; provide a shim on MSYS2.
 if [[ $OSTYPE == msys* || $OSTYPE == cygwin* ]]; then
   open() { start "$@" }
   compdef _files start   # start has no zsh completion spec; add file completion
-elif ! command -v open >/dev/null 2>&1; then
-  command -v xdg-open >/dev/null 2>&1 && open() { xdg-open "$@" }
 fi
 compdef _files open
 
@@ -45,7 +39,6 @@ else
   alias la='ls -aFC'
   alias ll='ls -l'
 fi
-ff() { find . -name "*$1*" -print; }
 
 # ----- viewers / monitors -----
 if command -v bat >/dev/null 2>&1; then
