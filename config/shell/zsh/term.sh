@@ -45,9 +45,15 @@ _cycle_term_size() {
   _term_send $'\e[8;'"${rows[i]};${cols[i]}t"
 }
 
+# ^W is a prefix and nothing else, as C-w is in Emacs (evil-window-map, in
+# every state) and in tmux (the prefix table).  Bound to backward-kill-word
+# as well, it would make zsh wait KEYTIMEOUT -- 400 ms -- after every ^W to
+# see whether an `e' or `m' followed; unbound, there is no timeout and the
+# second key acts at once.  Words are deleted with Alt-Backspace, as M-DEL
+# does in Emacs.
+bindkey -r '^W'
+
 zle -N _cycle_term_size
-# ^W is backward-kill-word; ^We is unambiguous: zsh waits KEYTIMEOUT (400 ms)
-# after ^W and fires _cycle_term_size if 'e' follows, otherwise falls back.
 bindkey '^We' _cycle_term_size
 
 # ----- maximize toggle (^W m) -----
