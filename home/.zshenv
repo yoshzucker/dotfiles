@@ -8,7 +8,23 @@
 # Performance profiling (optional)
 # zmodload zsh/zprof && zprof
 
-# Source early environment modules (cross-shell, non-interactive safe)
+# No system startup file is read after this one.  Each of them starts
+# processes -- path_helper and `locale' in the Mac's /etc/zprofile and
+# /etc/zshrc; `hostname', `uname' and a subshell per glob in the
+# /etc/profile that MSYS2's /etc/zsh/zprofile sources -- and both login
+# profiles rebuild PATH with the system directories in front of everything
+# set here, which leaves a login shell and a shell inside tmux running
+# different `git's.  What those files contribute that is still wanted is
+# set by env/macos.sh, env/msys.sh and zsh/zsh.sh instead, with builtins
+# only.
+unsetopt global_rcs
+
+# One copy of each directory: the modules prepend, and a shell started from
+# a shell already has everything once.  The first copy is the one kept, so
+# prepending an entry that is already there moves it to the front.
+typeset -U path fpath
+
+# Source early environment modules (non-interactive safe)
 [ -f ~/.config/shell/env/common.sh ] && source ~/.config/shell/env/common.sh
 [ -f ~/.config/shell/env/macos.sh  ] && source ~/.config/shell/env/macos.sh
 [ -f ~/.config/shell/env/msys.sh   ] && source ~/.config/shell/env/msys.sh

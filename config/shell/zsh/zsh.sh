@@ -12,6 +12,12 @@ setopt nobeep auto_pushd auto_cd interactive_comments prompt_subst
 # `correct` intentionally omitted: SPROMPT collides with the two-line PROMPT
 # below and the correction prompt ends up invisible.
 
+# What the Mac's /etc/zshrc provides, which ~/.zshenv skips: combining
+# characters drawn as one cell (it runs `locale' to decide; every terminal
+# here is UTF-8), and /usr/bin/log not shadowed by zsh's own `log'.
+setopt combining_chars
+disable log
+
 # ----- Completion System -----
 [ -d ~/.grok/completions/zsh ] && fpath=(~/.grok/completions/zsh $fpath)
 zmodload zsh/complist
@@ -136,6 +142,17 @@ bindkey -s $'\e[9;5u'   '\t'  # kitty fallback
 bindkey -s $'\e[1;5n'   '\t'  # mintty: XTermModifyOtherKeys=1
 
 bindkey '^J' down-line-or-select
+
+# Delete, Home and End, as the terminals here send them: xterm's form from
+# Ghostty and mintty, the VT220 form from tmux.  The Mac's /etc/zshrc bound
+# these from terminfo, which names the application-mode sequences that are
+# only sent after smkx -- so only tmux's ever matched -- and MSYS2 has no
+# such file at all.
+bindkey '^[[3~' delete-char
+bindkey '^[[H'  beginning-of-line
+bindkey '^[[1~' beginning-of-line
+bindkey '^[[F'  end-of-line
+bindkey '^[[4~' end-of-line
 
 # menuselect keymap (active during completion menu): vim-style navigation.
 bindkey -M menuselect '^J' down-history
