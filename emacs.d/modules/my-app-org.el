@@ -968,9 +968,8 @@ unaffected."
   ;; already here; `ol-doi' because it costs one small library.  PDFs are not
   ;; missing from this list: `docview:' addresses a page of a document opened
   ;; in `doc-view-mode', and `pdf-loader-install' below hands every PDF to
-  ;; pdf-tools instead, so doc-view never opens one.  `org-pdftools' is what
-  ;; addresses those, down to an annotation rather than a page -- though only
-  ;; from the moment pdf-tools itself loads, which is the first PDF opened.
+  ;; pdf-tools instead, so doc-view never opens one.  A PDF is linked as a
+  ;; `file:', which pdf-tools opens; a place inside one has no link type here.
   (setq org-modules '(ol-doi ol-info))
 
   ;; Babel
@@ -1625,11 +1624,6 @@ block already shows what is out with them, as a live query."
         (setq pdf-info-epdfinfo-program exe))))
 
   (blink-cursor-mode 0))    ;; Better UX for PDF buffers
-
-(use-package org-pdftools
-  :after (org pdf-tools org-noter-pdftools)
-  :config
-  (add-hook 'org-mode-hook #'org-pdftools-setup-link))
 
 (use-package org-noter
   :after (org pdf-tools)
