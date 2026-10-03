@@ -2,7 +2,9 @@
 
 ;;; Commentary:
 ;; Provides configuration for C and C++ development in Emacs.
-;; Includes indentation, Eglot LSP setup, and syntax tweaks.
+;; Includes indentation and syntax tweaks.  The language server is started
+;; from my-syntax-lsp.el, with the other languages', and only when clangd is
+;; installed.
 
 ;;; Code:
 
@@ -29,18 +31,6 @@
   (my/add-hook
    (:hook c-mode-hook c++-mode-hook c-ts-mode-hook c++-ts-mode-hook
           :func #'preproc-font-lock-mode)))
-
-(use-package eglot
-  :after cc-mode
-  :config
-  (my/add-hook
-   (:hook c-mode-hook c++-mode-hook c-ts-mode-hook c++-ts-mode-hook
-          :func #'eglot-ensure))
-
-  ;; Language server association
-  (dolist (mode '(c-mode c++-mode c-ts-mode c++-ts-mode))
-    (add-to-list 'eglot-server-programs
-                 `(,mode . ("clangd")))))
 
 (provide 'my-lang-c)
 ;;; my-lang-c.el ends here
