@@ -89,8 +89,12 @@
     "Smart quit like Vim: close window, tab, buffer, or Emacs."
     (interactive)
     (cond
-     ;; Multiple windows: just close this one
-     ((> (count-windows) 1)
+     ;; A window that can go on its own: just close this one.  Not a count
+     ;; of windows, because side windows (sill's row, a sidebar) are counted
+     ;; too, and the one window beside them is the frame's main window,
+     ;; which `delete-window' refuses.  `frame' means deleting the whole
+     ;; frame, which is not what closing a window should do.
+     ((eq (window-deletable-p) t)
       (delete-window))
      ;; Multiple tabs: close current tab
      ((> (length (funcall tab-bar-tabs-function)) 1)
@@ -102,6 +106,12 @@
      (t
       (save-buffers-kill-terminal))))
 
+  (evil-define-command my/evil-write-quit ()
+    "Save the buffer, then quit the way `my/evil-quit' does."
+    :repeat nil
+    (save-buffer)
+    (my/evil-quit))
+
   (evil-ex-define-cmd "tabnew" #'my/evil-tab-new)
   (evil-ex-define-cmd "tabe[dit]" #'my/evil-tab-edit)
   (evil-ex-define-cmd "tabc[lose]" #'my/evil-tab-close)
@@ -111,7 +121,8 @@
   (evil-ex-define-cmd "tabN[ext]" #'my/evil-tab-previous)
   (evil-ex-define-cmd "tabfir[st]" #'my/evil-tab-first)
   (evil-ex-define-cmd "tabl[ast]" #'my/evil-tab-last)
-  (evil-ex-define-cmd "q[uit]" #'my/evil-quit))
+  (evil-ex-define-cmd "q[uit]" #'my/evil-quit)
+  (evil-ex-define-cmd "wq" #'my/evil-write-quit))
 
 (use-package tabspaces
   ;; Turned on at the end of init, which is what `:init' below says -- it said
