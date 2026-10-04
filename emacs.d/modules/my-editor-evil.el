@@ -89,29 +89,7 @@
            (px (* n (my/line-px))))
       (pixel-scroll-precision-scroll-up px)))
 
-  (evil-define-command my/evil-vim-quit (&optional force)
-    "Quit buffer/window like Vim. Use FORCE for :q! or :wq!."
-    :repeat nil
-    (interactive "<!>")
-    (condition-case nil
-	    (progn (kill-buffer) (delete-window))
-      (error
-       (when (and (fboundp 'server-edit)
-                  (bound-and-true-p server-buffer-clients))
-	     (if force
-             (server-buffer-done (current-buffer))
-           (server-edit))))))
-  
-  (evil-define-command my/evil-vim-wq (&optional force)
-    "Save buffer and quit, optionally forcing like :wq!."
-    :repeat nil
-    (interactive "<!>")
-    (save-buffer)
-    (my/evil-vim-quit force))
-  
-  (dolist (pair '(("q[uit]"  . my/evil-vim-quit)
-                  ("wq"      . my/evil-vim-wq)
-                  ("bk[ill]" . kill-current-buffer)
+  (dolist (pair '(("bk[ill]" . kill-current-buffer)
                   ("ls"      . ibuffer)
                   ("etags"   . create-etags)
                   ("dg"      . deadgrep)
