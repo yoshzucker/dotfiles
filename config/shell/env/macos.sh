@@ -4,7 +4,7 @@
 # No-op on non-Darwin systems.  zsh only: sourced by ~/.zshenv.
 # Exports: HOMEBREW_PREFIX, HOMEBREW_CELLAR, HOMEBREW_REPOSITORY, INFOPATH,
 #          HOMEBREW_CURLRC (when ~/.curlrc exists), HOMEBREW_NO_ENV_HINTS
-# Modifies: PATH (Homebrew bin, gnubin, /etc/paths), FPATH, MANPATH
+# Modifies: PATH (Homebrew bin, gnubin, rustup, /etc/paths), FPATH, MANPATH
 
 # `$OSTYPE' rather than `uname': the shell already knows.  Asking the system
 # means starting a process, which is a fifth of a second on the Windows
@@ -34,6 +34,9 @@ if [ -d /opt/homebrew ]; then
     PATH="$HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin:$PATH"
   [ -d "$HOMEBREW_PREFIX/opt/findutils/libexec/gnubin" ] &&
     PATH="$HOMEBREW_PREFIX/opt/findutils/libexec/gnubin:$PATH"
+  # rustup is keg-only, so its cargo and rustc proxies are not in bin/.
+  [ -d "$HOMEBREW_PREFIX/opt/rustup/bin" ] &&
+    PATH="$HOMEBREW_PREFIX/opt/rustup/bin:$PATH"
 fi
 
 [ -e "$HOME/.curlrc" ] && export HOMEBREW_CURLRC=1
