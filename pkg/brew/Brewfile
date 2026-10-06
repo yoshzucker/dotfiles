@@ -62,6 +62,13 @@ brew "python"
 # installed.  `install_python_tools' in bootstrap puts pyright on PATH with
 # it; see doc/ for why that is one copy rather than one per project.
 brew "uv"
+# rustup rather than the rust formula: it is what adds a target beyond this
+# machine's own, and Windows code is checked from here against
+# x86_64-pc-windows-gnu.  Keg-only -- it conflicts with rust -- so
+# env/macos.sh puts its bin on PATH.  The Windows side is rustup-gnu in the
+# scoopfile, whose bundled MinGW linker spares a Visual C++ Build Tools
+# install.
+brew "rustup"
 # clang-format alone rather than the whole of llvm: a formatter is all that
 # is wanted from it, and clangd (the language server) ships with the Xcode
 # command line tools.
