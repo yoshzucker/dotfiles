@@ -3,3 +3,7 @@
 #
 # Global options live here (backend, toggle key, clipboard behaviour, etc.).
 # Keep the defaults unless a specific tweak is needed.
+
+# Hotkey that opens the search bar (ALT+SPACE when unset); `off` disables it.
+# espanso reads this option from default.yml only, not from app-specific configs.
+search_shortcut: off
