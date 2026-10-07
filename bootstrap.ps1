@@ -673,6 +673,20 @@ function Setup-Links {
     # single source of truth.
     Link-SingleDir (Join-Path $HOME ".config\espanso") (Join-Path $env:APPDATA "espanso")
 
+    # A Scoop install never gets as far as %APPDATA%: its manifest persists a
+    # .espanso directory beside espansod.exe, and espanso takes a .espanso there
+    # as portable mode, reading it in preference to every other location. That
+    # .espanso is a junction Scoop remakes on each update, so link the persist
+    # directory it points at instead.
+    if (Get-Command scoop -ErrorAction SilentlyContinue) {
+        $espansoPrefix = (scoop prefix espanso 2>$null | Select-Object -First 1)
+        if ($espansoPrefix) {
+            # <root>\apps\espanso\current -> <root>\persist\espanso\.espanso
+            $scoopRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $espansoPrefix))
+            Link-SingleDir (Join-Path $HOME ".config\espanso") (Join-Path $scoopRoot "persist\espanso\.espanso")
+        }
+    }
+
     # ActivityWatch (aw-qt) reads its config from %LOCALAPPDATA%, not ~/.config.
     # Redirect the native aw-qt config dir to the XDG location so the repo stays
     # the single source of truth. The tracked aw-qt.toml sets autostart_modules
