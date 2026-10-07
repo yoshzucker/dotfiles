@@ -348,7 +348,7 @@ function Link-DirectoryContents {
 
 function Link-SingleDir {
     # Symlink a single directory Dest -> Source (used for OS-native config paths
-    # that must redirect to an XDG location, e.g. espanso on Windows).
+    # that must redirect to an XDG location, e.g. ActivityWatch on Windows).
     # Idempotent: leaves an already-correct link alone, replaces a stale link,
     # and backs up a real conflicting file/directory before linking.
     param(
@@ -668,16 +668,12 @@ function Setup-Links {
     Link-Tree (Join-Path $dotfilesRoot "config") (Join-Path $HOME ".config")
     Link-Tree (Join-Path $dotfilesRoot "emacs.d") (Join-Path $HOME ".emacs.d")
 
-    # espanso does not read ~/.config on Windows (it defaults to %APPDATA%\espanso).
-    # Redirect the native path to the XDG location so ~/.config\espanso is the
-    # single source of truth.
-    Link-SingleDir (Join-Path $HOME ".config\espanso") (Join-Path $env:APPDATA "espanso")
-
-    # A Scoop install never gets as far as %APPDATA%: its manifest persists a
-    # .espanso directory beside espansod.exe, and espanso takes a .espanso there
-    # as portable mode, reading it in preference to every other location. That
-    # .espanso is a junction Scoop remakes on each update, so link the persist
-    # directory it points at instead.
+    # espanso reads ~/.config\espanso on its own, ahead of %APPDATA%\espanso,
+    # but a Scoop install never gets that far: its manifest persists a .espanso
+    # directory beside espansod.exe, and espanso takes a .espanso there as
+    # portable mode, reading it in preference to every other location. That
+    # .espanso is a junction Scoop remakes on each update, so the link goes on
+    # the persist directory it points at.
     if (Get-Command scoop -ErrorAction SilentlyContinue) {
         $espansoPrefix = (scoop prefix espanso 2>$null | Select-Object -First 1)
         if ($espansoPrefix) {
