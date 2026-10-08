@@ -9,9 +9,10 @@
 # Modifies: PATH (MSYS2 directories prepended, Scoop shims appended)
 
 # `$OSTYPE', not `$MSYSTEM': the latter is what this file sets, for a shell
-# started without it.
+# started without it.  MSYS2's zsh is built as a Cygwin program and says
+# `cygwin'; its bash says `msys'.
 case "$OSTYPE" in
-  msys*) ;;
+  msys*|cygwin*) ;;
   *) return 0 ;;
 esac
 
