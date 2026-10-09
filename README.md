@@ -61,7 +61,7 @@ This updates packages (brew/Scoop/apt) to latest per manifests + refreshes all s
 - `config/` → symlinked under `~/.config` (XDG)
 - `local/bin/` → individual scripts symlinked into real directory `~/.local/bin` (the directory itself is never a symlink)
 - `emacs.d/` → symlinked under `~/.emacs.d`
-- `~/.claude/` → **not** managed by symlink. `settings.json` is Claude-owned and rewritten at runtime (model/theme/effortLevel), so tracking it only produces diff noise. Plugins are provisioned via `install_claude_plugins` (see below); `.claude/` is gitignored everywhere.
+- `~/.claude/` → **not** managed by symlink. `settings.json` is Claude-owned and rewritten at runtime (model/theme/effortLevel), so tracking it only produces diff noise. Only `claude/skills/` is linked into `~/.claude/skills`; `.claude/` is gitignored everywhere.
 
 **Conflict handling (XDG strict):**
 When a real file (not a symlink) exists at a target path, it is moved to:
@@ -118,20 +118,6 @@ Three kinds are never deleted: a link into `~/Developer`, straight itself, and a
 `M-x my/straight-prune-builds` is the sibling, over the tree of built copies. It is the easier half: a build directory is links into the repository and the compiled files beside them, so nothing there is the only copy of anything and a mistake costs a rebuild. The one thing it cannot do is compare the two trees by name — a build directory is named by package and a repository by `:local-repo`, so `dash` is built from one called dash.el and `magit-section` from one called magit — which is why it asks the recipes instead.
 
 Everything that is true only of *this* setup — which machine runs org-upwell's watcher, how straight.el is pointed at `~/Developer`, which keys go where, and where the data sits — is in [`doc/org-packages.md`](doc/org-packages.md).
-
-## Claude Code + Org-roam (claude-orgmode)
-
-Claude Code can create/link/tag/search org-roam notes and inspect backlinks in the `~/Documents/memex` knowledge base via the [`majorgreys/claude-orgmode`](https://github.com/majorgreys/claude-orgmode) plugin, which talks to a running Emacs through `emacsclient`.
-
-- **Provisioning**: `./bootstrap` runs `install_claude_plugins` (idempotent), which adds the marketplace and installs the plugin. `claude plugin install` writes `enabledPlugins` into the Claude-owned `~/.claude/settings.json` (untracked), so this command is the single source of truth — no declarative copy in the repo:
-
-  ```sh
-  claude plugin marketplace add majorgreys/claude-orgmode
-  claude plugin install claude-orgmode@claude-orgmode
-  ```
-
-- **Requirements**: a running Emacs server (started by `emacs.d` config) and `emacsclient` on `PATH` (provided by emacs-plus). Verify with `emacsclient --eval "t"`.
-- **Backend**: this setup stays on org-roam (no vulpea); the plugin auto-selects the org-roam backend. Usage is primarily from `agent-shell` inside Emacs.
 
 ## Measuring It
 
