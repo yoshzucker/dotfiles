@@ -615,8 +615,7 @@ setup_links() {
   # The rest of ~/.claude is intentionally not managed: settings.json is
   # Claude-owned and rewritten at runtime (model/theme/effortLevel), so
   # symlinking it into the repo produces perpetual diff noise. Claude Code
-  # creates ~/.claude itself, and plugins are provisioned by
-  # install_claude_plugins.
+  # creates ~/.claude itself.
 
   print_line "$left_message" "Finished."
 }
@@ -999,44 +998,6 @@ install_zsh_plugins() {
   print_line "$left_message" "Finished."
 }
 
-install_claude_plugins() {
-  # Install Claude Code plugins used by this setup: claude-orgmode (org-roam
-  # note management -- create/link/tag/search/backlinks) and emacs-skills
-  # (Emacs navigation/display/plot skills), both driven from Claude Code via
-  # emacsclient. `claude plugin install` writes enabledPlugins into the
-  # Claude-owned ~/.claude/settings.json (untracked), so this command is the
-  # source of truth for plugin provisioning; it also creates ~/.claude on first
-  # run. Idempotent: marketplace/plugin are added only when absent.
-  command -v claude >/dev/null 2>&1 || return
-
-  local plugins_dir="$HOME/.claude/plugins"
-  local known="$plugins_dir/known_marketplaces.json"
-  local installed="$plugins_dir/installed_plugins.json"
-
-  left_message="Installing Claude plugins"
-  print_line "$left_message" "Started."
-
-  if ! grep -q '"claude-orgmode"' "$known" 2>/dev/null; then
-    claude plugin marketplace add majorgreys/claude-orgmode \
-      || echo "⚠️  Could not add claude-orgmode marketplace"
-  fi
-  if ! grep -q '"claude-orgmode@claude-orgmode"' "$installed" 2>/dev/null; then
-    claude plugin install claude-orgmode@claude-orgmode \
-      || echo "⚠️  Could not install claude-orgmode"
-  fi
-
-  if ! grep -q '"xenodium-emacs-skills"' "$known" 2>/dev/null; then
-    claude plugin marketplace add xenodium/emacs-skills \
-      || echo "⚠️  Could not add emacs-skills marketplace"
-  fi
-  if ! grep -q '"emacs-skills@xenodium-emacs-skills"' "$installed" 2>/dev/null; then
-    claude plugin install emacs-skills@xenodium-emacs-skills \
-      || echo "⚠️  Could not install emacs-skills"
-  fi
-
-  print_line "$left_message" "Finished."
-}
-
 
 
 perform_full_bootstrap() {
@@ -1057,7 +1018,6 @@ perform_full_bootstrap() {
   install_zsh_plugins
   setup_links
   setup_dev_packages
-  install_claude_plugins
 
   print_line "$left_message" "Finished."
 }
