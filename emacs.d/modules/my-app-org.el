@@ -306,6 +306,25 @@ agenda file set does not depend on whether rg is installed -- rg's own
                                  ("DELEG" . org-done)
                                  ("CANCEL" . org-done)))
 
+  ;; Blocks start folded (`org-hide-block-startup'), so a long quote or src
+  ;; block does not stretch the outline.  But opening a heading with C-i is
+  ;; asking to read its body, and the blocks are part of that body -- the
+  ;; words of a source, what the reader is shown -- so the ones in the
+  ;; heading's own text open with it.  Both `children' and `subtree' count:
+  ;; a heading with no sub-headings skips `children' and opens straight to
+  ;; `subtree' ("SUBTREE (NO CHILDREN)").  Only the heading's own text is
+  ;; opened; its sub-headings' blocks stay folded, so a subtree opened whole
+  ;; stays an overview.  C-i on a #+begin_ line folds that one block again.
+  (defun my/org-cycle-show-blocks (state)
+    "Open the blocks in the body of the heading C-i has just opened to STATE."
+    (when (memq state '(children subtree))
+      (save-excursion
+        (org-back-to-heading t)
+        (org-fold-region (point) (save-excursion (outline-next-heading) (point))
+                         nil 'block))))
+  (my/add-hook
+   (:hook org-cycle-hook :func #'my/org-cycle-show-blocks))
+
   (defun my/org-return-in-evil-normal (orig-fn &rest args)
     "Prevent newline when pressing RET in evil normal state."
     (if (not (eq evil-state 'insert))
