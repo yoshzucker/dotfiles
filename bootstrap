@@ -360,6 +360,45 @@ link_directory_contents() {
   shopt -u nullglob dotglob
 }
 
+link_git_hooks() {
+  # The checks every commit here goes through -- pre-commit (leakseek,
+  # gitleaks, the Japanese and package scope checks) and commit-msg -- linked
+  # into REPO's .git/hooks from ~/.local/bin.  Linked rather than copied, so a
+  # change to a check reaches every repository at once.  A hook already there
+  # that is something else is replaced.  A repository made with `git init' or
+  # cloned has none of these, and its commits go unchecked until it does.
+  local repo="$1"
+  local hooks="$repo/.git/hooks"
+  local hook src dest
+
+  [ -d "$repo/.git" ] || return 0
+  mkdir -p "$hooks"
+
+  for hook in pre-commit commit-msg; do
+    src="$HOME/.local/bin/$hook"
+    dest="$hooks/$hook"
+    if [ -L "$dest" ] && [ "$(readlink "$dest")" = "$src" ]; then
+      continue
+    fi
+    rm -f "$dest"
+    ln -s "$src" "$dest"
+    echo "✅ Hook linked: $dest → $src"
+  done
+}
+
+warn_missing_leakseek_conf() {
+  # The hooks abort every commit until this machine has a keyword list: a
+  # check with nothing to check against would pass everything and say
+  # nothing.  The list, and the allow file beside it, never leave the
+  # machine, so bootstrap cannot bring them; it says what is missing.
+  local conf="${XDG_CONFIG_HOME:-$HOME/.config}/.leakseek.conf"
+  if [ ! -f "$conf" ]; then
+    echo "⚠️  No leakseek keyword list at $conf: commits in the repositories"
+    echo "   with hooks are aborted until there is one.  'leakseek --template'"
+    echo "   writes an empty one to fill in."
+  fi
+}
+
 link_tree() {
   local src_dir="$1"
   local dest_dir="$2"
@@ -605,6 +644,12 @@ setup_links() {
   ensure_real_directory "$HOME/.local/bin"
   link_directory_contents "$dotfiles_root/local/bin" "$HOME/.local/bin"
 
+  # This repository's own commits go through the hooks just linked into
+  # ~/.local/bin, on every machine it is cloned to; setup_dev_packages does
+  # the same for the packages.
+  link_git_hooks "$dotfiles_root"
+  warn_missing_leakseek_conf
+
   # Skills are the one part of ~/.claude worth tracking: plain files that never
   # get rewritten, and rules that have to be in front of every project -- the
   # packages in ~/Developer included, which this repo does not otherwise reach.
@@ -653,6 +698,11 @@ setup_dev_packages() {
     dest="$repos/$pkg"
 
     [ -d "$src" ] || continue
+
+    # A working tree is where the package is committed from, so its commits
+    # go through the same hooks as this repository's.  straight's own clones
+    # are never committed from and get none.
+    link_git_hooks "$src"
 
     if [ -L "$dest" ]; then
       if [ "$(realpath "$dest" 2>/dev/null)" = "$(realpath "$src" 2>/dev/null)" ]; then

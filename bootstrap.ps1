@@ -644,6 +644,62 @@ function Backup-ConflictingFile {
     Write-Host "    Proceeding to create link."
 }
 
+function Link-GitHooks {
+    # The checks every commit here goes through -- pre-commit (leakseek,
+    # gitleaks, the Japanese and package scope checks) and commit-msg -- linked
+    # into the repository's .git\hooks from ~/.local/bin.  Linked rather than
+    # copied, so a change to a check reaches every repository at once.  A hook
+    # already there that is something else is replaced.  A repository made
+    # with `git init' or cloned has none of these, and its commits go
+    # unchecked until it does.  Git for Windows runs them with its own bash.
+    param([string]$Repo)
+
+    $gitDir = Join-Path $Repo ".git"
+    if (-not (Test-Path -LiteralPath $gitDir -PathType Container)) {
+        return
+    }
+    $hooks = Join-Path $gitDir "hooks"
+    New-Item -ItemType Directory -Path $hooks -Force | Out-Null
+
+    foreach ($hook in @("pre-commit", "commit-msg")) {
+        $src = Join-Path $HOME ".local\bin\$hook"
+        $dest = Join-Path $hooks $hook
+        $destItem = Get-PathItem $dest
+        if ($destItem -and $destItem.LinkType -eq "SymbolicLink") {
+            $destTarget = Get-LinkTargetPath $dest
+            if ($destTarget -and (Test-SamePath $destTarget $src)) {
+                continue
+            }
+        }
+        if ($destItem) {
+            Remove-Item -LiteralPath $dest -Force
+        }
+        try {
+            New-Item -ItemType SymbolicLink -Path $dest -Target $src -Force -ErrorAction Stop | Out-Null
+            Write-Host "Hook linked: $dest -> $src"
+        } catch {
+            Write-Host "Failed to link hook ${dest}: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+}
+
+function Report-MissingLeakseekConf {
+    # The hooks abort every commit until this machine has a keyword list: a
+    # check with nothing to check against would pass everything and say
+    # nothing.  The list, and the allow file beside it, never leave the
+    # machine, so bootstrap cannot bring them; it says what is missing.
+    $configDir = $env:XDG_CONFIG_HOME
+    if (-not $configDir) {
+        $configDir = Join-Path $HOME ".config"
+    }
+    $conf = Join-Path $configDir ".leakseek.conf"
+    if (-not (Test-Path -LiteralPath $conf -PathType Leaf)) {
+        Write-Host "No leakseek keyword list at ${conf}: commits in the repositories" -ForegroundColor Yellow
+        Write-Host "    with hooks are aborted until there is one.  'leakseek --template'" -ForegroundColor Yellow
+        Write-Host "    (from Git Bash) writes an empty one to fill in." -ForegroundColor Yellow
+    }
+}
+
 # =============================================================================
 # High-level Link Operations
 # =============================================================================
@@ -693,6 +749,12 @@ function Setup-Links {
     Ensure-RealDirectory (Join-Path $HOME ".local")
     Ensure-RealDirectory (Join-Path $HOME ".local\bin")
     Link-DirectoryContents (Join-Path $dotfilesRoot "local\bin") (Join-Path $HOME ".local\bin")
+
+    # This repository's own commits go through the hooks just linked into
+    # ~/.local/bin, on every machine it is cloned to; Setup-DevPackages does
+    # the same for the packages.
+    Link-GitHooks $dotfilesRoot
+    Report-MissingLeakseekConf
 
     # Skills are the one part of ~/.claude worth tracking: plain files that never
     # get rewritten, and rules that have to be in front of every project -- the
@@ -1498,6 +1560,11 @@ function Setup-DevPackages {
         if (-not (Test-Path -LiteralPath $src -PathType Container)) {
             continue
         }
+
+        # A working tree is where the package is committed from, so its
+        # commits go through the same hooks as this repository's.  straight's
+        # own clones are never committed from and get none.
+        Link-GitHooks $src
 
         $srcResolved = (Resolve-Path -LiteralPath $src).Path
 
