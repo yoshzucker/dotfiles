@@ -644,6 +644,7 @@ setup_dev_packages() {
       org-convect \
       org-dayflow \
       org-upwell \
+      org-truss \
       sill \
       gensho-theme \
       rustcity-theme

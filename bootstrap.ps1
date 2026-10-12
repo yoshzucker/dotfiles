@@ -1485,6 +1485,7 @@ function Setup-DevPackages {
         "org-convect",
         "org-dayflow",
         "org-upwell",
+        "org-truss",
         "gensho-theme",
         "rustcity-theme"
     )
