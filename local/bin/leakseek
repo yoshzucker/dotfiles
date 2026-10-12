@@ -5,19 +5,33 @@ IFS=$'\n\t'
 
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}"
 KEYWORDS_FILE="$CONFIG_DIR/.leakseek.conf"
+ALLOW_FILE="$CONFIG_DIR/.leakseek.allow"
 
 usage() {
   cat <<EOF
 Usage:
-  leakseek [--help|--template]
+  leakseek [--help|--template] [FILE...]
 
 Options:
   --help        Show this help message
   --template    Create a sample keyword file at $KEYWORDS_FILE
 
 Description:
-  Scans the current directory for keywords listed in the config file.
+  Scans the current directory, or FILE..., for keywords listed in the config file.
   You can edit the keyword file to include any sensitive words or patterns to check before pushing.
+
+Allowing a match:
+  A match that is meant to be there -- a placeholder in a test, a licence's
+  own wording -- can be let through in $ALLOW_FILE, one entry per line:
+
+    REPOSITORY:PATH:REGEXP
+
+  REPOSITORY is the name of the repository's directory, or * for any.  PATH is
+  a glob on the path from the repository's root.  REGEXP is an extended regular
+  expression the matching line must contain, case-sensitive.  Lines starting
+  with '#' are ignored.  The file stays on this machine, as the keyword file
+  does: an entry says which line holds a keyword, so publishing it would point
+  at the keyword.
 
 EOF
   exit 0
@@ -73,13 +87,64 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
   TARGETS=(".")
 fi
 
-GREP_BASE=(grep -RniI --color=always -i
+# Matches come out plain, to be checked against the allow file, and are
+# coloured when they are shown.
+GREP_BASE=(grep -RniI -i
            --exclude-dir=.git --exclude-dir=.hg --exclude-dir=.svn
            --exclude-dir=node_modules --exclude-dir=.venv --exclude-dir=.idea
            --exclude-dir=.direnv
            --exclude='*.min.js' --exclude='*.lock' --exclude='*.png'
            --exclude='*.jpg' --exclude='*.gif')
 
+# The repository the scan is of, for allow entries that name one.
+REPO_NAME="$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")"
+
+allow_entries=()
+if [ -f "$ALLOW_FILE" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
+    allow_entries+=("$line")
+  done < "$ALLOW_FILE"
+fi
+allowed_count=0
+
+# Succeed when MATCH, grep's PATH:LINE:TEXT, is let through by an allow entry.
+allowed() {
+  local match="$1" path text entry repo rest glob regexp
+  path="${match%%:*}"
+  path="${path#./}"
+  text="${match#*:}"
+  text="${text#*:}"
+  # ${a[@]+...} rather than ${a[@]}: an empty array is unbound to bash 3.2.
+  for entry in ${allow_entries[@]+"${allow_entries[@]}"}; do
+    repo="${entry%%:*}"
+    rest="${entry#*:}"
+    glob="${rest%%:*}"
+    regexp="${rest#*:}"
+    [[ "$repo" == "*" || "$repo" == "$REPO_NAME" ]] || continue
+    # shellcheck disable=SC2053 # the glob is meant to match as a pattern
+    [[ "$path" == $glob ]] || continue
+    [[ "$text" =~ $regexp ]] && return 0
+  done
+  return 1
+}
+
+# Show the matches of KEYWORD that no allow entry lets through, and succeed
+# when there are any.
+scan() {
+  local keyword="$1" matches line kept=()
+  matches="$("${GREP_BASE[@]}" -e "$keyword" "${TARGETS[@]}" || true)"
+  [ -n "$matches" ] || return 1
+  while IFS= read -r line; do
+    if allowed "$line"; then
+      allowed_count=$((allowed_count + 1))
+    else
+      kept+=("$line")
+    fi
+  done <<< "$matches"
+  [ "${#kept[@]}" -gt 0 ] || return 1
+  printf '%s\n' "${kept[@]}" | grep --color=always -i -e "$keyword"
+}
 
 found=0
 
@@ -97,19 +162,23 @@ while IFS= read -r line || [ -n "$line" ]; do
 done < "$KEYWORDS_FILE"
 
 # Scan for warn-only keywords
-for keyword in "${warn_keywords[@]}"; do
-  if "${GREP_BASE[@]}" -e "$keyword" "${TARGETS[@]}"; then
+for keyword in ${warn_keywords[@]+"${warn_keywords[@]}"}; do
+  if scan "$keyword"; then
     echo "⚠️  Warn-only match: $keyword"
   fi
 done
 
 # Scan for blocking keywords
-for keyword in "${mandatory_keywords[@]}"; do
-  if "${GREP_BASE[@]}" -e "$keyword" "${TARGETS[@]}"; then
+for keyword in ${mandatory_keywords[@]+"${mandatory_keywords[@]}"}; do
+  if scan "$keyword"; then
     echo "❌ Blocked match: $keyword"
     found=1
   fi
 done
+
+if [ "$allowed_count" -gt 0 ]; then
+  echo "☑️  $allowed_count match(es) let through by $ALLOW_FILE"
+fi
 
 if [ "$found" -eq 0 ]; then
   echo "✅ No matching keywords found."
