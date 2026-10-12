@@ -430,11 +430,24 @@ via a font-weight= presence check."
   ;; this number is then how that width is divided: one column of text each.
   (claude-code-ide-window-width 81)
 
-  ;; The tools reach Claude and are not reached for: asked what calls a
-  ;; function, it runs ripgrep, which is what it would do without an editor
-  ;; attached.  So the preference is stated once, here, rather than in every
+  ;; What Emacs is to the session, said once, here, rather than in every
   ;; project's CLAUDE.md -- the package appends this to the system prompt of
-  ;; every session it starts.
+  ;; every session it starts.  Emacs does two things for Claude, and each
+  ;; needs saying, because left to itself Claude behaves as it would with
+  ;; no editor attached.
+  ;;
+  ;; It answers questions.  The tools reach Claude and are not reached for:
+  ;; asked what calls a function, it runs ripgrep.  So the prompt names them
+  ;; and says when to prefer them.
+  ;;
+  ;; And it shows each change to a file as an ediff, to be read and edited
+  ;; before it is applied -- but only a change made with Claude's Edit or
+  ;; Write tool.  When the changes are many, or look mechanical, Claude
+  ;; reaches for the shell instead: a python script, perl -i.  Such a change
+  ;; lands in the file unseen, auto-revert picks it up, and nothing was ever
+  ;; shown.  That is how a whole round of edits to a truss.org went in.  So
+  ;; the prompt rules the shell out for writing files, and leaves it for
+  ;; running the project's own tools that write them.
   ;;
   ;; No `;', `&' or `|' in this string.  The value is shell-quoted into the
   ;; command line that starts the CLI, and the backend then splits that line
@@ -444,18 +457,30 @@ via a font-weight= presence check."
   ;; program name is among the words thrown away, so what fails is the exec,
   ;; reporting the tail of this sentence as a program it cannot find.
   (claude-code-ide-system-prompt
-   (concat "Emacs is attached as an editor and answers some questions from "
-           "what it has already parsed, without starting a process: "
-           "claude-code-ide-mcp-imenu-list-symbols for a file's outline, "
-           "claude-code-ide-mcp-treesit-info for syntax structure, "
-           "claude-code-ide-mcp-project-info for the shape of the project, "
-           "and claude-code-ide-mcp-xref-find-apropos to find a symbol by "
-           "part of its name. Prefer these over reading whole files or "
-           "searching text for those questions. "
-           "claude-code-ide-mcp-xref-find-references is worth preferring "
-           "where a language server is attached, since the server answers "
-           "it. Emacs Lisp has no such backend and it greps like any other "
-           "search, so grep is fine there."))
+   (concat
+    "Emacs is attached as the editor, and it does two things for you. "
+    ;; Asking it.
+    "It answers some questions from what it has already parsed, without "
+    "starting a process: claude-code-ide-mcp-imenu-list-symbols for a "
+    "file's outline, claude-code-ide-mcp-treesit-info for syntax "
+    "structure, claude-code-ide-mcp-project-info for the shape of the "
+    "project, and claude-code-ide-mcp-xref-find-apropos to find a symbol "
+    "by part of its name. Prefer these over reading whole files or "
+    "searching text for those questions. "
+    "claude-code-ide-mcp-xref-find-references is worth preferring where a "
+    "language server is attached, since the server answers it. Emacs Lisp "
+    "has no such backend and it greps like any other search, so grep is "
+    "fine there. "
+    ;; Changing a file through it.
+    "And it shows the user each change you make to a file as an ediff, "
+    "which they read, and can edit, before it is applied, but only when "
+    "the change is made with the Edit or Write tool. So write every change "
+    "to a file with those tools, never through the shell: not with sed, "
+    "perl or awk, not with a script, a heredoc or a redirect, not by "
+    "copying another file over it, however many changes there are or "
+    "however mechanical they look. A change made that way lands unseen. "
+    "Running the project's own tools that write files, a formatter or a "
+    "build, is another matter and is fine."))
   :config
   ;; The CLI is exec'd directly rather than through a shell, so on Windows it
   ;; is the native `claude' and both sides speak the same path form.  Nothing
