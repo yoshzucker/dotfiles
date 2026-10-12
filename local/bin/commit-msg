@@ -7,9 +7,12 @@
 # not a hypothetical; it is how this hook came to exist.
 #
 # Blocked words abort the commit.  Lines beginning ':warn ' in the keyword
-# file only warn, as they do for leakseek.
+# file only warn, as they do for leakseek.  With no keyword file the commit
+# is aborted too, as leakseek aborts it: a check with nothing to check
+# against would pass every message, and say nothing.
 #
-# 🪝 Install:
+# 🪝 Installed by bootstrap, in this repository and every package one; by
+# hand:
 #      ln -sf ~/.local/bin/commit-msg .git/hooks/commit-msg
 
 set -uo pipefail
@@ -19,7 +22,11 @@ MSG_FILE="${1:-}"
 [ -n "$MSG_FILE" ] && [ -f "$MSG_FILE" ] || exit 0
 
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}/.leakseek.conf"
-[ -f "$CONF" ] || exit 0
+if [ ! -f "$CONF" ]; then
+  echo "❌ Keyword file not found at $CONF; commit aborted."
+  echo "💡 Run 'leakseek --template' to make one, then fill it in."
+  exit 1
+fi
 
 # The message without its comment lines: git strips those before committing,
 # and a scissors line carries the whole diff, which leakseek already scanned.
