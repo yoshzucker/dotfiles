@@ -13,6 +13,7 @@ and the parts that are not Emacs configuration live here.
 | [org-upwell](https://github.com/yoshzucker/org-upwell) | Which files and URLs belong to the heading being lived |
 | [org-calsync](https://github.com/yoshzucker/org-calsync) | The calendar, mirrored into Org |
 | [org-dayflow](https://github.com/yoshzucker/org-dayflow) | The day-by-day timeline view |
+| [org-truss](https://github.com/yoshzucker/org-truss) | Whether an argument stands, and how a document is arranged around it |
 
 ## Loading them from the working tree
 

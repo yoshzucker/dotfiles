@@ -1932,6 +1932,60 @@ what to look at."
         '("work" "family" "health" "learning" "friendship" "leisure"))
 )
 
+;;;; Documents built like a truss
+;; org-truss is for writing that argues for something -- a proposal, an
+;; explanation.  One truss.org per document holds every statement once,
+;; the arguments they form and the structure the reader sees, and the
+;; document is generated from it.  It reads none of the agenda files and
+;; nothing here reads it, so it loads when one of its commands is called.
+(use-package org-truss
+  :straight (org-truss :host github :repo "yoshzucker/org-truss"
+                       :files ("*.el"))
+  :defer t
+  :config
+  ;; Headings and guidance written into the file in the language the
+  ;; document is thought in.  The board stays English, so on it whatever is
+  ;; Japanese came from truss.org; the identifiers stay English either way.
+  (setq org-truss-language 'ja)
+
+  ;; The board's keys -- c R D a d s u p r o P x -- are letters normal state
+  ;; would take first but motion state leaves alone, so the board sits in
+  ;; motion state and moves as every other buffer does: j k, gg G, / n,
+  ;; C-d C-u, C-w, v y.  Motion state takes ten keys the board needs.  Six
+  ;; are given back as the agenda and Vim have them: RET opens the heading
+  ;; in this window; TAB, which is C-i and so `evil-jump-forward', in the
+  ;; other; SPC, `evil-forward-char', shows it there without leaving the
+  ;; board; E, `evil-forward-WORD-end', shows each entry's text under its
+  ;; line; g is a prefix, so drawing again is `gr'; and z is one too, so
+  ;; folding what is under a line is `za', as a fold is anywhere.  The other
+  ;; four go to the board because its lines are read by the line, not the
+  ;; word or the character: e and b, which edit an entry and give a member a
+  ;; ground, over `evil-forward-word-end' and `evil-backward-word-begin'; t
+  ;; and f, which say what a member is and refile it, over
+  ;; `evil-find-char-to' and `evil-find-char'.  The foot of the board reads
+  ;; the keys where it is drawn and says so.
+  (evil-set-initial-state 'org-truss-board-mode 'motion)
+  (my/define-key
+   (:map org-truss-board-mode-map
+         :state motion
+         :key
+         "RET" #'org-truss-board-visit
+         "TAB" #'org-truss-board-visit-other-window
+         "SPC" #'org-truss-board-show
+         "e" #'org-truss-board-edit
+         "E" #'org-truss-board-entry-text
+         "b" #'org-truss-board-ground
+         "t" #'org-truss-board-kind
+         "f" #'org-truss-board-refile
+         "gr" #'org-truss-board-redraw
+         "za" #'org-truss-board-fold))
+
+  ;; evil-snipe's override of f F t T sits above the board's motion-state
+  ;; keys, so t and f would find a character instead.  The board joins the
+  ;; modes snipe stays out of, as the agenda already does.
+  (with-eval-after-load 'evil-snipe
+    (add-to-list 'evil-snipe-disabled-modes 'org-truss-board-mode)))
+
 ;;;; Files rising to the heading that is being lived
 ;; org-foresight is when, on the day.  org-convect takes purpose from
 ;; the top of the ladder down to H2 and climbs back as a reduction.

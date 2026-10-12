@@ -101,9 +101,9 @@ Run `./bootstrap update` (or the explicit package commands) to apply.
 
 ## My Own Packages
 
-Eight packages are written here rather than merely used. Each has its own repository and its own README, which describe the package and say nothing about this machine.
+Nine packages are written here rather than merely used. Each has its own repository and its own README, which describe the package and say nothing about this machine.
 
-- **Org**: org-foresight, org-convect, org-upwell, org-calsync, org-dayflow
+- **Org**: org-foresight, org-convect, org-upwell, org-calsync, org-dayflow, org-truss
 - **Themes**: gensho-theme, rustcity-theme
 - **Emacs UI**: sill — one mode line at the foot of the frame instead of one per window
 
