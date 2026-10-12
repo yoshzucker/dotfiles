@@ -1041,15 +1041,13 @@ unaffected."
   :diminish org-indent-mode)
 
 ;; Structure templates via C-c C-, (no "<" → no electric-pair "<>").
-;; Keys: as = agent-shell, sr = R, srg = R graph.
+;; Keys: as = agent-shell.
 (use-package org-tempo
   :straight nil
   :after org
   :config
   (setq tempo-interactive nil)
-  (dolist (entry '(("as"  . "src agent-shell :results output drawer")
-                   ("sr"  . "src R :results output")
-                   ("srg" . "src R :results output graphics :file plot.png")))
+  (dolist (entry '(("as"  . "src agent-shell :results output drawer")))
     (add-to-list 'org-structure-template-alist entry)))
 
 (use-package org-cliplink
