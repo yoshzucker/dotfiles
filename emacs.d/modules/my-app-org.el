@@ -1968,19 +1968,20 @@ what to look at."
   ;; The board's keys -- c R D a d s u p r o P x -- are letters normal state
   ;; would take first but motion state leaves alone, so the board sits in
   ;; motion state and moves as every other buffer does: j k, gg G, / n,
-  ;; C-d C-u, C-w, v y.  Motion state takes ten keys the board needs.  Six
-  ;; are given back as the agenda and Vim have them: RET opens the heading
-  ;; in this window; TAB, which is C-i and so `evil-jump-forward', in the
-  ;; other; SPC, `evil-forward-char', shows it there without leaving the
-  ;; board; E, `evil-forward-WORD-end', shows each entry's text under its
-  ;; line; g is a prefix, so drawing again is `gr'; and z is one too, so
+  ;; C-d C-u, C-w, v y.  Motion state takes eleven keys the board needs.
+  ;; Six are given back as the agenda and Vim have them: RET opens the
+  ;; heading in this window; TAB, which is C-i and so `evil-jump-forward',
+  ;; in the other; SPC, `evil-forward-char', shows it there without leaving
+  ;; the board; E, `evil-forward-WORD-end', shows each entry's text under
+  ;; its line; g is a prefix, so drawing again is `gr'; and z is one too, so
   ;; folding what is under a line is `za', as a fold is anywhere.  The other
-  ;; four go to the board because its lines are read by the line, not the
-  ;; word or the character: e and b, which edit an entry and give a member a
-  ;; ground, over `evil-forward-word-end' and `evil-backward-word-begin'; t
-  ;; and f, which say what a member is and refile it, over
-  ;; `evil-find-char-to' and `evil-find-char'.  The foot of the board reads
-  ;; the keys where it is drawn and says so.
+  ;; five go to the board because its lines are read by the line, not the
+  ;; word or the character: e, b and w, which edit an entry, give a member a
+  ;; ground and draw one line whole, over `evil-forward-word-end',
+  ;; `evil-backward-word-begin' and `evil-forward-word-begin'; t and f,
+  ;; which say what a member is and refile it, over `evil-find-char-to' and
+  ;; `evil-find-char'.  The foot of the board reads the keys where it is
+  ;; drawn and says so.
   (evil-set-initial-state 'org-truss-board-mode 'motion)
   (my/define-key
    (:map org-truss-board-mode-map
@@ -1991,6 +1992,7 @@ what to look at."
          "SPC" #'org-truss-board-show
          "e" #'org-truss-board-edit
          "E" #'org-truss-board-entry-text
+         "w" #'org-truss-board-wrap
          "b" #'org-truss-board-ground
          "t" #'org-truss-board-kind
          "f" #'org-truss-board-refile
