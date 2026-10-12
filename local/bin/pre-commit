@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
-# leakseek + gitleaks + check-japanese pre-commit checker
+# leakseek + gitleaks + check-japanese + check-package-scope pre-commit
+# checker, for this repository and every package written here alike.
+#
+# The packages are published as this repository is, so they are held to the
+# same keyword list.  Where a keyword is meant to be there -- a placeholder in
+# a redaction test, a licence's own wording -- ~/.config/.leakseek.allow lets
+# that one line through (leakseek --help), and stays on the machine with the
+# list.
 
 set -e
 
@@ -8,24 +15,18 @@ show_help() {
 Usage:
   pre-commit [--help]
 
-Run leakseek, gitleaks, and Japanese character check before committing.
+Run leakseek, gitleaks, the Japanese character check and the package scope
+check before committing.
 
-🪝 How to install as a Git pre-commit hook:
-
-1. Save this script to:
-     ~/.local/bin/pre-commit
-
-2. Make sure it's executable:
-     chmod +x ~/.local/bin/pre-commit
-
-3. For each Git repository where you want to enable this check, run:
+🪝 Installed by bootstrap, in the dotfiles repository and in every package
+working tree under ~/Developer.  By hand, in a repository:
      ln -sf ~/.local/bin/pre-commit .git/hooks/pre-commit
 
 💡 You can also test it manually from anywhere inside the repo:
      pre-commit
 
 🚨 What this script does:
-- Runs 'leakseek' from the repo root
+- Runs 'leakseek' on the tracked files, with ~/.config/.leakseek.allow
 - Runs 'gitleaks detect' from the repo root
 - Checks for Japanese characters in source files
 - Warns when a package repo describes one particular machine
