@@ -14,6 +14,7 @@ and the parts that are not Emacs configuration live here.
 | [org-calsync](https://github.com/yoshzucker/org-calsync) | The calendar, mirrored into Org |
 | [org-dayflow](https://github.com/yoshzucker/org-dayflow) | The day-by-day timeline view |
 | [org-truss](https://github.com/yoshzucker/org-truss) | Whether an argument stands, and how a document is arranged around it |
+| [org-moor](https://github.com/yoshzucker/org-moor) | What arrives in pieces, taken in, written up, and found again |
 
 ## Loading them from the working tree
 
@@ -82,3 +83,31 @@ crosses between them and what does not.
 The watcher's traces are JSONL under `~/.local/share/org-upwell/` on both,
 which is a path that exists without `.emacs.d` — the watcher starts at login,
 often before Emacs.
+
+## org-moor
+
+Not on GitHub yet: until it is, `~/Developer/org-moor` has to be linked into
+straight (`setup_dev_packages`), or straight tries to clone a repository that
+does not exist.
+
+Copies go to `memex/source/`, the package default, so they travel with memex
+and are never browsed by hand.  `:memex` is plain rg and skips `source/` and
+the older attachments in `data/`; `:source` is rga over `source/`.  That split
+is also what keeps rga's PDF and Office extraction from stalling `:memex` on
+Windows.
+
+Web pages are kept with `monolith` (Brewfile, scoopfile).  Without it a page
+is taken as its URL only.
+
+| Where | Key / command | What |
+|---|---|---|
+| Anywhere in Emacs | `C-c m q` | quote the clipboard, titled; `C-u` picks the heading |
+| | `C-c m f` | take a file: moved into the store (`org-moor-file-action` is `move` here) |
+| | `C-c m w` | take a web page |
+| | `C-c m j` | back to anything taken, newest first |
+| ex line | `:source` | search the copies |
+| Browser | bookmarklet in `script/org-moor-bookmarklet.txt` | `org-protocol://moor?url=…` |
+
+org-protocol is loaded by the first emacsclient call that carries an
+org-protocol URL, not at startup.  `C-c m` was Marp's in Markdown buffers;
+Marp's commands are now reached by `M-x`.

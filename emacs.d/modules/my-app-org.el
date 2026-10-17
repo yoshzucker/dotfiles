@@ -1661,6 +1661,68 @@ block already shows what is out with them, as a live query."
         org-noter-notes-search-path (list org-directory)
         org-noter-doc-property-in-notes t))
 
+;; org-moor: what arrives in pieces -- a chat, a mail's attachment, a link
+;; to a shared drive, a manual -- taken into memex and tied to a heading,
+;; and the way back to it.  Its copies live in memex/source/ (the package's
+;; default), beside the notes so they travel together, and out of `:memex';
+;; `:source' searches them on purpose (see my-editor-search.el).
+(use-package org-moor
+  :straight (org-moor :host github :repo "yoshzucker/org-moor"
+                      :files ("*.el" ("script" "script/*")))
+  :defer t
+  :commands (org-moor-quote org-moor-jump org-moor-take-file org-moor-take-url)
+  :init
+  ;; A prefix of its own, as upwell has `C-c u'.
+  ;;
+  ;; `q' quotes the clipboard: at point in Org, with `C-u' (or from outside
+  ;; Org) under a heading picked from the refile targets.  `f' and `w' take a
+  ;; file and a web page the same way.  `j' goes back to anything taken.
+  (my/define-key
+   (:map global-map
+         :prefix "C-c m"
+         :key
+         "q" #'org-moor-quote
+         "f" #'org-moor-take-file
+         "w" #'org-moor-take-url
+         "j" #'org-moor-jump))
+
+  ;; The bookmarklet (script/org-moor-bookmarklet.txt in the package)
+  ;; arrives through emacsclient as `org-protocol://moor?...', which works
+  ;; only once org-protocol is loaded and the handler registered.  Loading
+  ;; it at startup would bring Org with it, and a timer would only be the
+  ;; same cost a few seconds later.  So it is loaded by the first
+  ;; emacsclient call that carries an org-protocol URL, and the call is
+  ;; then made again, through the advice org-protocol has just put on
+  ;; `server-visit-files'.  The handler is registered the moment it loads.
+  (with-eval-after-load 'org-protocol
+    (org-moor-protocol-setup))
+  (defun my/org-protocol-on-demand (fn files &rest args)
+    "Load org-protocol for the first FILES that need it, then visit them."
+    (if (and (not (featurep 'org-protocol))
+             (seq-some (lambda (f) (string-match-p "org-protocol:/" (car f)))
+                       files))
+        (progn (require 'org-protocol)
+               (apply #'server-visit-files files args))
+      (apply fn files args)))
+  (advice-add 'server-visit-files :around #'my/org-protocol-on-demand)
+  :config
+  ;; Moved, not copied: taking a file from Downloads or the desktop is
+  ;; tidying them, and a copy left behind is the backlog this is for.
+  (setq org-moor-file-action 'move
+        org-moor-files-function #'my/org-moor-files
+        org-moor-open-function #'my/open-file))
+
+(defun my/org-moor-files ()
+  "Org files `org-moor-jump' looks in: memex without archive/, and the agenda.
+The same tree `my/consult-org-headings-all' offers, so the two never
+disagree about what exists."
+  (delete-dups
+   (append (org-agenda-files t)
+           (and org-directory (file-directory-p org-directory)
+                (directory-files-recursively
+                 org-directory "\\.org\\'" nil
+                 (lambda (d) (not (string-match-p "/archive/" d))))))))
+
 ;;;; Finding the line that takes a second to step onto
 
 ;; Moving the cursor down a folded outline is not one thing.  Emacs runs the

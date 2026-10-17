@@ -89,20 +89,79 @@ which would fail by searching the wrong tree rather than by complaining."
            (deadgrep-project-root-function (lambda () dir)))
       (call-interactively #'deadgrep)))
 
-  (defun my/deadgrep-memex ()     (interactive) (my/deadgrep-in org-directory))
+  ;; memex is notes, and searching notes should be instant.  The documents
+  ;; kept beside them -- org-moor's copies in source/, older attachments in
+  ;; data/ -- are what made `:memex' slow, and on Windows stop it outright
+  ;; when rga's extraction of a PDF or a deck ran away.  So `:memex' is plain
+  ;; rg over the notes, and `:source' is rga over the documents, asked for on
+  ;; purpose.  `:reference' and `:project' are mostly documents and stay rga.
+  (defvar-local my/deadgrep-engine nil
+    "Executable and extra arguments for this deadgrep buffer, or nil.
+Kept per buffer so that searching again from the results (`g', a new term)
+uses the same engine as the search that made them.")
+
+  (defvar my/deadgrep--next-engine nil
+    "The engine the deadgrep buffer being made is to keep.")
+
+  (defun my/deadgrep-rga-arguments ()
+    "Extra arguments for rga: its own config, and none of rg's."
+    (list "--no-config"
+          (format "--rga-config-file=%s"
+                  (expand-file-name "~/.config/ripgrep-all/config.jsonc"))))
+
+  (defun my/deadgrep-in (dir &optional engine)
+    "Run `deadgrep' rooted at DIR, ignoring any enclosing VC/project root.
+ENGINE is (EXECUTABLE . EXTRA-ARGUMENTS); nil is rga.
+`deadgrep--project-root' otherwise walks up to a parent `.git' (e.g. ~/.git),
+so pin the search root to DIR explicitly.
+
+The `require' is not ceremony.  `deadgrep-project-root-function' is only a
+special variable once deadgrep has defined it, and a `let' over a name that
+is not special yet binds it lexically -- which deadgrep would never see, and
+which would fail by searching the wrong tree rather than by complaining."
+    (require 'deadgrep)
+    (let* ((dir (expand-file-name dir))
+           (default-directory dir)
+           (deadgrep-project-root-function (lambda () dir))
+           (my/deadgrep--next-engine
+            (or engine (cons "rga" (my/deadgrep-rga-arguments)))))
+      (call-interactively #'deadgrep)))
+
+  (defun my/deadgrep-memex ()
+    (interactive)
+    (my/deadgrep-in org-directory
+                    (list "rg" "--no-config" "--glob=!/source/" "--glob=!/data/")))
+  (defun my/deadgrep-source ()
+    (interactive)
+    (my/deadgrep-in (if (boundp 'org-moor-store-directory)
+                        org-moor-store-directory
+                      (expand-file-name "source/" org-directory))))
   (defun my/deadgrep-reference () (interactive) (my/deadgrep-in my/deadgrep-reference-directory))
   (defun my/deadgrep-project ()   (interactive) (my/deadgrep-in my/deadgrep-project-directory))
 
   (evil-ex-define-cmd "memex"       #'my/deadgrep-memex)
+  (evil-ex-define-cmd "source"      #'my/deadgrep-source)
   (evil-ex-define-cmd "ref[erence]" #'my/deadgrep-reference)
   (evil-ex-define-cmd "pro[ject]"   #'my/deadgrep-project)
 
   :config
+  ;; deadgrep reads `deadgrep-executable' and `deadgrep-extra-arguments'
+  ;; each time it starts rg, in the results buffer.  The buffer takes its
+  ;; engine when it is made, and every start in it binds the two from that.
+  (add-hook 'deadgrep-mode-hook
+            (lambda ()
+              (when my/deadgrep--next-engine
+                (setq my/deadgrep-engine my/deadgrep--next-engine))))
+  (advice-add 'deadgrep--start :around
+              (lambda (fn &rest args)
+                (if my/deadgrep-engine
+                    (let ((deadgrep-executable (car my/deadgrep-engine))
+                          (deadgrep-extra-arguments (cdr my/deadgrep-engine)))
+                      (apply fn args))
+                  (apply fn args)))
+              '((name . my/deadgrep-engine)))
   (setq deadgrep-executable "rga")
-  (setq deadgrep-extra-arguments
-        (list "--no-config"
-              (format "--rga-config-file=%s"
-                      (expand-file-name "~/.config/ripgrep-all/config.jsonc"))))
+  (setq deadgrep-extra-arguments (my/deadgrep-rga-arguments))
 
   (when (eq system-type 'windows-nt)
     (add-to-list 'process-coding-system-alist

@@ -38,6 +38,7 @@ brew "poppler"                  # pdf-tools for Emacs, rga preprocessing etc.
 brew "automake"                 # pdf-tools for Emacs
 brew "pandoc"
 brew "weasyprint"               # for pandoc
+brew "monolith"                 # org-moor: a web page kept as one HTML file
 
 # --- Shell ergonomics --------------------------------------------------------
 brew "espanso"                  # text expander / snippets

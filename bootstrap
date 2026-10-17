@@ -690,6 +690,7 @@ setup_dev_packages() {
       org-dayflow \
       org-upwell \
       org-truss \
+      org-moor \
       sill \
       gensho-theme \
       rustcity-theme
