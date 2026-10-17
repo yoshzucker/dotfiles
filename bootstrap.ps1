@@ -1689,9 +1689,8 @@ function Get-EmacsClientW {
 
 function Setup-OrgProtocol {
     # Register org-protocol:// for this user, pointing at emacsclientw, so a
-    # browser's bookmarklet reaches Emacs.  HKCU rather than HKCR, which
-    # etc/org-protocol/org-protocol-native.reg writes: no administrator, and
-    # the path is found rather than edited into the file by hand.  The
+    # browser's bookmarklet reaches Emacs.  HKCU rather than HKCR: no
+    # administrator, and the path is found rather than written by hand.  The
     # hotkey that takes the document in front (org-moor) does not need this;
     # it calls emacsclientw itself.  Idempotent.
     $leftMessage = "Registering org-protocol"
