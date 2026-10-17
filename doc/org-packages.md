@@ -98,8 +98,14 @@ Windows.
 
 The hotkey runs `script/org-moor-front.*` in straight's clone once and
 exits; nothing new stays running.  On macOS the first use asks to let
-Karabiner control the app in front; allow it.  On Windows it relies on
-`etc/org-protocol/org-protocol-native.reg` having registered org-protocol.
+Karabiner control the app in front; allow it.  On Windows the script calls
+emacsclientw itself (Scoop's shim followed to the real program), so it
+does not depend on org-protocol being registered.
+
+The bookmarklet does.  `bootstrap.ps1` (`Setup-OrgProtocol`, in a full
+bootstrap and in `update`) registers it for the user under HKCU with the
+real emacsclientw path; `etc/org-protocol/org-protocol-native.reg`, which
+needs editing and an administrator, is no longer needed.
 
 Web pages are kept with `monolith` (Brewfile, scoopfile).  Without it a page
 is taken as its URL only.
