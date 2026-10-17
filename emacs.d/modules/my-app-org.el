@@ -1679,7 +1679,8 @@ block already shows what is out with them, as a live query."
   ;; Org) under a heading picked from the refile targets.  `f' and `w' take a
   ;; file and a web page the same way.  `j' goes back to anything taken.
   ;; `d' drafts what the heading's source means, from its own words, and
-  ;; writes it in on C-c C-c.
+  ;; writes it in on C-c C-c.  In Dired, `f' and `d' take the file at
+  ;; point, and `d' then drafts for it.
   (my/define-key
    (:map global-map
          :prefix "C-c m"
@@ -1710,9 +1711,17 @@ block already shows what is out with them, as a live query."
       (apply fn files args)))
   (advice-add 'server-visit-files :around #'my/org-protocol-on-demand)
   :config
-  ;; Moved, not copied: taking a file from Downloads or the desktop is
-  ;; tidying them, and a copy left behind is the backlog this is for.
-  (setq org-moor-file-action 'move
+  ;; Moved from where things pile up -- taking a file there is tidying it,
+  ;; and a copy left behind is the backlog this is for -- and copied from
+  ;; anywhere else, where the file is in somebody's place for it.  The
+  ;; Windows desktop is usually redirected into OneDrive, under a name that
+  ;; depends on the tenant and the language, so it is looked for rather
+  ;; than named.  C-u C-u C-c m f turns the choice round for one file.
+  (setq org-moor-move-directories
+        (seq-filter #'file-directory-p
+                    (append (list "~/Downloads/" "~/Desktop/")
+                            (file-expand-wildcards "~/OneDrive*/Desktop/")
+                            (file-expand-wildcards "~/OneDrive*/デスクトップ/")))
         org-moor-files-function #'my/org-moor-files
         org-moor-open-function #'my/open-file
         org-moor-fathom-assist-function #'my/org-moor-fathom-claude))
