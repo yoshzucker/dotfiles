@@ -96,6 +96,11 @@ the older attachments in `data/`; `:source` is rga over `source/`.  That split
 is also what keeps rga's PDF and Office extraction from stalling `:memex` on
 Windows.
 
+The hotkey runs `script/org-moor-front.*` in straight's clone once and
+exits; nothing new stays running.  On macOS the first use asks to let
+Karabiner control the app in front; allow it.  On Windows it relies on
+`etc/org-protocol/org-protocol-native.reg` having registered org-protocol.
+
 Web pages are kept with `monolith` (Brewfile, scoopfile).  Without it a page
 is taken as its URL only.
 
@@ -113,6 +118,8 @@ is taken as its URL only.
 | | `C-c m x` | prune: copies largest first, `d` mark, `x` let go (heading, notes and origin stay) |
 | ex line | `:source` | search the copies |
 | Browser | bookmarklet in `script/org-moor-bookmarklet.txt` | `org-protocol://moor?url=…` |
+| Anywhere (macOS) | `control+option+m` | take the document in front (Karabiner rule `org-moor-front`, enable it in Karabiner's settings) |
+| Anywhere (Windows) | `Ctrl+Alt+M` | the same, from `etc/ahk/remap-windows-keys.ahk` |
 
 A key after `C-c m` (or any prefix) that is slow in coming brings up
 which-key's list; typed on, nothing shows.
