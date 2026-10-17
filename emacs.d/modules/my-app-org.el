@@ -1672,7 +1672,7 @@ block already shows what is out with them, as a live query."
   :defer t
   :commands (org-moor-quote org-moor-jump org-moor-take-file org-moor-take-url
              org-moor-fathom org-moor-sweep org-moor-put-away
-             org-moor-put-away-and-take org-moor-note-here
+             org-moor-put-away-and-take org-moor-noter org-moor-insert-note
              org-moor-open-source org-moor-prune)
   :init
   ;; A prefix of its own, as upwell has `C-c u'.
@@ -1690,9 +1690,11 @@ block already shows what is out with them, as a live query."
   ;; mine, picked or made; `P' also takes it from there, as a copy, since
   ;; directories get renamed and Org should not be pointing into them.
   ;;
-  ;; `n', reading a copy, adds the page (and the selection) to the source's
-  ;; draft, so pages read one after another collect in one draft; `o', on
-  ;; a heading, opens its source's copy, `C-u' its origin.  `x' lists the
+  ;; `n', on a heading, reads its source's copy beside it -- a PDF or a
+  ;; text, read-only -- where `i' notes the page, or the line, and the
+  ;; selection into the source's draft and `q' puts the windows back.  `i'
+  ;; here does the same from a copy opened any other way.  `o', on a
+  ;; heading, opens its source's copy, `C-u' its origin.  `x' lists the
   ;; copies largest first, to choose which to let go.
   (my/define-key
    (:map global-map
@@ -1706,7 +1708,8 @@ block already shows what is out with them, as a live query."
          "s" #'org-moor-sweep
          "p" #'org-moor-put-away
          "P" #'org-moor-put-away-and-take
-         "n" #'org-moor-note-here
+         "n" #'org-moor-noter
+         "i" #'org-moor-insert-note
          "o" #'org-moor-open-source
          "x" #'org-moor-prune))
   ;; Named for which-key, which shows them when a key after `C-c m' is slow
@@ -1723,7 +1726,8 @@ block already shows what is out with them, as a live query."
       "C-c m s" "sweep downloads"
       "C-c m p" "put away"
       "C-c m P" "put away + take"
-      "C-c m n" "note this page"
+      "C-c m n" "read beside heading"
+      "C-c m i" "note this place"
       "C-c m o" "open source (C-u origin)"
       "C-c m x" "prune copies"))
 
@@ -1760,23 +1764,98 @@ block already shows what is out with them, as a live query."
         org-moor-open-function #'my/open-file
         org-moor-fathom-assist-function #'my/org-moor-fathom-claude))
 
+(defvar my/org-moor-claude-sessions (make-hash-table :test #'equal)
+  "Claude sessions by draft file: (SESSION-ID LAST-USED . CACHE-SECONDS).")
+
+(defconst my/org-moor-claude-prompt
+  (concat
+   "The Org draft is given on stdin.  Rewrite it in Japanese and reply with "
+   "the rewritten draft only, as plain Org, with no fence and no comment.  "
+   "It is raw text from a document, a chat or a mail, and is to become a "
+   "note I can rely on later: correct Japanese, and a logic that holds -- "
+   "what is the situation, what is required or decided, under which "
+   "conditions, and what is still unclear.  Keep it short; leave out what "
+   "does not matter for acting on it.  Add nothing that is not in the "
+   "text, and say where the text is ambiguous rather than guess.  Keep "
+   "every [[moor:...]] link next to the sentence it supports and drop "
+   "the others.  Plain Org: lists or a few headings at most.  When the "
+   "draft has been rewritten before in this conversation, it now holds my "
+   "corrections: keep them.")
+  "What Claude is asked to do with a draft.")
+
+(defun my/org-moor-claude--cache-seconds (usage)
+  "Return how long the prompt cache lives, from a reply's USAGE.
+Written to an hour's cache when the subscription has it, else to five
+minutes'; nil when nothing was written, all of it read from the cache."
+  (let ((creation (gethash "cache_creation" usage)))
+    (cond ((not creation) nil)
+          ((> (gethash "ephemeral_1h_input_tokens" creation 0) 0) 3600)
+          ((> (gethash "ephemeral_5m_input_tokens" creation 0) 0) 300))))
+
 (defun my/org-moor-fathom-claude (file)
-  "Ask the Claude Code session to rewrite the draft FILE in place.
-The draft buffer follows the file, so the rewrite appears there to be read
-and corrected before C-c C-c.  Needs a session already running (C-c x);
-with several, it asks which."
-  (require 'claude-code-ide)
-  (claude-code-ide-send-prompt
-   (concat
-    "Rewrite the Org draft at " file " in place, in Japanese.  "
-    "It is raw text from a document, a chat or a mail, and is to become a "
-    "note I can rely on later: correct Japanese, and a logic that holds -- "
-    "what is the situation, what is required or decided, under which "
-    "conditions, and what is still unclear.  Keep it short; leave out what "
-    "does not matter for acting on it.  Add nothing that is not in the "
-    "text, and say where the text is ambiguous rather than guess.  Keep "
-    "every [[moor:...]] link next to the sentence it supports and drop "
-    "the others.  Plain Org: lists or a few headings at most.")))
+  "Have Claude Code rewrite the draft FILE, and merge it in with Ediff.
+The draft goes to `claude -p' on stdin, with no tools, and the rewrite
+comes back as a buffer of its own, set beside the draft in Ediff: nothing
+is written over the draft but what is taken from there, and the draft
+may be edited while Claude works.
+
+A draft keeps its Claude session while the session's prompt cache lives
+-- an hour on a subscription, read from each reply -- so that asking
+again is cheap and Claude knows what it wrote before.  After that, or
+with \\[universal-argument], a new session starts."
+  (let* ((default-directory (file-name-directory file))
+         (draft (or (find-buffer-visiting file)
+                    (user-error "org-moor: the draft is not open")))
+         (known (gethash file my/org-moor-claude-sessions))
+         (resume (and known (not current-prefix-arg)
+                      (< (float-time (time-subtract nil (cadr known)))
+                         (or (cddr known) 0))
+                      (car known)))
+         (out (generate-new-buffer " *org-moor-claude*"))
+         (proc
+          (make-process
+           :name "org-moor-claude"
+           :buffer out
+           :connection-type 'pipe
+           :command (append (list "claude" "-p" my/org-moor-claude-prompt
+                                  "--tools" "" "--output-format" "json")
+                            (and resume (list "--resume" resume)))
+           :sentinel
+           (lambda (proc _event)
+             (unless (process-live-p proc)
+               (let ((reply (with-current-buffer out
+                              (goto-char (point-min))
+                              (ignore-errors
+                                (json-parse-buffer :null-object nil :false-object nil)))))
+                 (if (or (not reply) (gethash "is_error" reply))
+                     (progn (display-buffer out)
+                            (message "org-moor: Claude failed"))
+                   (kill-buffer out)
+                   (puthash file
+                            (cons (gethash "session_id" reply)
+                                  (cons (current-time)
+                                        ;; A reply read wholly from the
+                                        ;; cache does not say: an hour, as
+                                        ;; the subscription gives.
+                                        (or (my/org-moor-claude--cache-seconds
+                                             (gethash "usage" reply))
+                                            (cddr known)
+                                            3600)))
+                            my/org-moor-claude-sessions)
+                   (let ((rewrite (get-buffer-create
+                                   (format "*org-moor-claude: %s*"
+                                           (file-name-nondirectory file)))))
+                     (with-current-buffer rewrite
+                       (erase-buffer)
+                       (insert (string-trim (gethash "result" reply)) "\n")
+                       (org-mode))
+                     (ediff-buffers draft rewrite)))))))))
+    (with-current-buffer draft
+      (process-send-string proc (buffer-substring-no-properties
+                                 (point-min) (point-max))))
+    (process-send-eof proc)
+    (message "org-moor: Claude is rewriting the draft (%s)..."
+             (if resume "same session" "new session"))))
 
 (defun my/org-moor-files ()
   "Org files `org-moor-jump' looks in: memex without archive/, and the agenda.
