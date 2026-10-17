@@ -1670,13 +1670,16 @@ block already shows what is out with them, as a live query."
   :straight (org-moor :host github :repo "yoshzucker/org-moor"
                       :files ("*.el" ("script" "script/*")))
   :defer t
-  :commands (org-moor-quote org-moor-jump org-moor-take-file org-moor-take-url)
+  :commands (org-moor-quote org-moor-jump org-moor-take-file org-moor-take-url
+             org-moor-fathom)
   :init
   ;; A prefix of its own, as upwell has `C-c u'.
   ;;
   ;; `q' quotes the clipboard: at point in Org, with `C-u' (or from outside
   ;; Org) under a heading picked from the refile targets.  `f' and `w' take a
   ;; file and a web page the same way.  `j' goes back to anything taken.
+  ;; `d' drafts what the heading's source means, from its own words, and
+  ;; writes it in on C-c C-c.
   (my/define-key
    (:map global-map
          :prefix "C-c m"
@@ -1684,7 +1687,8 @@ block already shows what is out with them, as a live query."
          "q" #'org-moor-quote
          "f" #'org-moor-take-file
          "w" #'org-moor-take-url
-         "j" #'org-moor-jump))
+         "j" #'org-moor-jump
+         "d" #'org-moor-fathom))
 
   ;; The bookmarklet (script/org-moor-bookmarklet.txt in the package)
   ;; arrives through emacsclient as `org-protocol://moor?...', which works
@@ -1710,7 +1714,26 @@ block already shows what is out with them, as a live query."
   ;; tidying them, and a copy left behind is the backlog this is for.
   (setq org-moor-file-action 'move
         org-moor-files-function #'my/org-moor-files
-        org-moor-open-function #'my/open-file))
+        org-moor-open-function #'my/open-file
+        org-moor-fathom-assist-function #'my/org-moor-fathom-claude))
+
+(defun my/org-moor-fathom-claude (file)
+  "Ask the Claude Code session to rewrite the draft FILE in place.
+The draft buffer follows the file, so the rewrite appears there to be read
+and corrected before C-c C-c.  Needs a session already running (C-c x);
+with several, it asks which."
+  (require 'claude-code-ide)
+  (claude-code-ide-send-prompt
+   (concat
+    "Rewrite the Org draft at " file " in place, in Japanese.  "
+    "It is raw text from a document, a chat or a mail, and is to become a "
+    "note I can rely on later: correct Japanese, and a logic that holds -- "
+    "what is the situation, what is required or decided, under which "
+    "conditions, and what is still unclear.  Keep it short; leave out what "
+    "does not matter for acting on it.  Add nothing that is not in the "
+    "text, and say where the text is ambiguous rather than guess.  Keep "
+    "every [[moor:...]] link next to the sentence it supports and drop "
+    "the others.  Plain Org: lists or a few headings at most.")))
 
 (defun my/org-moor-files ()
   "Org files `org-moor-jump' looks in: memex without archive/, and the agenda.

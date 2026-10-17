@@ -105,6 +105,7 @@ is taken as its URL only.
 | | `C-c m f` | take a file: moved into the store (`org-moor-file-action` is `move` here) |
 | | `C-c m w` | take a web page |
 | | `C-c m j` | back to anything taken, newest first |
+| | `C-c m d` | draft what the heading's source means; in the draft `C-c C-c` writes, `C-c C-k` discards, `C-c C-a` asks Claude Code to rewrite it |
 | ex line | `:source` | search the copies |
 | Browser | bookmarklet in `script/org-moor-bookmarklet.txt` | `org-protocol://moor?url=…` |
 
