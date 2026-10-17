@@ -1671,7 +1671,8 @@ block already shows what is out with them, as a live query."
                       :files ("*.el" ("script" "script/*")))
   :defer t
   :commands (org-moor-quote org-moor-jump org-moor-take-file org-moor-take-url
-             org-moor-fathom)
+             org-moor-fathom org-moor-sweep org-moor-put-away
+             org-moor-put-away-and-take)
   :init
   ;; A prefix of its own, as upwell has `C-c u'.
   ;;
@@ -1681,6 +1682,12 @@ block already shows what is out with them, as a live query."
   ;; `d' drafts what the heading's source means, from its own words, and
   ;; writes it in on C-c C-c.  In Dired, `f' and `d' take the file at
   ;; point, and `d' then drafts for it.
+  ;;
+  ;; `s' lists what piled up in Downloads and the desktop as one Dired
+  ;; buffer, newest first, and TAB opens a subdirectory there as anywhere.
+  ;; `p' puts the file at point (or the marked ones) in a directory of
+  ;; mine, picked or made; `P' also takes it from there, as a copy, since
+  ;; directories get renamed and Org should not be pointing into them.
   (my/define-key
    (:map global-map
          :prefix "C-c m"
@@ -1689,7 +1696,24 @@ block already shows what is out with them, as a live query."
          "f" #'org-moor-take-file
          "w" #'org-moor-take-url
          "j" #'org-moor-jump
-         "d" #'org-moor-fathom))
+         "d" #'org-moor-fathom
+         "s" #'org-moor-sweep
+         "p" #'org-moor-put-away
+         "P" #'org-moor-put-away-and-take))
+  ;; Named for which-key, which shows them when a key after `C-c m' is slow
+  ;; in coming.  Lowercase takes, writes or goes; uppercase is the same act
+  ;; carried one step further.
+  (with-eval-after-load 'which-key
+    (which-key-add-key-based-replacements
+      "C-c m" "moor"
+      "C-c m q" "quote clipboard"
+      "C-c m f" "take file"
+      "C-c m w" "take web page"
+      "C-c m d" "draft"
+      "C-c m j" "jump back"
+      "C-c m s" "sweep downloads"
+      "C-c m p" "put away"
+      "C-c m P" "put away + take"))
 
   ;; The bookmarklet (script/org-moor-bookmarklet.txt in the package)
   ;; arrives through emacsclient as `org-protocol://moor?...', which works
@@ -1718,6 +1742,8 @@ block already shows what is out with them, as a live query."
   ;; already somewhere other than this machine.  C-u C-u C-c m f turns the
   ;; choice round for one file.
   (setq org-moor-move-directories (list "~/Downloads/" "~/Desktop/")
+        org-moor-directory-roots (list "~/Documents/project/"
+                                       "~/Documents/reference/")
         org-moor-files-function #'my/org-moor-files
         org-moor-open-function #'my/open-file
         org-moor-fathom-assist-function #'my/org-moor-fathom-claude))
@@ -2137,50 +2163,6 @@ what to look at."
   ;; `f' turns following on and off.  It draws in a window nobody asked for,
   ;; which is welcome while reading a file tree and in the way while writing
   ;; prose, and that is a decision made several times a day.
-  ;;
-  ;; `?' says the three in one line.  A prefix rather than a dispatching
-  ;; command, so `C-c u C-h' still lists the map, a prefix argument still
-  ;; reaches the command, and another key can still be added; the one line is
-  ;; for the times when a full window is more than the question deserves.
-  (defvar my/org-upwell-menu-names
-    '((org-upwell-bench . "bench")
-      (org-upwell-work-directory . "work directory")
-      (org-upwell-find-work-directory . "any work directory")
-      (org-upwell-follow-mode . "follow")
-      (my/org-upwell-menu . "this"))
-    "What to call each `C-c u' command in the one-line menu.")
-
-  (defun my/org-upwell-menu ()
-    "Say what `C-c u' can do, in one line.
-
-Read out of the prefix map rather than written down here, so a key moved
-in this file moves in the line as well -- and a key added without a name
-still appears, under the command's own, rather than going unmentioned."
-    (interactive)
-    (let (out)
-      (map-keymap
-       (lambda (key command)
-         (when (commandp command)
-           (push (cons command (key-description (vector key))) out)))
-       (or (lookup-key global-map (kbd "C-c u")) (make-sparse-keymap)))
-      ;; Ordered by the names above rather than by whatever order the keymap
-      ;; happens to walk in, and anything unnamed brings up the rear.
-      (message
-       "upwell: %s"
-       (mapconcat
-        (pcase-lambda (`(,command . ,key))
-          (format "[%s] %s" key
-                  (or (alist-get command my/org-upwell-menu-names)
-                      (string-remove-prefix "org-upwell-"
-                                            (symbol-name command)))))
-        (sort out (lambda (a b)
-                    (< (or (seq-position (mapcar #'car my/org-upwell-menu-names)
-                                         (car a))
-                           most-positive-fixnum)
-                       (or (seq-position (mapcar #'car my/org-upwell-menu-names)
-                                         (car b))
-                           most-positive-fixnum))))
-        "  "))))
 
   (my/define-key
    (:map global-map
@@ -2194,8 +2176,14 @@ still appears, under the command's own, rather than going unmentioned."
          ;; there are.  The names in the menu carry the difference, since a
          ;; letter cannot.
          "d" #'org-upwell-find-work-directory
-         "f" #'org-upwell-follow-mode
-         "?" #'my/org-upwell-menu))
+         "f" #'org-upwell-follow-mode))
+  (with-eval-after-load 'which-key
+    (which-key-add-key-based-replacements
+      "C-c u" "upwell"
+      "C-c u u" "bench"
+      "C-c u w" "work directory"
+      "C-c u d" "any work directory"
+      "C-c u f" "follow"))
   (with-eval-after-load 'org-agenda
     (my/define-key
      (:map org-agenda-mode-map

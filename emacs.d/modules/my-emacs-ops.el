@@ -38,6 +38,20 @@
   (unless (server-running-p)
     (server-start)))
 
+;; which-key: what a prefix can do, shown only when the next key is slow
+;; in coming.  A menu on every prefix (capture's, a transient's) is in the
+;; way of keys already known; this costs nothing to someone who types on,
+;; and answers the one who stops.  Built into Emacs 30, and on from the
+;; start because a mode that waits to be loaded is never there to ask.
+(use-package which-key
+  :straight nil
+  :demand t
+  :diminish which-key-mode
+  :config
+  (setq which-key-idle-delay 1.0
+        which-key-idle-secondary-delay 0.05)
+  (which-key-mode 1))
+
 (use-package gcmh
   :diminish gcmh-mode
   :config
