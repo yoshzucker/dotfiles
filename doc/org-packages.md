@@ -102,10 +102,10 @@ is taken as its URL only.
 | Where | Key / command | What |
 |---|---|---|
 | Anywhere in Emacs | `C-c m q` | quote the clipboard, titled; `C-u` picks the heading |
-| | `C-c m f` | take a file: moved into the store (`org-moor-file-action` is `move` here) |
+| | `C-c m f` | take a file (in Dired, the one at point): moved from Downloads and the desktop, copied from anywhere else; `C-u` picks the heading, `C-u C-u` also turns move and copy round |
 | | `C-c m w` | take a web page |
 | | `C-c m j` | back to anything taken, newest first |
-| | `C-c m d` | draft what the heading's source means; in the draft `C-c C-c` writes, `C-c C-k` discards, `C-c C-a` asks Claude Code to rewrite it |
+| | `C-c m d` | in Dired, take the file at point first; then draft what the heading's source means; in the draft `C-c C-c` writes, `C-c C-k` discards, `C-c C-a` asks Claude Code to rewrite it |
 | ex line | `:source` | search the copies |
 | Browser | bookmarklet in `script/org-moor-bookmarklet.txt` | `org-protocol://moor?url=…` |
 
