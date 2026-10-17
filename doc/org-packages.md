@@ -104,8 +104,7 @@ does not depend on org-protocol being registered.
 
 The bookmarklet does.  `bootstrap.ps1` (`Setup-OrgProtocol`, in a full
 bootstrap and in `update`) registers it for the user under HKCU with the
-real emacsclientw path; `etc/org-protocol/org-protocol-native.reg`, which
-needs editing and an administrator, is no longer needed.
+real emacsclientw path.
 
 Web pages are kept with `monolith` (Brewfile, scoopfile).  Without it a page
 is taken as its URL only.
