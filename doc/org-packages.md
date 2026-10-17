@@ -108,6 +108,9 @@ is taken as its URL only.
 | | `C-c m d` | in Dired, take the file at point first; then draft what the heading's source means; in the draft `C-c C-c` writes, `C-c C-k` discards, `C-c C-a` asks Claude Code to rewrite it |
 | | `C-c m s` | sweep: Downloads and the desktop as one Dired buffer, newest first |
 | | `C-c m p` / `C-c m P` | put the file at point in a directory under project/ or reference/ (picked or made); `P` also takes it, as a copy |
+| | `C-c m n` | reading a copy (pdf-tools or otherwise): add this page and the selection to the source's draft |
+| | `C-c m o` | open the source's copy; `C-u` its origin |
+| | `C-c m x` | prune: copies largest first, `d` mark, `x` let go (heading, notes and origin stay) |
 | ex line | `:source` | search the copies |
 | Browser | bookmarklet in `script/org-moor-bookmarklet.txt` | `org-protocol://moor?url=…` |
 

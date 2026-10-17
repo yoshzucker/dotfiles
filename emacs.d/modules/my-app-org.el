@@ -1672,7 +1672,8 @@ block already shows what is out with them, as a live query."
   :defer t
   :commands (org-moor-quote org-moor-jump org-moor-take-file org-moor-take-url
              org-moor-fathom org-moor-sweep org-moor-put-away
-             org-moor-put-away-and-take)
+             org-moor-put-away-and-take org-moor-note-here
+             org-moor-open-source org-moor-prune)
   :init
   ;; A prefix of its own, as upwell has `C-c u'.
   ;;
@@ -1688,6 +1689,11 @@ block already shows what is out with them, as a live query."
   ;; `p' puts the file at point (or the marked ones) in a directory of
   ;; mine, picked or made; `P' also takes it from there, as a copy, since
   ;; directories get renamed and Org should not be pointing into them.
+  ;;
+  ;; `n', reading a copy, adds the page (and the selection) to the source's
+  ;; draft, so pages read one after another collect in one draft; `o', on
+  ;; a heading, opens its source's copy, `C-u' its origin.  `x' lists the
+  ;; copies largest first, to choose which to let go.
   (my/define-key
    (:map global-map
          :prefix "C-c m"
@@ -1699,7 +1705,10 @@ block already shows what is out with them, as a live query."
          "d" #'org-moor-fathom
          "s" #'org-moor-sweep
          "p" #'org-moor-put-away
-         "P" #'org-moor-put-away-and-take))
+         "P" #'org-moor-put-away-and-take
+         "n" #'org-moor-note-here
+         "o" #'org-moor-open-source
+         "x" #'org-moor-prune))
   ;; Named for which-key, which shows them when a key after `C-c m' is slow
   ;; in coming.  Lowercase takes, writes or goes; uppercase is the same act
   ;; carried one step further.
@@ -1713,7 +1722,10 @@ block already shows what is out with them, as a live query."
       "C-c m j" "jump back"
       "C-c m s" "sweep downloads"
       "C-c m p" "put away"
-      "C-c m P" "put away + take"))
+      "C-c m P" "put away + take"
+      "C-c m n" "note this page"
+      "C-c m o" "open source (C-u origin)"
+      "C-c m x" "prune copies"))
 
   ;; The bookmarklet (script/org-moor-bookmarklet.txt in the package)
   ;; arrives through emacsclient as `org-protocol://moor?...', which works
