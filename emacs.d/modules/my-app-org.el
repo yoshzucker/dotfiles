@@ -1794,10 +1794,11 @@ minutes'; nil when nothing was written, all of it read from the cache."
 
 (defun my/org-moor-fathom-claude (file)
   "Have Claude Code rewrite the draft FILE, and merge it in with Ediff.
-The draft goes to `claude -p' on stdin, with no tools, and the rewrite
-comes back as a buffer of its own, set beside the draft in Ediff: nothing
-is written over the draft but what is taken from there, and the draft
-may be edited while Claude works.
+What to do this time is asked first: nothing is the usual rewrite, and
+anything else is put before it.  The draft goes to `claude -p' on stdin,
+with no tools, and the rewrite comes back as a buffer of its own, set
+beside the draft in Ediff: nothing is written over the draft but what is
+taken from there, and the draft may be edited while Claude works.
 
 A draft keeps its Claude session while the session's prompt cache lives
 -- an hour on a subscription, read from each reply -- so that asking
@@ -1807,6 +1808,8 @@ with \\[universal-argument], a new session starts."
          (draft (or (find-buffer-visiting file)
                     (user-error "org-moor: the draft is not open")))
          (known (gethash file my/org-moor-claude-sessions))
+         (asked (string-trim
+                 (read-string "Claude (empty to rewrite as usual): ")))
          (resume (and known (not current-prefix-arg)
                       (< (float-time (time-subtract nil (cadr known)))
                          (or (cddr known) 0))
@@ -1817,7 +1820,12 @@ with \\[universal-argument], a new session starts."
            :name "org-moor-claude"
            :buffer out
            :connection-type 'pipe
-           :command (append (list "claude" "-p" my/org-moor-claude-prompt
+           :command (append (list "claude" "-p"
+                                  (if (string-empty-p asked)
+                                      my/org-moor-claude-prompt
+                                    (concat my/org-moor-claude-prompt
+                                            "\n\nThis time, before all of that: "
+                                            asked))
                                   "--tools" "" "--output-format" "json")
                             (and resume (list "--resume" resume)))
            :sentinel
