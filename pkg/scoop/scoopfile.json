@@ -51,6 +51,10 @@
       "Source": "main"
     },
     {
+      "Name": "monolith",
+      "Source": "main"
+    },
+    {
       "Name": "poppler",
       "Source": "main"
     },

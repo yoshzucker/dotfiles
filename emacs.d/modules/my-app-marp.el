@@ -119,7 +119,7 @@ If a server is already running, report its URL.  Use `my/marp-server-buffer'
 \\[my/marp-server-buffer] to inspect server output on demand."
   (interactive "P")
   (if (process-live-p (get-process my/marp--server-name))
-      (message "Marp server already running — %s  (C-c m l to view log)" (my/marp--preview-url))
+      (message "Marp server already running — %s  (M-x my/marp-server-buffer to view log)" (my/marp--preview-url))
     (let* ((theme (if arg
                       (my/marp--read-theme "Preview theme: " my/marp-preview-theme)
                     my/marp-preview-theme))
@@ -136,7 +136,7 @@ If a server is already running, report its URL.  Use `my/marp-server-buffer'
                                 (message "Marp server exited: %s" (string-trim event)))))
       (when my/marp-server-open-browser
         (set-process-filter proc (my/marp--browser-opening-filter (my/marp--preview-url))))
-      (message "Marp server started for %s — open %s  (C-c m l to view log)"
+      (message "Marp server started for %s — open %s  (M-x my/marp-server-buffer to view log)"
                (abbreviate-file-name dir)
                (my/marp--preview-url)))))
 
@@ -147,7 +147,7 @@ Use this command to inspect server output on demand."
   (interactive)
   (if (get-buffer my/marp--server-buffer)
       (display-buffer my/marp--server-buffer)
-    (message "No Marp server buffer (start with C-c m s)")))
+    (message "No Marp server buffer (start with M-x my/marp-start-server)")))
 
 (defun my/marp-stop-server ()
   "Stop the Marp live-preview server if it is running."
@@ -245,7 +245,7 @@ so the result does not depend on font-lock/syntax-propertize state."
   "Open the embedded preview and start following point."
   (unless (featurep 'xwidget-internal)
     (setq my/marp-follow-mode nil)
-    (user-error "Follow mode needs an xwidget-capable Emacs; use C-c m g instead"))
+    (user-error "Follow mode needs an xwidget-capable Emacs; use M-x my/marp-goto-slide-in-browser instead"))
   (unless buffer-file-name
     (setq my/marp-follow-mode nil)
     (user-error "Buffer is not visiting a file"))
@@ -272,7 +272,7 @@ so the result does not depend on font-lock/syntax-propertize state."
             my/marp-follow--last-slide nil)
       (add-hook 'post-command-hook #'my/marp-follow--sync nil t))
     (my/marp-follow--sync)
-    (message "Marp follow on — preview tracks the cursor (C-c m f to stop)")))
+    (message "Marp follow on — preview tracks the cursor (M-x my/marp-follow-mode to stop)")))
 
 (defun my/marp-follow--disable ()
   "Stop following and close the embedded preview."
@@ -303,22 +303,11 @@ without xwidget support.  Requires a running server (\\[my/marp-start-server])."
   (unless buffer-file-name
     (user-error "Buffer is not visiting a file"))
   (unless (process-live-p (get-process my/marp--server-name))
-    (user-error "No Marp server running — start it first with C-c m s"))
+    (user-error "No Marp server running — start it first with M-x my/marp-start-server"))
   (browse-url (format "%s/%s#%d"
                       (my/marp--preview-url)
                       (file-name-nondirectory buffer-file-name)
                       (my/marp--current-slide))))
-
-(my/define-key
- (:map markdown-mode-map
-       :after markdown-mode
-       :key
-       "C-c m s" #'my/marp-start-server
-       "C-c m k" #'my/marp-stop-server
-       "C-c m l" #'my/marp-server-buffer
-       "C-c m e" #'my/marp-export
-       "C-c m f" #'my/marp-follow-mode
-       "C-c m g" #'my/marp-goto-slide-in-browser))
 
 (provide 'my-app-marp)
 ;;; my-app-marp.el ends here

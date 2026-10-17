@@ -1548,6 +1548,7 @@ function Setup-DevPackages {
         "org-dayflow",
         "org-upwell",
         "org-truss",
+        "org-moor",
         "sill",
         "gensho-theme",
         "rustcity-theme"
