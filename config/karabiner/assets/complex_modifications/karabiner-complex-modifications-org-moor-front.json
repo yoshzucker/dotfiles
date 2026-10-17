@@ -1,0 +1,22 @@
+{
+    "description": "control+option+m: take the document in front into org-moor",
+    "manipulators": [
+        {
+            "from": {
+                "key_code": "m",
+                "modifiers": {
+                    "mandatory": [
+                        "left_control",
+                        "left_option"
+                    ]
+                }
+            },
+            "to": [
+                {
+                    "shell_command": "~/.emacs.d/straight/repos/org-moor/script/org-moor-front.macos"
+                }
+            ],
+            "type": "basic"
+        }
+    ]
+}
