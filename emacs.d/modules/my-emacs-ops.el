@@ -32,9 +32,14 @@
 (use-package server
   :demand t
   :config
-  ;; When emacsclientw.exe errors out (e.g. "handle is invalid" or "No socket"),
-  ;; quit Emacs completely and delete ~/.emacs.d/server/server
-  ;; (this is a common issue after Scoop updates on Windows) 
+  ;; The server file back where emacsclient looks for it.  On Windows the
+  ;; server speaks TCP and leaves its address and key in a file under
+  ;; `server-auth-dir'; no-littering (loaded first, in core) moves that to
+  ;; var/server/auth/, and emacsclient, which knows nothing of this config,
+  ;; still looks in ~/.emacs.d/server/ -- "No socket or alternate editor".
+  ;; If emacsclientw.exe still errors out after a Scoop update ("handle is
+  ;; invalid"), quit Emacs completely and delete ~/.emacs.d/server/server.
+  (setq server-auth-dir (locate-user-emacs-file "server/"))
   (unless (server-running-p)
     (server-start)))
 
