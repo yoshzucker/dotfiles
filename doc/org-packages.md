@@ -106,8 +106,13 @@ is taken as its URL only.
 | | `C-c m w` | take a web page |
 | | `C-c m j` | back to anything taken, newest first |
 | | `C-c m d` | in Dired, take the file at point first; then draft what the heading's source means; in the draft `C-c C-c` writes, `C-c C-k` discards, `C-c C-a` asks Claude Code to rewrite it |
+| | `C-c m s` | sweep: Downloads and the desktop as one Dired buffer, newest first |
+| | `C-c m p` / `C-c m P` | put the file at point in a directory under project/ or reference/ (picked or made); `P` also takes it, as a copy |
 | ex line | `:source` | search the copies |
 | Browser | bookmarklet in `script/org-moor-bookmarklet.txt` | `org-protocol://moor?url=…` |
+
+A key after `C-c m` (or any prefix) that is slow in coming brings up
+which-key's list; typed on, nothing shows.
 
 org-protocol is loaded by the first emacsclient call that carries an
 org-protocol URL, not at startup.  `C-c m` was Marp's in Markdown buffers;
