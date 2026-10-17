@@ -1713,15 +1713,11 @@ block already shows what is out with them, as a live query."
   :config
   ;; Moved from where things pile up -- taking a file there is tidying it,
   ;; and a copy left behind is the backlog this is for -- and copied from
-  ;; anywhere else, where the file is in somebody's place for it.  The
-  ;; Windows desktop is usually redirected into OneDrive, under a name that
-  ;; depends on the tenant and the language, so it is looked for rather
-  ;; than named.  C-u C-u C-c m f turns the choice round for one file.
-  (setq org-moor-move-directories
-        (seq-filter #'file-directory-p
-                    (append (list "~/Downloads/" "~/Desktop/")
-                            (file-expand-wildcards "~/OneDrive*/Desktop/")
-                            (file-expand-wildcards "~/OneDrive*/デスクトップ/")))
+  ;; anywhere else, where the file is in somebody's place for it.  Not a
+  ;; desktop redirected into OneDrive: what is there is synced, and so
+  ;; already somewhere other than this machine.  C-u C-u C-c m f turns the
+  ;; choice round for one file.
+  (setq org-moor-move-directories (list "~/Downloads/" "~/Desktop/")
         org-moor-files-function #'my/org-moor-files
         org-moor-open-function #'my/open-file
         org-moor-fathom-assist-function #'my/org-moor-fathom-claude))
