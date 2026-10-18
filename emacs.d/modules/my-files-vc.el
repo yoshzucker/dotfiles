@@ -104,6 +104,19 @@
            (eq (vc-checkout-model backend (list file)) 'implicit)
            (vc-make-version-backup file)))))
 
+;; A project is also a directory that says it is one.
+;;
+;; project.el knows a project by its repository, and memex has none: it is
+;; notes in a synced folder, not under Git.  So in memex `project-current'
+;; answered nil, and whatever asks for the project asked in vain --
+;; claude-code-ide above all, which starts Claude at the project's root and
+;; tells it which file is open, and where the cursor is, only for files
+;; inside that project.  memex keeps a `.project' at its root to be one;
+;; named here, that file makes its directory a root as `.git' does.  A
+;; `.project' inside a repository would cut the repository there, and none
+;; is: four levels down ~/Documents and ~/Developer, memex has the only one.
+(setq project-vc-extra-root-markers '(".project"))
+
 (use-package magit
   :after evil
   :defer t
