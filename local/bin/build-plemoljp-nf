@@ -53,11 +53,15 @@ IFS=$'\n\t'
 # map in emacs.d/modules/my-ui-char.el. The TTY map in that file follows
 # wcwidth, not this font — do not regenerate it for a width-rule change.
 #
-# Prerequisite: fontforge (macOS: brew install fontforge).
+# Prerequisite: fontforge (macOS: brew install fontforge; Windows: MSYS2's,
+# so run this from a UCRT64 shell -- bootstrap.ps1 starts one to run it).
 # Every source is a pinned release, so macOS and Windows build the same font.
-# Installs into ~/Library/Fonts (macOS) or ~/.local/share/fonts (Linux). On
-# Windows/MSYS2 the ttf are only built into "$WORKDIR/dist" (bootstrap.ps1
-# registers them for the user). Override WORKDIR to control the build location.
+# Installs into ~/Library/Fonts (macOS), ~/.local/share/fonts (Linux), or for
+# the current user on Windows (%LOCALAPPDATA%\Microsoft\Windows\Fonts and its
+# HKCU registration, with the PlemolJP Console NF faces mintty uses). The last
+# lines say where the built fonts are and where they went, for finishing by
+# hand when a font in use cannot be replaced. Override WORKDIR to control the
+# build location.
 
 PLEMOLJP_VERSION="${PLEMOLJP_VERSION:-3.0.0}"
 JULIAMONO_VERSION="${JULIAMONO_VERSION:-0.63.2}"
@@ -457,22 +461,148 @@ for s in "${STYLES[@]}"; do
     "$sup_dir/$sup" "$DISTDIR/PlemolJPNF-$s.ttf" 2>&1 | grep -E '  PlemolJPNF-' || true
 done
 
-case "$(uname -s)" in
-  Darwin) dest="$HOME/Library/Fonts" ;;
-  Linux)  dest="$HOME/.local/share/fonts"; mkdir -p "$dest" ;;
-  *)      dest="" ;;   # Windows/MSYS2: bootstrap.ps1 registers from $DISTDIR
+# MSYS2 names the system after MSYSTEM: MSYS_NT-…, MINGW64_NT-…, UCRT64_NT-….
+os="$(uname -s)"
+
+# Windows has no PlemolJP Console NF of its own (macOS has the brew cask), and
+# mintty uses it: its four faces go out with ours. Only those four -- the other
+# weights are families of their own to GDI ("PlemolJP Console NF Thin"), and
+# registered under the same four names they would displace the faces mintty
+# asks for.
+case "$os" in
+  *_NT*)
+    for s in "${STYLES[@]}"; do cp -f "$sym_dir/PlemolJPConsoleNF-$s.ttf" "$DISTDIR/"; done ;;
 esac
-if [ -n "$dest" ]; then
-  echo ">> installing into $dest"
-  cp -f "$DISTDIR"/*.ttf "$dest"/
-  command -v fc-cache >/dev/null && fc-cache -f "$dest" >/dev/null 2>&1 || true
-else
-  # Windows/MSYS2: also stage the Console NF glyph source into dist so
-  # bootstrap.ps1 registers "PlemolJP Console NF" for mintty (it is not a
-  # separately installed font on Windows, unlike the macOS brew cask).
-  cp -f "$sym_dir"/PlemolJPConsoleNF-*.ttf "$DISTDIR"/
-  echo ">> built fonts in $DISTDIR (install them manually / via bootstrap.ps1)"
-fi
+
+# The downloads and their unpacked trees are spent; only dist is kept. A run
+# from a shell leaves its WORKDIR behind, and MSYS2's /tmp is never emptied.
+rm -rf "$WORKDIR/src" "$WORKDIR/nf" "$WORKDIR/jm" "$WORKDIR"/*.zip
+
+case "$os" in
+  Darwin|Linux)
+    if [ "$os" = Darwin ]; then dest="$HOME/Library/Fonts"; else dest="$HOME/.local/share/fonts"; fi
+    mkdir -p "$dest"
+    echo ">> installing into $dest"
+    cp -f "$DISTDIR"/*.ttf "$dest"/
+    command -v fc-cache >/dev/null && fc-cache -f "$dest" >/dev/null 2>&1 || true
+    echo ">> built:     $DISTDIR"
+    echo ">> installed: $dest (restart Emacs to use it)"
+    ;;
+  *_NT*)
+    # Per-user install. PowerShell does it: the registry and the GDI calls are
+    # Windows', and so are the paths it is given.
+    cat > "$WORKDIR/install-fonts.ps1" <<'PS1'
+# Installs the fonts in -Dist for the current user, the way the Fonts
+# settings page does: a file in %LOCALAPPDATA%\Microsoft\Windows\Fonts, a
+# value under HKCU\...\Fonts naming it, and the font loaded into the session.
+# Written out and run by build-plemoljp-nf; rerun it alone to retry.
+param([Parameter(Mandatory = $true)][string]$Dist)
+$ErrorActionPreference = 'Stop'
+
+$fontDir = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Fonts'
+$regPath = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
+New-Item -ItemType Directory -Path $fontDir -Force | Out-Null
+if (-not (Test-Path -LiteralPath $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+
+Add-Type -Namespace PlemolJPNF -Name Gdi -MemberDefinition @'
+[DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+public static extern int AddFontResourceW(string file);
+[DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+public static extern bool RemoveFontResourceW(string file);
+[DllImport("user32.dll", CharSet = CharSet.Unicode)]
+public static extern IntPtr SendMessageTimeoutW(IntPtr hWnd, uint msg, UIntPtr wParam,
+    IntPtr lParam, uint flags, uint timeout, out UIntPtr result);
+'@
+
+function Test-Same([string]$a, [string]$b) {
+    try { (Get-FileHash -LiteralPath $a).Hash -eq (Get-FileHash -LiteralPath $b).Hash } catch { $false }
+}
+
+$changed = $false
+$failed = @()
+foreach ($file in Get-ChildItem -LiteralPath $Dist -Filter '*.ttf') {
+    # The value name is the label the Fonts settings page writes; Windows
+    # takes the family and style from inside the file.
+    $family = if ($file.Name -like 'PlemolJPConsoleNF-*') { 'PlemolJP Console NF' } else { 'PlemolJP NF' }
+    $style = switch -regex ($file.BaseName) {
+        'BoldItalic$' { ' Bold Italic'; break }
+        'Bold$'       { ' Bold'; break }
+        'Italic$'     { ' Italic'; break }
+        default       { '' }
+    }
+    $value = "$family$style (TrueType)"
+    $target = Join-Path $fontDir $file.Name
+    $registered = (Get-ItemProperty -LiteralPath $regPath -Name $value -ErrorAction SilentlyContinue).$value
+    # A file already there with these bytes is left alone. The Console NF
+    # faces are a pinned download, so the mintty this runs in can keep them
+    # open; only PlemolJP NF, a new build each time, is written.
+    $same = (Test-Path -LiteralPath $target) -and (Test-Same $target $file.FullName)
+    if ($same -and $registered -eq $target) {
+        Write-Host "   unchanged  $value"
+        continue
+    }
+    if (-not $same) {
+        # A font loaded in a session cannot be written, even with no app
+        # using it (learn.microsoft.com, "Font Installation and Deletion"):
+        # unload it from this one first, as often as it was loaded.
+        $unloaded = @()
+        foreach ($p in @($registered, $target) | Where-Object { $_ } | Select-Object -Unique) {
+            $n = 0
+            while ($n -lt 16 -and [PlemolJPNF.Gdi]::RemoveFontResourceW($p)) { $n++ }
+            if ($n -gt 0) { $unloaded += $p }
+        }
+        try {
+            Copy-Item -LiteralPath $file.FullName -Destination $target -Force
+        } catch {
+            # An app still has it open: load back what was unloaded.
+            foreach ($p in $unloaded) { [void][PlemolJPNF.Gdi]::AddFontResourceW($p) }
+            $failed += $file.Name
+            Write-Host "   in use     $value"
+            continue
+        }
+    }
+    New-ItemProperty -Path $regPath -Name $value -Value $target -PropertyType String -Force | Out-Null
+    [void][PlemolJPNF.Gdi]::AddFontResourceW($target)
+    $changed = $true
+    Write-Host "   installed  $value"
+}
+
+if ($changed) {
+    $r = [UIntPtr]::Zero
+    # WM_FONTCHANGE to every top-level window, not waiting on a hung one.
+    [void][PlemolJPNF.Gdi]::SendMessageTimeoutW([IntPtr]0xffff, 0x001D, [UIntPtr]::Zero,
+        [IntPtr]::Zero, 0x0002, 1000, [ref]$r)
+}
+
+# Files of these families that no value names (the other Console NF weights)
+# are removed; one still loaded goes on a run after the next sign-in.
+$keep = (Get-ItemProperty -LiteralPath $regPath).PSObject.Properties |
+    Where-Object { $_.Name -notlike 'PS*' } | ForEach-Object { [string]$_.Value }
+Get-ChildItem -LiteralPath $fontDir -File |
+    Where-Object { ($_.Name -like 'PlemolJPNF-*.ttf' -or $_.Name -like 'PlemolJPConsoleNF-*.ttf') -and
+                   $keep -notcontains $_.FullName } |
+    ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
+
+Write-Host ">> built:     $Dist"
+Write-Host ">> installed: $fontDir"
+Write-Host "              (registered under HKCU\Software\Microsoft\Windows NT\CurrentVersion\Fonts)"
+if ($failed) {
+    Write-Host ">> Not replaced: $($failed -join ', ') -- an app (Emacs) still has it open."
+    Write-Host "   Close it and retry just this step, without rebuilding:"
+    Write-Host "     powershell -NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -Dist `"$Dist`""
+    Write-Host "   Or by hand: Settings > Personalization > Fonts, uninstall PlemolJP NF, then"
+    Write-Host "   right-click each PlemolJPNF-*.ttf in the built folder above > Install."
+    exit 1
+}
+PS1
+    ps="$(command -v powershell.exe || echo "$(cygpath -S)/WindowsPowerShell/v1.0/powershell.exe")"
+    echo ">> installing for the current user"
+    "$ps" -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$WORKDIR/install-fonts.ps1")" \
+      -Dist "$(cygpath -w "$DISTDIR")"
+    ;;
+  *)
+    echo ">> built: $DISTDIR (no installer for $os)"
+    ;;
+esac
 
 echo ">> done. family: \"PlemolJP NF\""
-ls -1 "$DISTDIR"/*.ttf
