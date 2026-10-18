@@ -41,7 +41,24 @@
   ;; invalid"), quit Emacs completely and delete ~/.emacs.d/server/server.
   (setq server-auth-dir (locate-user-emacs-file "server/"))
   (unless (server-running-p)
-    (server-start)))
+    (server-start))
+
+  ;; An editor for what runs in here and asks for one.  Claude Code's Ctrl+G
+  ;; writes the prompt to a file, opens it in $VISUAL (else $EDITOR) and
+  ;; waits for the editor to exit; Claude runs in a terminal inside this
+  ;; Emacs, so the editor is this Emacs, through emacsclient, which returns
+  ;; at `C-x #'.  Without -n: with it, emacsclient would return at once and
+  ;; Claude read the prompt before it was written.  Set here, not in the
+  ;; system, it reaches only what Emacs starts -- the terminals and what runs
+  ;; in them -- and Windows needs no variable of its own.  The client beside
+  ;; the running Emacs rather than the first on PATH, which on Windows is a
+  ;; Scoop shim.
+  (when-let* ((client (locate-file "emacsclient"
+                                   (list invocation-directory
+                                         (expand-file-name "bin" invocation-directory))
+                                   exec-suffixes #'file-executable-p)))
+    (setenv "VISUAL" client)
+    (setenv "EDITOR" client)))
 
 ;; which-key: what a prefix can do, shown only when the next key is slow
 ;; in coming.  A menu on every prefix (capture's, a transient's) is in the
