@@ -90,7 +90,7 @@ which would fail by searching the wrong tree rather than by complaining."
       (call-interactively #'deadgrep)))
 
   ;; memex is notes, and searching notes should be instant.  The documents
-  ;; kept beside them -- org-moor's copies in source/, older attachments in
+  ;; kept beside them -- org-moor's sources in sources/, older attachments in
   ;; data/ -- are what made `:memex' slow, and on Windows stop it outright
   ;; when rga's extraction of a PDF or a deck ran away.  So `:memex' is plain
   ;; rg over the notes, and `:source' is rga over the documents, asked for on
@@ -130,12 +130,12 @@ which would fail by searching the wrong tree rather than by complaining."
   (defun my/deadgrep-memex ()
     (interactive)
     (my/deadgrep-in org-directory
-                    (list "rg" "--no-config" "--glob=!/source/" "--glob=!/data/")))
+                    (list "rg" "--no-config" "--glob=!/sources/" "--glob=!/data/")))
   (defun my/deadgrep-source ()
     (interactive)
-    (my/deadgrep-in (if (boundp 'org-moor-store-directory)
-                        org-moor-store-directory
-                      (expand-file-name "source/" org-directory))))
+    (my/deadgrep-in (if (boundp 'org-moor-sources-directory)
+                        org-moor-sources-directory
+                      (expand-file-name "sources/" org-directory))))
   (defun my/deadgrep-reference () (interactive) (my/deadgrep-in my/deadgrep-reference-directory))
   (defun my/deadgrep-project ()   (interactive) (my/deadgrep-in my/deadgrep-project-directory))
 

@@ -132,13 +132,17 @@ With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_arc
     (unless (and org-directory (file-directory-p org-directory))
       (user-error "Please set a valid `org-directory`"))
 
+    ;; The directory is given without its trailing slash, so it is made a
+    ;; directory name before matching: "/archive/" never matched it bare.
+    ;; memex/sources/ is org-moor's sources, whose Org files are records.
     (let* ((ext (if archivep "\\.org\\(_archive\\)?$" "\\.org$"))
            (files (directory-files-recursively
                    org-directory
                    ext
                    nil
                    (lambda (d)
-                     (not (string-match-p "/archive/" d))))))
+                     (not (string-match-p "/\\(?:archive\\|sources\\)/"
+                                          (file-name-as-directory d)))))))
       (consult-org-heading nil files)))
 
   ;; The keys that reach Org from outside it.  Bound before it loads, to the
@@ -1411,7 +1415,9 @@ answering yes deletes it without putting anything back."
   ;; The db is a regenerable cache of the .org files, so it stays machine-local
   ;; and out of the synced notes dir; only the .org files (and data/) sync.
   (setq org-roam-directory (file-truename org-directory)
-        org-roam-file-exclude-regexp "/[Aa]rchive/"
+        ;; memex/sources/ holds the records of org-moor's sources, which are
+        ;; Org files and no notes.  Matched against the path from memex.
+        org-roam-file-exclude-regexp (list "/[Aa]rchive/" "\\`sources/")
         org-roam-completion-everywhere t)
 
   ;; Show tags alongside the title in `org-roam-node-find', so nodes are
@@ -1661,29 +1667,86 @@ block already shows what is out with them, as a live query."
         org-noter-notes-search-path (list org-directory)
         org-noter-doc-property-in-notes t))
 
+;; org-dock: one heading taken out of its file into a copy of its own, with
+;; everything under it, to be written in -- by me, or by Claude -- and
+;; written back on C-c C-c.  While it is out the heading cannot change in
+;; its file, so asking Claude to work on it can change nothing else.  The
+;; place org-moor's noter writes in, and the board's `e' in org-truss.
+(use-package org-dock
+  :straight (org-dock :host github :repo "yoshzucker/org-dock"
+                      :files ("*.el"))
+  :defer t
+  :commands (org-dock)
+  :init
+  ;; `C-c d', for dock: in Org only, on the heading point is in.
+  (my/define-key
+   (:map org-mode-map
+         :after org
+         :prefix "C-c"
+         :key
+         "d" #'org-dock))
+
+  ;; The copies in var/, outside memex and outside any repository.  org-roam
+  ;; reads every .org file under memex, and a copy carries its heading's
+  ;; ids, so in memex it would be the heading a second time.
+  (setq org-dock-directory (no-littering-expand-var-file-name "org-dock/"))
+
+  ;; Claude starts at the root of the heading's project -- memex, or a
+  ;; document's directory -- and is let into the copies as well, which are
+  ;; outside it.  Made now, since Claude is told of it as it starts, which
+  ;; may be before any heading has been taken out.  The path is quoted for
+  ;; a POSIX shell, which on Windows is how my-app-agent.el splits the
+  ;; command line too.
+  (make-directory org-dock-directory t)
+  (with-eval-after-load 'claude-code-ide
+    (setq claude-code-ide-cli-extra-flags
+          (string-trim
+           (concat claude-code-ide-cli-extra-flags " --add-dir "
+                   (shell-quote-argument (expand-file-name org-dock-directory) t)))))
+  :config
+  (setq org-dock-agent-function #'my/org-dock-claude))
+
+(defun my/org-dock-claude (request)
+  "Make the project's Claude ready to work on the copy REQUEST names.
+The request file -- which file to write, which to read, where point is --
+goes into Claude's prompt as an @-mention, and the Claude window is
+selected for what to ask to be typed after it: Ctrl+G there opens the
+prompt in a buffer of this Emacs, for asking at length.  The project is
+the heading's own, since the copy's `default-directory' is its file's
+directory, so the sources are files of the project Claude started in.
+Each change Claude makes to the copy is an ediff to take or refuse."
+  (require 'claude-code-ide)
+  (let ((session (claude-code-ide--resolve-session 'auto "Ask Claude instance: ")))
+    (unless (and session (claude-code-ide-mcp-session-client session))
+      (user-error "No Claude for this project yet: C-c x starts one, then ask again"))
+    (with-current-buffer (claude-code-ide-mcp-session-buffer session)
+      (claude-code-ide--terminal-send-string
+       (concat "@" (plist-get request :request) " ")))
+    (claude-code-ide-switch-to-buffer)))
+
 ;; org-moor: what arrives in pieces -- a chat, a mail's attachment, a link
 ;; to a shared drive, a manual -- taken into memex and tied to a heading,
-;; and the way back to it.  Its copies live in memex/source/ (the package's
-;; default), beside the notes so they travel together, and out of `:memex';
-;; `:source' searches them on purpose (see my-editor-search.el).
+;; and the way back to it.  Each source is a directory of memex/sources/
+;; (the package's default), its copy and its record, beside the notes so
+;; they travel together, and out of `:memex'; `:source' searches them on
+;; purpose (see my-editor-search.el).  A heading points to a source with a
+;; `moor:' link; no heading has to be a source's.
 (use-package org-moor
   :straight (org-moor :host github :repo "yoshzucker/org-moor"
                       :files ("*.el" ("script" "script/*")))
   :defer t
   :commands (org-moor-quote org-moor-jump org-moor-take-file org-moor-take-url
-             org-moor-draft org-moor-sweep org-moor-put-away
-             org-moor-put-away-and-take org-moor-noter org-moor-insert-note
-             org-moor-open-source org-moor-prune)
+             org-moor-sweep org-moor-put-away org-moor-put-away-and-take
+             org-moor-noter org-moor-insert-place org-moor-open-source
+             org-moor-retitle org-moor-prune)
   :init
   ;; A prefix of its own, as upwell has `C-c u'.
   ;;
   ;; `q' quotes the clipboard: at point in Org, with `C-u' (or from outside
   ;; Org) under a heading picked from the refile targets.  `f' and `w' take a
-  ;; file and a web page the same way.  `j' goes back to anything taken.
-  ;; `d' opens a draft for the heading, written in on C-c C-c; there C-c
-  ;; C-a asks Claude, which reads the heading's sources as files, and its
-  ;; reply comes into the draft as conflicts to take or refuse.  In Dired,
-  ;; `f' and `d' take the file at point, and `d' then drafts for it.
+  ;; file and a web page the same way: the source into memex/sources/, and a
+  ;; link to it, named by its title, on a line of its own here.  `j' goes
+  ;; back to anything taken.  In Dired, `f' takes the file at point.
   ;;
   ;; `s' lists what piled up in Downloads and the desktop as one Dired
   ;; buffer, newest first, and TAB opens a subdirectory there as anywhere.
@@ -1691,12 +1754,14 @@ block already shows what is out with them, as a live query."
   ;; mine, picked or made; `P' also takes it from there, as a copy, since
   ;; directories get renamed and Org should not be pointing into them.
   ;;
-  ;; `n', on a heading, reads its source's copy beside it -- a PDF or a
-  ;; text, read-only -- where `i' notes the page, or the line, and the
-  ;; selection into the source's draft and `q' puts the windows back.  `i'
-  ;; here does the same from a copy opened any other way.  `o', on a
-  ;; heading, opens its source's copy, `C-u' its origin.  `x' lists the
-  ;; copies largest first, to choose which to let go.
+  ;; `n', on a heading, reads a source it links to beside it -- a PDF or a
+  ;; text, read-only -- with the heading taken out by org-dock on the right,
+  ;; where `i' notes the page, or the line, and the selection; `q' writes
+  ;; the heading back and puts the windows back.  `i' here does the same
+  ;; from a copy opened by following a link.  `o', on a heading, opens a
+  ;; source's copy, `C-u' its origin.  `t' gives a source another title,
+  ;; since its record is out of the way.  `x' lists the copies largest
+  ;; first, to choose which to let go.
   (my/define-key
    (:map global-map
          :prefix "C-c m"
@@ -1705,13 +1770,13 @@ block already shows what is out with them, as a live query."
          "f" #'org-moor-take-file
          "w" #'org-moor-take-url
          "j" #'org-moor-jump
-         "d" #'org-moor-draft
          "s" #'org-moor-sweep
          "p" #'org-moor-put-away
          "P" #'org-moor-put-away-and-take
          "n" #'org-moor-noter
-         "i" #'org-moor-insert-note
+         "i" #'org-moor-insert-place
          "o" #'org-moor-open-source
+         "t" #'org-moor-retitle
          "x" #'org-moor-prune))
   ;; Named for which-key, which shows them when a key after `C-c m' is slow
   ;; in coming.  Lowercase takes, writes or goes; uppercase is the same act
@@ -1722,7 +1787,6 @@ block already shows what is out with them, as a live query."
       "C-c m q" "quote clipboard"
       "C-c m f" "take file"
       "C-c m w" "take web page"
-      "C-c m d" "draft"
       "C-c m j" "jump back"
       "C-c m s" "sweep downloads"
       "C-c m p" "put away"
@@ -1730,6 +1794,7 @@ block already shows what is out with them, as a live query."
       "C-c m n" "read beside heading"
       "C-c m i" "note this place"
       "C-c m o" "open source (C-u origin)"
+      "C-c m t" "retitle source"
       "C-c m x" "prune copies"))
 
   ;; The bookmarklet (script/org-moor-bookmarklet.txt in the package)
@@ -1762,131 +1827,20 @@ block already shows what is out with them, as a live query."
         org-moor-directory-roots (list "~/Documents/project/"
                                        "~/Documents/reference/")
         org-moor-files-function #'my/org-moor-files
-        org-moor-open-function #'my/open-file
-        org-moor-draft-assist-function #'my/org-moor-draft-claude))
-
-(defvar my/org-moor-claude-sessions (make-hash-table :test #'equal)
-  "Claude sessions by heading id: (SESSION-ID LAST-USED . CACHE-SECONDS).")
-
-(defun my/org-moor-claude--cache-seconds (usage)
-  "Return how long the prompt cache lives, from a reply's USAGE.
-Written to an hour's cache when the subscription has it, else to five
-minutes'; nil when nothing was written, all of it read from the cache."
-  (let ((creation (gethash "cache_creation" usage)))
-    (cond ((not creation) nil)
-          ((> (gethash "ephemeral_1h_input_tokens" creation 0) 0) 3600)
-          ((> (gethash "ephemeral_5m_input_tokens" creation 0) 0) 300))))
-
-(defconst my/org-moor-claude-usual
-  (concat
-   "Rewrite my draft into a note I can rely on later, in Japanese: correct "
-   "Japanese, and a logic that holds -- what is the situation, what is "
-   "required or decided, under which conditions, and what is still "
-   "unclear.  Keep it short; leave out what does not matter for acting on "
-   "it.  Keep my own corrections from before.")
-  "What Claude is asked when nothing is asked.")
-
-(defun my/org-moor-claude--first (context)
-  "Return what starts a Claude session for the draft CONTEXT."
-  (concat
-   "You help me write a note in Org under my heading \""
-   (plist-get context :heading) "\".  These are its sources; read them "
-   "with Read when you need them, again whenever you need to check:\n\n"
-   (mapconcat
-    (lambda (s)
-      (format "- %s (id %s, from %s): %s"
-              (plist-get s :title) (plist-get s :id) (plist-get s :origin)
-              (or (plist-get s :file) "no copy; only what the heading says")))
-    (plist-get context :sources) "\n")
-   "\n\nThe heading as it stands now:\n\n" (plist-get context :entry)
-   "\n\nEach time I send my draft and what I ask.  Reply with what the "
-   "whole draft should become, in Org markup, never Markdown.  Add nothing "
-   "the sources do not say, and say where they are ambiguous rather than "
-   "guess.  Tie what you write to where it comes from with a link: "
-   "[[moor:ID::12][p. 12]] for page 12 of a PDF, [[moor:ID::a few words]"
-   "[l. N]] for a place in a text, the words exactly as they stand there, "
-   "and keep my links next to the sentences they support.  When I ask a "
-   "question rather than for a change, keep my draft as it is and add the "
-   "answer at its end.\n\n"))
-
-(defun my/org-moor-draft-claude (context reply)
-  "Ask Claude Code about the draft CONTEXT, and call REPLY with its answer.
-A `claude -p' of its own, in the store, allowed only to read: the
-heading's sources are given as files there, read when needed.  The draft
-and what was asked go on stdin, and what the draft should become comes
-back, held to a JSON schema so that nothing else is in it.
-
-A heading keeps its Claude session while the session's prompt cache lives
--- an hour on a subscription, read from each reply -- so that asking
-again sends only the draft and the question, the sources being read
-already.  After that, or when CONTEXT says :fresh, a new session starts."
-  (let* ((default-directory (file-name-as-directory org-moor-store-directory))
-         (key (plist-get context :id))
-         (known (gethash key my/org-moor-claude-sessions))
-         (resume (and known (not (plist-get context :fresh))
-                      (< (float-time (time-subtract nil (cadr known)))
-                         (or (cddr known) 0))
-                      (car known)))
-         (asked (plist-get context :instruction))
-         (out (generate-new-buffer " *org-moor-claude*"))
-         (proc
-          (make-process
-           :name "org-moor-claude"
-           :buffer out
-           :connection-type 'pipe
-           :command (append (list "claude" "-p"
-                                  "--tools" "Read" "--allowedTools" "Read"
-                                  "--output-format" "json"
-                                  "--json-schema"
-                                  "{\"type\":\"object\",\"properties\":{\"draft\":{\"type\":\"string\"}},\"required\":[\"draft\"]}")
-                            (and resume (list "--resume" resume)))
-           :sentinel
-           (lambda (proc _event)
-             (unless (process-live-p proc)
-               (let* ((json (with-current-buffer out
-                              (goto-char (point-min))
-                              (ignore-errors
-                                (json-parse-buffer :null-object nil
-                                                   :false-object nil))))
-                      (draft (and json (not (gethash "is_error" json))
-                                  (gethash "structured_output" json)
-                                  (gethash "draft" (gethash "structured_output" json)))))
-                 (if (not draft)
-                     (progn (display-buffer out)
-                            (message "org-moor: Claude failed"))
-                   (kill-buffer out)
-                   (puthash key
-                            (cons (gethash "session_id" json)
-                                  (cons (current-time)
-                                        ;; A reply read wholly from the
-                                        ;; cache does not say: an hour, as
-                                        ;; the subscription gives.
-                                        (or (my/org-moor-claude--cache-seconds
-                                             (gethash "usage" json))
-                                            (cddr known)
-                                            3600)))
-                            my/org-moor-claude-sessions)
-                   (funcall reply draft))))))))
-    (process-send-string
-     proc
-     (concat (unless resume (my/org-moor-claude--first context))
-             "My draft now:\n\n" (plist-get context :draft)
-             "\n\nWhat I ask: "
-             (if (string-empty-p asked) my/org-moor-claude-usual asked)))
-    (process-send-eof proc)
-    (message "org-moor: asking Claude (%s)..."
-             (if resume "same session" "new session"))))
+        org-moor-open-function #'my/open-file))
 
 (defun my/org-moor-files ()
   "Org files `org-moor-jump' looks in: memex without archive/, and the agenda.
 The same tree `my/consult-org-headings-all' offers, so the two never
-disagree about what exists."
+disagree about what exists.  Not memex/sources/ either: its Org files are
+the sources' records, not notes."
   (delete-dups
    (append (org-agenda-files t)
            (and org-directory (file-directory-p org-directory)
                 (directory-files-recursively
                  org-directory "\\.org\\'" nil
-                 (lambda (d) (not (string-match-p "/archive/" d))))))))
+                 (lambda (d) (not (string-match-p "/\\(?:archive\\|sources\\)/"
+                                                  (file-name-as-directory d)))))))))
 
 ;;;; Finding the line that takes a second to step onto
 
@@ -2191,6 +2145,12 @@ what to look at."
   ;; document is thought in.  The board stays English, so on it whatever is
   ;; Japanese came from truss.org; the identifiers stay English either way.
   (setq org-truss-language 'ja)
+
+  ;; A document's directory is a project of its own, by the `.project' that
+  ;; `project-vc-extra-root-markers' names (my-files-vc.el): so Claude, which
+  ;; claude-code-ide starts at the project's root, starts beside truss.org,
+  ;; its CLAUDE.md and its sources/, wherever the directory lies.
+  (setq org-truss-project-file ".project")
 
   ;; The board's keys -- c R D a d s u p r o O i P x = -- are keys normal
   ;; state would take first but motion state leaves alone, so the board
