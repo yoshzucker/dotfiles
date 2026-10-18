@@ -21,9 +21,11 @@
   ;; that works only once the package is loaded is a key that can never load
   ;; it.  `ghostel-module-directory' is read while ghostel.el is loading,
   ;; because that is when it loads the native module.
+  ;;
+  ;; The prefix is `C-c g', for ghostel.
   (my/define-key
    (:map global-map
-         :prefix "C-c t"
+         :prefix "C-c g"
          :key
          "t" #'ghostel
          "p" #'ghostel-project
