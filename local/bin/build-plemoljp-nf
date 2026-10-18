@@ -13,13 +13,21 @@ IFS=$'\n\t'
 # icons/powerline correctly, so we copy those from Console rather than patch.
 # Console is the squeezed derivative. Stretching a Console glyph to 2 cells
 # yields a small mark in a gap, or an oval — never a Japanese 2-cell 記号.
+# SUPPLEMENT = JuliaMono, for the Miscellaneous Technical and Dingbats
+# symbols neither PlemolJP has (⏚ ✗ ✘ ✕ ✖ ⌫ ⍺ …). A glyph missing here is
+# drawn from whatever system font has it: its advance breaks the column,
+# its ascent/descent grows the row, and that font differs between macOS and
+# Windows. JuliaMono is OFL and monospace, covers every such glyph in both
+# blocks, and has weights whose stems match Plex at the cell scale. Its
+# Reserved Font Name is not used by this font.
 #
 # Split is by PURPOSE, not by Unicode block:
 #   2 cells — Japanese prose (read in sentences / formulas): ①⑳ ⅠⅡ ∀∃≦
 #             ★⚠☑ ※, and マルバツサンカクシカク ○●◯◎ × □■ △▲▽ ◇◆
 #   1 cell  — drawing / UI chrome that Emacs and terminals tile in columns:
 #             Nerd PUA, Powerline slants, box-drawing, block elements,
-#             arrows, dingbats ✓❯, misc arrows ⬆⭐, geometric drawing ▶◀◢
+#             arrows, dingbats ✓✗❯, misc arrows ⬆⬇, geometric drawing ▶◀◢,
+#             technical marks ⏚⌫ (the JuliaMono supplement is all 1 cell)
 # A prose-set character that is mostly used as chrome stays 1 cell. Today
 # that is only ▼ U+25BC (collapse/menu), kept with ▶. Do not flatten the
 # whole マルバツ set to 1 cell to avoid that exception: ○×△□ would then
@@ -46,11 +54,13 @@ IFS=$'\n\t'
 # wcwidth, not this font — do not regenerate it for a width-rule change.
 #
 # Prerequisite: fontforge (macOS: brew install fontforge).
+# Every source is a pinned release, so macOS and Windows build the same font.
 # Installs into ~/Library/Fonts (macOS) or ~/.local/share/fonts (Linux). On
 # Windows/MSYS2 the ttf are only built into "$WORKDIR/dist" (bootstrap.ps1
 # registers them for the user). Override WORKDIR to control the build location.
 
 PLEMOLJP_VERSION="${PLEMOLJP_VERSION:-3.0.0}"
+JULIAMONO_VERSION="${JULIAMONO_VERSION:-0.63.2}"
 STYLES=(Regular Bold Italic BoldItalic)
 
 command -v fontforge >/dev/null || { echo "error: fontforge not found (brew install fontforge)" >&2; exit 1; }
@@ -69,11 +79,17 @@ curl -fsSL -o "$WORKDIR/PlemolJP.zip" "$base_url/PlemolJP_v${PLEMOLJP_VERSION}.z
 unzip -oq "$WORKDIR/PlemolJP.zip" -d "$WORKDIR/src"
 base_dir="$WORKDIR/src/PlemolJP_v${PLEMOLJP_VERSION}/PlemolJP"
 
-# Nerd glyph source = PlemolJP Console NF. Reuse an installed copy when present
-# (e.g. the font-plemol-jp-nf cask on macOS) to avoid a large extra download.
+# Nerd glyph source = PlemolJP Console NF. Reuse an installed copy (e.g. the
+# font-plemol-jp-nf cask on macOS) to avoid a large extra download, but only
+# when it is release v$PLEMOLJP_VERSION: Windows always downloads, and another
+# release here would build a font that differs from it.
 sym_dir=""
 for d in "$HOME/Library/Fonts" "$HOME/.local/share/fonts" "$HOME/.fonts" "/Library/Fonts"; do
-  if [ -f "$d/PlemolJPConsoleNF-Regular.ttf" ]; then sym_dir="$d"; break; fi
+  f="$d/PlemolJPConsoleNF-Regular.ttf"
+  [ -f "$f" ] || continue
+  v="$(fontforge -lang=py -c 'import fontforge, sys; print(fontforge.open(sys.argv[1]).version.split(";")[0])' "$f" 2>/dev/null | tail -n 1)"
+  if [ "$v" = "v${PLEMOLJP_VERSION}" ]; then sym_dir="$d"; break; fi
+  echo ">> installed Console NF is $v, not v${PLEMOLJP_VERSION}; not reusing $d"
 done
 if [ -z "$sym_dir" ]; then
   echo ">> downloading PlemolJP_NF (Console NF source) v${PLEMOLJP_VERSION}"
@@ -83,9 +99,19 @@ if [ -z "$sym_dir" ]; then
 fi
 echo ">> nerd glyph source: $sym_dir"
 
+# Supplement glyph source = JuliaMono. Only the files merge.py takes are
+# extracted (see the style loop below).
+echo ">> downloading JuliaMono v${JULIAMONO_VERSION}"
+curl -fsSL -o "$WORKDIR/JuliaMono-ttf.zip" \
+  "https://github.com/cormullion/juliamono/releases/download/v${JULIAMONO_VERSION}/JuliaMono-ttf.zip"
+unzip -oq "$WORKDIR/JuliaMono-ttf.zip" \
+  JuliaMono-Light.ttf JuliaMono-LightItalic.ttf JuliaMono-Black.ttf JuliaMono-BlackItalic.ttf \
+  -d "$WORKDIR/jm"
+sup_dir="$WORKDIR/jm"
+
 cat > "$WORKDIR/merge.py" <<'PY'
 import fontforge, psMat, struct, sys
-base_path, sym_path, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
+base_path, sym_path, sup_path, out_path = sys.argv[1:5]
 NEWFAM = "PlemolJP NF"
 
 # --- OS/2 xAvgCharWidth preservation -----------------------------------------
@@ -141,12 +167,32 @@ base = fontforge.open(base_path)   # non-console PlemolJP (2-cell prose outlines
 sym  = fontforge.open(sym_path)    # PlemolJP Console NF (1-cell nerd + drawing glyphs)
 assert base.em == sym.em
 base.encoding = 'UnicodeFull'; sym.encoding = 'UnicodeFull'
+
+# Emoji_Presentation=Yes in the BMP (Unicode emoji-data.txt). Emacs gives
+# these the `emoji' script and draws them from the emoji fontset even where
+# this font has a glyph, so a glyph here only puts its advance into the
+# char-width map, where it disagrees with what is drawn. None is kept: the
+# copies below skip them, and the base's own (◽◾) are removed after them.
+EMOJI_PRESENTATION = set()
+for lo, hi in ((0x231A, 0x231B), (0x23E9, 0x23EC), (0x23F0, 0x23F0), (0x23F3, 0x23F3),
+               (0x25FD, 0x25FE), (0x2614, 0x2615), (0x2648, 0x2653), (0x267F, 0x267F),
+               (0x2693, 0x2693), (0x26A1, 0x26A1), (0x26AA, 0x26AB), (0x26BD, 0x26BE),
+               (0x26C4, 0x26C5), (0x26CE, 0x26CE), (0x26D4, 0x26D4), (0x26EA, 0x26EA),
+               (0x26F2, 0x26F3), (0x26F5, 0x26F5), (0x26FA, 0x26FA), (0x26FD, 0x26FD),
+               (0x2705, 0x2705), (0x270A, 0x270B), (0x2728, 0x2728), (0x274C, 0x274C),
+               (0x274E, 0x274E), (0x2753, 0x2755), (0x2757, 0x2757), (0x2795, 0x2797),
+               (0x27B0, 0x27B0), (0x27BF, 0x27BF), (0x2B1B, 0x2B1C), (0x2B50, 0x2B50),
+               (0x2B55, 0x2B55)):
+    EMOJI_PRESENTATION.update(range(lo, hi + 1))
+
+# Every Console glyph the base lacks, at Console's advance: the Nerd PUA,
+# and a dozen outside it (power symbols ⏻⏼⏽⏾⭘, ☰ ✔, ‗‛‟‣). ☰ is in
+# Miscellaneous Symbols but is a menu icon, 1 cell like the rest of Console.
+# Base keeps its native glyphs (e.g. powerline E0A0-E0B3).
 copied = 0
 for g in sym.glyphs():
     u = g.unicode
-    if u is None or u < 0xE000:      # only PUA / nerd glyph area
-        continue
-    if u in base:                     # keep base's native glyphs (e.g. powerline E0A0-E0B3)
+    if u is None or u < 0 or u in base or u in EMOJI_PRESENTATION:
         continue
     sym.selection.none(); sym.selection.select(("unicode",), u); sym.copy()
     base.selection.none(); base.selection.select(("unicode",), u); base.paste()
@@ -173,7 +219,7 @@ HALF_WIDTH_OVERRIDES = [
     (0x2580, 0x259F),  # Block Elements                  (▀ ▄ █ ░ ▒ ▓)
     (0x25A0, 0x25FF),  # Geometric Shapes (drawing)      (▶ ▼ ◀ ◢; KEEP below)
     (0x2700, 0x27BF),  # Dingbats                        (✓ ✗ ✔ ✘ ❯ ❮)
-    (0x2B00, 0x2BFF),  # Miscellaneous Symbols and Arrows (⬆ ⬇ ⬅ ➡ ⭐)
+    (0x2B00, 0x2BFF),  # Miscellaneous Symbols and Arrows (⬆ ⬇ ⬅ ⬈)
 ]
 FULLWIDTH_KEEP = {
     0x25A0, 0x25A1,        # ■ □
@@ -185,13 +231,52 @@ FULLWIDTH_KEEP = {
 halved = 0
 for lo, hi in HALF_WIDTH_OVERRIDES:
     for u in range(lo, hi + 1):
-        if u in FULLWIDTH_KEEP:
+        if u in FULLWIDTH_KEEP or u in EMOJI_PRESENTATION:
             continue
         if u in sym and u in base:
             sym.selection.none(); sym.selection.select(("unicode",), u); sym.copy()
             base.selection.none(); base.selection.select(("unicode",), u); base.paste()
             base[u].width = sym[u].width
             halved += 1
+
+# JuliaMono supplement: what neither PlemolJP has in these blocks, 1 cell.
+# One transform for every glyph, so JuliaMono's own proportions survive:
+# its cell is scaled onto ours (sidebearings kept, tiling pieces still
+# meet), then raised so its math axis -- the centre of '+' -- sits on
+# Plex's. The caller passes the weight whose stems match this style's at
+# that scale: Light for Regular, Black for Bold. Composites are unlinked
+# in JuliaMono first; pasted as references they would bind to base glyphs
+# of the same name.
+SUPPLEMENT_RANGES = [
+    (0x2300, 0x23FF),  # Miscellaneous Technical (⏚ ⌫ ⎓ ⍺)
+    (0x2700, 0x27BF),  # Dingbats                (✗ ✘ ✕ ✖ ✽)
+]
+sup = fontforge.open(sup_path)
+sup.encoding = 'UnicodeFull'
+HALF = base[0x41].width                   # 'A'
+k = HALF / float(sup[0x41].width)
+_pb, _sb = base[0x2B].boundingBox(), sup[0x2B].boundingBox()
+dy = (_pb[1] + _pb[3]) / 2.0 - (_sb[1] + _sb[3]) / 2.0 * k
+supplied = 0
+for lo, hi in SUPPLEMENT_RANGES:
+    for u in range(lo, hi + 1):
+        if u in base or u in EMOJI_PRESENTATION or u not in sup:
+            continue
+        if sup[u].references:
+            sup[u].unlinkRef()
+        sup.selection.none(); sup.selection.select(("unicode",), u); sup.copy()
+        base.selection.none(); base.selection.select(("unicode",), u); base.paste()
+        g = base[u]
+        g.transform(psMat.compose(psMat.scale(k), psMat.translate(0.0, dy)))
+        g.width = HALF
+        supplied += 1
+
+# The base's own Emoji_Presentation glyphs (see EMOJI_PRESENTATION).
+dropped = 0
+for u in sorted(EMOJI_PRESENTATION):
+    if u in base:
+        base.removeGlyph(u)
+        dropped += 1
 
 # ×÷±: 2-cell advance, Latin (half-cell) ink centred in the cell. Scale
 # about the cell centre to ○'s ink. Do not copy Console's 1-cell glyphs.
@@ -348,8 +433,8 @@ base.hhea_ascent     = LINE_ASC
 base.hhea_descent    = -LINE_DESC
 base.hhea_linegap    = 0
 
-print("  %s -> %d nerd, %d half-width, %d prose-filled, %d tile-rescaled"
-      % (out_path.split('/')[-1], copied, halved, filled, rescaled))
+print("  %s -> %d console, %d half-width, %d supplemented, %d emoji dropped, %d prose-filled, %d tile-rescaled"
+      % (out_path.split('/')[-1], copied, halved, supplied, dropped, filled, rescaled))
 base.generate(out_path)
 # Restore OS/2.xAvgCharWidth to the source value (fontforge inflated it on generate).
 if src_xavg is not None:
@@ -358,9 +443,18 @@ PY
 
 echo ">> merging styles: ${STYLES[*]}"
 for s in "${STYLES[@]}"; do
+  # JuliaMono weight whose stems match this style's (measured on '|' and
+  # '-' at the cell scale); the italic styles take its italic, which
+  # slants what it slants (APL, ⌈⌉) and keeps dingbats upright.
+  case "$s" in
+    Regular)    sup="JuliaMono-Light.ttf" ;;
+    Italic)     sup="JuliaMono-LightItalic.ttf" ;;
+    Bold)       sup="JuliaMono-Black.ttf" ;;
+    BoldItalic) sup="JuliaMono-BlackItalic.ttf" ;;
+  esac
   fontforge -lang=py -script "$WORKDIR/merge.py" \
     "$base_dir/PlemolJP-$s.ttf" "$sym_dir/PlemolJPConsoleNF-$s.ttf" \
-    "$DISTDIR/PlemolJPNF-$s.ttf" 2>&1 | grep -E '  PlemolJPNF-' || true
+    "$sup_dir/$sup" "$DISTDIR/PlemolJPNF-$s.ttf" 2>&1 | grep -E '  PlemolJPNF-' || true
 done
 
 case "$(uname -s)" in
