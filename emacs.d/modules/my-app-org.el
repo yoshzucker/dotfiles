@@ -2152,7 +2152,7 @@ what to look at."
   ;; its CLAUDE.md and its sources/, wherever the directory lies.
   (setq org-truss-project-file ".project")
 
-  ;; The board's keys -- c R D a d s u p r o O i P x = -- are keys normal
+  ;; The board's keys -- c R D A a d s u p r o O i P x = -- are keys normal
   ;; state would take first but motion state leaves alone, so the board
   ;; sits in motion state and moves as every other buffer does: j k, gg G,
   ;; / n, C-d C-u, C-w, w, v y.  Motion state takes ten keys the board
@@ -2165,8 +2165,8 @@ what to look at."
   ;; anywhere.  The other four go to the board because its lines are read by
   ;; the line, not the word or the character: e and b, which edit an entry
   ;; and give a member a ground, over `evil-forward-word-end' and
-  ;; `evil-backward-word-begin'; t and f, which say what a member is and
-  ;; refile it, over `evil-find-char-to' and `evil-find-char'.  w stays
+  ;; `evil-backward-word-begin'; t and f, which name the source a member
+  ;; stands on and refile it, over `evil-find-char-to' and `evil-find-char'.  w stays
   ;; `evil-forward-word-begin', since the board draws one line whole on i.
   ;; The foot of the board reads the keys where it is drawn and says so.
   (evil-set-initial-state 'org-truss-board-mode 'motion)
@@ -2180,7 +2180,7 @@ what to look at."
          "e" #'org-truss-board-edit
          "E" #'org-truss-board-entry-text
          "b" #'org-truss-board-ground
-         "t" #'org-truss-board-kind
+         "t" #'org-truss-board-source
          "f" #'org-truss-board-refile
          "gr" #'org-truss-board-redraw
          "za" #'org-truss-board-fold))
