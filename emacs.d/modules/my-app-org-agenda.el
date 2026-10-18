@@ -655,12 +655,10 @@ Read from the repository's HEAD file rather than asked of git."
 
 (use-package org-dayflow
   :straight (:host github :repo "yoshzucker/org-dayflow")
-  ;; `C-c d' in `:init' against the package's own autoload, so the key is
-  ;; live from the start and nothing is read until it is pressed.
+  ;; No key: it is seldom wanted, and `C-c d' went to org-dock, which is
+  ;; wanted on every heading.  `M-x org-dayflow' reaches the package's own
+  ;; autoload, and nothing is read until then.
   :defer t
-  :init
-  (my/define-key
-   (:map global-map :key "C-c d" #'org-dayflow))
   :config
   ;; Personal category coloring for the timeline.  Category names live ONLY here
   ;; (never in the org-dayflow package); adjust to match your calendar sources.
