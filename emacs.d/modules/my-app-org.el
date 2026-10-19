@@ -2152,7 +2152,7 @@ what to look at."
   ;; its CLAUDE.md and its sources/, wherever the directory lies.
   (setq org-truss-project-file ".project")
 
-  ;; The board's keys -- c R D A a d s u p r o O i P x = -- are keys normal
+  ;; The board's keys -- c R D A a d s u p r O i P x = -- are keys normal
   ;; state would take first but motion state leaves alone, so the board
   ;; sits in motion state and moves as every other buffer does: j k, gg G,
   ;; / n, C-d C-u, C-w, w, v y.  Motion state takes ten keys the board
