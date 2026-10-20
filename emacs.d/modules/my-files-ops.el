@@ -23,8 +23,7 @@
 ;; ---- File open policy (system / emacs / pandoc text) ----
 
 (defcustom my/open-with-system-extensions
-  '("app" "exe" "png" "svg" "lnk" "url" "docx" "xlsx" "xlsm" "pptx"
-    "html" "htm")
+  '("app" "exe" "png" "svg" "lnk" "url" "docx" "xlsx" "xlsm" "pptx")
   "File extensions opened with the OS default app under method `auto'.
 
 Used when FORCE is nil.  Plain C-u force prefers in-Emacs open instead
@@ -38,6 +37,15 @@ The same as Org's: `my/open-org-file-apps' makes `org-file-apps' of it."
   "File extensions opened as pandoc-converted text under method `text'.
 
 Also used under method `auto' when FORCE is a plain C-u."
+  :type '(repeat string)
+  :group 'my-config)
+
+(defcustom my/open-in-browser-extensions
+  '("html" "htm" "xhtml")
+  "File extensions opened in the browser under method `auto'.
+
+The browser `browse-url-browser-function' names, as a file: URL, which
+need not be the one the OS opens HTML with."
   :type '(repeat string)
   :group 'my-config)
 
@@ -63,6 +71,12 @@ Membership is tested against `my/open-with-system-extensions'."
 Membership is tested against `my/open-as-text-extensions'."
   (member (my/open--extension filename) my/open-as-text-extensions))
 
+(defun my/open-in-browser-extension-p (filename)
+  "Return non-nil if FILENAME should open in the browser.
+
+Membership is tested against `my/open-in-browser-extensions'."
+  (member (my/open--extension filename) my/open-in-browser-extensions))
+
 (defun my/open--force-p (arg)
   "Return non-nil if ARG is a plain C-u (raw prefix \\='(4)).
 
@@ -72,20 +86,21 @@ Integer prefixes such as C-u 2 are not treated as force."
 (defun my/open--resolve-method (path method force)
   "Resolve open METHOD for PATH with FORCE flag.
 
-METHOD is `auto' (default), `emacs', `system', or `text'.
+METHOD is `auto' (default), `emacs', `system', `text', or `browser'.
 FORCE is meaningful only for `auto', the raw prefix as Org reads one for
 a link: plain C-u (`my/open--force-p') in Emacs, C-u C-u with the OS."
   (let ((method (or method 'auto))
         (outside (equal force '(16)))
         (force (my/open--force-p force)))
     (pcase method
-      ((or 'emacs 'system 'text) method)
+      ((or 'emacs 'system 'text 'browser) method)
       ('auto
        (cond
         (outside 'system)
         ((and force (my/open-as-text-extension-p path)) 'text)
         (force 'emacs)
         ((my/open-with-system-extension-p path) 'system)
+        ((my/open-in-browser-extension-p path) 'browser)
         (t 'emacs)))
       (_ (error "Unknown open method: %S" method)))))
 
@@ -226,13 +241,13 @@ Interactive and Embark-friendly (prompts for a file)."
 `my/find-file-open-advice' then leaves it to `find-file'.")
 
 (defun my/open-file (path &optional method force)
-  "Open PATH using METHOD (`auto', `emacs', `system', or `text').
+  "Open PATH using METHOD (`auto', `emacs', `system', `text', or `browser').
 
 METHOD defaults to `auto'.  FORCE (plain C-u) affects `auto' only:
 prefer pandoc text for `my/open-as-text-extensions', else in-Emacs
 `find-file', instead of the OS default app.
 
-Return a buffer for `emacs'/`text', or nil for `system'.
+Return a buffer for `emacs'/`text', or nil for `system'/`browser'.
 Interactive and Embark-friendly (prompts for a file)."
   (interactive
    (list (read-file-name "Open file: " nil
@@ -250,6 +265,11 @@ Interactive and Embark-friendly (prompts for a file)."
        (when (fboundp 'recentf-push)
          (recentf-push path))
        (my/open--text path))
+      ('browser
+       (when (fboundp 'recentf-push)
+         (recentf-push path))
+       (browse-url-of-file path)
+       nil)
       ('emacs
        (let ((my/open--in-emacs t))
          (find-file path))))))
@@ -267,13 +287,14 @@ Otherwise use normal `find-file'.  Interactive and Embark-friendly."
 (defun my/open-org-file-apps ()
   "Return `org-file-apps' entries that send a link to `my/open-file'.
 
-One for each extension the OS opens, so that an Org link opens a file as
+One for each extension the OS or the browser opens, so that an Org link opens a file as
 Dired does; C-u and C-u C-u are Org's own, and mean the same there.  The rest are left to Org, which
 alone goes to the line or text a `file:' link names."
   (mapcar (lambda (ext)
             (cons (concat "\\." (regexp-quote ext) "\\'")
                   (lambda (file _link) (my/open-file file))))
-          my/open-with-system-extensions))
+          (append my/open-with-system-extensions
+                  my/open-in-browser-extensions)))
 
 (defun my/org-open-file-advice (orig path &optional in-emacs line search)
   "Around advice for `org-open-file': in Emacs, when asked, it is so.
@@ -298,7 +319,8 @@ Force (plain C-u) is not taken from `current-prefix-arg' here, because
 `my/open-file' for pandoc text open."
   (pcase (if my/open--in-emacs 'emacs
            (my/open--resolve-method filename 'auto nil))
-    ('emacs (funcall orig filename wildcards))
+    ;; HTML found with `find-file' is to be edited; Dired and links show it.
+    ((or 'emacs 'browser) (funcall orig filename wildcards))
     ('system
      (when (fboundp 'recentf-push)
        (recentf-push filename))
@@ -487,6 +509,7 @@ ARG is passed to `dired-get-marked-files'."
            (when (fboundp 'recentf-push)
              (recentf-push f))
            (my/open--system f))
+          ('browser (browse-url-of-file f))
           ('emacs (view-file f))))))
 
   (defun my/dired-open-file-with-system ()
