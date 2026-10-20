@@ -39,6 +39,15 @@ Also used under method `auto' when FORCE is a plain C-u."
   :type '(repeat string)
   :group 'my-config)
 
+(defcustom my/open-in-eww-extensions
+  '("html" "htm")
+  "File extensions rendered in EWW under method `auto'.
+
+Only where a file is opened to be read -- Dired, an Org link, org-moor.
+`find-file' still visits the source, to be edited; so does plain C-u."
+  :type '(repeat string)
+  :group 'my-config)
+
 (defcustom my/open-as-text-pandoc-format
   "markdown"
   "Pandoc output format for `my/open--text' (e.g. \"markdown\", \"plain\")."
@@ -61,6 +70,12 @@ Membership is tested against `my/open-with-system-extensions'."
 Membership is tested against `my/open-as-text-extensions'."
   (member (my/open--extension filename) my/open-as-text-extensions))
 
+(defun my/open-in-eww-extension-p (filename)
+  "Return non-nil if FILENAME should be rendered in EWW.
+
+Membership is tested against `my/open-in-eww-extensions'."
+  (member (my/open--extension filename) my/open-in-eww-extensions))
+
 (defun my/open--force-p (arg)
   "Return non-nil if ARG is a plain C-u (raw prefix \\='(4)).
 
@@ -70,17 +85,18 @@ Integer prefixes such as C-u 2 are not treated as force."
 (defun my/open--resolve-method (path method force)
   "Resolve open METHOD for PATH with FORCE flag.
 
-METHOD is `auto' (default), `emacs', `system', or `text'.
+METHOD is `auto' (default), `emacs', `system', `text', or `eww'.
 FORCE is meaningful only for `auto' (plain C-u via `my/open--force-p')."
   (let ((method (or method 'auto))
         (force (my/open--force-p force)))
     (pcase method
-      ((or 'emacs 'system 'text) method)
+      ((or 'emacs 'system 'text 'eww) method)
       ('auto
        (cond
         ((and force (my/open-as-text-extension-p path)) 'text)
         (force 'emacs)
         ((my/open-with-system-extension-p path) 'system)
+        ((my/open-in-eww-extension-p path) 'eww)
         (t 'emacs)))
       (_ (error "Unknown open method: %S" method)))))
 
@@ -217,13 +233,13 @@ Interactive and Embark-friendly (prompts for a file)."
   (my/open--text path force-reload))
 
 (defun my/open-file (path &optional method force)
-  "Open PATH using METHOD (`auto', `emacs', `system', or `text').
+  "Open PATH using METHOD (`auto', `emacs', `system', `text', or `eww').
 
 METHOD defaults to `auto'.  FORCE (plain C-u) affects `auto' only:
 prefer pandoc text for `my/open-as-text-extensions', else in-Emacs
 `find-file', instead of the OS default app.
 
-Return a buffer for `emacs'/`text', or nil for `system'.
+Return a buffer for `emacs'/`text'/`eww', or nil for `system'.
 Interactive and Embark-friendly (prompts for a file)."
   (interactive
    (list (read-file-name "Open file: " nil
@@ -241,6 +257,9 @@ Interactive and Embark-friendly (prompts for a file)."
        (when (fboundp 'recentf-push)
          (recentf-push path))
        (my/open--text path))
+      ('eww
+       (eww-open-file path)
+       (current-buffer))
       ('emacs
        (find-file path)))))
 
@@ -254,6 +273,18 @@ Otherwise use normal `find-file'.  Interactive and Embark-friendly."
                          (or (buffer-file-name) default-directory) t)))
   (my/open-file path 'auto '(4)))
 
+(defun my/open-org-file-apps ()
+  "Return `org-file-apps' entries that send a link to `my/open-file'.
+
+One for each extension the policy does not leave to `find-file', so that
+an Org link opens a file as Dired does.  The rest are left to Org, which
+alone goes to the line or text a `file:' link names."
+  (mapcar (lambda (ext)
+            (cons (concat "\\." (regexp-quote ext) "\\'")
+                  (lambda (file _link) (my/open-file file))))
+          (delete-dups (append my/open-with-system-extensions
+                               my/open-in-eww-extensions))))
+
 (defun my/find-file-open-advice (orig filename &optional wildcards)
   "Around advice for `find-file': honor `my/open-with-system-extensions'.
 
@@ -261,7 +292,8 @@ Force (plain C-u) is not taken from `current-prefix-arg' here, because
 `find-file' already uses C-u for wildcards.  Use dired C-u RET or
 `my/open-file' for pandoc text open."
   (pcase (my/open--resolve-method filename 'auto nil)
-    ('emacs (funcall orig filename wildcards))
+    ;; HTML found with `find-file' is to be edited, not read.
+    ((or 'emacs 'eww) (funcall orig filename wildcards))
     ('system
      (when (fboundp 'recentf-push)
        (recentf-push filename))
@@ -449,6 +481,7 @@ ARG is passed to `dired-get-marked-files'."
            (when (fboundp 'recentf-push)
              (recentf-push f))
            (my/open--system f))
+          ('eww (eww-open-file f))
           ('emacs (view-file f))))))
 
   (defun my/dired-open-file-with-system ()

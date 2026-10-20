@@ -348,24 +348,16 @@ agenda file set does not depend on whether rg is installed -- rg's own
 
   (setq org-return-follows-link t)
   
-  (defvar my/org-file-app-rules
-    `(("\\.pdf\\'"  . 'default)
-      ("\\.docx\\'" . 'default)
-      ("\\.xlsx\\'" . 'default)
-      ("\\.pptx\\'" . 'default)
-      ("\\.url\\'"  . 'default)
-      ("\\.lnk\\'"  . 'default)
-      ("\\.png\\'"  . 'default)
-      (directory    . ,(when my/wsl-p "wsl-open %s"))
-      (default      . ,(when my/wsl-p "wsl-open %s"))))
-
-  (dolist (entry my/org-file-app-rules)
-    (when (cdr entry)
-      (add-to-list 'org-file-apps
-                   (cons (car entry)
-                         (if (symbolp (cdr entry))
-                             (symbol-value (cdr entry))
-                           (cdr entry))))))
+  ;; Which files Emacs reads and which the OS opens is decided once, in
+  ;; my-files-ops.el (`my/open-file'), for Dired, Org links and org-moor
+  ;; alike; these entries only hand Org's links to it.  Org's own defaults
+  ;; would open HTML and PDF outside, which pdf-tools and EWW read here.
+  (setq org-file-apps
+        `((remote . emacs)
+          (auto-mode . emacs)
+          ,@(when my/wsl-p
+              '((directory . (lambda (file _link) (my/open--system file)))))
+          ,@(my/open-org-file-apps)))
 
   ;; Refile Settings.  A *static* target list (built from these files), so
   ;; standard `org-refile' narrowing works with orderless+migemo -- unlike
