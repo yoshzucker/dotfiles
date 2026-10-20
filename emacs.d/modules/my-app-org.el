@@ -1779,7 +1779,7 @@ Each change Claude makes to the copy is an ediff to take or refuse."
          "n" #'org-moor-noter
          "i" #'org-moor-insert-place
          "o" #'org-moor-open-source
-         "t" #'org-moor-retitle
+         "t" #'org-moor-set-title
          "x" #'org-moor-prune
          :desc
          "" "moor"
