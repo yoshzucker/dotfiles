@@ -351,7 +351,9 @@ agenda file set does not depend on whether rg is installed -- rg's own
   ;; Which files Emacs reads and which the OS opens is decided once, in
   ;; my-files-ops.el (`my/open-file'), for Dired, Org links and org-moor
   ;; alike; these entries only hand Org's links to it.  Org's own defaults
-  ;; would open HTML and PDF outside, which pdf-tools and EWW read here.
+  ;; would open every PDF outside, which pdf-tools reads here.  moor: links
+  ;; open their copies through the same `org-file-apps', C-u and C-u C-u
+  ;; included.
   (setq org-file-apps
         `((remote . emacs)
           (auto-mode . emacs)
@@ -1786,6 +1788,7 @@ Each change Claude makes to the copy is an ediff to take or refuse."
          "n" #'org-moor-noter
          "i" #'org-moor-insert-place
          "o" #'org-moor-open-source
+         "O" #'org-moor-open-origin
          "t" #'org-moor-set-title
          "x" #'org-moor-prune
          :desc
@@ -1799,7 +1802,8 @@ Each change Claude makes to the copy is an ediff to take or refuse."
          "P" "put away + take"
          "n" "read beside heading"
          "i" "note this place"
-         "o" "open source (C-u origin)"
+         "o" "open source"
+         "O" "open origin"
          "t" "retitle source"
          "x" "prune copies"))
 
@@ -1832,8 +1836,7 @@ Each change Claude makes to the copy is an ediff to take or refuse."
   (setq org-moor-move-directories (list "~/Downloads/" "~/Desktop/")
         org-moor-directory-roots (list "~/Documents/project/"
                                        "~/Documents/reference/")
-        org-moor-files-function #'my/org-moor-files
-        org-moor-open-function #'my/open-file))
+        org-moor-files-function #'my/org-moor-files))
 
 (defun my/org-moor-files ()
   "Org files `org-moor-jump' looks in: memex without archive/, and the agenda.
