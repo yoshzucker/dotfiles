@@ -54,6 +54,9 @@ to symbols or other values. If not, the value is interned."
   :state   STATES       -- Evil states (e.g., normal, insert).
   :prefix  STRING       -- Optional prefix key to prepend.
   :key     KEY-FUNC     -- Flat key/function pairs, or (KEYS...) FUNC pairs.
+  :desc    KEY-STRING   -- Flat key/name pairs, the names which-key shows;
+                           the key \"\" names the prefix itself.  Global,
+                           whatever :state says.
   :after   FEATURES     -- Optional features; delay bindings with `with-eval-after-load`."
   `(progn
      ,@(mapcan
@@ -65,16 +68,31 @@ to symbols or other values. If not, the value is interned."
                  (states (my/plist-key-values spec :state))
                  (prefix (car (my/plist-key-values spec :prefix)))
                  (pairs  (my/plist-key-values spec :key))
+                 (descs  (my/plist-key-values spec :desc))
+                 (full   (lambda (key)
+                           (cond ((and prefix (string-empty-p key)) prefix)
+                                 (prefix (concat prefix " " key))
+                                 (t key))))
                  (body (mapcan (lambda (map)
                                  (cl-loop for (keys func) on pairs by 'cddr
-                                          append (cl-loop for key in (if (listp keys) keys (list keys)) 
-                                                          append (let ((full-key (if prefix (concat prefix " " key) key)))
+                                          append (cl-loop for key in (if (listp keys) keys (list keys))
+                                                          append (let ((full-key (funcall full key)))
                                                                    (if states
                                                                        (cl-loop for state in states
                                                                                 collect `(evil-define-key ',state ,map (kbd ,full-key) ,func))
                                                                      (list `(define-key ,map (kbd ,full-key) ,func)))))))
-                               maps)))
-            (list (my/wrap-after `(progn ,@body) afters))))
+                               maps))
+                 (names (when descs
+                          `((with-eval-after-load 'which-key
+                              ,@(mapcan (lambda (map)
+                                          (cl-loop for (key name) on descs by 'cddr
+                                                   collect (if (eq map 'global-map)
+                                                               `(which-key-add-key-based-replacements
+                                                                  ,(funcall full key) ,name)
+                                                             `(which-key-add-keymap-based-replacements
+                                                                ,map ,(funcall full key) ,name))))
+                                        maps))))))
+            (list (my/wrap-after `(progn ,@body ,@names) afters))))
         specs)))
 
 ;;;###autoload

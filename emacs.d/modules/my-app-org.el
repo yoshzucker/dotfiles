@@ -1734,19 +1734,18 @@ Each change Claude makes to the copy is an ediff to take or refuse."
 (use-package org-moor
   :straight (org-moor :host github :repo "yoshzucker/org-moor"
                       :files ("*.el" ("script" "script/*")))
+  ;; Every command is autoloaded by the package itself.
   :defer t
-  :commands (org-moor-quote org-moor-jump org-moor-take-file org-moor-take-url
-             org-moor-sweep org-moor-put-away org-moor-put-away-and-take
-             org-moor-noter org-moor-insert-place org-moor-open-source
-             org-moor-retitle org-moor-prune)
   :init
   ;; A prefix of its own, as upwell has `C-c u'.
   ;;
-  ;; `q' quotes the clipboard: at point in Org, with `C-u' (or from outside
-  ;; Org) under a heading picked from the refile targets.  `f' and `w' take a
-  ;; file and a web page the same way: the source into memex/sources/, and a
-  ;; link to it, named by its title, on a line of its own here.  `j' goes
-  ;; back to anything taken.  In Dired, `f' takes the file at point.
+  ;; `c' takes the clipboard -- a message's text, or a screenshot -- as a
+  ;; source: at point in Org, with `C-u' (or from outside Org) under a
+  ;; heading picked from the refile targets.  `f' and `w' take a file and a
+  ;; web page the same way: the source into memex/sources/, and a link to
+  ;; it, named by its title, on a line of its own here.  `j' goes back to
+  ;; anything taken.  In Dired, `f' takes the file at point.  A link to a
+  ;; source already taken is Org's own `C-c C-l', `moor:', by its title.
   ;;
   ;; `s' lists what piled up in Downloads and the desktop as one Dired
   ;; buffer, newest first, and TAB opens a subdirectory there as anywhere.
@@ -1762,11 +1761,15 @@ Each change Claude makes to the copy is an ediff to take or refuse."
   ;; source's copy, `C-u' its origin.  `t' gives a source another title,
   ;; since its record is out of the way.  `x' lists the copies largest
   ;; first, to choose which to let go.
+  ;;
+  ;; Each key is named for which-key, which shows the names when a key
+  ;; after `C-c m' is slow in coming.  Lowercase takes, writes or goes;
+  ;; uppercase is the same act carried one step further.
   (my/define-key
    (:map global-map
          :prefix "C-c m"
          :key
-         "q" #'org-moor-quote
+         "c" #'org-moor-take-clipboard
          "f" #'org-moor-take-file
          "w" #'org-moor-take-url
          "j" #'org-moor-jump
@@ -1777,25 +1780,21 @@ Each change Claude makes to the copy is an ediff to take or refuse."
          "i" #'org-moor-insert-place
          "o" #'org-moor-open-source
          "t" #'org-moor-retitle
-         "x" #'org-moor-prune))
-  ;; Named for which-key, which shows them when a key after `C-c m' is slow
-  ;; in coming.  Lowercase takes, writes or goes; uppercase is the same act
-  ;; carried one step further.
-  (with-eval-after-load 'which-key
-    (which-key-add-key-based-replacements
-      "C-c m" "moor"
-      "C-c m q" "quote clipboard"
-      "C-c m f" "take file"
-      "C-c m w" "take web page"
-      "C-c m j" "jump back"
-      "C-c m s" "sweep downloads"
-      "C-c m p" "put away"
-      "C-c m P" "put away + take"
-      "C-c m n" "read beside heading"
-      "C-c m i" "note this place"
-      "C-c m o" "open source (C-u origin)"
-      "C-c m t" "retitle source"
-      "C-c m x" "prune copies"))
+         "x" #'org-moor-prune
+         :desc
+         "" "moor"
+         "c" "take clipboard"
+         "f" "take file"
+         "w" "take web page"
+         "j" "jump back"
+         "s" "sweep downloads"
+         "p" "put away"
+         "P" "put away + take"
+         "n" "read beside heading"
+         "i" "note this place"
+         "o" "open source (C-u origin)"
+         "t" "retitle source"
+         "x" "prune copies"))
 
   ;; The bookmarklet (script/org-moor-bookmarklet.txt in the package)
   ;; arrives through emacsclient as `org-protocol://moor?...', which works
@@ -2247,14 +2246,13 @@ what to look at."
          ;; there are.  The names in the menu carry the difference, since a
          ;; letter cannot.
          "d" #'org-upwell-find-work-directory
-         "f" #'org-upwell-follow-mode))
-  (with-eval-after-load 'which-key
-    (which-key-add-key-based-replacements
-      "C-c u" "upwell"
-      "C-c u u" "bench"
-      "C-c u w" "work directory"
-      "C-c u d" "any work directory"
-      "C-c u f" "follow"))
+         "f" #'org-upwell-follow-mode
+         :desc
+         "" "upwell"
+         "u" "bench"
+         "w" "work directory"
+         "d" "any work directory"
+         "f" "follow"))
   (with-eval-after-load 'org-agenda
     (my/define-key
      (:map org-agenda-mode-map
