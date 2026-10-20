@@ -1765,6 +1765,21 @@ Each change Claude makes to the copy is an ediff to take or refuse."
   ;; Each key is named for which-key, which shows the names when a key
   ;; after `C-c m' is slow in coming.  Lowercase takes, writes or goes;
   ;; uppercase is the same act carried one step further.
+  ;; What is taken goes to any note, not only the files with tasks that
+  ;; `org-refile-targets' reaches through `org-agenda-files': every Org file
+  ;; in memex, as org-roam sees them -- archives and the sources' records
+  ;; left out.
+  (defun my/org-moor-take-files ()
+    "Every note in `org-directory', for `org-moor-take-targets'."
+    (let ((sources (expand-file-name "sources/" org-directory)))
+      (seq-remove (lambda (f)
+                    (or (my/org-agenda-file-excluded-p f)
+                        (string-prefix-p sources (expand-file-name f))))
+                  (my/find-org-recursive org-directory))))
+  (setq org-moor-take-targets
+        '((nil :maxlevel . 6)
+          (my/org-moor-take-files :maxlevel . 6)))
+
   (my/define-key
    (:map global-map
          :prefix "C-c m"
