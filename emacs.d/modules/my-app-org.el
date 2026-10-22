@@ -1730,6 +1730,10 @@ Each change Claude makes to the copy is an ediff to take or refuse."
                       :files ("*.el" ("script" "script/*")))
   ;; Every command is autoloaded by the package itself.
   :defer t
+  ;; With point on a `moor:' link, the echo area says whether its source
+  ;; has a copy -- or only its origin, which following the link would
+  ;; open -- and how, when and from where it was taken.
+  :hook (org-mode . org-moor-eldoc-setup)
   :init
   ;; A prefix of its own, as upwell has `C-c u'.
   ;;
