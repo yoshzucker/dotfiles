@@ -153,28 +153,23 @@
    (:hook find-file-hook :func #'my/tabspaces-arm))
   (with-eval-after-load 'consult (my/tabspaces-arm))
   :config
-  (setq tabspaces-include-buffers '("*GNU Emacs*" "*scratch*" "*Messages*" "*Warnings*" "*Backtrace*"))
+  ;; Only what the user opened belongs to a tab: buffers visiting a file
+  ;; (indirect ones through their base) and Dired.  Everything else --
+  ;; *Messages*, *straight-process*, *Help*, magit, agent-shell, the agenda --
+  ;; is put up by Emacs or a package, and is visible from every tab.  Listing
+  ;; the shared ones instead hid each new kind until someone added it.
+  (defun my/tabspaces-user-buffer-p (buffer)
+    "Return non-nil if BUFFER is one the user opened: a file or a directory."
+    (or (buffer-file-name (or (buffer-base-buffer buffer) buffer))
+        (provided-mode-derived-p (buffer-local-value 'major-mode buffer)
+                                 'dired-mode)))
 
-  (defcustom my/tabspaces-include-prefix '("*Org Agenda" "*Org Dayflow" "*straigt" "magit")
-    "List of buffer name prefixes that should always be included in tabspaces.")
+  (defun my/tabspaces-share-non-user-buffers (orig-fn buffer)
+    "Count BUFFER as local to every tab unless the user opened it."
+    (or (not (my/tabspaces-user-buffer-p buffer))
+        (funcall orig-fn buffer)))
 
-  (defcustom my/tabspaces-include-mode '(agent-shell-mode
-                                         agent-shell-viewport-edit-mode
-                                         agent-shell-viewport-view-mode)
-    "List of major modes whose buffers should always be included in tabspaces.
-Derived modes are matched via `provided-mode-derived-p'.")
-
-  (defun my/tabspaces-include-prefix (orig-fn buffer)
-    (let ((name (buffer-name buffer))
-          (mode (buffer-local-value 'major-mode buffer)))
-      (cond ((seq-some (lambda (prefix) (string-prefix-p prefix name))
-                       my/tabspaces-include-prefix)
-             t)
-            ((apply #'provided-mode-derived-p mode my/tabspaces-include-mode)
-             t)
-            (t (funcall orig-fn buffer)))))
-  
-  (advice-add 'tabspaces--local-buffer-p :around #'my/tabspaces-include-prefix)
+  (advice-add 'tabspaces--local-buffer-p :around #'my/tabspaces-share-non-user-buffers)
 
   ;; The workspace source belongs to both packages, so it is written where
   ;; both are.  Turning the mode on does not bring consult -- that arrives
