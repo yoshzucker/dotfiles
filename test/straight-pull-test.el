@@ -50,8 +50,12 @@
                 my/straight--level-p
                 my/straight--behind-repos
                 my/straight-fetch-at-once
-                my/straight-pull-all))
+                my/straight-pull-all
+                my/straight--head-commit
+                my/straight--commits-between
+                my/straight--pull-report))
     (should (fboundp fn)))
+  (should (boundp 'my/straight-pull-buffer))
   (should (boundp 'my/straight-fetch-timeout))
   (should (boundp 'my/straight-fetch-environment)))
 
@@ -450,6 +454,93 @@ worth naming, because what it merged is not what is on the remote."
                           (and (string-match-p "merged 1 of 1" line)
                                (string-match-p "not reached: pkg" line)))
                         said)))))
+
+;;;; What it says it did
+
+(defun straight-pull-test--report ()
+  "The text of the report buffer."
+  (with-current-buffer my/straight-pull-buffer
+    (buffer-substring-no-properties (point-min) (point-max))))
+
+(defun straight-pull-test--pull-with-fetch (clone script)
+  "Run `my/straight-pull-all' over CLONE with SCRIPT standing in for fetch.
+
+SCRIPT is what the fake git runs when asked to fetch; everything else
+goes to the real one."
+  (let* ((real (executable-find "git"))
+         (bin (expand-file-name "bin" straight-pull-test--root))
+         (fake (expand-file-name "git" bin))
+         (straight--recipe-cache (make-hash-table :test #'equal))
+         (exec-path (cons bin exec-path)))
+    (puthash "pkg" (straight-pull-test--recipe clone) straight--recipe-cache)
+    (make-directory bin t)
+    (with-temp-file fake
+      (insert "#!/bin/sh\n"
+              "for a; do [ \"$a\" = fetch ] && { " script " }; done\n"
+              "exec " real " \"$@\"\n"))
+    (set-file-modes fake #o755)
+    (cl-letf (((symbol-function 'message) #'ignore))
+      (my/straight-pull-all))))
+
+(ert-deftest straight-pull-test-reports-what-each-repository-gained ()
+  "A repository that moved is named with the commits it moved by."
+  (straight-pull-test--with clone
+    (let ((from (straight-pull-test--git clone "rev-parse" "--short=7" "HEAD")))
+      (straight-pull-test--pull-with-fetch clone "exit 0;")
+      (should (straight-pull-test--level-p clone))
+      (let ((report (straight-pull-test--report)))
+        (should (string-match-p "merged 1 of 1" report))
+        (should (string-match-p (concat "^pkg (" from "\\.\\.") report))
+        (dolist (n '(0 1 2))
+          (should (string-match-p (format "^  [0-9a-f]+ remote-%d$" n) report)))
+        (should-not (string-match-p "Still behind\\|Not reached\\|Stopped"
+                                    report))))))
+
+(ert-deftest straight-pull-test-reports-even-when-nothing-moved ()
+  "Nothing to merge is still a report, so a finished run is visible."
+  (straight-pull-test--with clone
+    (straight-pull-test--git clone "merge" "--ff-only" "origin/main")
+    (straight-pull-test--pull-with-fetch clone "exit 0;")
+    (let ((report (straight-pull-test--report)))
+      (should (string-match-p "nothing to merge" report))
+      (should-not (string-match-p "^pkg " report)))))
+
+(ert-deftest straight-pull-test-reports-what-is-still-behind ()
+  "A repository handed to straight and left alone is named as behind."
+  (straight-pull-test--with clone
+    (with-temp-file (expand-file-name "file.txt" clone) (insert "edited\n"))
+    (cl-letf (((symbol-function 'straight-merge-all) #'ignore))
+      (straight-pull-test--pull-with-fetch clone "exit 0;"))
+    (should (string-match-p "^Still behind: pkg$" (straight-pull-test--report)))))
+
+(ert-deftest straight-pull-test-reports-what-was-not-reached ()
+  "The fetch's failures are in the report as well as the echo area."
+  (straight-pull-test--with clone
+    (straight-pull-test--git clone "merge" "--ff-only" "origin/main")
+    (straight-pull-test--pull-with-fetch clone "exit 1;")
+    (should (string-match-p "^Not reached: pkg$" (straight-pull-test--report)))))
+
+(ert-deftest straight-pull-test-reports-a-merge-that-stopped ()
+  "A merge that ends in an error still leaves a report saying so.
+
+This is the case the report is most for: an error is otherwise a message
+the next one talks over, and the run looks as if it simply finished."
+  (straight-pull-test--with clone
+    (with-temp-file (expand-file-name "file.txt" clone) (insert "edited\n"))
+    (cl-letf (((symbol-function 'straight-merge-all)
+               (lambda (&rest _) (error "Something broke"))))
+      (should-error (straight-pull-test--pull-with-fetch clone "exit 0;")))
+    (let ((report (straight-pull-test--report)))
+      (should (string-match-p "^Stopped: Something broke$" report))
+      (should (string-match-p "^Still behind: pkg$" report)))))
+
+(ert-deftest straight-pull-test-reads-a-detached-head ()
+  "A detached HEAD holds its commit, and that is read too."
+  (straight-pull-test--with clone
+    (let ((head (straight-pull-test--git clone "rev-parse" "HEAD")))
+      (should (equal (my/straight--head-commit clone) head))
+      (straight-pull-test--git clone "checkout" "-q" "--detach" "HEAD")
+      (should (equal (my/straight--head-commit clone) head)))))
 
 ;;;; What the ref files say, with no git at all
 
