@@ -716,6 +716,9 @@ comes from `straight-vc-git--ensure-local', which is local by design and
 runs on the merge side.  They are asked after the waiting instead of
 scattered through it, which is the only difference a reader will notice.
 
+When it is done, `my/straight-pull-buffer' says what each repository
+gained, what is still behind and what could not be reached.
+
 PREDICATE filters by package name as it does there.  Given one, this hands
 the whole job to `straight-pull-all': a subset is a handful of round trips,
 and there is nothing in a handful for parallelism to hide.  FROM-UPSTREAM
@@ -736,52 +739,143 @@ none of the ordinary case below."
            (aside (if unreachable
                       (format "; %d not reached: %s" (length unreachable)
                               (string-join (reverse unreachable) ", "))
-                    "")))
-      ;; Only the repositories that are behind.  Merging one costs
-      ;; thirty-seven git processes -- the merge itself is one of them and
-      ;; the rest are questions about which branch, whose remote and what is
-      ;; an ancestor of what -- so asking that of a repository that is
-      ;; already where its remote is costs a third of a second for a certain
-      ;; answer of no.  Over a hundred and thirteen of them it is half a
-      ;; minute here and four times that on Windows.
-      (let ((behind (my/straight--behind-repos)))
-        (if (null behind)
-            (message "straight: nothing to merge%s" aside)
-          (let* ((recipes (my/straight--recipes-by-repo))
-                 (total (length behind))
-                 (reporter (make-progress-reporter
-                            (format "straight: merging %d repositories..." total)
-                            0 total))
-                 (began (float-time))
-                 (done 0)
-                 (left nil))
-            (dolist (repo behind)
-              (unless (my/straight--fast-forward repo (gethash repo recipes))
-                (push repo left))
-              (progress-reporter-update reporter (cl-incf done)))
-            (progress-reporter-done reporter)
-            (message "straight: merged %d of %d repositories in %.0fs%s%s"
-                     (- total (length left)) total (- (float-time) began)
-                     (if left
-                         (format "; %d to look at: %s" (length left)
-                                 (string-join (reverse left) ", "))
-                       "")
-                     aside)
-            ;; And those, the way they have always been done.  straight
-            ;; narrates one repository at a time here rather than counting,
-            ;; which is the right way round now: this is the list that can
-            ;; stop and ask, and a name is what the question will be about.
-            ;;
-            ;; `straight-merge-all' takes the predicate by package and this
-            ;; list is by repository, which are not the same thing: several
-            ;; packages can share one.
-            (when left
-              (straight-merge-all
-               from-upstream
-               (lambda (package)
-                 (when-let* ((recipe (gethash package straight--recipe-cache))
-                             (local-repo (plist-get recipe :local-repo)))
-                   (member local-repo left)))))))))))
+                    ""))
+           ;; Only the repositories that are behind.  Merging one costs
+           ;; thirty-seven git processes -- the merge itself is one of them
+           ;; and the rest are questions about which branch, whose remote and
+           ;; what is an ancestor of what -- so asking that of a repository
+           ;; that is already where its remote is costs a third of a second
+           ;; for a certain answer of no.  Over a hundred and thirteen of
+           ;; them it is half a minute here and four times that on Windows.
+           (behind (my/straight--behind-repos))
+           ;; Where each of them was, so the report can say where it went.
+           (before (mapcar (lambda (repo)
+                             (cons repo (my/straight--head-commit
+                                         (straight--repos-dir repo))))
+                           behind))
+           (summary nil)
+           (stopped nil))
+      ;; The report is written however this ends, a question answered with
+      ;; `C-g' included, because an ending nobody can see is the trouble it
+      ;; is there for.  The echo area is no place for it: the summary is
+      ;; talked over by the next message, gcmh's or anyone's.
+      (unwind-protect
+          (condition-case err
+              (if (null behind)
+                  (message "%s" (setq summary (format "straight: nothing to merge%s"
+                                                      aside)))
+                (let* ((recipes (my/straight--recipes-by-repo))
+                       (total (length behind))
+                       (reporter (make-progress-reporter
+                                  (format "straight: merging %d repositories..." total)
+                                  0 total))
+                       (began (float-time))
+                       (done 0)
+                       (left nil))
+                  (dolist (repo behind)
+                    (unless (my/straight--fast-forward repo (gethash repo recipes))
+                      (push repo left))
+                    (progress-reporter-update reporter (cl-incf done)))
+                  (progress-reporter-done reporter)
+                  (message "%s"
+                           (setq summary
+                                 (format "straight: merged %d of %d repositories in %.0fs%s%s"
+                                         (- total (length left)) total
+                                         (- (float-time) began)
+                                         (if left
+                                             (format "; %d to look at: %s" (length left)
+                                                     (string-join (reverse left) ", "))
+                                           "")
+                                         aside)))
+                  ;; And those, the way they have always been done.  straight
+                  ;; narrates one repository at a time here rather than
+                  ;; counting, which is the right way round now: this is the
+                  ;; list that can stop and ask, and a name is what the
+                  ;; question will be about.
+                  ;;
+                  ;; `straight-merge-all' takes the predicate by package and
+                  ;; this list is by repository, which are not the same thing:
+                  ;; several packages can share one.
+                  (when left
+                    (straight-merge-all
+                     from-upstream
+                     (lambda (package)
+                       (when-let* ((recipe (gethash package straight--recipe-cache))
+                                   (local-repo (plist-get recipe :local-repo)))
+                         (member local-repo left)))))))
+            (t (setq stopped (error-message-string err))
+               (signal (car err) (cdr err))))
+        (my/straight--pull-report (or summary "straight: stopped before merging")
+                                  before unreachable stopped)))))
+
+(defconst my/straight-pull-buffer "*straight-pull*"
+  "The buffer `my/straight-pull-all' says what it did in.")
+
+(defun my/straight--head-commit (dir)
+  "Return the commit HEAD is at in the repository at DIR, or nil.
+
+Read and not asked for, like `my/straight--ref'.  HEAD on a branch names
+the branch; a detached one holds the commit itself."
+  (if-let* ((branch (my/straight--head-branch dir)))
+      (my/straight--ref dir (concat "refs/heads/" branch))
+    (let ((head (expand-file-name ".git/HEAD" dir)))
+      (when (file-readable-p head)
+        (with-temp-buffer
+          (insert-file-contents head)
+          (let ((commit (string-trim (buffer-string))))
+            (and (string-match-p "\\`[0-9a-f]\\{40,\\}\\'" commit) commit)))))))
+
+(defun my/straight--commits-between (dir from to)
+  "Return the one-line log of the commits DIR gained going FROM TO.
+
+Newest first, as git gives them.  Whatever is in TO and not in FROM, so a
+merge straight did by resetting rather than fast-forwarding still lists
+what arrived."
+  (let ((default-directory (file-name-as-directory dir)))
+    (with-temp-buffer
+      (when (eq 0 (call-process "git" nil t nil "log" "--oneline" "--no-decorate"
+                                (concat from ".." to)))
+        (split-string (buffer-string) "\n" t)))))
+
+(defun my/straight--pull-report (summary before unreachable stopped)
+  "Say in `my/straight-pull-buffer' what a pull did, and show it.
+
+SUMMARY is the line the echo area was given.  BEFORE pairs each
+repository the merge looked at with the commit it was at beforehand;
+the ones that moved are listed with what they gained, and the ones still
+behind -- skipped at a question, or never reached -- are named.
+UNREACHABLE is what the fetch could not reach.  STOPPED is the error the
+merge ended on, or nil when it ran to the end."
+  (let (moved still-behind)
+    (pcase-dolist (`(,repo . ,from) before)
+      (let* ((dir (straight--repos-dir repo))
+             (to (my/straight--head-commit dir))
+             (branch (my/straight--origin-default-branch dir)))
+        (when (and from to (not (equal from to)))
+          (push (list repo from to (my/straight--commits-between dir from to))
+                moved))
+        (unless (and branch (my/straight--level-p dir branch))
+          (push repo still-behind))))
+    (with-current-buffer (get-buffer-create my/straight-pull-buffer)
+      (special-mode)
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert (format-time-string "%Y-%m-%d %H:%M  ") summary "\n")
+        (when stopped
+          (insert "\nStopped: " stopped "\n"))
+        (pcase-dolist (`(,repo ,from ,to ,commits) (nreverse moved))
+          (insert (format "\n%s (%s..%s)\n" repo
+                          (substring from 0 7) (substring to 0 7)))
+          (dolist (commit commits)
+            (insert "  " commit "\n")))
+        (when still-behind
+          (insert "\nStill behind: "
+                  (string-join (nreverse still-behind) ", ") "\n"))
+        (when unreachable
+          (insert "\nNot reached: "
+                  (string-join (reverse unreachable) ", ") "\n"))
+        (goto-char (point-min)))
+      (display-buffer (current-buffer)))))
 
 (defun my/straight--repo-holds-work-p (path)
   "Say whether PATH holds anything that is not also on its remote.
