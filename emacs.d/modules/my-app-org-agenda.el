@@ -267,7 +267,12 @@ org's existing key table stays the single source of truth."
            ;; so each block's orientation header is shown in the review.
            ((org-foresight-report-style 'review)
             (org-agenda-compact-blocks nil)))
-          ("d" "People — work with someone in it"
+          ("d" "Dayflow — where the month's work runs, and where it is due"
+           ;; Here rather than on a key of its own: it is another view of the
+           ;; same files, and the dispatcher is where views are chosen.  The
+           ;; package's own `org-dayflow' would ask for a period a second time.
+           (lambda (_match) (org-dayflow-display)) "")
+          ("p" "People — work with someone in it"
            ;; Everything a person is part of, whichever way round: WAIT and
            ;; DELEG are with them, anything else with a `:PEOPLE:' needs them.
            ;; One property says who, and the state says which -- so this is one
@@ -655,11 +660,16 @@ Read from the repository's HEAD file rather than asked of git."
 
 (use-package org-dayflow
   :straight (:host github :repo "yoshzucker/org-dayflow")
-  ;; No key: it is seldom wanted, and `C-c d' went to org-dock, which is
-  ;; wanted on every heading.  `M-x org-dayflow' reaches the package's own
-  ;; autoload, and nothing is read until then.
+  ;; Reached as `C-c a d' from the agenda dispatcher rather than a key of its
+  ;; own: `C-c d' went to org-dock, which is wanted on every heading.  The
+  ;; command there is the package's autoload, and nothing is read until then.
   :defer t
   :config
+  ;; The calendar stays in the agenda and out of the timeline: a weekly
+  ;; meeting drawn as a Gantt chart is a row of the same mark, and a month of
+  ;; a working calendar is more rows of meetings than there is work.  The
+  ;; name is the package's to say, so it is asked for rather than written.
+  (setq org-dayflow-exclude-files '(org-calsync-file))
   ;; Personal category coloring for the timeline.  Category names live ONLY here
   ;; (never in the org-dayflow package); adjust to match your calendar sources.
   ;; These are the categories org-calsync writes: what a thing is, never where
