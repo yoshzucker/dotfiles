@@ -2165,36 +2165,26 @@ what to look at."
   ;; its CLAUDE.md and its sources/, wherever the directory lies.
   (setq org-truss-project-file ".project")
 
-  ;; The board's keys -- c R D A a d s u p r O i P x = -- are keys normal
-  ;; state would take first but motion state leaves alone, so the board
-  ;; sits in motion state and moves as every other buffer does: j k, gg G,
-  ;; / n, C-d C-u, C-w, w, v y.  Motion state takes ten keys the board
-  ;; needs.  Six are given back as the agenda and Vim have them: RET opens
-  ;; the heading in this window; TAB, which is C-i and so
-  ;; `evil-jump-forward', in the other; SPC, `evil-forward-char', shows it
-  ;; there without leaving the board; E, `evil-forward-WORD-end', shows each
-  ;; entry's text under its line; g is a prefix, so drawing again is `gr';
-  ;; and z is one too, so folding what is under a line is `za', as a fold is
-  ;; anywhere.  The other four go to the board because its lines are read by
-  ;; the line, not the word or the character: e and b, which edit an entry
-  ;; and give a member a ground, over `evil-forward-word-end' and
-  ;; `evil-backward-word-begin'; t and f, which name the source a member
-  ;; stands on and refile it, over `evil-find-char-to' and `evil-find-char'.  w stays
-  ;; `evil-forward-word-begin', since the board draws one line whole on i.
-  ;; The foot of the board reads the keys where it is drawn and says so.
+  ;; The board binds few keys of its own -- RET o TAB S-TAB i m x g -- and
+  ;; its other commands wait to be laid out again, called by name till then.
+  ;; Its own i m x o are keys normal state would take first but motion
+  ;; state leaves alone, so the board sits in motion state and moves as
+  ;; every other buffer does: j k, gg G, / n, C-d C-u, C-w, w, v y.  Motion
+  ;; state takes four keys the board needs, given back as Org and Vim have
+  ;; them: RET opens the heading in this window; TAB, which is C-i and so
+  ;; `evil-jump-forward', cycles the line as TAB cycles a heading in Org,
+  ;; and S-TAB the whole board; g is a prefix, so drawing again is `gr'; and
+  ;; z is one too, so folding one line without the cycle is `za', as a fold
+  ;; is anywhere.  The foot of the board reads the keys where it is drawn
+  ;; and says so.
   (evil-set-initial-state 'org-truss-board-mode 'motion)
   (my/define-key
    (:map org-truss-board-mode-map
          :state motion
          :key
          "RET" #'org-truss-board-visit
-         "TAB" #'org-truss-board-visit-other-window
-         "SPC" #'org-truss-board-show
-         "e" #'org-truss-board-edit
-         "E" #'org-truss-board-entry-text
-         "b" #'org-truss-board-ground
-         "t" #'org-truss-board-source
-         "f" #'org-truss-board-refile
+         "TAB" #'org-truss-board-cycle
+         "<backtab>" #'org-truss-board-cycle-all
          "gr" #'org-truss-board-redraw
          "za" #'org-truss-board-fold))
 
