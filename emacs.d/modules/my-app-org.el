@@ -1665,7 +1665,7 @@ block already shows what is out with them, as a live query."
 ;; everything under it, to be written in -- by me, or by Claude -- and
 ;; written back on C-c C-c.  While it is out the heading cannot change in
 ;; its file, so asking Claude to work on it can change nothing else.  The
-;; place org-moor's noter writes in, and the board's `e' in org-truss.
+;; place org-moor's noter writes in, and the board's `C-c d' in org-truss.
 (use-package org-dock
   :straight (org-dock :host github :repo "yoshzucker/org-dock"
                       :files ("*.el"))
@@ -2175,8 +2175,9 @@ what to look at."
   ;; `evil-jump-forward', cycles the line as TAB cycles a heading in Org,
   ;; and S-TAB the whole board; g is a prefix, so drawing again is `gr'; and
   ;; z is one too, so folding one line without the cycle is `za', as a fold
-  ;; is anywhere.  The foot of the board reads the keys where it is drawn
-  ;; and says so.
+  ;; is anywhere.  `C-c d' takes the line's heading out by org-dock, as it
+  ;; takes the heading at point in Org.  The foot of the board reads the
+  ;; keys where it is drawn and says so.
   (evil-set-initial-state 'org-truss-board-mode 'motion)
   (my/define-key
    (:map org-truss-board-mode-map
@@ -2185,6 +2186,7 @@ what to look at."
          "RET" #'org-truss-board-visit
          "TAB" #'org-truss-board-cycle
          "<backtab>" #'org-truss-board-cycle-all
+         "C-c d" #'org-truss-board-edit
          "gr" #'org-truss-board-redraw
          "za" #'org-truss-board-fold))
 
