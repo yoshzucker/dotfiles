@@ -27,7 +27,7 @@
    (:map global-map
          :prefix "C-c g"
          :key
-         "t" #'ghostel
+         "s" #'ghostel
          "p" #'ghostel-project
          "l" #'ghostel-list-buffers))
 
@@ -80,8 +80,9 @@
 ;; input and apply it over the PTY, `i' and `a' drive the shell's cursor to
 ;; point, `p' pastes through it.  Anything outside the shell's own line
 ;; editing -- a full-screen TUI, copy mode -- falls through to plain evil.
+;; The mode is per buffer and nothing in the package turns it on.
 (use-package evil-ghostel
-  :after ghostel)
+  :hook (ghostel-mode . evil-ghostel-mode))
 
 (provide 'my-app-terminal)
 ;;; my-app-terminal.el ends here
