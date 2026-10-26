@@ -2173,22 +2173,25 @@ what to look at."
   (setq org-truss-board-truss-marks
         '((simple . "\U000F0537") (compound . "\U000F1952")))
 
-  ;; Whether a quote was found in its source, one column wide too: a
-  ;; circled check (md-check_circle_outline) when it was, a circled cross
+  ;; Whether a quote was found in its source: a circled check
+  ;; (md-check_circle_outline) when it was, a circled cross
   ;; (md-close_circle_outline) when it was not, and a circled question
   ;; mark (md-help_circle_outline) when the source could not be read.
+  ;; These icons advance one column but are drawn about one and a half
+  ;; wide, as Nerd Fonts draw them to be followed by a space; each is
+  ;; given its space, or it covers the character after it.
   (setq org-truss-board-quote-marks
-        '((found . "\U000F05E1") (missing . "\U000F015A") (unchecked . "\U000F0625")))
+        '((found . "\U000F05E1 ") (missing . "\U000F015A ") (unchecked . "\U000F0625 ")))
 
-  ;; Where else a member is, just before its words, one column wide too: a
-  ;; chain link (md-link) before the part its words link to; opened as
-  ;; included, a crossed-out ghost (md-ghost_off) and an outlined one
-  ;; (md-ghost_outline) before how many ghosts the original has -- "not a
-  ;; ghost, and one more about" -- and a ghost (md-ghost) before where the
-  ;; original a ghost stands for is.
+  ;; Where else a member is, just before its words: a chain link (md-link)
+  ;; before the part its words link to; opened as included, a crossed-out
+  ;; ghost (md-ghost_off) and an outlined one (md-ghost_outline) before
+  ;; how many ghosts the original has -- "not a ghost, and one more about"
+  ;; -- and a ghost (md-ghost) before where the original a ghost stands
+  ;; for is.  Each with its space, as the quote marks are.
   (setq org-truss-board-where-marks
-        '((link . "\U000F0337") (original . "\U000F09F5")
-          (others . "\U000F165D") (ghost . "\U000F02A0")))
+        '((link . "\U000F0337 ") (original . "\U000F09F5 ")
+          (others . "\U000F165D ") (ghost . "\U000F02A0 ")))
 
   ;; The board binds few keys of its own -- RET TAB S-TAB o m x ? g -- and
   ;; its other commands wait to be laid out again, called by name till then.
