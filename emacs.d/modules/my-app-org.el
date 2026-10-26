@@ -2165,9 +2165,24 @@ what to look at."
   ;; its CLAUDE.md and its sources/, wherever the directory lies.
   (setq org-truss-project-file ".project")
 
-  ;; The board binds few keys of its own -- RET o TAB S-TAB i m x g -- and
+  ;; The marks of a simple and a compound truss come from the Nerd Font the
+  ;; board is drawn in (PlemolJP NF), both one column wide: the outlined
+  ;; triangle (md-triangle_outline) and the filled pyramid (md-pyramid),
+  ;; which tells itself apart at a glance.  The defaults, △ ▲, would take
+  ;; two columns each here, as East Asian ambiguous characters do.
+  (setq org-truss-board-truss-marks
+        '((simple . "\U000F0537") (compound . "\U000F1952")))
+
+  ;; Whether a quote was found in its source, one column wide too: a
+  ;; circled check (md-check_circle_outline) when it was, a circled cross
+  ;; (md-close_circle_outline) when it was not, and a circled question
+  ;; mark (md-help_circle_outline) when the source could not be read.
+  (setq org-truss-board-quote-marks
+        '((found . "\U000F05E1") (missing . "\U000F015A") (unchecked . "\U000F0625")))
+
+  ;; The board binds few keys of its own -- RET TAB S-TAB o m x ? g -- and
   ;; its other commands wait to be laid out again, called by name till then.
-  ;; Its own i m x o are keys normal state would take first but motion
+  ;; Its own o m x are keys normal state would take first but motion
   ;; state leaves alone, so the board sits in motion state and moves as
   ;; every other buffer does: j k, gg G, / n, C-d C-u, C-w, w, v y.  Motion
   ;; state takes four keys the board needs, given back as Org and Vim have
@@ -2176,8 +2191,9 @@ what to look at."
   ;; and S-TAB the whole board; g is a prefix, so drawing again is `gr'; and
   ;; z is one too, so folding one line without the cycle is `za', as a fold
   ;; is anywhere.  `C-c d' takes the line's heading out by org-dock, as it
-  ;; takes the heading at point in Org.  The foot of the board reads the
-  ;; keys where it is drawn and says so.
+  ;; takes the heading at point in Org.  Motion state keeps ? for searching
+  ;; backward, over the board's own ?, so what a line is for is `C-c t ?'.
+  ;; The foot of the board reads the keys where it is drawn and says so.
   (evil-set-initial-state 'org-truss-board-mode 'motion)
   (my/define-key
    (:map org-truss-board-mode-map
@@ -2187,6 +2203,7 @@ what to look at."
          "TAB" #'org-truss-board-cycle
          "<backtab>" #'org-truss-board-cycle-all
          "C-c d" #'org-truss-board-edit
+         "C-c t ?" #'org-truss-board-guide
          "gr" #'org-truss-board-redraw
          "za" #'org-truss-board-fold))
 
