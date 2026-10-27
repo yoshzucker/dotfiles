@@ -691,6 +691,7 @@ setup_dev_packages() {
       org-upwell \
       org-truss \
       org-moor \
+      org-item-tags \
       sill \
       gensho-theme \
       rustcity-theme

@@ -2143,6 +2143,17 @@ what to look at."
         '("work" "family" "health" "learning" "friendship" "leisure"))
 )
 
+;;;; Tags on list items
+;; An item takes tags at the end of its first line, as a heading does, so
+;; whether an entry is a heading or an item no longer depends on whether
+;; it needs one.  The mode makes C-c C-q, C-c - and C-c * carry them, and
+;; export leave out an item tagged :noexport:.
+(use-package org-item-tags
+  :straight (org-item-tags :host github :repo "yoshzucker/org-item-tags")
+  :after org
+  :config
+  (org-item-tags-mode 1))
+
 ;;;; Documents built like a truss
 ;; org-truss is for writing that argues for something -- a proposal, an
 ;; explanation.  One truss.org per document holds every statement once,
