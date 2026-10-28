@@ -393,35 +393,57 @@ git processes behind to finish into a command that has gone."
           ;; `process-exit-status' answers for a dead one whether or not
           ;; anything was notified.
           (while (or queue (seq-some #'process-live-p procs))
-            (while (and queue
-                        (< (seq-count #'process-live-p procs)
-                           my/straight-fetch-jobs))
-              (let* ((dir (pop queue))
-                     (name (file-name-nondirectory (directory-file-name dir)))
-                     (default-directory dir))
-                (push
-                 (make-process
-                  :name (concat "straight-fetch-" name)
-                  ;; Aborted rather than waited on when the bytes stop
-                  ;; arriving: git has no timeout of its own over HTTP, so a
-                  ;; transfer that stalls part way -- a proxy that inspects
-                  ;; every connection, a link that drops -- waits forever.
-                  ;; Under a kilobyte a second for twenty seconds is not a
-                  ;; slow clone, it is a dead one.
-                  :command '("git"
-                             "-c" "http.lowSpeedLimit=1024"
-                             "-c" "http.lowSpeedTime=20"
-                             "fetch")
-                  :noquery t
-                  :connection-type 'pipe
-                  :buffer nil
-                  ;; Drained rather than read: what it says does not matter,
-                  ;; only that it said anything, and a process whose output
-                  ;; nobody takes can block on a full pipe.
-                  :filter (lambda (_proc _chunk) (puthash name t spoke)))
-                 procs)
-                (process-put (car procs) 'my/straight-repo name)
-                (process-put (car procs) 'my/straight-began (float-time))))
+            (let ((full nil))
+              (while (and queue (not full)
+                          (< (seq-count #'process-live-p procs)
+                             my/straight-fetch-jobs))
+                (let* ((dir (pop queue))
+                       (name (file-name-nondirectory (directory-file-name dir)))
+                       (default-directory dir)
+                       ;; Windows gives Emacs sixty-four descriptors for
+                       ;; everything, each fetch holds two pipes, and a
+                       ;; finished one keeps them until Emacs has noticed it
+                       ;; finished -- which can be after the count above has
+                       ;; let the next one start.  Add the server and a
+                       ;; language server or two, and about every other run
+                       ;; ended part way in "Too many open files".  That is
+                       ;; a reason to wait and not to stop: the repository
+                       ;; goes back on the queue and is tried again once
+                       ;; something has finished.  Only with nothing of ours
+                       ;; running is there nothing to wait for.
+                       (proc
+                        (condition-case err
+                            (make-process
+                             :name (concat "straight-fetch-" name)
+                             ;; Aborted rather than waited on when the bytes
+                             ;; stop arriving: git has no timeout of its own
+                             ;; over HTTP, so a transfer that stalls part way
+                             ;; -- a proxy that inspects every connection, a
+                             ;; link that drops -- waits forever.  Under a
+                             ;; kilobyte a second for twenty seconds is not a
+                             ;; slow clone, it is a dead one.
+                             :command '("git"
+                                        "-c" "http.lowSpeedLimit=1024"
+                                        "-c" "http.lowSpeedTime=20"
+                                        "fetch")
+                             :noquery t
+                             :connection-type 'pipe
+                             :buffer nil
+                             ;; Drained rather than read: what it says does
+                             ;; not matter, only that it said anything, and a
+                             ;; process whose output nobody takes can block
+                             ;; on a full pipe.
+                             :filter (lambda (_proc _chunk) (puthash name t spoke)))
+                          (file-error
+                           (unless (seq-some #'process-live-p procs)
+                             (signal (car err) (cdr err)))
+                           (push dir queue)
+                           (setq full t)
+                           nil))))
+                  (when proc
+                    (push proc procs)
+                    (process-put proc 'my/straight-repo name)
+                    (process-put proc 'my/straight-began (float-time))))))
             ;; Short, because this loop is also what starts the next process
             ;; as each one finishes.
             (accept-process-output nil 0.05)

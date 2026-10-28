@@ -345,6 +345,51 @@ fetch still has to come back knowing it failed."
           (should-not (eq result :hung))
           (should (member "pkg" (plist-get result :refused))))))))
 
+(ert-deftest straight-pull-test-waits-when-out-of-descriptors ()
+  "Running out of descriptors part way is waited out, not the end.
+
+On Windows Emacs has sixty-four descriptors, and a fetch that has
+finished still holds its two until Emacs notices.  So a fetch can fail
+to start while another is running -- and starts once that one is done.
+Here the second start fails the way Windows says it, once."
+  (straight-pull-test--with clone
+    (let* ((bin (expand-file-name "bin" straight-pull-test--root))
+           (fake (expand-file-name "git" bin))
+           (other (expand-file-name "pkg2" (file-name-directory clone)))
+           (straight--recipe-cache (make-hash-table :test #'equal))
+           (exec-path (cons bin exec-path))
+           (real (symbol-function 'make-process))
+           (calls 0))
+      (straight-pull-test--git straight-pull-test--root "clone" clone other)
+      (puthash "pkg" (straight-pull-test--recipe clone) straight--recipe-cache)
+      (puthash "pkg2" (straight-pull-test--recipe clone :package "pkg2"
+                                                  :local-repo "pkg2")
+               straight--recipe-cache)
+      (make-directory bin t)
+      ;; Long enough that the first is still running when the second fails.
+      (with-temp-file fake (insert "#!/bin/sh\nsleep 1\n"))
+      (set-file-modes fake #o755)
+      (cl-letf (((symbol-function 'make-process)
+                 (lambda (&rest args)
+                   (if (= (cl-incf calls) 2)
+                       (signal 'file-error '("Creating pipe" "Too many open files"))
+                     (apply real args)))))
+        (let ((result (with-timeout (10 :hung) (my/straight-fetch-at-once))))
+          (should-not (eq result :hung))
+          (should-not (plist-get result :refused))
+          (should (= calls 3)))))))
+
+(ert-deftest straight-pull-test-out-of-descriptors-with-nothing-to-wait-for ()
+  "With no fetch of ours running, there is nothing to wait for."
+  (straight-pull-test--with clone
+    (let ((straight--recipe-cache (make-hash-table :test #'equal)))
+      (puthash "pkg" (straight-pull-test--recipe clone) straight--recipe-cache)
+      (cl-letf (((symbol-function 'make-process)
+                 (lambda (&rest _)
+                   (signal 'file-error '("Creating pipe" "Too many open files")))))
+        (should-error (with-timeout (10 :hung) (my/straight-fetch-at-once))
+                      :type 'file-error)))))
+
 (ert-deftest straight-pull-test-notices-that-something-arrived ()
   "A fetch that says a ref moved is reported as having moved one.
 
