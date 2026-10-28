@@ -430,9 +430,12 @@ agenda file set does not depend on whether rg is installed -- rg's own
         ;; without that it would be work like any other, taking its estimate
         ;; out of every day it is not being done on.
         '((sequence "NEXT(n!)" "ONGO(o!)" "SDAY(s!)" "|" "DONE(d)" "CANCEL(c)")
-          (sequence "WAIT(w@)" "|" "DELEG(e@)")))
+          (sequence "WAIT(w!)" "|" "DELEG(e!)")))
   
-  (setq org-log-done 'note
+  ;; Closing a task writes CLOSED and asks nothing.  A note on how it ended
+  ;; is the exception rather than the rule, and C-c C-z (`org-add-note')
+  ;; writes one when there is something to say.
+  (setq org-log-done 'time
         org-treat-insert-todo-heading-as-state-change t)
 
   ;; Newest first.  What you want from a log you are reading rather than
@@ -941,7 +944,7 @@ The prompt completes over `:person:\=' node titles, so names stay consistent
 with those nodes and the per-person block keeps matching, but accepts free
 text too -- work is not only handed to reports.  The follow-up SCHEDULE is set
 with logging suppressed so it does not interleave with the pending
-state-change note.  No-op when non-interactive, so scripted state changes (and
+state-change entry.  No-op when non-interactive, so scripted state changes (and
 capture, which writes the state as text without a state change) are
 unaffected."
     (when (and (member org-state '("WAIT" "DELEG")) (not noninteractive))
@@ -988,6 +991,13 @@ unaffected."
   ;; pdf-tools instead, so doc-view never opens one.  A PDF is linked as a
   ;; `file:', which pdf-tools opens; a place inside one has no link type here.
   (setq org-modules '(ol-doi ol-info))
+
+  ;; Every `org-mode' activation rebuilds the menu bar's "File List for
+  ;; Agenda", and building it stats every agenda file -- a hundred of them,
+  ;; through a link into OneDrive, is 40-110 ms each time.  It is paid by
+  ;; every buffer that turns on Org: the files, capture, the *Org Note*
+  ;; buffer.  The menu is never opened here, so it is never built.
+  (advice-add 'org-install-agenda-files-menu :override #'ignore)
 
   ;; Babel
   ;;
