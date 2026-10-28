@@ -379,10 +379,47 @@ Here the second start fails the way Windows says it, once."
           (should-not (plist-get result :refused))
           (should (= calls 3)))))))
 
-(ert-deftest straight-pull-test-out-of-descriptors-with-nothing-to-wait-for ()
-  "With no fetch of ours running, there is nothing to wait for."
+(ert-deftest straight-pull-test-lets-go-of-finished-fetches ()
+  "A finished fetch gives its pipes back before the next one needs them.
+
+On Windows a dead process kept its descriptors long enough that a fifth
+of the way through there were none left, with nothing of ours running.
+Here a fetch cannot start while any earlier one has not been deleted,
+one at a time, which is that limit at its tightest."
   (straight-pull-test--with clone
-    (let ((straight--recipe-cache (make-hash-table :test #'equal)))
+    (let* ((bin (expand-file-name "bin" straight-pull-test--root))
+           (fake (expand-file-name "git" bin))
+           (straight--recipe-cache (make-hash-table :test #'equal))
+           (exec-path (cons bin exec-path))
+           (my/straight-fetch-jobs 1)
+           (my/straight-fetch-pipe-wait 1)
+           (real (symbol-function 'make-process))
+           (held nil))
+      (dolist (name '("pkg" "pkg2" "pkg3"))
+        (unless (equal name "pkg")
+          (straight-pull-test--git straight-pull-test--root "clone" clone
+                                   (expand-file-name name (file-name-directory clone))))
+        (puthash name (straight-pull-test--recipe clone :package name :local-repo name)
+                 straight--recipe-cache))
+      (make-directory bin t)
+      (with-temp-file fake (insert "#!/bin/sh\nexit 0\n"))
+      (set-file-modes fake #o755)
+      (cl-letf (((symbol-function 'make-process)
+                 (lambda (&rest args)
+                   (when (seq-some (lambda (proc) (memq proc (process-list))) held)
+                     (signal 'file-error '("Creating pipe" "Too many open files")))
+                   (car (push (apply real args) held)))))
+        (let* ((delete-exited-processes nil)
+               (result (with-timeout (10 :hung) (my/straight-fetch-at-once))))
+          (should-not (eq result :hung))
+          (should-not (plist-get result :refused))
+          (should (= (length held) 3)))))))
+
+(ert-deftest straight-pull-test-out-of-descriptors-with-nothing-to-wait-for ()
+  "With no fetch of ours running, waiting gives up after a while."
+  (straight-pull-test--with clone
+    (let ((straight--recipe-cache (make-hash-table :test #'equal))
+          (my/straight-fetch-pipe-wait 0.2))
       (puthash "pkg" (straight-pull-test--recipe clone) straight--recipe-cache)
       (cl-letf (((symbol-function 'make-process)
                  (lambda (&rest _)

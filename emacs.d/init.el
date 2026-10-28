@@ -282,6 +282,13 @@ Long enough that a slow repository on a slow line finishes, short enough
 that a stuck one does not become the whole command.  One fetch here takes
 a second.")
 
+(defvar my/straight-fetch-pipe-wait 5
+  "Seconds to go on trying to start a fetch that has no pipes to start with.
+
+Only counted while no fetch of ours is running: the descriptors the
+finished ones held are closed a little after they finish, and this is
+how long that is given.")
+
 (defconst my/straight-fetch-environment
   '("GIT_TERMINAL_PROMPT=0"
     "GIT_SSH_COMMAND=ssh -o BatchMode=yes -o ConnectTimeout=10")
@@ -378,7 +385,9 @@ git processes behind to finish into a command that has gone."
          ;; more processes per repository -- eight milliseconds each here and
          ;; a multiple of that on a machine where spawning is the expense,
          ;; which is exactly the machine this is for.
-         (spoke (make-hash-table :test #'equal)))
+         (spoke (make-hash-table :test #'equal))
+         ;; Since when no fetch could be started with none of ours running.
+         (starved nil))
     (unwind-protect
         (progn
           ;; No sentinels, and nothing counted that is not counted from
@@ -401,16 +410,15 @@ git processes behind to finish into a command that has gone."
                        (name (file-name-nondirectory (directory-file-name dir)))
                        (default-directory dir)
                        ;; Windows gives Emacs sixty-four descriptors for
-                       ;; everything, each fetch holds two pipes, and a
-                       ;; finished one keeps them until Emacs has noticed it
-                       ;; finished -- which can be after the count above has
-                       ;; let the next one start.  Add the server and a
-                       ;; language server or two, and about every other run
-                       ;; ended part way in "Too many open files".  That is
-                       ;; a reason to wait and not to stop: the repository
-                       ;; goes back on the queue and is tried again once
-                       ;; something has finished.  Only with nothing of ours
-                       ;; running is there nothing to wait for.
+                       ;; everything, and each fetch holds two pipes.  They
+                       ;; are let go below as each one finishes, but Emacs
+                       ;; may not have closed them yet, and the server and a
+                       ;; language server or two hold theirs.  So "Too many
+                       ;; open files" is a reason to wait and not to stop:
+                       ;; the repository goes back on the queue and is tried
+                       ;; again on the next turn.  Only when it goes on for
+                       ;; `my/straight-fetch-pipe-wait' with nothing of ours
+                       ;; running is it something waiting will not mend.
                        (proc
                         (condition-case err
                             (make-process
@@ -436,11 +444,15 @@ git processes behind to finish into a command that has gone."
                              :filter (lambda (_proc _chunk) (puthash name t spoke)))
                           (file-error
                            (unless (seq-some #'process-live-p procs)
-                             (signal (car err) (cdr err)))
+                             (setq starved (or starved (float-time)))
+                             (when (> (- (float-time) starved)
+                                      my/straight-fetch-pipe-wait)
+                               (signal (car err) (cdr err))))
                            (push dir queue)
                            (setq full t)
                            nil))))
                   (when proc
+                    (setq starved nil)
                     (push proc procs)
                     (process-put proc 'my/straight-repo name)
                     (process-put proc 'my/straight-began (float-time))))))
@@ -450,6 +462,18 @@ git processes behind to finish into a command that has gone."
             (progress-reporter-update
              reporter (- total (length queue)
                          (seq-count #'process-live-p procs)))
+            ;; Each finished one let go of now, its pipes with it.  A dead
+            ;; process keeps them until Emacs gets round to closing them,
+            ;; and on Windows that was slow enough for a fifth of a hundred
+            ;; and twenty-eight to use up every descriptor there was.  What
+            ;; it still has to say is read first, and how it ended kept,
+            ;; since a deleted process no longer says.
+            (dolist (proc procs)
+              (unless (or (process-live-p proc)
+                          (process-get proc 'my/straight-exit))
+                (ignore-errors (accept-process-output proc 0))
+                (process-put proc 'my/straight-exit (process-exit-status proc))
+                (delete-process proc)))
             ;; And what notices one that is never going to finish.  A
             ;; killed process has an exit status like any other, so it is
             ;; classified below with the rest and named in the report.
@@ -466,7 +490,8 @@ git processes behind to finish into a command that has gone."
           ;; does there is what reads their output.
           (dolist (proc (reverse procs))
             (let ((name (process-get proc 'my/straight-repo)))
-              (if (eq 0 (process-exit-status proc))
+              (if (eq 0 (or (process-get proc 'my/straight-exit)
+                            (process-exit-status proc)))
                   (when (gethash name spoke) (push name moved))
                 (push name failed))))
           (progress-reporter-done reporter)
