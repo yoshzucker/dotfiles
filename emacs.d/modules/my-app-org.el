@@ -2204,15 +2204,12 @@ what to look at."
   (setq org-truss-board-quote-marks
         '((found . "\U000F05E1 ") (missing . "\U000F015A ") (unchecked . "\U000F0625 ")))
 
-  ;; Where else a member is, just before its words: a chain link (md-link)
-  ;; before the part its words link to; opened as included, a crossed-out
-  ;; ghost (md-ghost_off) and an outlined one (md-ghost_outline) before
-  ;; how many ghosts the original has -- "not a ghost, and one more about"
-  ;; -- and a ghost (md-ghost) before where the original a ghost stands
-  ;; for is.  Each with its space, as the quote marks are.
+  ;; What the member a line's words link to is, just before them: a chain
+  ;; link (md-link) before its part, with its space, as the quote marks
+  ;; are; then the roles down to it, a plain › between them, as in
+  ;; Message›Interpretation›Part.
   (setq org-truss-board-where-marks
-        '((link . "\U000F0337 ") (original . "\U000F09F5 ")
-          (others . "\U000F165D ") (ghost . "\U000F02A0 ")))
+        '((link . "\U000F0337 ") (step . "›")))
 
   ;; The board binds few keys of its own -- RET TAB S-TAB o m x ? g -- and
   ;; its other commands wait to be laid out again, called by name till then.
