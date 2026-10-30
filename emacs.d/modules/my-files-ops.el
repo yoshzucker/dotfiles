@@ -343,6 +343,14 @@ opens it as `org-file-apps' says, in Emacs or not by its extension."
   (interactive)
   (org-open-at-point '(16)))
 
+(defun my/open-buffer-file-outside ()
+  "Open the file this buffer visits outside Emacs, as C-c C-o on it does.
+
+The browser for `my/open-outside-in-browser-p', else the OS default app."
+  (interactive)
+  (my/open-file (or buffer-file-name (user-error "This buffer visits no file"))
+                'outside))
+
 (with-eval-after-load 'org
   (advice-add 'org-open-file :around #'my/org-open-file-advice))
 

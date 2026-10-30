@@ -1662,7 +1662,7 @@ block already shows what is out with them, as a live query."
          :key
          "i" #'org-noter-insert-note
          "q" #'org-noter-kill-session
-         "&" #'open-externally)
+         "&" #'my/open-buffer-file-outside)
    (:map pdf-history-minor-mode-map
          :state normal
          :key
