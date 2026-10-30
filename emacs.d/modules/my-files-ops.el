@@ -49,6 +49,16 @@ need not be the one the OS opens HTML with."
   :type '(repeat string)
   :group 'my-config)
 
+(defcustom my/open-outside-in-browser-extensions
+  '("pdf")
+  "File extensions opened in the browser when opened outside Emacs.
+
+Under method `outside' -- C-c C-o, or C-u C-u on an Org link -- besides
+`my/open-in-browser-extensions'; the rest go to the OS default app.
+Under method `auto' they open as before: a PDF in pdf-tools."
+  :type '(repeat string)
+  :group 'my-config)
+
 (defcustom my/open-as-text-pandoc-format
   "markdown"
   "Pandoc output format for `my/open--text' (e.g. \"markdown\", \"plain\")."
@@ -77,6 +87,14 @@ Membership is tested against `my/open-as-text-extensions'."
 Membership is tested against `my/open-in-browser-extensions'."
   (member (my/open--extension filename) my/open-in-browser-extensions))
 
+(defun my/open-outside-in-browser-p (filename)
+  "Return non-nil if FILENAME, opened outside Emacs, goes to the browser.
+
+Membership is tested against `my/open-in-browser-extensions' and
+`my/open-outside-in-browser-extensions'."
+  (or (my/open-in-browser-extension-p filename)
+      (member (my/open--extension filename) my/open-outside-in-browser-extensions)))
+
 (defun my/open--force-p (arg)
   "Return non-nil if ARG is a plain C-u (raw prefix \\='(4)).
 
@@ -86,17 +104,20 @@ Integer prefixes such as C-u 2 are not treated as force."
 (defun my/open--resolve-method (path method force)
   "Resolve open METHOD for PATH with FORCE flag.
 
-METHOD is `auto' (default), `emacs', `system', `text', or `browser'.
-FORCE is meaningful only for `auto', the raw prefix as Org reads one for
-a link: plain C-u (`my/open--force-p') in Emacs, C-u C-u with the OS."
+METHOD is `auto' (default), `outside', `emacs', `system', `text', or
+`browser'.  `outside' is the browser for `my/open-outside-in-browser-p',
+else the OS default app.  FORCE is meaningful only for `auto', the raw
+prefix as Org reads one for a link: plain C-u (`my/open--force-p') in
+Emacs, C-u C-u outside."
   (let ((method (or method 'auto))
         (outside (equal force '(16)))
         (force (my/open--force-p force)))
     (pcase method
       ((or 'emacs 'system 'text 'browser) method)
+      ('outside (if (my/open-outside-in-browser-p path) 'browser 'system))
       ('auto
        (cond
-        (outside 'system)
+        (outside (my/open--resolve-method path 'outside nil))
         ((and force (my/open-as-text-extension-p path)) 'text)
         (force 'emacs)
         ((my/open-with-system-extension-p path) 'system)
@@ -241,7 +262,7 @@ Interactive and Embark-friendly (prompts for a file)."
 `my/find-file-open-advice' then leaves it to `find-file'.")
 
 (defun my/open-file (path &optional method force)
-  "Open PATH using METHOD (`auto', `emacs', `system', `text', or `browser').
+  "Open PATH using METHOD (`auto', `outside', `emacs', `system', `text', or `browser').
 
 METHOD defaults to `auto'.  FORCE (plain C-u) affects `auto' only:
 prefer pandoc text for `my/open-as-text-extensions', else in-Emacs
@@ -297,16 +318,30 @@ alone goes to the line or text a `file:' link names."
                   my/open-in-browser-extensions)))
 
 (defun my/org-open-file-advice (orig path &optional in-emacs line search)
-  "Around advice for `org-open-file': in Emacs, when asked, it is so.
+  "Around advice for `org-open-file': in Emacs, or outside, when asked.
 
 Org visits a file it is told to open in Emacs -- C-u on a link -- with
 `find-file', whose advice would send a file the OS opens back there.
-Office files are read as pandoc text, as with C-u RET in Dired."
-  (if (and in-emacs (not (member in-emacs '((16) system)))
-           (not line) (not search))
-      (my/open-file path 'auto '(4))
-    (let ((my/open--in-emacs (and in-emacs (not (member in-emacs '((16) system))))))
-      (funcall orig path in-emacs line search))))
+Office files are read as pandoc text, as with C-u RET in Dired.  Told to
+open it outside -- C-u C-u -- Org would hand it to the OS whatever it is;
+it goes as method `outside' instead, a PDF to the browser."
+  (cond
+   ((member in-emacs '((16) system))
+    (my/open-file path 'outside))
+   ((and in-emacs (not line) (not search))
+    (my/open-file path 'auto '(4)))
+   (t
+    (let ((my/open--in-emacs (and in-emacs t)))
+      (funcall orig path in-emacs line search)))))
+
+(defun my/org-open-at-point-outside ()
+  "Open the link at point outside Emacs, as C-u C-u on it does.
+
+A file goes as method `outside' of `my/open-file': the browser for
+`my/open-outside-in-browser-p', else the OS default app.  RET on a link
+opens it as `org-file-apps' says, in Emacs or not by its extension."
+  (interactive)
+  (org-open-at-point '(16)))
 
 (with-eval-after-load 'org
   (advice-add 'org-open-file :around #'my/org-open-file-advice))
@@ -355,7 +390,7 @@ This makes `ediff'/`ediff-files' (and every caller, including
   "Expose open-policy commands on `embark-file-map'.
 
 Bindings (also listed by `embark-completing-read-prompter'):
-  x  `my/open-system'        — OS default app (same path as dired C-c C-o)
+  x  `my/open-system'        — OS default app, a PDF too (C-c C-o: the browser)
   t  `my/open-as-text'       — pandoc text buffer
   E  `my/open-file-in-emacs' — force in-Emacs (C-u RET equivalent)
 
@@ -513,9 +548,11 @@ ARG is passed to `dired-get-marked-files'."
           ('emacs (view-file f))))))
 
   (defun my/dired-open-file-with-system ()
-    "Open file at point in dired with the OS default application."
+    "Open file at point in dired outside Emacs, as C-c C-o on an Org link.
+
+The browser for `my/open-outside-in-browser-p', else the OS default app."
     (interactive)
-    (my/open--system (dired-get-filename nil t)))
+    (my/open-file (dired-get-filename nil t) 'outside))
 
   (defun my/dired-open-dir-with-system ()
     "Open current dired directory with the OS default application."
