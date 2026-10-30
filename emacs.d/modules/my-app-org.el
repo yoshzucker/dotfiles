@@ -253,6 +253,7 @@ agenda file set does not depend on whether rg is installed -- rg's own
          :prefix "C-c"
          :key
          "w"       #'org-refile-goto-last-stored
+         "C-o"     #'my/org-open-at-point-outside
          "C-v C-b" #'org-dblocks-babel-execute-buffer
          "C-."     #'org-todo)
    (:map org-mode-map
@@ -352,8 +353,8 @@ agenda file set does not depend on whether rg is installed -- rg's own
   ;; my-files-ops.el (`my/open-file'), for Dired, Org links and org-moor
   ;; alike; these entries only hand Org's links to it.  Org's own defaults
   ;; would open every PDF outside, which pdf-tools reads here.  moor: links
-  ;; open their copies through the same `org-file-apps', C-u and C-u C-u
-  ;; included.
+  ;; open their replicas through the same `org-file-apps', C-u and C-u C-u
+  ;; included.  RET opens a link so; C-c C-o, outside, as it does in Dired.
   (setq org-file-apps
         `((remote . emacs)
           (auto-mode . emacs)
@@ -1801,7 +1802,7 @@ Each change Claude makes to the copy is an ediff to take or refuse."
          "P" #'org-moor-put-away-and-take
          "n" #'org-moor-noter
          "i" #'org-moor-insert-place
-         "o" #'org-moor-open-source
+         "o" #'org-moor-open-replica
          "O" #'org-moor-open-origin
          "y" #'org-moor-clip-origin
          "t" #'org-moor-set-title
