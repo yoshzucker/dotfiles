@@ -1803,6 +1803,7 @@ Each change Claude makes to the copy is an ediff to take or refuse."
          "i" #'org-moor-insert-place
          "o" #'org-moor-open-source
          "O" #'org-moor-open-origin
+         "y" #'org-moor-clip-origin
          "t" #'org-moor-set-title
          "x" #'org-moor-prune
          :desc
@@ -1818,6 +1819,7 @@ Each change Claude makes to the copy is an ediff to take or refuse."
          "i" "note this place"
          "o" "open source"
          "O" "open origin"
+         "y" "clip origin"
          "t" "retitle source"
          "x" "prune copies"))
 
