@@ -1509,7 +1509,6 @@ function Setup-DevPackages {
         "org-calsync",
         "org-convect",
         "org-dayflow",
-        "org-upwell",
         "org-truss",
         "org-moor",
         "sill",
@@ -1608,10 +1607,9 @@ function Register-AhkStartupShortcut {
 }
 
 function Setup-StartupShortcuts {
-    # Register AutoHotkey scripts to launch at login. Two sources, both
-    # pointed at by shortcut rather than copied: etc/ahk/*.ahk in this
-    # repo (remap-windows-keys and friends), and org-upwell's watcher,
-    # which lives next to the package it belongs to. Idempotent.
+    # Register AutoHotkey scripts to launch at login: etc/ahk/*.ahk in this
+    # repo (remap-windows-keys and friends), pointed at by shortcut rather
+    # than copied. Idempotent.
     $leftMessage = "Registering AHK startup shortcuts"
     Write-PrintLine $leftMessage "Started."
 
@@ -1621,12 +1619,6 @@ function Setup-StartupShortcuts {
             Register-AhkStartupShortcut $ahk.FullName
         }
     }
-
-    # Same HOME-relative layout as macOS. Not inside the dotfiles repo, so
-    # unlink will not remove this shortcut; that is the point -- the
-    # watcher belongs to the package, not to the remaps.
-    $upwellWatch = Join-Path $env:USERPROFILE "Developer\org-upwell\script\org-upwell-watch.ahk"
-    Register-AhkStartupShortcut $upwellWatch
 
     Write-PrintLine $leftMessage "Finished."
 }
