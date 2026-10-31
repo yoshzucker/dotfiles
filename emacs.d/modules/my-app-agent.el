@@ -423,6 +423,10 @@ via a font-weight= presence check."
   ;; itself recommends for rendering the TUI.
   (claude-code-ide-terminal-backend 'ghostel)
 
+  ;; ESC reaches Claude, as in any full-screen TUI under evil-ghostel,
+  ;; rather than entering normal state; `C-c <escape>' does that instead.
+  (claude-code-ide-ghostel-evil-escape 'auto)
+
   ;; As wide as the text is, rather than the default hundred, which is more
   ;; than a frame of this configuration is wide to begin with.  The window
   ;; is docked to the right, so the frame takes its two-column shape to make
