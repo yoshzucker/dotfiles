@@ -688,7 +688,6 @@ setup_dev_packages() {
       org-calsync \
       org-convect \
       org-dayflow \
-      org-upwell \
       org-truss \
       org-moor \
       org-item-tags \

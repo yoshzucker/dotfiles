@@ -101,9 +101,9 @@ Run `./bootstrap update` (or the explicit package commands) to apply.
 
 ## My Own Packages
 
-Nine packages are written here rather than merely used. Each has its own repository and its own README, which describe the package and say nothing about this machine.
+Eight packages are written here rather than merely used. Each has its own repository and its own README, which describe the package and say nothing about this machine.
 
-- **Org**: org-foresight, org-convect, org-upwell, org-calsync, org-dayflow, org-truss
+- **Org**: org-foresight, org-convect, org-calsync, org-dayflow, org-truss
 - **Themes**: gensho-theme, rustcity-theme
 - **Emacs UI**: sill — one mode line at the foot of the frame instead of one per window
 
@@ -117,7 +117,7 @@ Three kinds are never deleted: a link into `~/Developer`, straight itself, and a
 
 `M-x my/straight-prune-builds` is the sibling, over the tree of built copies. It is the easier half: a build directory is links into the repository and the compiled files beside them, so nothing there is the only copy of anything and a mistake costs a rebuild. The one thing it cannot do is compare the two trees by name — a build directory is named by package and a repository by `:local-repo`, so `dash` is built from one called dash.el and `magit-section` from one called magit — which is why it asks the recipes instead.
 
-Everything that is true only of *this* setup — which machine runs org-upwell's watcher, how straight.el is pointed at `~/Developer`, which keys go where, and where the data sits — is in [`doc/org-packages.md`](doc/org-packages.md).
+Everything that is true only of *this* setup — how straight.el is pointed at `~/Developer`, which keys go where, and where the data sits — is in [`doc/org-packages.md`](doc/org-packages.md).
 
 ## Measuring It
 

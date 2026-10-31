@@ -242,7 +242,7 @@ agenda file set does not depend on whether rg is installed -- rg's own
   (add-hook 'emacs-startup-hook #'my/org-agenda-files-refresh)
   :config
   ;; Which line point is on, in the file as well as in the listings built
-  ;; from it.  The agenda, the foresight board and the upwell grid all mark
+  ;; from it.  The agenda and the foresight board both mark
   ;; it, and an outline read for minutes at a time is no easier to hold a
   ;; place in than they are.  It costs nothing now that the keyword faces
   ;; keep their colour under it.
@@ -1746,7 +1746,7 @@ Each change Claude makes to the copy is an ediff to take or refuse."
   ;; open -- and how, when and from where it was taken.
   :hook (org-mode . org-moor-eldoc-setup)
   :init
-  ;; A prefix of its own, as upwell has `C-c u'.
+  ;; A prefix of its own.
   ;;
   ;; `c' takes the clipboard -- a message's text, or a screenshot -- as a
   ;; source: at point in Org, with `C-u' (or from outside Org) under a
@@ -2246,147 +2246,6 @@ what to look at."
   ;; modes snipe stays out of, as the agenda already does.
   (with-eval-after-load 'evil-snipe
     (add-to-list 'evil-snipe-disabled-modes 'org-truss-board-mode)))
-
-;;;; Files rising to the heading that is being lived
-;; org-foresight is when, on the day.  org-convect takes purpose from
-;; the top of the ladder down to H2 and climbs back as a reduction.
-;; org-upwell is the other vertical: at H1, the day's feet, the files
-;; and URLs work is done with rise to the heading being lived.  Capture
-;; is a resident watcher outside this process (AHK on Windows,
-;; osascript on macOS) -- Emacs only intersects those traces with CLOCK
-;; lines, including ones filled in after the fact with foresight's C.
-;;
-;; User headings stay user headings.  A claim is an org-id on the stored
-;; item pointing *up* at the project/task/meeting; the heading body is
-;; not a file listing.  upwell.org is the store for those identities,
-;; kept out of the agenda the way horizons.org is kept out of it.
-(use-package org-upwell
-  :straight (org-upwell :host github :repo "yoshzucker/org-upwell"
-                        :files ("*.el" ("script" "script/*")))
-  ;; Reached by its own keys, and it brings Org with it because it works on
-  ;; headings.  Nothing else comes: `:after org\=' used to put this in the same
-  ;; load as every other Org package here, whichever one had been asked for.
-  :defer t
-  :commands (org-upwell-bench org-upwell-work-directory
-             org-upwell-find-work-directory org-upwell-follow-mode)
-  :init
-  ;; A prefix of its own.  There are two things wanted from this package
-  ;; without looking at a listing first -- the heading's files, and the
-  ;; directory its work is done in -- and a package with two doors is a
-  ;; package with a prefix rather than two letters taken from the middle of
-  ;; `C-c'.  `u' for upwell; `C-c v' was a single key doing the first job
-  ;; only, and `C-c n v' remains `org-ql-view'.
-  ;;
-  ;; `u' lays the heading's files out: on a heading (Org, agenda) that
-  ;; heading, elsewhere the running clock, and with `C-u' read from today's
-  ;; clocks and open NEXTs.  It opens nothing -- opening is done from the
-  ;; bench, where the list can be seen first -- and the cursor lands there.
-  ;;
-  ;; `w' opens the directory the heading's work is done in, asking which it
-  ;; is and writing it down where nothing says yet.  Standing on a directory
-  ;; it says *that* is the one, which is the same command reading what is in
-  ;; front of it.
-  ;;
-  ;; `f' turns following on and off.  It draws in a window nobody asked for,
-  ;; which is welcome while reading a file tree and in the way while writing
-  ;; prose, and that is a decision made several times a day.
-
-  (my/define-key
-   (:map global-map
-         :prefix "C-c u"
-         :key
-         "u" #'org-upwell-bench
-         "w" #'org-upwell-work-directory
-         ;; Beside `w' rather than instead of it, because they are two
-         ;; questions and not one: `w' is where *this* heading's work is
-         ;; done, and settles it when nobody has said; `d' is which of them
-         ;; there are.  The names in the menu carry the difference, since a
-         ;; letter cannot.
-         "d" #'org-upwell-find-work-directory
-         "f" #'org-upwell-follow-mode
-         :desc
-         "" "upwell"
-         "u" "bench"
-         "w" "work directory"
-         "d" "any work directory"
-         "f" "follow"))
-  (with-eval-after-load 'org-agenda
-    (my/define-key
-     (:map org-agenda-mode-map
-           :key
-           "V" #'org-upwell-bench)))
-  ;; With the rest of the `g' family, which is where a command that is a way
-  ;; of getting somewhere belongs -- `gs' is buffers, `g.' is files, `g[' is
-  ;; headings, and this is the folders work is done in.  `g@' because it is
-  ;; free in every evil state (`gu' and `gw' are not: they are operators in
-  ;; normal state, so binding either would give a key that works in dired and
-  ;; the agenda and not in a file, with nothing on the screen to say why), and
-  ;; because `@' is unshifted on the keyboard this is typed on.
-  ;; `:after evil' because this file is read before my-editor-evil.el is --
-  ;; the modules load in name order -- and until now this binding was in
-  ;; `:config', where Org having waited for evil made the map exist.
-  (my/define-key
-   (:map evil-motion-state-map
-         :after evil
-         :key
-         "g@" #'org-upwell-find-work-directory))
-  :config
-  ;; The package holds the mechanism and no directory of mine.  These are
-  ;; the trees a file that moved is actually looked for in, and where a new
-  ;; one is put when the heading does not say.
-  (setq org-upwell-open-function #'my/open-file
-        org-upwell-search-roots (list "~/Documents/project/"
-                                      "~/Documents/upwell/"
-                                      "~/Downloads/")
-        org-upwell-create-directory "~/Documents/upwell/"
-        ;; The agenda designs the day; the bench is where its files are
-        ;; opened from.  Org's own follow (`F') would open each entry's file
-        ;; in a third window on every j/k; this keeps the two panes.
-        org-upwell-agenda-follow t)
-  (org-upwell-mode 1)
-  ;; The bench follows the heading point is on, from the start.  Which files
-  ;; a heading has is a question asked by arriving at it, not by pressing a
-  ;; key afterwards -- and `C-c u u' is then for the heading you are *not*
-  ;; standing on, or for asking again after `q'.  Global minor mode, and the
-  ;; package deliberately leaves it off: it draws in a window somebody did
-  ;; not ask for, which is a choice a configuration makes, not a package.
-  (org-upwell-follow-mode 1)
-  ;; And Org's own follow, which is a different thing: it opens the entry's
-  ;; file, upwell draws the bench, and neither switch turns the other on.
-  ;; Both on from the start -- the two answers wanted on arriving at a row
-  ;; are what the work is and where it lives, and they come from the two.
-  (setq org-agenda-start-with-follow-mode t)
-  ;; Package default: `g' and `r' both redraw.  Here `g' is motion/search, as
-  ;; in agenda and dayflow, so redraw is `gr' as well as the package's `r'.
-  (dolist (key '("z" "g" "/" "n" "N" ":"))
-    (define-key org-upwell-bench-mode-map (kbd key)
-                (lookup-key evil-motion-state-map (kbd key))))
-  ;; And `N' is one of those, so the package's key for tidying the names is
-  ;; gone from this map -- the foot reads its keys off the keymap and so went
-  ;; blank beside that line, which is the foot telling the truth about a
-  ;; command that could no longer be pressed.  `S' for strip, free here.  The
-  ;; grid keeps `N': nothing is taken from that map, so nothing needs moving,
-  ;; and each foot names the key its own buffer answers to.
-  (define-key org-upwell-bench-mode-map (kbd "S") #'org-upwell-tidy-names)
-  ;; Scrolling, on both listings.  Point is deliberately held to the rows
-  ;; there -- on the grid it is held to the cells -- which is right, and
-  ;; leaves nothing to reach a line below the window with: the page moves
-  ;; only if the cursor may leave, and here it may not.  `C-f' and `C-b' are
-  ;; what the agenda answers to, and these buffers put evil in Emacs state so
-  ;; the letters can be commands, which is exactly why the keys have to be
-  ;; borrowed rather than inherited.  Not in the packages: a vi convention on
-  ;; `C-f' is this configuration's, and `C-f' is `forward-char' to everybody
-  ;; else.
-  (dolist (map (list org-upwell-bench-mode-map org-upwell-matrix-mode-map))
-    (dolist (key '("C-f" "C-b" "C-d" "C-e" "C-y"))
-      (when-let ((cmd (lookup-key evil-motion-state-map (kbd key))))
-        (define-key map (kbd key) cmd))))
-  (my/define-key
-   (:map org-upwell-bench-mode-map
-         :state emacs motion normal
-         :key
-         "gr" #'org-upwell-bench-redraw)))
-
 
 (provide 'my-app-org)
 ;;; my-app-org.el ends here

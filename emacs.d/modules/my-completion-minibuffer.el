@@ -117,7 +117,6 @@ Returning nil leaves the styles beside this one to answer."
                (project-file       (styles my/orderless-migemo-dot))
                (org-heading        (styles my/orderless-migemo-dot))
                (org-refile         (styles my/orderless-migemo-dot))
-               (org-upwell-work-directory (styles my/orderless-migemo-dot))
                (org-roam-node      (styles my/orderless-migemo-dot))
                (consult-location   (styles my/orderless-migemo-dot))
                (agent-shell-config (styles my/orderless-migemo-dot))
@@ -172,24 +171,15 @@ Returning nil leaves the styles beside this one to answer."
   (defun my/find-file-from-minibuffer ()
     "Leave the prompt and start `find-file' where the candidate under point is.
 
-Two kinds of candidate answer to this.  A buffer name, which is what
-`consult-buffer' offers, resolves to the file it is visiting or to the
-directory it is listing.  A line from `org-upwell-find-work-directory'
-resolves through the command itself: its lines carry a heading and a folder
-and have been cut to fit, so the folder cannot be read back off the text and
-the command is asked instead.
-
-Asked before the name is sanitised, because sanitising is what makes a
-buffer name comparable and would make that line match nothing."
+A buffer name, which is what `consult-buffer' offers, resolves to the
+file it is visiting or to the directory it is listing."
     (interactive)
     (let* ((raw (or (and (fboundp 'vertico--candidate)
                          (vertico--candidate))
                     (minibuffer-contents)))
            (name (my/sanitize-ascii-japanese (substring-no-properties raw)))
            (buf  (get-buffer name))
-           (file (or (and (fboundp 'org-upwell-offered-work-directory)
-                          (org-upwell-offered-work-directory raw))
-                     (and buf (buffer-file-name buf))
+           (file (or (and buf (buffer-file-name buf))
                      (and buf (with-current-buffer buf
                                 (derived-mode-p 'dired-mode buf)
                                 (buffer-local-value 'default-directory buf)))
@@ -219,11 +209,10 @@ buffer name comparable and would make that line match nothing."
     :keymap my/minibuffer-find-file-mode-map)
 
   (defvar my/minibuffer-find-file-commands
-    '(consult-buffer org-upwell-find-work-directory)
+    '(consult-buffer)
     "Commands whose prompt offers `C-l' as a way out to `find-file'.
 
-Every one of them is a list of places: buffers, or the folders work is done
-in.  Having picked the place, the next thought is often a file in it, and
+Every one of them is a list of places.  Having picked the place, the next thought is often a file in it, and
 the alternative is to leave the prompt, remember the path, and type it.")
 
   (defun my/enable-minibuffer-find-file-mode ()
