@@ -1711,7 +1711,20 @@ block already shows what is out with them, as a live query."
   :config
   (setq org-dock-agent-function #'my/org-dock-claude
         org-dock-background-agent-function #'my/org-dock-claude-background)
-  (add-hook 'org-dock-status-functions #'my/org-dock-claude-status))
+  (add-hook 'org-dock-status-functions #'my/org-dock-claude-status)
+
+  ;; The list of copies is a tabulated list, which evil-collection puts in
+  ;; normal state, where RET is `evil-ret' and = `evil-indent'.  It sits in
+  ;; motion state, as the org-truss board does, with RET and = given back
+  ;; and drawing again on `gr'.
+  (evil-set-initial-state 'org-dock-list-mode 'motion)
+  (my/define-key
+   (:map org-dock-list-mode-map
+         :state motion
+         :key
+         "RET" #'org-dock-list-open
+         "=" #'org-dock-list-diff
+         "gr" #'revert-buffer)))
 
 ;; Claude asked of a copy in two ways: in its window, by claude-code-ide,
 ;; where each change is an ediff to take or refuse; or in the background,
