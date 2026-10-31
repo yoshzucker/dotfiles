@@ -1746,13 +1746,9 @@ block already shows what is out with them, as a live query."
       (expand-file-name (project-root project))
     (expand-file-name default-directory)))
 
-(defun my/org-dock-claude--beside (copy extension)
-  "Return the file beside COPY named by it and EXTENSION."
-  (concat (file-name-sans-extension copy) extension))
-
 (defun my/org-dock-claude--record (copy)
   "Return what was kept of the conversation that wrote COPY in the background."
-  (let ((file (my/org-dock-claude--beside copy ".claude.eld")))
+  (let ((file (org-dock-beside copy ".claude.eld")))
     (when (file-exists-p file)
       (ignore-errors
         (with-temp-buffer
@@ -1858,7 +1854,7 @@ for `my/org-dock-claude-status'; what it wrote is the copy itself."
                          "and end by saying what you did and what is still unclear.\n"
                          (if (string-empty-p ask) "" (concat "\n" ask "\n")))))
     (let ((print-length nil) (print-level nil) (coding-system-for-write 'utf-8))
-      (with-temp-file (my/org-dock-claude--beside copy ".claude.eld")
+      (with-temp-file (org-dock-beside copy ".claude.eld")
         (prin1 (list :session id :directory dir :asked ask
                      :time (format-time-string "%F %R"))
                (current-buffer))))
@@ -1895,10 +1891,10 @@ for `my/org-dock-claude-status'; what it wrote is the copy itself."
   "Keep what PROCESS, Claude writing COPY of HEADING, said in OUT and ERR."
   (let ((coding-system-for-write 'utf-8))
     (with-current-buffer out
-      (write-region nil nil (my/org-dock-claude--beside copy ".result.json") nil 'silent))
+      (write-region nil nil (org-dock-beside copy ".result.json") nil 'silent))
     (with-current-buffer err
       (unless (zerop (buffer-size))
-        (write-region nil nil (my/org-dock-claude--beside copy ".claude.log") nil 'silent))))
+        (write-region nil nil (org-dock-beside copy ".claude.log") nil 'silent))))
   (kill-buffer out)
   (kill-buffer err)
   (org-dock-set-busy copy nil)
@@ -1908,7 +1904,7 @@ for `my/org-dock-claude-status'; what it wrote is the copy itself."
 
 (defun my/org-dock-claude-status (copy)
   "Say how Claude, asked of COPY in the background, ended, and its last words."
-  (let ((result (my/org-dock-claude--beside copy ".result.json")))
+  (let ((result (org-dock-beside copy ".result.json")))
     (cond
      ((org-dock-busy copy) nil)
      ((file-exists-p result)
