@@ -1088,12 +1088,19 @@ unaffected."
   :straight nil
   :after org
   :config
-  ;; Absolute central ID-keyed store.  With the default relative "data/", each
-  ;; note directory gets its own store, so moving a subtree between the root and
-  ;; daily/ breaks `attachment:' links.  A single absolute store makes
-  ;; attachments resolve by ID regardless of note location.
-  (setq org-attach-id-dir
-        (expand-file-name "data/" org-directory))
+  ;; Absolute central ID-keyed store, for memex alone.  With the default
+  ;; relative "data/", each note directory gets its own store, so moving a
+  ;; subtree between the root and daily/ breaks `attachment:' links.  A single
+  ;; absolute store makes attachments resolve by ID regardless of note
+  ;; location.  Elsewhere -- a document's own directory, a truss file's --
+  ;; Org's default keeps attachments beside the file, so the directory moves
+  ;; whole.  A directory class matches a file by the name it is visited by,
+  ;; so memex is named both as written and as its true name.
+  (dir-locals-set-class-variables
+   'memex `((nil . ((org-attach-id-dir . ,(expand-file-name "data/" org-directory))))))
+  (dolist (dir (delete-dups (list (expand-file-name org-directory)
+                                  (file-truename org-directory))))
+    (dir-locals-set-directory-class dir 'memex))
 
   ;; Expose screenshot capture as an entry in the `org-attach' dispatcher
   ;; (C-c C-a) rather than a standalone key.  `my/org-attach-screenshot' is a
