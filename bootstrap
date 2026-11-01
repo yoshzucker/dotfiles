@@ -848,7 +848,7 @@ install_brew_packages() {
   export HOMEBREW_NO_AUTO_UPDATE=1
   brew update
 
-  # Single source of truth: pkg/brew/Brewfile (moved out of config/ per requirement 10)
+  # pkg/brew/Brewfile is the one list of what brew installs.
   brew bundle --file "$script_dir/pkg/brew/Brewfile" --no-upgrade || true
 
   brew cleanup
