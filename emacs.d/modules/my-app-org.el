@@ -1960,6 +1960,11 @@ the sources' records, not notes."
   :straight (org-truss :host github :repo "yoshzucker/org-truss"
                        :files ("*.el"))
   :defer t
+  :init
+  ;; The board is where a truss file is worked from, so it has a key of its
+  ;; own, t for truss.  On the board `C-c t' is a prefix of the board's.
+  (my/define-key
+   (:map global-map :key "C-c t" #'org-truss-board))
   :config
   ;; Headings and guidance written into the file in the language the
   ;; document is thought in.  The board stays English, so on it whatever is
