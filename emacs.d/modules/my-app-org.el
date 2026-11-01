@@ -1743,9 +1743,18 @@ block already shows what is out with them, as a live query."
 ;; Both start where claude-code-ide would, the heading's project root:
 ;; Claude keeps a conversation under the directory it was started in, and
 ;; only from there is it found again.
+;;
+;; In its window, one Claude for each file headings are taken out of, for
+;; as long as it runs: a heading taken out again, or another of the same
+;; file, goes on with what it was told, and a heading of another file --
+;; another document, in the same project -- is not told it.  Closing the
+;; window ends it, and the next copy of that file starts a new one.
 
 (defvar my/org-dock-claude--instances (make-hash-table :test #'equal)
-  "The claude-code-ide instance started for each copy, by its file.")
+  "The claude-code-ide instance asked of copies of each file, by that file.")
+
+(defvar my/org-dock-claude--resumed (make-hash-table :test #'equal)
+  "Copies whose conversation in the background is gone on with, by file.")
 
 (defun my/org-dock-claude--directory ()
   "Return where Claude starts for this copy: as claude-code-ide decides it."
@@ -1772,8 +1781,8 @@ block already shows what is out with them, as a live query."
 (defun my/org-dock-claude--start (name)
   "Start a claude-code-ide instance here, named NAME when it needs a name.
 Return its session.  A project with an instance already gives the new one
-a name, which is otherwise asked for; NAME is the heading's, so that the
-window says which copy it is for."
+a name, which is otherwise asked for; NAME is the file's, so that the
+window says which file's copies it is for."
   (let* ((dir (my/org-dock-claude--directory))
          (before (claude-code-ide-mcp--sessions-for-project dir)))
     (cl-letf (((symbol-function 'claude-code-ide--read-instance-name)
@@ -1807,30 +1816,46 @@ the heading's own, since the copy's `default-directory' is its file's
 directory, so the sources are files of the project Claude started in.
 Each change Claude makes to the copy is an ediff to take or refuse.
 
-The Claude is the one started for this copy before, while it runs; else,
-for a copy written in the background, that conversation, gone on with in
-a window of its own; else the project's, started when there is none."
+The Claude is the one asked of copies of the same file, while it runs;
+else one started for that file.  A copy written in the background has
+that conversation gone on with first, in a window of its own, which is
+the file's from then on.  With a prefix argument, one of the project's
+Claudes is chosen and made the file's -- one resumed by hand, say."
   (require 'claude-code-ide)
   (let* ((copy (plist-get request :copy))
-         (heading (plist-get request :heading))
+         (origin (plist-get request :origin))
+         (name (my/org-dock-claude--name origin))
          (mention (concat "@" (plist-get request :request) " "))
-         (own (gethash copy my/org-dock-claude--instances))
-         (record (my/org-dock-claude--record copy)))
+         (own (gethash origin my/org-dock-claude--instances))
+         (record (and (not (gethash copy my/org-dock-claude--resumed))
+                      (my/org-dock-claude--record copy))))
     (cond
-     ((and own (buffer-live-p (claude-code-ide-mcp-session-buffer own)))
-      (my/org-dock-claude--send-when-ready own mention))
+     (current-prefix-arg
+      (let ((session (claude-code-ide--read-project-session
+                      "Claude for this file: " (my/org-dock-claude--directory))))
+        (puthash origin session my/org-dock-claude--instances)
+        (my/org-dock-claude--send-when-ready session mention)))
      (record
       ;; The conversation has read the request already.
       (let ((default-directory (plist-get record :directory))
             (claude-code-ide-cli-extra-flags
              (concat claude-code-ide-cli-extra-flags " --resume " (plist-get record :session))))
-        (message "Going on with the conversation that wrote \"%s\" in the background" heading)
-        (puthash copy (my/org-dock-claude--start heading) my/org-dock-claude--instances)))
+        (message "Going on with the conversation that wrote \"%s\" in the background"
+                 (plist-get request :heading))
+        (puthash copy t my/org-dock-claude--resumed)
+        (puthash origin (my/org-dock-claude--start name) my/org-dock-claude--instances)))
+     ((and own (buffer-live-p (claude-code-ide-mcp-session-buffer own)))
+      (my/org-dock-claude--send-when-ready own mention))
      (t
-      (let ((session (or (claude-code-ide--resolve-session 'auto "Ask Claude instance: ")
-                         (puthash copy (my/org-dock-claude--start heading)
-                                  my/org-dock-claude--instances))))
-        (my/org-dock-claude--send-when-ready session mention))))))
+      (my/org-dock-claude--send-when-ready
+       (puthash origin (my/org-dock-claude--start name) my/org-dock-claude--instances)
+       mention)))))
+
+(defun my/org-dock-claude--name (origin)
+  "Return the name of a Claude for copies of ORIGIN: its title, or its name."
+  (or (when-let* ((buffer (and (file-name-absolute-p origin) (find-buffer-visiting origin))))
+        (with-current-buffer buffer (org-get-title)))
+      (file-name-base origin)))
 
 (defun my/org-dock-claude-background (request)
   "Have Claude write the copy REQUEST names, in the background.
