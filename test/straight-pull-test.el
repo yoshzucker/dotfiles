@@ -29,12 +29,12 @@
 
 (defvar straight-pull-test--loaded
   (my-test-load (expand-file-name
-                 "emacs.d/init.el"
+                 "emacs.d/core/my-core-straight.el"
                  (locate-dominating-file
                   (or load-file-name buffer-file-name default-directory)
                   "emacs.d"))
                 "my/straight")
-  "How many definitions were taken out of init.el.")
+  "How many definitions were taken out of my-core-straight.el.")
 
 (ert-deftest straight-pull-test-definitions-are-there ()
   "The names these tests are about still exist under those names."
