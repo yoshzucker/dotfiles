@@ -531,5 +531,230 @@ via a font-weight= presence check."
     (advice-add 'claude-code-ide--parse-command-string :around
                 #'my/claude-code-ide-posix-command-line)))
 
+;;;; Claude for org-dock's copies
+
+;; Claude asked of a copy in two ways: in its window, by claude-code-ide,
+;; where each change is an ediff to take or refuse; or in the background,
+;; by `claude -p', where nobody sees a change before it is made, so the
+;; command line lets it write the copy alone, and the copy is looked over
+;; once it is done, with org-dock's C-c C-=.  A copy asked of in the
+;; background keeps its conversation's id beside it, in STEM.claude.eld, so
+;; that asking again goes on with that conversation in Claude's window.
+;; Both start where claude-code-ide would, the heading's project root:
+;; Claude keeps a conversation under the directory it was started in, and
+;; only from there is it found again.
+;;
+;; In its window, one Claude for each file headings are taken out of, for
+;; as long as it runs: a heading taken out again, or another of the same
+;; file, goes on with what it was told, and a heading of another file --
+;; another document, in the same project -- is not told it.  Closing the
+;; window ends it, and the next copy of that file starts a new one.
+
+(defvar my/org-dock-claude--instances (make-hash-table :test #'equal)
+  "The claude-code-ide instance asked of copies of each file, by that file.")
+
+(defvar my/org-dock-claude--resumed (make-hash-table :test #'equal)
+  "Copies whose conversation in the background is gone on with, by file.")
+
+(defun my/org-dock-claude--directory ()
+  "Return where Claude starts for this copy: as claude-code-ide decides it."
+  (if-let* ((project (project-current nil default-directory)))
+      (expand-file-name (project-root project))
+    (expand-file-name default-directory)))
+
+(defun my/org-dock-claude--record (copy)
+  "Return what was kept of the conversation that wrote COPY in the background."
+  (let ((file (org-dock-beside copy ".claude.eld")))
+    (when (file-exists-p file)
+      (ignore-errors
+        (with-temp-buffer
+          (let ((coding-system-for-read 'utf-8)) (insert-file-contents file))
+          (read (current-buffer)))))))
+
+(defun my/org-dock-claude--show (session)
+  "Show SESSION's Claude window, and select it."
+  (let ((buffer (claude-code-ide-mcp-session-buffer session)))
+    (when-let* ((window (or (get-buffer-window buffer)
+                            (claude-code-ide--display-buffer-in-side-window buffer))))
+      (select-window window))))
+
+(defun my/org-dock-claude--start (name)
+  "Start a claude-code-ide instance here, named NAME when it needs a name.
+Return its session.  A project with an instance already gives the new one
+a name, which is otherwise asked for; NAME is the file's, so that the
+window says which file's copies it is for."
+  (let* ((dir (my/org-dock-claude--directory))
+         (before (claude-code-ide-mcp--sessions-for-project dir)))
+    (cl-letf (((symbol-function 'claude-code-ide--read-instance-name)
+               (lambda (&rest _) name)))
+      (claude-code-ide--start-session))
+    (seq-find (lambda (session) (not (memq session before)))
+              (claude-code-ide-mcp--sessions-for-project dir))))
+
+(defun my/org-dock-claude--send-when-ready (session text &optional tries)
+  "Type TEXT into SESSION's Claude once it is connected, and show it.
+A Claude just started takes a few seconds; after thirty it is left, and
+the echo area says what to type."
+  (let ((tries (or tries 0)))
+    (cond
+     ((not (buffer-live-p (claude-code-ide-mcp-session-buffer session))))
+     ((claude-code-ide-mcp-session-client session)
+      (with-current-buffer (claude-code-ide-mcp-session-buffer session)
+        (claude-code-ide--terminal-send-string text))
+      (my/org-dock-claude--show session))
+     ((< tries 60)
+      (run-with-timer 0.5 nil #'my/org-dock-claude--send-when-ready session text (1+ tries)))
+     (t (message "Claude has not connected; type %s in its window" text)))))
+
+(defun my/org-dock-claude (request)
+  "Make Claude, in its window, ready to work on the copy REQUEST names.
+The request file -- which file to write, which to read, where point is --
+goes into Claude's prompt as an @-mention, and the Claude window is
+selected for what to ask to be typed after it: Ctrl+G there opens the
+prompt in a buffer of this Emacs, for asking at length.  The project is
+the heading's own, since the copy's `default-directory' is its file's
+directory, so the sources are files of the project Claude started in.
+Each change Claude makes to the copy is an ediff to take or refuse.
+
+The Claude is the one asked of copies of the same file, while it runs;
+else one started for that file.  A copy written in the background has
+that conversation gone on with first, in a window of its own, which is
+the file's from then on.  With a prefix argument, one of the project's
+Claudes is chosen and made the file's -- one resumed by hand, say."
+  (require 'claude-code-ide)
+  (let* ((copy (plist-get request :copy))
+         (origin (plist-get request :origin))
+         (name (my/org-dock-claude--name origin))
+         (mention (concat "@" (plist-get request :request) " "))
+         (own (gethash origin my/org-dock-claude--instances))
+         (record (and (not (gethash copy my/org-dock-claude--resumed))
+                      (my/org-dock-claude--record copy))))
+    (cond
+     (current-prefix-arg
+      (let ((session (claude-code-ide--read-project-session
+                      "Claude for this file: " (my/org-dock-claude--directory))))
+        (puthash origin session my/org-dock-claude--instances)
+        (my/org-dock-claude--send-when-ready session mention)))
+     (record
+      ;; The conversation has read the request already.
+      (let ((default-directory (plist-get record :directory))
+            (claude-code-ide-cli-extra-flags
+             (concat claude-code-ide-cli-extra-flags " --resume " (plist-get record :session))))
+        (message "Going on with the conversation that wrote \"%s\" in the background"
+                 (plist-get request :heading))
+        (puthash copy t my/org-dock-claude--resumed)
+        (puthash origin (my/org-dock-claude--start name) my/org-dock-claude--instances)))
+     ((and own (buffer-live-p (claude-code-ide-mcp-session-buffer own)))
+      (my/org-dock-claude--send-when-ready own mention))
+     (t
+      (my/org-dock-claude--send-when-ready
+       (puthash origin (my/org-dock-claude--start name) my/org-dock-claude--instances)
+       mention)))))
+
+(defun my/org-dock-claude--name (origin)
+  "Return the name of a Claude for copies of ORIGIN: its title, or its name."
+  (or (when-let* ((buffer (and (file-name-absolute-p origin) (find-buffer-visiting origin))))
+        (with-current-buffer buffer (org-get-title)))
+      (file-name-base origin)))
+
+(defun my/org-dock-claude-background (request)
+  "Have Claude write the copy REQUEST names, in the background.
+What to ask is read from the minibuffer; nothing asked, the request
+says what Claude does: make the copy a note to rely on.  Claude may
+write the copy alone, read anything, and run Emacs in batch -- which
+is how a truss file is checked and a source taken in, as the request
+tells it -- and is asked nothing more while it works.  Its last
+message, and how it ended, are kept beside the copy, STEM.result.json,
+for `my/org-dock-claude-status'; what it wrote is the copy itself."
+  (let* ((copy (plist-get request :copy))
+         (heading (plist-get request :heading))
+         (ask (string-trim
+               (read-string (format "Ask Claude of \"%s\" (nothing: make it a note): " heading))))
+         (claude (or (executable-find "claude") (user-error "No claude on the PATH")))
+         (dir (my/org-dock-claude--directory))
+         (id (org-id-uuid))
+         ;; As org-truss and org-moor write it in the request, so that the
+         ;; rule lets through what they tell Claude to run, and no other.
+         (emacs (shell-quote-argument (expand-file-name invocation-name invocation-directory) t))
+         ;; A permission rule's path is absolute when it starts with //.
+         (rule-path (concat "/" (expand-file-name copy)))
+         (out (generate-new-buffer (format " *claude %s*" heading)))
+         (err (generate-new-buffer (format " *claude %s stderr*" heading)))
+         (prompt (concat "Read " (plist-get request :request) " first: it says which file to write, "
+                         "which to read, and how I write.\n"
+                         "Nobody watches while you work: ask me nothing, do what is asked, "
+                         "and end by saying what you did and what is still unclear.\n"
+                         (if (string-empty-p ask) "" (concat "\n" ask "\n")))))
+    (let ((print-length nil) (print-level nil) (coding-system-for-write 'utf-8))
+      (with-temp-file (org-dock-beside copy ".claude.eld")
+        (prin1 (list :session id :directory dir :asked ask
+                     :time (format-time-string "%F %R"))
+               (current-buffer))))
+    (let* ((default-directory dir)
+           (process
+            (make-process
+             :name "org-dock-claude"
+             :buffer out
+             ;; A pipe of its own, so that its closing is not written into
+             ;; ERR as what Claude said.
+             :stderr (make-pipe-process :name "org-dock-claude stderr" :buffer err
+                                        :noquery t :sentinel #'ignore)
+             :connection-type 'pipe
+             :coding 'utf-8
+             :command (list claude "-p"
+                            "--permission-mode" "dontAsk"
+                            "--allowedTools" "Read" "Grep" "Glob"
+                            (format "Edit(%s)" rule-path) (format "Write(%s)" rule-path)
+                            (format "Bash(%s --batch *)" emacs)
+                            "--add-dir" (expand-file-name org-dock-directory)
+                            "--session-id" id
+                            "--output-format" "json")
+             :sentinel (lambda (process _event)
+                         (when (memq (process-status process) '(exit signal))
+                           (my/org-dock-claude--done process copy heading out err))))))
+      (org-dock-set-busy copy "Claude")
+      ;; The prompt goes in on stdin, not as an argument, so that it reaches
+      ;; Claude as UTF-8 whatever code page Windows gives a command line.
+      (process-send-string process prompt)
+      (process-send-eof process)
+      (message "Claude is writing \"%s\" in the background" heading))))
+
+(defun my/org-dock-claude--done (process copy heading out err)
+  "Keep what PROCESS, Claude writing COPY of HEADING, said in OUT and ERR."
+  (let ((coding-system-for-write 'utf-8))
+    (with-current-buffer out
+      (write-region nil nil (org-dock-beside copy ".result.json") nil 'silent))
+    (with-current-buffer err
+      (unless (zerop (buffer-size))
+        (write-region nil nil (org-dock-beside copy ".claude.log") nil 'silent))))
+  (kill-buffer out)
+  (kill-buffer err)
+  (org-dock-set-busy copy nil)
+  (message "Claude %s \"%s\"; C-c C-= in the copy shows what it wrote"
+           (if (zerop (process-exit-status process)) "is done with" "failed on")
+           heading))
+
+(defun my/org-dock-claude-status (copy)
+  "Say how Claude, asked of COPY in the background, ended, and its last words."
+  (let ((result (org-dock-beside copy ".result.json")))
+    (cond
+     ((org-dock-busy copy) nil)
+     ((file-exists-p result)
+      (let* ((json (ignore-errors
+                     (json-parse-string
+                      (with-temp-buffer
+                        (let ((coding-system-for-read 'utf-8)) (insert-file-contents result))
+                        (buffer-string))
+                      :object-type 'plist)))
+             (said (car (split-string (or (and json (stringp (plist-get json :result))
+                                               (plist-get json :result))
+                                          "")
+                                      "\n" t "[ \t]+"))))
+        (concat (cond ((not json) "Claude: no result")
+                      ((eq (plist-get json :is_error) t) "Claude failed")
+                      (t "Claude done"))
+                (if said (concat ": " said) ""))))
+     ((my/org-dock-claude--record copy) "Claude stopped before it was done"))))
+
 (provide 'my-app-agent)
 ;;; my-app-agent.el ends here
