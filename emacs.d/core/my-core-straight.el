@@ -97,24 +97,16 @@ Whatever is still running is killed on the way out, so `C-g' leaves no
 git processes behind to finish into a command that has gone."
   (unless (executable-find "git")
     (user-error "No git on PATH"))
-  (let* (;; The echo area is this command\='s while it runs.  A progress
-         ;; report that something else overwrites four times a second is
-         ;; worse than none: the eye reads flicker as a fault.  Garbage
-         ;; collection is the one that narrates over it here --
-         ;; `garbage-collection-messages\=' is on globally, which is right
-         ;; for a session and wrong for a command that has taken the line.
-         (garbage-collection-messages nil)
-         ;; And fewer of them to narrate.  Collecting does not stop the
+  (let* (;; Fewer collections while it runs.  Collecting does not stop the
          ;; fetching -- git is a separate process and goes on writing while
          ;; Emacs is busy -- it stops Emacs noticing that a fetch finished
          ;; and starting the next.  Measured at one collection of ten
          ;; milliseconds across the whole of a hundred and ninety
-         ;; repositories, so this is for the quiet rather than the speed.
+         ;; repositories, so it buys little, and costs nothing.
          ;;
          ;; Only until something lowers it again: `gcmh-mode\=' drops the
          ;; threshold from its own idle timer, and a wait this long looks
-         ;; idle.  What that costs is collections, not messages, and they
-         ;; are silent now.
+         ;; idle.  What that costs is collections, and they are silent.
          (gc-cons-threshold (max gc-cons-threshold (* 256 1024 1024)))
          ;; The repositories a recipe points at.  Walking the directory
          ;; instead fetched
@@ -540,8 +532,7 @@ none of the ordinary case below."
   (interactive "P")
   (if (or predicate from-upstream)
       (straight-pull-all from-upstream predicate)
-    (let* ((garbage-collection-messages nil)
-           ;; What the fetch could not reach.  Said again here because the
+    (let* (;; What the fetch could not reach.  Said again here because the
            ;; fetch says it and is then talked over: the merge finishes a
            ;; moment later and its message is the one left on screen.  And
            ;; a repository that was not fetched looks, to everything after
@@ -571,7 +562,7 @@ none of the ordinary case below."
       ;; The report is written however this ends, a question answered with
       ;; `C-g' included, because an ending nobody can see is the trouble it
       ;; is there for.  The echo area is no place for it: the summary is
-      ;; talked over by the next message, gcmh's or anyone's.
+      ;; talked over by whatever is said next.
       (unwind-protect
           (condition-case err
               (if (null behind)

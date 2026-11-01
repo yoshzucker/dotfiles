@@ -9,12 +9,9 @@
 
 (setq delete-by-moving-to-trash t
       ring-bell-function 'ignore
-      ;; Off, and `gcmh-verbose' on below instead.  This narrates *every*
-      ;; collection, which during a long command is a second writer fighting
-      ;; whatever that command is reporting -- and flicker reads as a fault.
-      ;; What is worth seeing is the deliberate collection and what it cost,
-      ;; which is what `gcmh-verbose' says and this cannot.  For the totals,
-      ;; `my/gc-report'.
+      ;; Collections are not announced, here or by `gcmh-verbose' below: a
+      ;; line in the echo area overwrites whatever was there, which is the
+      ;; message that was worth reading.
       garbage-collection-messages nil)
 
 (fset 'yes-or-no-p 'y-or-n-p)
@@ -93,7 +90,7 @@
   ;; each dearer.  What removes the cost is the threshold being higher than
   ;; the command conses, so that none happens at all and the bill is settled
   ;; later.  That is the whole of gcmh, and it is worth having.
-  (setq gcmh-verbose t
+  (setq gcmh-verbose nil
         ;; The default, written down: `auto' recomputes it as twenty times
         ;; the last collection, which for a fast one is a third of a second.
         gcmh-idle-delay 15
@@ -133,44 +130,6 @@
    (:hook post-command-hook :func #'my/gcmh--command-ended))
 
   (gcmh-mode 1))
-
-(defvar my/gc--mark nil
-  "Collections, seconds and clock as of the last `my/gc-report', or nil.")
-
-(defun my/gc-report (&optional whole-session)
-  "Say what garbage collection has cost since this was last asked.
-
-Asked twice around something heavy -- once before, once after -- the
-second answer is what that something paid, which is the question worth
-asking.  A session total cannot answer it: nine tenths of a second spread
-over half an hour is nothing, and the same nine tenths landing inside one
-redraw is that redraw being a tenth slower than it looks.
-
-With a prefix argument, or the first time, the whole session instead.
-
-`garbage-collection-messages' is not an instrument for this: a line in the
-echo area says a collection happened and nothing about whether they add up
-to anything.  A percent or two is the price of not thinking about it; ten
-is a reason to look at `gcmh-high-cons-threshold'."
-  (interactive "P")
-  (let* ((now (current-time))
-         (from (if (or whole-session (null my/gc--mark))
-                   (list 0 0.0 before-init-time)
-                 my/gc--mark))
-         (span (max 0.001 (float-time (time-subtract now (nth 2 from)))))
-         (count (- gcs-done (nth 0 from)))
-         (spent (- gc-elapsed (nth 1 from))))
-    (setq my/gc--mark (list gcs-done gc-elapsed now))
-    (message "gc: %d collections, %.2fs, %.1f%% of %s"
-             count spent (* 100 (/ spent span))
-             (if (< span 60)
-                 ;; A decimal, because what is being timed here is often a
-                 ;; single command and "0s" is not an answer about one.
-                 (format "%.1fs" span)
-               ;; `%z' drops whatever stands before it when all of it is
-               ;; zero, so nine minutes reads as "0h 9m" and not as a year
-               ;; and two days of nothing.
-               (format-seconds "%Y %D %z%hh %mm" span)))))
 
 (use-package immortal-scratch
   :config
