@@ -1778,6 +1778,13 @@ block already shows what is out with them, as a live query."
   ;; since its record is out of the way.  `x' lists the copies largest
   ;; first, to choose which to let go.
   ;;
+  ;; `k', on a heading (or above the first, for the whole file), keeps
+  ;; the copies its sources are still without -- what an agent took and
+  ;; could not keep without coming in front of me -- when it suits me, as
+  ;; before leaving my seat.  `l' signs in to a site whose page came back
+  ;; as a sign-in page, in the browser org-moor saves pages with, and then
+  ;; offers to keep what was waiting for it.
+  ;;
   ;; Each key is named for which-key, which shows the names when a key
   ;; after `C-c m' is slow in coming.  Lowercase takes, writes or goes;
   ;; uppercase is the same act carried one step further.
@@ -1814,6 +1821,8 @@ block already shows what is out with them, as a live query."
          "y" #'org-moor-clip-origin
          "t" #'org-moor-set-title
          "x" #'org-moor-prune
+         "k" #'org-moor-keep-replica
+         "l" #'org-moor-sign-in
          :desc
          "" "moor"
          "c" "take clipboard"
@@ -1829,7 +1838,9 @@ block already shows what is out with them, as a live query."
          "O" "open origin"
          "y" "clip origin"
          "t" "retitle source"
-         "x" "prune copies"))
+         "x" "prune copies"
+         "k" "keep missing copies"
+         "l" "sign in for copies"))
 
   ;; The bookmarklet (script/org-moor-bookmarklet.txt in the package)
   ;; arrives through emacsclient as `org-protocol://moor?...', which works
@@ -1860,7 +1871,15 @@ block already shows what is out with them, as a live query."
   (setq org-moor-move-directories (list "~/Downloads/" "~/Desktop/")
         org-moor-directory-roots (list "~/Documents/project/"
                                        "~/Documents/reference/")
-        org-moor-files-function #'my/org-moor-files))
+        org-moor-files-function #'my/org-moor-files)
+  ;; A page only a browser shows whole is saved by single-file in a Chrome
+  ;; of its own, not the browser I read in, so that nothing comes in front
+  ;; of me while an agent takes one.  On Windows that Chrome is Scoop's
+  ;; googlechrome, whose manifest sets CHROME_EXECUTABLE -- not Edge, whose
+  ;; profile the company holds -- and the profile it is signed in by is
+  ;; its own, used for nothing else.
+  (setq org-moor-singlefile-browser (getenv "CHROME_EXECUTABLE")
+        org-moor-singlefile-profile "~/.local/share/org-moor/chrome-profile/"))
 
 (defun my/org-moor-files ()
   "Org files `org-moor-jump' looks in: memex without archive/, and the agenda.

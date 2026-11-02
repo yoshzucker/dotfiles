@@ -135,6 +135,14 @@
       "Source": "extras"
     },
     {
+      "Name": "googlechrome",
+      "Source": "extras"
+    },
+    {
+      "Name": "single-file-cli",
+      "Source": "extras"
+    },
+    {
       "Name": "uv",
       "Source": "main"
     },
