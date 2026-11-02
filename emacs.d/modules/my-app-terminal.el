@@ -81,8 +81,16 @@
 ;; point, `p' pastes through it.  Anything outside the shell's own line
 ;; editing -- a full-screen TUI, copy mode -- falls through to plain evil.
 ;; The mode is per buffer and nothing in the package turns it on.
+;;
+;; C-[ always enters normal state, whatever ESC is routed to, so a TUI can
+;; keep ESC for itself.  That takes C-[ arriving as `<C-[>', which only a
+;; graphical frame gives -- see `my/distinguish-control-bracket' in
+;; my-editor-evil.el.
 (use-package evil-ghostel
-  :hook (ghostel-mode . evil-ghostel-mode))
+  :hook (ghostel-mode . evil-ghostel-mode)
+  :config
+  (evil-define-key* 'insert evil-ghostel-mode-map
+                    [C-\[] #'evil-normal-state))
 
 (provide 'my-app-terminal)
 ;;; my-app-terminal.el ends here

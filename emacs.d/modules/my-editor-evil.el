@@ -137,6 +137,26 @@
         (consult--read (mapcar #'car candidates)
                        :require-match t)))))
 
+;; C-[ as a key of its own, on a graphical frame.  A terminal sends C-[ and
+;; ESC as the same byte, so there is nothing to tell apart there.  A
+;; graphical frame reports the ESC key as `<escape>' and only C-[ as the
+;; character ESC, so decoding that character to `<C-[>' separates the two,
+;; and a mode can then give each its own binding -- as evil-ghostel does in
+;; my-app-terminal.el, where ESC goes to the terminal and C-[ to evil.
+;;
+;; Where nothing binds `<C-[>', it falls back to ESC, the way `<escape>'
+;; does, so C-[ is still a meta prefix everywhere else.  Both maps are
+;; per terminal, hence per frame.
+(defun my/distinguish-control-bracket (&optional frame)
+  "Decode C-[ on FRAME's terminal as `<C-[>' when FRAME is graphical."
+  (with-selected-frame (or frame (selected-frame))
+    (when (display-graphic-p)
+      (define-key input-decode-map [?\C-\[] [C-\[])
+      (define-key local-function-key-map [C-\[] [?\C-\[]))))
+
+(add-hook 'after-init-hook #'my/distinguish-control-bracket)
+(add-hook 'after-make-frame-functions #'my/distinguish-control-bracket)
+
 (use-package winner
   :after evil
   :init
