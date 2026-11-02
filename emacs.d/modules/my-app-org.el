@@ -1977,6 +1977,19 @@ the sources' records, not notes."
   ;; its CLAUDE.md and its sources/, wherever the directory lies.
   (setq org-truss-project-file ".project")
 
+  ;; A truss file here is mostly made to understand something told only in
+  ;; scraps -- a procedure no one wrote down whole -- and is read on the
+  ;; board, seldom exported.  So Message is its parts, regrouped by an axis
+  ;; when they need to be, and Structure only includes Message whole: ready
+  ;; to export, with nothing of Subject to include.
+  (setq org-truss-new-divisions
+        '((brief :patterns ((breakdown . reader-question-response-constraints)))
+          (subject :patterns ((breakdown . parts))
+                   :members ((part :patterns ((breakdown . parts)))))
+          (message :patterns ((breakdown . parts)))
+          (structure :patterns ((breakdown . parts))
+                     :members ((part :include message)))))
+
   ;; The marks of a simple and a compound truss come from the Nerd Font the
   ;; board is drawn in (PlemolJP NF), both one column wide: the outlined
   ;; triangle (md-triangle_outline) and the filled pyramid (md-pyramid),
