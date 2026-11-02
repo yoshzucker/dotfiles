@@ -173,7 +173,6 @@ main() {
     update_brew
     update_brew_packages
     update_pacman_packages
-    update_r_packages
     install_zsh_plugins
     setup_links
     setup_dev_packages
@@ -740,7 +739,7 @@ setup_dev_packages() {
 # Package Management Utilities
 # =============================================================================
 # Functions responsible for installing and updating packages via apt, brew,
-# Scoop (via ps1), R, etc. These are mostly independent of the link logic.
+# Scoop (via ps1), etc. These are mostly independent of the link logic.
 
 install_apt_packages() {
   # Installs base APT packages required before Homebrew and other tools.
@@ -922,46 +921,6 @@ update_brew_packages() {
   print_line "$left_message" "Finished."
 }
 
-install_r_packages() {
-  # Installs or updates commonly used R packages (tidyverse, etc.).
-  # This is a convenience step and is safe to re-run.
-  if ! command -v R >/dev/null; then
-    return
-  fi
-
-  left_message="Installing or updating R packages"
-  print_line "$left_message" "Started."
-
-  if [[ "$os" == "darwin" ]]; then
-    chmod u+w "$(brew --prefix)/Cellar/r/"*/lib/R/doc/html/packages.html 2>/dev/null || true
-  fi
-
-  if [[ "$os" == "linux" ]]; then
-    options="repos='https://cran.rstudio.com', INSTALL_opts=c('--no-lock')"
-  else
-    options="repos='https://cran.rstudio.com'"
-  fi
-
-  packages="c('tidyverse')"
-  Rscript -e "install.packages($packages[! $packages %in% installed.packages()[, 'Package']], $options)" || true
-
-  print_line "$left_message" "Finished."
-}
-
-update_r_packages() {
-  # Updates all installed R packages (non-interactive).
-  if ! command -v R >/dev/null; then
-    return
-  fi
-
-  left_message="Updating installed R packages"
-  print_line "$left_message" "Started."
-
-  Rscript -e "update.packages(ask = FALSE)" || true
-
-  print_line "$left_message" "Finished."
-}
-
 install_fonts() {
   # Builds and installs "PlemolJP NF" (non-Console PlemolJP + Nerd icons;
   # Japanese prose 2-cell, drawing/UI 1-cell — see local/bin/build-plemoljp-nf).
@@ -1065,7 +1024,6 @@ perform_full_bootstrap() {
   install_brew_packages
   install_fonts
   install_pacman_packages
-  install_r_packages
   install_python_tools
   install_zsh_plugins
   setup_links

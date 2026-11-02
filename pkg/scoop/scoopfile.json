@@ -83,10 +83,6 @@
       "Source": "main"
     },
     {
-      "Name": "r",
-      "Source": "main"
-    },
-    {
       "Name": "sbcl",
       "Source": "main"
     },

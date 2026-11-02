@@ -142,7 +142,6 @@ function Main {
         Update-ScoopPackages
         Update-MSYS2Packages
         Enable-EmacsNativeComp
-        Update-RPackages
         Install-ZshPlugins
         Setup-Links
         Setup-DevPackages
@@ -929,7 +928,7 @@ function Install-ScoopPackages {
         }
     } else {
         Write-Host "No scoopfile found. Using fallback list."
-        $packages = @("git", "ripgrep", "fzf", "emacs", "r", "python", "sbcl")
+        $packages = @("git", "ripgrep", "fzf", "emacs", "python", "sbcl")
         foreach ($pkg in $packages) {
             if (-not (scoop list | Select-String "^$pkg\s")) {
                 scoop install $pkg
@@ -1749,32 +1748,6 @@ function Remove-StartupShortcuts {
     }
 }
 
-function Install-RPackages {
-    if (-not (Get-Command Rscript -ErrorAction SilentlyContinue)) {
-        return
-    }
-
-    $leftMessage = "Installing or updating R packages"
-    Write-PrintLine $leftMessage "Started."
-
-    Rscript -e "packages <- c('tidyverse'); install.packages(packages[!packages %in% installed.packages()[, 'Package']], repos='https://cran.rstudio.com')" 2>$null
-
-    Write-PrintLine $leftMessage "Finished."
-}
-
-function Update-RPackages {
-    if (-not (Get-Command Rscript -ErrorAction SilentlyContinue)) {
-        return
-    }
-
-    $leftMessage = "Updating installed R packages"
-    Write-PrintLine $leftMessage "Started."
-
-    Rscript -e "update.packages(ask = FALSE)" 2>$null
-
-    Write-PrintLine $leftMessage "Finished."
-}
-
 function Install-PythonTools {
     # Puts the Python tools that are not a project's own on PATH, with uv.
     #
@@ -1870,7 +1843,6 @@ function Perform-FullBootstrap {
     Install-MSYS2Packages
     Enable-EmacsNativeComp
     Install-Fonts
-    Install-RPackages
     Install-PythonTools
     Install-ZshPlugins
     Setup-Links

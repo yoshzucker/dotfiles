@@ -74,7 +74,6 @@ brew "rustup"
 # is wanted from it, and clangd (the language server) ships with the Xcode
 # command line tools.
 brew "clang-format"
-brew "r"
 brew "sbcl"
 brew "node"
 brew "marp-cli"
