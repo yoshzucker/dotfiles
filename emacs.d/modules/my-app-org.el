@@ -1878,13 +1878,12 @@ block already shows what is out with them, as a live query."
   ;; googlechrome, whose manifest sets CHROME_EXECUTABLE -- not Edge, whose
   ;; profile the company holds -- and the profile it is signed in by is
   ;; its own, used for nothing else.
-  ;; The pages it saves are the intranet's, which never stop fetching, so
-  ;; it saves one once it can be used rather than waiting out its sixty
-  ;; seconds for the network to go quiet: the same page, collapsed parts
-  ;; and all, without the load timeout.
+  ;; The intranet's pages never stop fetching; org-moor saves one once its
+  ;; own requests are answered and it stops changing
+  ;; (org-moor-singlefile-when-ready), so no --browser-wait-until here,
+  ;; which would be taken over that.
   (setq org-moor-singlefile-browser (getenv "CHROME_EXECUTABLE")
-        org-moor-singlefile-profile "~/.local/share/org-moor/chrome-profile/"
-        org-moor-singlefile-arguments '("--browser-wait-until" "InteractiveTime")))
+        org-moor-singlefile-profile "~/.local/share/org-moor/chrome-profile/"))
 
 (defun my/org-moor-files ()
   "Org files `org-moor-jump' looks in: memex without archive/, and the agenda.
