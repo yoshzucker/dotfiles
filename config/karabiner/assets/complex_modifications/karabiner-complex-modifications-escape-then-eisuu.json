@@ -1,5 +1,5 @@
 {
-    "description": "Escape then Eisuu (add japanese_eisuu to escape)",
+    "description": "Escape then Eisuu; Control+[ as it is, then Eisuu",
     "manipulators": [
         {
             "from": {
@@ -26,7 +26,10 @@
             },
             "to": [
                 {
-                    "key_code": "escape"
+                    "key_code": "close_bracket",
+                    "modifiers": [
+                        "left_control"
+                    ]
                 },
                 {
                     "key_code": "japanese_eisuu"
