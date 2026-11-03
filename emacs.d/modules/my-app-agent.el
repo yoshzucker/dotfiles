@@ -573,12 +573,13 @@ via a font-weight= presence check."
           (let ((coding-system-for-read 'utf-8)) (insert-file-contents file))
           (read (current-buffer)))))))
 
-(defun my/org-dock-claude--show (session)
-  "Show SESSION's Claude window, and select it."
+(defun my/org-dock-claude--show (session &optional select)
+  "Show SESSION's Claude window; with SELECT, select it."
   (let ((buffer (claude-code-ide-mcp-session-buffer session)))
     (when-let* ((window (or (get-buffer-window buffer)
-                            (claude-code-ide--display-buffer-in-side-window buffer))))
-      (select-window window))))
+                            (let ((claude-code-ide-focus-on-open select))
+                              (claude-code-ide--display-buffer-in-side-window buffer)))))
+      (when select (select-window window)))))
 
 (defun my/org-dock-claude--start (name)
   "Start a claude-code-ide instance here, named NAME when it needs a name.
@@ -593,19 +594,26 @@ window says which file's copies it is for."
     (seq-find (lambda (session) (not (memq session before)))
               (claude-code-ide-mcp--sessions-for-project dir))))
 
-(defun my/org-dock-claude--send-when-ready (session text &optional tries)
+(defun my/org-dock-claude--send-when-ready (session text &optional tries from)
   "Type TEXT into SESSION's Claude once it is connected, and show it.
 A Claude just started takes a few seconds; after thirty it is left, and
-the echo area says what to type."
-  (let ((tries (or tries 0)))
+the echo area says what to type.  Its window is selected only when the
+window selected when this was first called, FROM, still is: moved on to
+something else meanwhile -- another copy, another Claude -- what is
+typed there is not taken over, and the echo area says it is ready."
+  (let ((tries (or tries 0))
+        (from (or from (selected-window))))
     (cond
      ((not (buffer-live-p (claude-code-ide-mcp-session-buffer session))))
      ((claude-code-ide-mcp-session-client session)
       (with-current-buffer (claude-code-ide-mcp-session-buffer session)
         (claude-code-ide--terminal-send-string text))
-      (my/org-dock-claude--show session))
+      (if (eq (selected-window) from)
+          (my/org-dock-claude--show session t)
+        (my/org-dock-claude--show session)
+        (message "%s is ready" (buffer-name (claude-code-ide-mcp-session-buffer session)))))
      ((< tries 60)
-      (run-with-timer 0.5 nil #'my/org-dock-claude--send-when-ready session text (1+ tries)))
+      (run-with-timer 0.5 nil #'my/org-dock-claude--send-when-ready session text (1+ tries) from))
      (t (message "Claude has not connected; type %s in its window" text)))))
 
 (defun my/org-dock-claude (request)
