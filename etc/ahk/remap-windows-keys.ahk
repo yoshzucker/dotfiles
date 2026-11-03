@@ -45,6 +45,9 @@ sc070::Run("C:\Windows\System32\IME\IMEJP\IMJPDCT.exe")
 #HotIf
  
 ;; --- Emacs Evil mode ESC handling (ESC or Ctrl-[) ------------
+;; Each also turns the IME off (Muhenkan).  Ctrl-[ goes on as it is, since
+;; Emacs tells it from ESC: in a terminal there, ESC goes to the program
+;; and Ctrl-[ leaves insert state (my-editor-evil.el).
 ESC::Send("{ESC}{vk1Dsc07B}")
-^[::Send("{ESC}{vk1Dsc07B}")
+~^[::Send("{vk1Dsc07B}")
  

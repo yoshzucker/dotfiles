@@ -144,15 +144,22 @@
 ;; and a mode can then give each its own binding -- as evil-ghostel does in
 ;; my-app-terminal.el, where ESC goes to the terminal and C-[ to evil.
 ;;
-;; Where nothing binds `<C-[>', it falls back to ESC, the way `<escape>'
-;; does, so C-[ is still a meta prefix everywhere else.  Both maps are
-;; per terminal, hence per frame.
+;; The decoding takes the place of evil's own, by which C-[ -- the character
+;; ESC -- arrives as `<escape>' (`evil-intercept-esc').  So where nothing
+;; binds `<C-[>' it is given back as evil gave it: `<escape>' where that is
+;; bound -- leaving insert state, quitting the minibuffer -- and else the
+;; character ESC, a meta prefix.  Both maps are per terminal, hence per
+;; frame.
+(defun my/control-bracket-as-escape (_prompt)
+  "Return what C-[ is where nothing binds it: the ESC key's binding."
+  (if (key-binding [escape]) [escape] [?\e]))
+
 (defun my/distinguish-control-bracket (&optional frame)
   "Decode C-[ on FRAME's terminal as `<C-[>' when FRAME is graphical."
   (with-selected-frame (or frame (selected-frame))
     (when (display-graphic-p)
       (define-key input-decode-map [?\C-\[] [C-\[])
-      (define-key local-function-key-map [C-\[] [?\C-\[]))))
+      (define-key local-function-key-map [C-\[] #'my/control-bracket-as-escape))))
 
 (add-hook 'after-init-hook #'my/distinguish-control-bracket)
 (add-hook 'after-make-frame-functions #'my/distinguish-control-bracket)
