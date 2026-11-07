@@ -74,27 +74,11 @@
     :type 'directory
     :group 'deadgrep)
 
-  (defun my/deadgrep-in (dir)
-    "Run `deadgrep' rooted at DIR, ignoring any enclosing VC/project root.
-`deadgrep--project-root' otherwise walks up to a parent `.git' (e.g. ~/.git),
-so pin the search root to DIR explicitly.
-
-The `require' is not ceremony.  `deadgrep-project-root-function' is only a
-special variable once deadgrep has defined it, and a `let' over a name that
-is not special yet binds it lexically -- which deadgrep would never see, and
-which would fail by searching the wrong tree rather than by complaining."
-    (require 'deadgrep)
-    (let* ((dir (expand-file-name dir))
-           (default-directory dir)
-           (deadgrep-project-root-function (lambda () dir)))
-      (call-interactively #'deadgrep)))
-
-  ;; memex is notes, and searching notes should be instant.  The documents
-  ;; kept beside them -- org-moor's sources in sources/, older attachments in
-  ;; data/ -- are what made `:memex' slow, and on Windows stop it outright
-  ;; when rga's extraction of a PDF or a deck ran away.  So `:memex' is plain
-  ;; rg over the notes, and `:source' is rga over the documents, asked for on
-  ;; purpose.  `:reference' and `:project' are mostly documents and stay rga.
+  ;; memex is notes, and searching notes should be instant, so `:memex'
+  ;; leaves out the documents kept beside them -- org-moor's sources in
+  ;; sources/, older attachments in data/ -- which `:source' searches when
+  ;; asked.  Everything is rg: a document is found by its text, which for a
+  ;; source is the machine-readable copy org-moor keeps beside it.
   (defvar-local my/deadgrep-engine nil
     "Executable and extra arguments for this deadgrep buffer, or nil.
 Kept per buffer so that searching again from the results (`g', a new term)
@@ -103,15 +87,9 @@ uses the same engine as the search that made them.")
   (defvar my/deadgrep--next-engine nil
     "The engine the deadgrep buffer being made is to keep.")
 
-  (defun my/deadgrep-rga-arguments ()
-    "Extra arguments for rga: its own config, and none of rg's."
-    (list "--no-config"
-          (format "--rga-config-file=%s"
-                  (expand-file-name "~/.config/ripgrep-all/config.jsonc"))))
-
   (defun my/deadgrep-in (dir &optional engine)
     "Run `deadgrep' rooted at DIR, ignoring any enclosing VC/project root.
-ENGINE is (EXECUTABLE . EXTRA-ARGUMENTS); nil is rga.
+ENGINE is (EXECUTABLE . EXTRA-ARGUMENTS); nil is deadgrep's own, rg.
 `deadgrep--project-root' otherwise walks up to a parent `.git' (e.g. ~/.git),
 so pin the search root to DIR explicitly.
 
@@ -123,8 +101,7 @@ which would fail by searching the wrong tree rather than by complaining."
     (let* ((dir (expand-file-name dir))
            (default-directory dir)
            (deadgrep-project-root-function (lambda () dir))
-           (my/deadgrep--next-engine
-            (or engine (cons "rga" (my/deadgrep-rga-arguments)))))
+           (my/deadgrep--next-engine engine))
       (call-interactively #'deadgrep)))
 
   (defun my/deadgrep-memex ()
@@ -160,8 +137,6 @@ which would fail by searching the wrong tree rather than by complaining."
                       (apply fn args))
                   (apply fn args)))
               '((name . my/deadgrep-engine)))
-  (setq deadgrep-executable "rga")
-  (setq deadgrep-extra-arguments (my/deadgrep-rga-arguments))
 
   (when (eq system-type 'windows-nt)
     (add-to-list 'process-coding-system-alist

@@ -41,7 +41,11 @@ Also used under method `auto' when FORCE is a plain C-u."
   :group 'my-config)
 
 (defcustom my/open-in-browser-extensions
-  '("html" "htm" "xhtml")
+  ;; A PDF too on Windows, where Emacs has nothing to read one with: no
+  ;; pdf-tools, and no renderer for doc-view.  The browser's viewer is
+  ;; sandboxed, which a PDF parser in Emacs is not.
+  (append '("html" "htm" "xhtml")
+          (when (eq system-type 'windows-nt) '("pdf")))
   "File extensions opened in the browser under method `auto'.
 
 The browser `browse-url-browser-function' names, as a file: URL, which
@@ -55,8 +59,8 @@ need not be the one the OS opens HTML with."
 
 Under method `outside' -- C-c C-o, or C-u C-u on an Org link -- besides
 `my/open-in-browser-extensions'; the rest go to the OS default app.
-Under method `auto' they open as before: a PDF in pdf-tools, or doc-view
-where there is no pdf-tools."
+Under method `auto' they open as before: a PDF in pdf-tools, or on
+Windows in the browser (see `my/open-in-browser-extensions')."
   :type '(repeat string)
   :group 'my-config)
 

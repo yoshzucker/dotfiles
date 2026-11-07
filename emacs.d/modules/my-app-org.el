@@ -992,7 +992,7 @@ unaffected."
   ;; missing from this list: `docview:' addresses a page of a document opened
   ;; in `doc-view-mode', and on the Mac `pdf-loader-install' below hands
   ;; every PDF to pdf-tools instead, so doc-view never opens one there.  A
-  ;; PDF is linked as a `file:', which pdf-tools opens (doc-view on Windows);
+  ;; PDF is linked as a `file:', which pdf-tools opens (the browser on Windows);
   ;; a place inside one has no link type here.
   (setq org-modules '(ol-doi ol-info))
 
@@ -1615,9 +1615,8 @@ block already shows what is out with them, as a live query."
 
 (use-package pdf-tools
   ;; Not on Windows: `epdfinfo', the C program pdf-tools talks to, does not
-  ;; build there, and nothing here packages it.  A PDF there opens in
-  ;; doc-view, which renders pages with mupdf's `mutool' (scoopfile) as soon
-  ;; as it is on PATH -- nothing to set.
+  ;; build there, and nothing here packages it.  A PDF there opens in the
+  ;; browser (`my/open-in-browser-extensions' in my-files-ops.el).
   :if (and (display-graphic-p) (not (eq system-type 'windows-nt)))
   ;; Not loaded until a PDF is opened.  `pdf-tools-install' checks that
   ;; `epdfinfo' is built and current, which means a subprocess and a walk of

@@ -15,10 +15,6 @@
       "Source": "main"
     },
     {
-      "Name": "rga",
-      "Source": "main"
-    },
-    {
       "Name": "7zip",
       "Source": "main"
     },
@@ -31,10 +27,6 @@
       "Source": "main"
     },
     {
-      "Name": "mupdf",
-      "Source": "extras"
-    },
-    {
       "Name": "git",
       "Source": "main"
     },
@@ -44,10 +36,6 @@
     },
     {
       "Name": "emacs",
-      "Source": "extras"
-    },
-    {
-      "Name": "marktext",
       "Source": "extras"
     },
     {

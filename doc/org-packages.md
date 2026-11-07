@@ -40,10 +40,9 @@ straight (`setup_dev_packages`), or straight tries to clone a repository that
 does not exist.
 
 Copies go to `memex/source/`, the package default, so they travel with memex
-and are never browsed by hand.  `:memex` is plain rg and skips `source/` and
-the older attachments in `data/`; `:source` is rga over `source/`.  That split
-is also what keeps rga's PDF and Office extraction from stalling `:memex` on
-Windows.
+and are never browsed by hand.  `:memex` skips `source/` and the older
+attachments in `data/`; `:source` searches `source/`.  Both are rg: a source
+is found by the machine-readable copy org-moor keeps beside it.
 
 The hotkey runs `script/org-moor-front.*` in straight's clone once and
 exits; nothing new stays running.  On macOS the first use asks to let
