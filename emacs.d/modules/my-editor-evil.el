@@ -305,8 +305,6 @@
   (defvar-keymap my/window-repeat-map
     :doc "Window keys that repeat after `C-w'."
     :repeat t
-    "i" #'transwin-inc
-    "d" #'transwin-dec
     "+" #'evil-window-increase-height
     "-" #'evil-window-decrease-height
     ">" #'evil-window-increase-width
@@ -336,8 +334,6 @@
   (my/define-key
    (:map evil-window-map
          :key
-         "i" #'transwin-inc
-         "d" #'transwin-dec
          "e" #'my/cycle-frame-size)
    (:map evil-motion-state-map
          :key

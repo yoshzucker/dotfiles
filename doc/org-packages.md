@@ -40,8 +40,8 @@ straight (`setup_dev_packages`), or straight tries to clone a repository that
 does not exist.
 
 Copies go to `memex/source/`, the package default, so they travel with memex
-and are never browsed by hand.  `:source` searches `source/` with rg: a
-source is found by the machine-readable copy org-moor keeps beside it.
+and are never browsed by hand.  `:dg` in memex searches them with the notes:
+a source is found by the machine-readable copy org-moor keeps beside it.
 
 The hotkey runs `script/org-moor-front.*` in straight's clone once and
 exits; nothing new stays running.  On macOS the first use asks to let
@@ -64,7 +64,6 @@ hotkey, or with `C-c m w`.
 | | `C-c m n` | reading a copy: add this page and the selection to the source's draft |
 | | `C-c m o` | open the source's copy; `C-u` its origin |
 | | `C-c m x` | prune: copies largest first, `d` mark, `x` let go (heading, notes and origin stay) |
-| ex line | `:source` | search the copies |
 | Anywhere (macOS) | `control+option+m` | take the document in front (Karabiner rule `org-moor-front`, enable it in Karabiner's settings) |
 | Anywhere (Windows) | `Ctrl+Alt+M` | the same, from `etc/ahk/remap-windows-keys.ahk` |
 

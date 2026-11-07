@@ -3,8 +3,7 @@
 #
 # Bare on purpose: the tests take the definitions they need out of a module
 # rather than starting the configuration, so nothing here depends on straight
-# having cloned anything.  Org is the one exception -- if straight's build is
-# on this machine, the tests run against the Org that Emacs actually uses.
+# having cloned anything.  Org is Emacs's own, as in the configuration.
 #
 #   test/run              # every test/*-test.el
 #   test/run org-attach   # only files whose name contains this
@@ -12,9 +11,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-org_build="${ORG_BUILD:-$HOME/.emacs.d/straight/build/org}"
 args=(-Q --batch -L test)
-[ -d "$org_build" ] && args+=(-L "$org_build")
 args+=(-l test/my-test.el)
 
 found=0

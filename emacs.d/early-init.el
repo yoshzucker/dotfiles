@@ -56,6 +56,6 @@
       (add-to-list 'exec-path local)
       (setenv "PATH" (concat local ";" (getenv "PATH"))))))
 (setq straight-built-in-pseudo-packages
-      '(project xref jsonrpc flymake external-completion eglot))
+      '(org project xref jsonrpc flymake external-completion eglot))
 
 ;;; early-init.el ends here

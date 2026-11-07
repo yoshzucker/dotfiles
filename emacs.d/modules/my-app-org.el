@@ -96,6 +96,11 @@
 (defconst my/org-daily-head "#+title: %<%Y-%m-%d>\n")
 
 (use-package org
+  ;; The Org Emacs ships, a release, rather than a clone of Org's development
+  ;; branch: it changes when Emacs is upgraded and at no other time.
+  ;; early-init.el names it among the built-in packages, so that a package
+  ;; asking for Org is given this one.
+  :straight nil
   ;; Waited for, because the keys that reach it do not need it yet.
   ;;
   ;; It used to be demanded, on the argument that Org is the first thing
@@ -1533,9 +1538,8 @@ block already shows what is out with them, as a live query."
 ;; to a shared drive, a manual -- taken into memex and tied to a heading,
 ;; and the way back to it.  Each source is a directory of memex/sources/
 ;; (the package's default), its copy and its record, beside the notes so
-;; they travel together; `:source' searches them on purpose (see
-;; my-editor-search.el).  A heading points to a source with a
-;; `moor:' link; no heading has to be a source's.
+;; they travel together.  A heading points to a source with a `moor:'
+;; link; no heading has to be a source's.
 (use-package org-moor
   :straight (org-moor :host github :repo "yoshzucker/org-moor"
                       :files ("*.el" ("script" "script/*")))

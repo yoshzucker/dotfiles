@@ -55,38 +55,9 @@
   (migemo-init))
 
 (use-package deadgrep
-  ;; Reached by `g/' (my-completion-minibuffer.el), which searches the
-  ;; project, and by `:source' on the ex line, which searches org-moor's
-  ;; sources -- left out of the notes' project only by living apart.
-  ;; `:source' has to be typeable from the start, so it and the function
-  ;; behind it are in `:init'.
-  :after evil
+  ;; Reached by `:dg' on the ex line (my-editor-evil.el), which searches the
+  ;; project it is typed in.
   :defer t
-  :init
-  (defun my/deadgrep-in (dir)
-    "Run `deadgrep' rooted at DIR, ignoring any enclosing VC/project root.
-`deadgrep--project-root' otherwise walks up to a parent `.git' (e.g. ~/.git),
-so pin the search root to DIR explicitly.
-
-The `require' is not ceremony.  `deadgrep-project-root-function' is only a
-special variable once deadgrep has defined it, and a `let' over a name that
-is not special yet binds it lexically -- which deadgrep would never see, and
-which would fail by searching the wrong tree rather than by complaining."
-    (require 'deadgrep)
-    (let* ((dir (expand-file-name dir))
-           (default-directory dir)
-           (deadgrep-project-root-function (lambda () dir)))
-      (call-interactively #'deadgrep)))
-
-  (defun my/deadgrep-source ()
-    "Search org-moor's sources with deadgrep."
-    (interactive)
-    (my/deadgrep-in (if (boundp 'org-moor-sources-directory)
-                        org-moor-sources-directory
-                      (expand-file-name "sources/" org-directory))))
-
-  (evil-ex-define-cmd "source" #'my/deadgrep-source)
-
   :config
   (when (eq system-type 'windows-nt)
     (add-to-list 'process-coding-system-alist

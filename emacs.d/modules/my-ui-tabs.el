@@ -124,94 +124,9 @@
   (evil-ex-define-cmd "q[uit]" #'my/evil-quit)
   (evil-ex-define-cmd "wq" #'my/evil-write-quit))
 
-(use-package tabspaces
-  ;; Turned on at the end of init, which is what `:init' below says -- it said
-  ;; it from `:config' before, behind `:after consult', so the mode this
-  ;; package exists for came on only because consult happened to be loaded
-  ;; first.  Deferring consult would have stopped it silently.
-  :defer t
-  :init
-  ;; Turned on at the first file rather than at the end of init.  What the
-  ;; mode does is set a buffer predicate on the frames, hook the ones made
-  ;; afterwards, and advise a couple of tab commands -- all of which applies
-  ;; to the frames that exist when it runs, so running it later loses
-  ;; nothing that running it earlier would have caught.
-  ;;
-  ;; And it keeps no list of its own: `tabspaces--local-buffer-p' reads the
-  ;; frame's buffer list, which Emacs maintains whether this package is here
-  ;; or not.  So there is no window in which buffers go untracked, which is
-  ;; what this was held back over.
-  ;;
-  ;; consult as well, because `gs' is the other place the filtering shows,
-  ;; and a session can reach it without having opened a file.
-  (defun my/tabspaces-arm ()
-    "Turn tabspaces on, once, and stand down."
-    (remove-hook 'find-file-hook #'my/tabspaces-arm)
-    (tabspaces-mode 1))
-
-  (my/add-hook
-   (:hook find-file-hook :func #'my/tabspaces-arm))
-  (with-eval-after-load 'consult (my/tabspaces-arm))
-  :config
-  ;; Only what the user opened belongs to a tab: buffers visiting a file
-  ;; (indirect ones through their base) and Dired.  Everything else --
-  ;; *Messages*, *straight-process*, *Help*, magit, Claude, the agenda --
-  ;; is put up by Emacs or a package, and is visible from every tab.  Listing
-  ;; the shared ones instead hid each new kind until someone added it.
-  (defun my/tabspaces-user-buffer-p (buffer)
-    "Return non-nil if BUFFER is one the user opened: a file or a directory."
-    (or (buffer-file-name (or (buffer-base-buffer buffer) buffer))
-        (provided-mode-derived-p (buffer-local-value 'major-mode buffer)
-                                 'dired-mode)))
-
-  (defun my/tabspaces-share-non-user-buffers (orig-fn buffer)
-    "Count BUFFER as local to every tab unless the user opened it."
-    (or (not (my/tabspaces-user-buffer-p buffer))
-        (funcall orig-fn buffer)))
-
-  (advice-add 'tabspaces--local-buffer-p :around #'my/tabspaces-share-non-user-buffers)
-
-  ;; The workspace source belongs to both packages, so it is written where
-  ;; both are.  Turning the mode on does not bring consult -- that arrives
-  ;; with the first `gs' -- so the source, and the hook that follows the mode,
-  ;; are put in place then, and the state is settled once on the spot: by the
-  ;; time consult arrives the mode has usually been on for a while.
-  (with-eval-after-load 'consult
-    (defvar consult--source-workspace
-      (list :name     "Workspace Buffers"
-            :narrow   ?w
-            :history  'buffer-name-history
-            :category 'buffer
-            :state    #'consult--buffer-state
-            :default  t
-            :items    (lambda () (consult--buffer-query
-                                  :predicate #'tabspaces--local-buffer-p
-                                  :sort 'visibility
-                                  :as #'buffer-name)))
-      "Set workspace buffer list for consult-buffer.")
-
-    (defun my--consult-tabspaces ()
-      "Deactivate isolated buffers when not using tabspaces."
-      (cond (tabspaces-mode
-             (consult-customize consult-source-buffer :hidden t :default nil)
-             (add-to-list 'consult-buffer-sources 'consult--source-workspace))
-            (t
-             (consult-customize consult-source-buffer :hidden nil :default t)
-             (setq consult-buffer-sources
-                   (remove #'consult--source-workspace consult-buffer-sources)))))
-
-    (my/add-hook
-     (:hook tabspaces-mode-hook :func #'my--consult-tabspaces))
-    (my--consult-tabspaces))
-
-  (defun my/switch-scratch-tab-new-around (orig-fn &rest args)
-    "Switch to *scratch* buffer for the new tab if `tabspaces-mode' is active."
-    (if (and tabspaces-mode (get-buffer "*scratch*"))
-        (let ((tab-bar-new-tab-choice "*scratch*"))
-          (apply orig-fn args))
-      (apply orig-fn args)))
-
-  (advice-add 'my/evil-tab-new :around #'my/switch-scratch-tab-new-around))
+;; A new tab opens on *scratch*, a blank page, rather than on a second view
+;; of the buffer it was opened from.
+(setq tab-bar-new-tab-choice "*scratch*")
 
 (provide 'my-ui-tabs)
 ;;; my-ui-tabs.el ends here

@@ -434,13 +434,6 @@ anything to put between them."
   ;; the whole of what has to exist for that.
   :defer t)
 
-(use-package transwin
-  ;; The two commands, reached from `C-w i' and `C-w d' -- bound in
-  ;; my-editor-evil.el beside the rest of `C-w', and repeated there, naming
-  ;; these two as symbols.  A symbol is enough: the key is looked up when it
-  ;; is pressed, and the autoload does the rest.
-  :defer t
-  :commands (transwin-inc transwin-dec))
 
 ;; Theme packages
 

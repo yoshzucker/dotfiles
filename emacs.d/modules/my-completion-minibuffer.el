@@ -127,8 +127,7 @@ Returning nil leaves the styles beside this one to answer."
 (use-package consult
   ;; Reached by the keys below and by xref, all of which name commands consult
   ;; autoloads.  It used to ride in on vertico, which made it part of every
-  ;; start whether or not anything was looked up -- and took tabspaces with it,
-  ;; since that said `:after consult'.
+  ;; start whether or not anything was looked up.
   :defer t
   :init
   (my/define-key
@@ -149,8 +148,7 @@ Returning nil leaves the styles beside this one to answer."
          ;; heading is answers a question `gs' and `g.' cannot -- a task is
          ;; not a buffer and not a file name.
          "g[" #'consult-org-agenda
-         "g." #'consult-find
-         "g/" #'deadgrep)
+         "g." #'consult-find)
    (:map org-mode-map
          :state motion
          :after evil
