@@ -146,6 +146,46 @@
   ;; to arrange for that; it is only worth knowing when a path looks wrong.
   (claude-code-ide-emacs-tools-setup)
 
+  ;; Only the CLI may talk to the two servers the package starts.  Both
+  ;; listen on 127.0.0.1 with no token, so a page open in the browser can
+  ;; reach them: a WebSocket is not held back by the same-origin policy, and
+  ;; the MCP server answers every origin with `Access-Control-Allow-Origin:
+  ;; *'.  The WebSocket's new connection also replaces the old one, so such a
+  ;; page would drop Claude and stand in its place -- reading the selection
+  ;; and the open files, opening diffs.
+  ;;
+  ;; A browser names the page's origin on every such request, and the CLI,
+  ;; which is no browser, sends no Origin at all; so a request carrying one
+  ;; is refused before the package sees it.  Said in the echo area, since a
+  ;; CLI that ever began to send one would find its connection refused, and
+  ;; this is where it would show.
+  ;;
+  ;; The functions advised are the package's internals.  Should one be
+  ;; renamed, the advice would wait on a name nothing calls and the servers
+  ;; stand open again, quietly; my-app-agent-test.el fails instead.
+  (defun my/claude-code-ide-refuse-browser-socket (orig session ws)
+    "Call ORIG with SESSION and WS, unless WS was opened by a web page."
+    (if-let* ((origin (websocket-origin ws)))
+        (progn
+          (message "claude-code-ide: refused a connection from %s" origin)
+          (websocket-close ws))
+      (funcall orig session ws)))
+
+  (defun my/claude-code-ide-refuse-browser-request (orig request)
+    "Call ORIG with REQUEST, unless REQUEST was sent by a web page."
+    (if-let* ((origin (alist-get :ORIGIN (ws-headers request))))
+        (with-slots (process) request
+          (message "claude-code-ide: refused a request from %s" origin)
+          (ws-response-header process 403 '("Content-Type" . "text/plain"))
+          (ws-send process "Forbidden")
+          (throw 'close-connection nil))
+      (funcall orig request)))
+
+  (advice-add 'claude-code-ide-mcp--on-open :around
+              #'my/claude-code-ide-refuse-browser-socket)
+  (advice-add 'claude-code-ide-mcp-http-server--handle-post :around
+              #'my/claude-code-ide-refuse-browser-request)
+
   ;; On Windows the CLI exits as soon as it starts: the window opens, Claude
   ;; reports "Invalid MCP configuration: MCP config file not found", and the
   ;; window shuts a moment later.
