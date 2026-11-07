@@ -43,9 +43,9 @@ cask "claude-code"        if OS.mac?
 brew "sbcl"
 
 # --- Fonts -------------------------------------------------------------------
-# fontforge builds the custom "PlemolJP NF" (full-width arrows + Nerd icons)
-# via local/bin/build-plemoljp-nf (run from bootstrap's install_fonts).
-brew "fontforge"
+# The custom "PlemolJP NF" (full-width arrows + Nerd icons) is built by
+# local/bin/build-plemoljp-nf, from bootstrap's install_fonts, which installs
+# fontforge for the build and removes it after -- so it is not listed here.
 # PlemolJP Console NF: used directly by Ghostty, and as the Nerd-glyph source
 # for the "PlemolJP NF" build (so the build skips re-downloading it).
 cask "font-plemol-jp-nf" if OS.mac?

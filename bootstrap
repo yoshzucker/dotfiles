@@ -873,8 +873,12 @@ update_brew_packages() {
 install_fonts() {
   # Builds and installs "PlemolJP NF" (non-Console PlemolJP + Nerd icons;
   # Japanese prose 2-cell, drawing/UI 1-cell — see local/bin/build-plemoljp-nf).
-  # Idempotent: skips when already installed. Requires fontforge (Brewfile).
-  # Windows is handled separately by bootstrap.ps1 (Install-Fonts).
+  # Idempotent: skips when already installed.
+  #
+  # fontforge is installed for the build and removed after, where it was not
+  # there before: a build is rare, and a large C program that parses fonts
+  # is not worth keeping for it.  Windows does not build; it takes the built
+  # files by hand (bootstrap.ps1, Install-Fonts).
   local font_dir
   case "$os" in
     darwin) font_dir="$HOME/Library/Fonts" ;;
@@ -885,15 +889,24 @@ install_fonts() {
   if [ -f "$font_dir/PlemolJPNF-Regular.ttf" ]; then
     return
   fi
+
+  local fontforge_added=0
   if ! command -v fontforge >/dev/null 2>&1; then
-    echo "fontforge not found; skipping PlemolJP NF font build."
-    return
+    if ! command -v brew >/dev/null 2>&1 || ! brew install fontforge; then
+      echo "fontforge not available; skipping PlemolJP NF font build."
+      return
+    fi
+    fontforge_added=1
   fi
 
   left_message="Building PlemolJP NF font"
   print_line "$left_message" "Started."
 
   "$script_dir/local/bin/build-plemoljp-nf" || echo "⚠️  PlemolJP NF build failed."
+
+  if [ "$fontforge_added" -eq 1 ]; then
+    brew uninstall fontforge && brew autoremove
+  fi
 
   print_line "$left_message" "Finished."
 }

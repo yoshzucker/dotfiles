@@ -35,10 +35,6 @@
       "Source": "extras"
     },
     {
-      "Name": "fontforge",
-      "Source": "extras"
-    },
-    {
       "Name": "git",
       "Source": "main"
     },

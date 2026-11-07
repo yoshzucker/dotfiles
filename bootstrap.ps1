@@ -140,6 +140,7 @@ function Main {
         Update-Scoop
         Set-UserEnvironment
         Update-ScoopPackages
+        Install-Fonts
         Setup-Links
         Setup-DevPackages
         Install-Cmigemo
@@ -927,111 +928,90 @@ function Update-ScoopPackages {
     Write-PrintLine $leftMessage "Finished."
 }
 
-function Get-GitBashPath {
-    # Returns the path to the bash.exe of Scoop's Git for Windows, or $null if
-    # git is not installed through Scoop.
-    if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
-        return $null
-    }
-
-    $prefix = $null
-    try {
-        $prefix = (scoop prefix git 2>$null | Select-Object -First 1)
-        if ($prefix) { $prefix = $prefix.Trim() }
-    } catch {
-        $prefix = $null
-    }
-    if (-not $prefix -or -not (Test-Path -LiteralPath $prefix)) {
-        return $null
-    }
-
-    $bash = Join-Path $prefix "bin\bash.exe"
-    if (-not (Test-Path -LiteralPath $bash)) {
-        return $null
-    }
-    return $bash
-}
-
-function ConvertTo-GitBashPath {
-    # C:\Users\x\Temp\foo -> /c/Users/x/Temp/foo, without starting bash.
-    #
-    # Asking bash means starting it once to run `cygpath' and again to do the
-    # work.  The conversion is a string transform on a drive-letter path, and
-    # Git Bash mounts drives at /c, /d and so on, so it is simply done here.
-    param([string] $WindowsPath)
-    $full = [System.IO.Path]::GetFullPath($WindowsPath)
-    if ($full -match '^([A-Za-z]):\\(.*)$') {
-        return "/" + $Matches[1].ToLower() + "/" + ($Matches[2] -replace '\\', '/')
-    }
-    return ($full -replace '\\', '/')
-}
-
 function Install-Fonts {
-    # Builds and installs "PlemolJP NF" (non-Console PlemolJP + Nerd icons;
-    # Japanese prose 2-cell, drawing/UI 1-cell) by running
-    # local/bin/build-plemoljp-nf in Git Bash, with Scoop's fontforge. The
-    # script also installs the "PlemolJP Console NF" faces mintty uses --
-    # unlike macOS (brew cask), Windows has no other copy. Run only while the
-    # fonts are missing; to rebuild an installed font, run build-plemoljp-nf
-    # from Git Bash. Mirrors install_fonts() in Unix bootstrap. Non-fatal on
-    # failure.
-    $userFontDir = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts"
+    # The two fonts this configuration draws with, neither of which Windows
+    # builds or installs by itself here:
+    #
+    #   PlemolJP NF          for Emacs.  Built on the Mac by
+    #                        local/bin/build-plemoljp-nf and carried over by
+    #                        hand: it is a modified PlemolJP, which OFL lets
+    #                        be used but not given out under that name, so it
+    #                        is in no repository to download from.
+    #   PlemolJP Console NF  for mintty.  Upstream's own, unmodified, fetched
+    #                        here from its release at the version the Mac
+    #                        builds from, and checked against the digest
+    #                        GitHub records for it.
+    #
+    # Neither is installed from here: a font is installed per user from the
+    # right-click menu, and that is the one way Windows keeps the registry
+    # and the session in step without a script doing it by hand.  So this
+    # says what is missing, and for Console NF puts the four files where the
+    # right-click is.  Idempotent: silent once both are installed.
+    $userFonts = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts"
+    $sysFonts  = Join-Path $env:WINDIR "Fonts"
+    function Test-FontInstalled([string]$file) {
+        (Test-Path -LiteralPath (Join-Path $userFonts $file)) -or
+        (Test-Path -LiteralPath (Join-Path $sysFonts $file))
+    }
 
-    if ((Test-Path -LiteralPath (Join-Path $userFontDir "PlemolJPNF-Regular.ttf")) -and
-        (Test-Path -LiteralPath (Join-Path $userFontDir "PlemolJPConsoleNF-Regular.ttf"))) {
+    $haveNF      = Test-FontInstalled "PlemolJPNF-Regular.ttf"
+    $haveConsole = Test-FontInstalled "PlemolJPConsoleNF-Regular.ttf"
+    if ($haveNF -and $haveConsole) {
         return
     }
 
-    $bash = Get-GitBashPath
-    if (-not $bash) {
-        Write-Host "Git Bash (via Scoop) not found; skipping PlemolJP NF font build." -ForegroundColor Yellow
-        Write-Host "  Install the ttf manually, or rerun bootstrap after git is installed." -ForegroundColor Yellow
-        return
-    }
-
-    $leftMessage = "Building PlemolJP NF font (via fontforge)"
+    $leftMessage = "Checking fonts"
     Write-PrintLine $leftMessage "Started."
 
-    $work = Join-Path $env:TEMP "plemoljp-nf-build"
-    if (Test-Path -LiteralPath $work) {
-        Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+    if (-not $haveNF) {
+        Write-Host "PlemolJP NF is not installed. Build it on the Mac (build-plemoljp-nf)," -ForegroundColor Yellow
+        Write-Host "  bring the four PlemolJPNF-*.ttf here, and right-click each > Install." -ForegroundColor Yellow
     }
-    New-Item -ItemType Directory -Path $work -Force | Out-Null
 
-    # The paths go in through the environment and the script through a temp
-    # file, so that nothing has to be quoted for two shells at once: the build
-    # script downloads sources, merges with fontforge, and installs the result
-    # for the current user.
-    $bashScript = (@'
-set -e
-export WORKDIR="$(cygpath -u "$DOTFILES_FONT_WORKDIR")"
-repo="$(cygpath -u "$DOTFILES_REPO")"
-exec "$repo/local/bin/build-plemoljp-nf"
-'@) -replace "`r", ""
+    if (-not $haveConsole) {
+        $version = "3.0.0"
+        $sha256  = "887E2D0DB714D41AC26AB924BDD3A172B922F57B2B480AF01E0147180EAC3D80"
+        $url     = "https://github.com/yuru7/PlemolJP/releases/download/v$version/PlemolJP_NF_v$version.zip"
+        $dest    = Join-Path $HOME "Downloads\PlemolJP Console NF"
+        $zip     = Join-Path $env:TEMP "PlemolJP_NF_v$version.zip"
+        try {
+            $oldProgress = $ProgressPreference
+            $ProgressPreference = "SilentlyContinue"
+            Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+            $ProgressPreference = $oldProgress
 
-    $tmp = [System.IO.Path]::GetTempFileName()
-    $savedRepo = $env:DOTFILES_REPO
-    $savedWork = $env:DOTFILES_FONT_WORKDIR
-    try {
-        [System.IO.File]::WriteAllText($tmp, $bashScript, (New-Object System.Text.UTF8Encoding $false))
-        $posix = ConvertTo-GitBashPath $tmp
-
-        $env:DOTFILES_REPO = $script:ScriptDir
-        $env:DOTFILES_FONT_WORKDIR = $work
-        & $bash -l $posix
-        if ($LASTEXITCODE -ne 0) {
-            # The work dir is kept: its last lines name the built fonts and
-            # how to finish installing them by hand.
-            Write-Host "Warning: PlemolJP NF build/install failed (exit $LASTEXITCODE)." -ForegroundColor Yellow
-            return
+            $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
+            if ($actual -ne $sha256) {
+                Write-Host "PlemolJP Console NF download checksum mismatch; skipping." -ForegroundColor Yellow
+                Write-Host "    expected $sha256" -ForegroundColor Yellow
+                Write-Host "    actual   $actual" -ForegroundColor Yellow
+            } else {
+                # Only the four faces mintty asks for: the other weights are
+                # families of their own to GDI ("PlemolJP Console NF Thin").
+                Add-Type -AssemblyName System.IO.Compression.FileSystem
+                New-Item -ItemType Directory -Path $dest -Force | Out-Null
+                $archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
+                try {
+                    foreach ($style in @("Regular", "Bold", "Italic", "BoldItalic")) {
+                        $name  = "PlemolJPConsoleNF-$style.ttf"
+                        $entry = $archive.Entries | Where-Object { $_.FullName -like "*/PlemolJPConsole_NF/$name" } | Select-Object -First 1
+                        if ($entry) {
+                            [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, (Join-Path $dest $name), $true)
+                        }
+                    }
+                } finally {
+                    $archive.Dispose()
+                }
+                Write-Host "PlemolJP Console NF is not installed. Its four faces are in:" -ForegroundColor Yellow
+                Write-Host "  $dest -- right-click each > Install." -ForegroundColor Yellow
+            }
+        } catch {
+            Write-Host "Could not fetch PlemolJP Console NF: $_" -ForegroundColor Yellow
+        } finally {
+            Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
         }
-    } finally {
-        $env:DOTFILES_REPO = $savedRepo
-        $env:DOTFILES_FONT_WORKDIR = $savedWork
-        [System.IO.File]::Delete($tmp)
     }
 
-    Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
     Write-PrintLine $leftMessage "Finished."
 }
 
