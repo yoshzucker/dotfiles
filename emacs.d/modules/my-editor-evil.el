@@ -201,10 +201,10 @@
          "C-p" #'comint-previous-input
          "C-n" #'comint-next-input)))
 
-;; The editing extensions -- the operators, the text objects, a better `f' --
-;; each install themselves as a global minor mode over evil's own keymaps, and
-;; not one of them is reachable before there is a file open: a splash screen
-;; takes no operator.  Armed at the first visit instead of at the start, and
+;; The editing extensions -- the operators and the text objects -- each
+;; install themselves as a global minor mode over evil's own keymaps, and not
+;; one of them is reachable before there is a file open: a splash screen takes
+;; no operator.  Armed at the first visit instead of at the start, and
 ;; the hook stands down once it has fired.
 ;;
 ;; Turned on by calling the same functions the packages' `:config' used to
@@ -218,8 +218,7 @@
   (evil-commentary-mode 1)
   (global-evil-surround-mode 1)
   (evil-exchange-cx-install)
-  (global-evil-visualstar-mode 1)
-  (evil-snipe-override-mode 1))
+  (global-evil-visualstar-mode 1))
 
 (add-hook 'find-file-hook #'my/arm-evil-extensions)
 
@@ -264,32 +263,6 @@
   (my/define-key
    (:map evil-normal-state-map :key "g C-n" #'evil-iedit-state/iedit-mode)
    (:map evil-visual-state-map :key "C-n" #'evil-iedit-state/iedit-mode)))
-
-(use-package evil-snipe
-  :defer t
-  :diminish evil-snipe-local-mode
-  :init
-  ;; In `:init' so that a dired or magit buffer opened before any file still
-  ;; turns the override off -- and does it by reaching the package, which is
-  ;; a trigger of its own.
-  (my/add-hook
-   (:hook magit-mode-hook dired-mode-hook
-          :func #'turn-off-evil-snipe-override-mode))
-  :config
-  (defcustom evil-snipe-emurate-feature 'clever-f
-    "clever-f affects to f/F/t/T. vim-sneak affects s/S in addition."
-    :type '(choice
-            (const :tag "clever-f" clever-f)
-            (const :tag "vim-sneak" vim-sneak)))
-
-  (when (eq evil-snipe-emurate-feature 'vim-sneak)
-    (evil-snipe-mode 1))
-
-  (setq evil-snipe-smart-case t
-        evil-snipe-repeat-keys nil
-        evil-snipe-show-prompt nil
-        evil-snipe-enable-incremental-highlight nil
-        evil-snipe-scope 'whole-buffer))
 
 (use-package avy
   ;; One key, and `evil-avy-goto-char-timer' is evil-integration's rather than

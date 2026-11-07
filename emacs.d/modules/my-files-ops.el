@@ -51,16 +51,6 @@ need not be the one the OS opens HTML with."
   :type '(repeat string)
   :group 'my-config)
 
-(defcustom my/open-outside-in-browser-extensions
-  nil
-  "File extensions opened in the browser when opened outside Emacs.
-
-Under method `outside' -- C-c C-o, or C-u C-u on an Org link -- besides
-`my/open-in-browser-extensions'; the rest go to the OS default app.
-Under method `auto' they open in Emacs."
-  :type '(repeat string)
-  :group 'my-config)
-
 (defcustom my/open-as-text-pandoc-format
   "markdown"
   "Pandoc output format for `my/open--text' (e.g. \"markdown\", \"plain\")."
@@ -89,14 +79,6 @@ Membership is tested against `my/open-as-text-extensions'."
 Membership is tested against `my/open-in-browser-extensions'."
   (member (my/open--extension filename) my/open-in-browser-extensions))
 
-(defun my/open-outside-in-browser-p (filename)
-  "Return non-nil if FILENAME, opened outside Emacs, goes to the browser.
-
-Membership is tested against `my/open-in-browser-extensions' and
-`my/open-outside-in-browser-extensions'."
-  (or (my/open-in-browser-extension-p filename)
-      (member (my/open--extension filename) my/open-outside-in-browser-extensions)))
-
 (defun my/open--force-p (arg)
   "Return non-nil if ARG is a plain C-u (raw prefix \\='(4)).
 
@@ -107,7 +89,7 @@ Integer prefixes such as C-u 2 are not treated as force."
   "Resolve open METHOD for PATH with FORCE flag.
 
 METHOD is `auto' (default), `outside', `emacs', `system', `text', or
-`browser'.  `outside' is the browser for `my/open-outside-in-browser-p',
+`browser'.  `outside' is the browser for `my/open-in-browser-extension-p',
 else the OS default app.  FORCE is meaningful only for `auto', the raw
 prefix as Org reads one for a link: plain C-u (`my/open--force-p') in
 Emacs, C-u C-u outside."
@@ -116,7 +98,7 @@ Emacs, C-u C-u outside."
         (force (my/open--force-p force)))
     (pcase method
       ((or 'emacs 'system 'text 'browser) method)
-      ('outside (if (my/open-outside-in-browser-p path) 'browser 'system))
+      ('outside (if (my/open-in-browser-extension-p path) 'browser 'system))
       ('auto
        (cond
         (outside (my/open--resolve-method path 'outside nil))
@@ -336,7 +318,7 @@ it goes as method `outside' instead, a PDF to the browser."
   "Open the link at point outside Emacs, as C-u C-u on it does.
 
 A file goes as method `outside' of `my/open-file': the browser for
-`my/open-outside-in-browser-p', else the OS default app.  RET on a link
+`my/open-in-browser-extension-p', else the OS default app.  RET on a link
 opens it as `org-file-apps' says, in Emacs or not by its extension."
   (interactive)
   (org-open-at-point '(16)))
@@ -344,7 +326,7 @@ opens it as `org-file-apps' says, in Emacs or not by its extension."
 (defun my/open-buffer-file-outside ()
   "Open the file this buffer visits outside Emacs, as C-c C-o on it does.
 
-The browser for `my/open-outside-in-browser-p', else the OS default app."
+The browser for `my/open-in-browser-extension-p', else the OS default app."
   (interactive)
   (my/open-file (or buffer-file-name (user-error "This buffer visits no file"))
                 'outside))
@@ -555,7 +537,7 @@ ARG is passed to `dired-get-marked-files'."
   (defun my/dired-open-file-with-system ()
     "Open file at point in dired outside Emacs, as C-c C-o on an Org link.
 
-The browser for `my/open-outside-in-browser-p', else the OS default app."
+The browser for `my/open-in-browser-extension-p', else the OS default app."
     (interactive)
     (my/open-file (dired-get-filename nil t) 'outside))
 

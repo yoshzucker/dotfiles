@@ -46,9 +46,10 @@
   ;; Not on Windows.  What diff-hl draws is the answer to git, asked by
   ;; starting git and waiting for it: whether the file is tracked and how it
   ;; differs, when a file is opened and again when it is saved -- and saving
-  ;; is every pause in editing, under super-save -- and with flydiff a `diff'
-  ;; at every pause in typing.  Each is a few milliseconds on macOS and a quarter
-  ;; of a second on Windows, where the same changes are a magit status away.
+  ;; is every pause in editing, under `auto-save-visited-mode' -- and with
+  ;; flydiff a `diff' at every pause in typing.  Each is a few milliseconds on
+  ;; macOS and a quarter of a second on Windows, where the same changes are a
+  ;; magit status away.
   :unless (eq system-type 'windows-nt)
   ;; The first file opened in one of these modes is what loads diff-hl.  In
   ;; `:init' and not behind anything: a hook that waits for another package

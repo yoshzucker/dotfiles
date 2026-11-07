@@ -1875,13 +1875,7 @@ the sources' records, not notes."
          "C-c d" #'org-truss-board-edit
          "C-c t ?" #'org-truss-board-guide
          "gr" #'org-truss-board-redraw
-         "za" #'org-truss-board-fold))
-
-  ;; evil-snipe's override of f F t T sits above the board's motion-state
-  ;; keys, so t and f would find a character instead.  The board joins the
-  ;; modes snipe stays out of, as the agenda already does.
-  (with-eval-after-load 'evil-snipe
-    (add-to-list 'evil-snipe-disabled-modes 'org-truss-board-mode)))
+         "za" #'org-truss-board-fold)))
 
 (provide 'my-app-org)
 ;;; my-app-org.el ends here
