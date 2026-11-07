@@ -1822,7 +1822,9 @@ block already shows what is out with them, as a live query."
          "t" #'org-moor-set-title
          "x" #'org-moor-prune
          "k" #'org-moor-keep-replica
-         "l" #'org-moor-sign-in
+         "a" #'org-moor-awaiting
+         "q" #'org-moor-insert-quote
+         "M" #'org-moor-open-machine-readable
          :desc
          "" "moor"
          "c" "take clipboard"
@@ -1840,7 +1842,9 @@ block already shows what is out with them, as a live query."
          "t" "retitle source"
          "x" "prune copies"
          "k" "keep missing copies"
-         "l" "sign in for copies"))
+         "a" "copies to save"
+         "q" "quote clipboard"
+         "M" "open machine readable"))
 
   ;; The bookmarklet (script/org-moor-bookmarklet.txt in the package)
   ;; arrives through emacsclient as `org-protocol://moor?...', which works
@@ -1871,19 +1875,7 @@ block already shows what is out with them, as a live query."
   (setq org-moor-move-directories (list "~/Downloads/" "~/Desktop/")
         org-moor-directory-roots (list "~/Documents/project/"
                                        "~/Documents/reference/")
-        org-moor-files-function #'my/org-moor-files)
-  ;; A page only a browser shows whole is saved by single-file in a Chrome
-  ;; of its own, not the browser I read in, so that nothing comes in front
-  ;; of me while an agent takes one.  On Windows that Chrome is Scoop's
-  ;; googlechrome, whose manifest sets CHROME_EXECUTABLE -- not Edge, whose
-  ;; profile the company holds -- and the profile it is signed in by is
-  ;; its own, used for nothing else.
-  ;; The intranet's pages never stop fetching; org-moor saves one once its
-  ;; own requests are answered and it stops changing
-  ;; (org-moor-singlefile-when-ready), so no --browser-wait-until here,
-  ;; which would be taken over that.
-  (setq org-moor-singlefile-browser (getenv "CHROME_EXECUTABLE")
-        org-moor-singlefile-profile "~/.local/share/org-moor/chrome-profile/"))
+        org-moor-files-function #'my/org-moor-files))
 
 (defun my/org-moor-files ()
   "Org files `org-moor-jump' looks in: memex without archive/, and the agenda.
