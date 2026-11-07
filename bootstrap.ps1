@@ -49,8 +49,8 @@ function Show-Usage {
 bootstrap.ps1 - Windows dotfiles environment bootstrapper
 
 Usage:
-  .\bootstrap.ps1 [bootstrap]     # Full bootstrap / re-deploy (Scoop + MSYS2/pacman + links)
-  .\bootstrap.ps1 update          # Update Scoop + MSYS2 packages + refresh links + clean broken links
+  .\bootstrap.ps1 [bootstrap]     # Full bootstrap / re-deploy (Scoop + links)
+  .\bootstrap.ps1 update          # Update Scoop packages + refresh links + clean broken links
   .\bootstrap.ps1 link            # Create or refresh links only (idempotent, safe refresh)
   .\bootstrap.ps1 unlink          # Remove only links managed by this repo (safe)
   .\bootstrap.ps1 doctor [--fix]  # Diagnose + optionally remove broken links
@@ -140,15 +140,11 @@ function Main {
         Update-Scoop
         Set-UserEnvironment
         Update-ScoopPackages
-        Update-MSYS2Packages
-        Enable-EmacsNativeComp
-        Install-ZshPlugins
         Setup-Links
         Setup-DevPackages
         Install-Cmigemo
         Setup-StartupShortcuts
         Setup-OrgProtocol
-        Setup-ActivityWatchStartup
         Show-RestartNotice
     }
 }
@@ -253,7 +249,7 @@ function Test-LinkScanSkippedDirectory {
 
     # `env` is skipped only where it is a virtualenv.  The name is a word, and
     # one of the directories this repository deploys is called it --
-    # config/shell/env, which holds the modules ~/.zshenv sources -- so
+    # config/shell/env, which holds the modules the shells source -- so
     # skipping by name alone hid every link under it from the scan, in report
     # mode as well as in fix mode.  A virtualenv carries a pyvenv.cfg (PEP 405).
     if ($Item.Name -eq "env") {
@@ -348,7 +344,7 @@ function Link-DirectoryContents {
 
 function Link-SingleDir {
     # Symlink a single directory Dest -> Source (used for OS-native config paths
-    # that must redirect to an XDG location, e.g. ActivityWatch on Windows).
+    # that must redirect to an XDG location, e.g. espanso's Scoop persist dir).
     # Idempotent: leaves an already-correct link alone, replaces a stale link,
     # and backs up a real conflicting file/directory before linking.
     param(
@@ -739,13 +735,6 @@ function Setup-Links {
         }
     }
 
-    # ActivityWatch (aw-qt) reads its config from %LOCALAPPDATA%, not ~/.config.
-    # Redirect the native aw-qt config dir to the XDG location so the repo stays
-    # the single source of truth. The tracked aw-qt.toml sets autostart_modules
-    # to aw-server-rust instead of the Python aw-server, matching the macOS
-    # Tauri/Rust build.
-    Link-SingleDir (Join-Path $HOME ".config\activitywatch\aw-qt") (Join-Path $env:LOCALAPPDATA "activitywatch\activitywatch\aw-qt")
-
     Ensure-RealDirectory (Join-Path $HOME ".local")
     Ensure-RealDirectory (Join-Path $HOME ".local\bin")
     Link-DirectoryContents (Join-Path $dotfilesRoot "local\bin") (Join-Path $HOME ".local\bin")
@@ -910,25 +899,9 @@ function Install-ScoopPackages {
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Warning: Some packages from the scoopfile may have failed." -ForegroundColor Yellow
         }
-        # Two apps want the name `claude': claude-code, which is the CLI the
-        # Emacs integration drives, and claude, which is the desktop
-        # application.  Scoop gives the shim to whichever was installed first,
-        # so which one that name means would otherwise depend on the order a
-        # machine happened to be set up in.  `scoop reset' hands it back,
-        # every time, and does nothing where there is no contest.
-        #
-        # It settles one window rather than the usual case: the CLI replaces
-        # itself in ~/.local/bin the first time it updates, and that comes
-        # first on PATH for the shell (config/shell/env/common.sh) and for
-        # Emacs (emacs.d/early-init.el).  The shim is what runs until then --
-        # on a machine set up today, and on any day the update has not
-        # happened yet.
-        if (scoop list | Select-String "^claude-code\s") {
-            scoop reset claude-code | Out-Null
-        }
     } else {
         Write-Host "No scoopfile found. Using fallback list."
-        $packages = @("git", "ripgrep", "fzf", "emacs", "python", "sbcl")
+        $packages = @("git", "ripgrep", "emacs")
         foreach ($pkg in $packages) {
             if (-not (scoop list | Select-String "^$pkg\s")) {
                 scoop install $pkg
@@ -954,16 +927,16 @@ function Update-ScoopPackages {
     Write-PrintLine $leftMessage "Finished."
 }
 
-function Get-MSYS2BashPath {
-    # Returns the path to the Scoop-installed MSYS2 bash.exe, or $null if MSYS2
-    # is not available via Scoop.
+function Get-GitBashPath {
+    # Returns the path to the bash.exe of Scoop's Git for Windows, or $null if
+    # git is not installed through Scoop.
     if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
         return $null
     }
 
     $prefix = $null
     try {
-        $prefix = (scoop prefix msys2 2>$null | Select-Object -First 1)
+        $prefix = (scoop prefix git 2>$null | Select-Object -First 1)
         if ($prefix) { $prefix = $prefix.Trim() }
     } catch {
         $prefix = $null
@@ -972,23 +945,19 @@ function Get-MSYS2BashPath {
         return $null
     }
 
-    $bash = Join-Path $prefix "usr\bin\bash.exe"
+    $bash = Join-Path $prefix "bin\bash.exe"
     if (-not (Test-Path -LiteralPath $bash)) {
         return $null
     }
     return $bash
 }
 
-function ConvertTo-MSYS2Path {
-    # C:\Users\x\Temp\foo -> /c/Users/x/Temp/foo, without asking MSYS2.
+function ConvertTo-GitBashPath {
+    # C:\Users\x\Temp\foo -> /c/Users/x/Temp/foo, without starting bash.
     #
-    # Every step here used to start bash once purely to run `cygpath', and then
-    # a second time to do the work. That first launch printed nothing and ran
-    # before any timeout could cover it, so when bash itself was slow to start
-    # -- a monitoring agent between the process and its DLLs will do it -- the
-    # step sat at "Started." in silence with nothing to show and no limit to
-    # end it. The conversion is a string transform on a drive-letter path, and
-    # MSYS2 mounts drives at /c, /d and so on, so it can simply be done here.
+    # Asking bash means starting it once to run `cygpath' and again to do the
+    # work.  The conversion is a string transform on a drive-letter path, and
+    # Git Bash mounts drives at /c, /d and so on, so it is simply done here.
     param([string] $WindowsPath)
     $full = [System.IO.Path]::GetFullPath($WindowsPath)
     if ($full -match '^([A-Za-z]):\\(.*)$') {
@@ -997,157 +966,14 @@ function ConvertTo-MSYS2Path {
     return ($full -replace '\\', '/')
 }
 
-function Invoke-MSYS2Script {
-    # Runs a bash script file under MSYS2 and refuses to wait forever.
-    #
-    # pacman can stop dead with nothing on the screen -- a mirror that never
-    # answers, a gpg-agent waiting on something, a monitoring agent sitting
-    # between the process and the network. Without a limit the only symptom is
-    # a bootstrap that never returns and a cursor that has stopped blinking,
-    # and the reader cannot tell that from slow progress. A limit turns that
-    # into a message.
-    #
-    # Passed as a file path with no spaces, not as -lc "...": arguments cross
-    # the PowerShell -> bash.exe boundary intact that way, which is why the
-    # rest of this script already writes its bash to a temp file.
-    param(
-        [string] $Bash,
-        [string] $PosixScript,
-        [int]    $TimeoutSeconds = 900
-    )
-    $proc = Start-Process -FilePath $Bash -ArgumentList @("-l", $PosixScript) `
-                          -NoNewWindow -PassThru
-    if (-not $proc.WaitForExit($TimeoutSeconds * 1000)) {
-        Write-Host "No answer after $TimeoutSeconds seconds; stopping it." -ForegroundColor Yellow
-        & taskkill /PID $proc.Id /T /F 2>$null | Out-Null
-        return $false
-    }
-    return ($proc.ExitCode -eq 0)
-}
-
-function Install-MSYS2Packages {
-    # Installs MSYS2/ucrt64 shell tools from pkg/pacman/msys2-packages.txt by
-    # invoking the Scoop-installed MSYS2 bash with MSYSTEM=UCRT64. Mirrors
-    # install_pacman_packages() in the Unix 'bootstrap'. Idempotent (--needed);
-    # safe no-op if MSYS2 (via Scoop) is unavailable.
-    $bash = Get-MSYS2BashPath
-    if (-not $bash) {
-        Write-Host "MSYS2 (via Scoop) not found; skipping pacman packages." -ForegroundColor Yellow
-        return
-    }
-
-    $listFile = Join-Path (Join-Path (Join-Path $script:ScriptDir "pkg") "pacman") "msys2-packages.txt"
-    if (-not (Test-Path -LiteralPath $listFile)) {
-        return
-    }
-
-    $leftMessage = "Installing MSYS2 packages (via pacman/pacboy)"
-    Write-PrintLine $leftMessage "Started."
-
-    # pacboy (from pactoys) resolves `name:p` to the active $MSYSTEM prefix.
-    # The script is written to a temp file (UTF-8, no BOM, LF) and run as
-    # `bash -l <posix-path>` rather than `bash -lc "<script>"`: passing a
-    # multi-line, nested-quote script across the Windows -> bash.exe argument
-    # boundary corrupts it (the command line is re-parsed and a UTF-8 BOM is
-    # prepended). A file + a single path argument sidesteps both problems.
-    # The package list path is passed via the environment and converted with
-    # cygpath inside MSYS2.
-    # `set -x' and an echo per phase, because a step that prints nothing is a
-    # step nobody can tell from a hung one. pacman can sit for minutes on a
-    # slow mirror or a gpg agent that is waiting for something, and without a
-    # trace the only evidence is a cursor that has stopped blinking.
-    $bashScript = (@'
-set -e
-set -x
-command -v pacboy >/dev/null 2>&1 || pacman -S --needed --noconfirm pactoys
-list="$(cygpath -u "$DOTFILES_PKGLIST")"
-mapfile -t pkgs < <(sed -e 's/[[:space:]]*#.*$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$list" | grep -v '^[[:space:]]*$')
-set +x
-echo "packages to consider (${#pkgs[@]}): ${pkgs[*]}"
-for pkg in "${pkgs[@]}"; do
-  echo ">>> $pkg"
-  pacboy -S --needed --noconfirm "$pkg" </dev/null || echo "!!! failed: $pkg"
-done
-'@) -replace "`r", ""
-
-    $tmp = [System.IO.Path]::GetTempFileName()
-    $savedMsystem = $env:MSYSTEM
-    $savedPkglist = $env:DOTFILES_PKGLIST
-    try {
-        [System.IO.File]::WriteAllText($tmp, $bashScript, (New-Object System.Text.UTF8Encoding $false))
-        # Convert the temp path with cygpath; pass it as $0 (single-level quotes,
-        # no nesting) so the argument survives the Windows -> bash.exe boundary.
-        $posix = ConvertTo-MSYS2Path $tmp
-
-        $env:MSYSTEM = "UCRT64"
-        $env:DOTFILES_PKGLIST = $listFile
-        if (-not (Invoke-MSYS2Script -Bash $bash -PosixScript $posix)) {
-            Write-Host "Warning: some MSYS2 packages may have failed." -ForegroundColor Yellow
-        }
-    } finally {
-        $env:MSYSTEM = $savedMsystem
-        $env:DOTFILES_PKGLIST = $savedPkglist
-        [System.IO.File]::Delete($tmp)
-    }
-
-    Write-PrintLine $leftMessage "Finished."
-}
-
-function Update-MSYS2Packages {
-    # Full MSYS2 system upgrade via pacman. Mirrors update_pacman_packages().
-    $bash = Get-MSYS2BashPath
-    if (-not $bash) {
-        return
-    }
-
-    $leftMessage = "Updating MSYS2 packages (via pacman)"
-    Write-PrintLine $leftMessage "Started."
-
-    # Whatever the list has gained since the last full bootstrap, first --
-    # before the upgrade, not after it. Upgrading only what is already
-    # installed would make the package list authoritative on a fresh machine
-    # and advisory on this one, so a package added to it is a package nobody
-    # running `update' ever gets; but a `pacman -Syu' can replace the MSYS2
-    # runtime itself, and anything asked to run afterwards in the same session
-    # can meet a gpg-agent still holding the old DLL and wait for it forever.
-    # Nothing runs after the upgrade now. The upgrade that follows repairs
-    # anything the older database got wrong.
-    Install-MSYS2Packages
-
-    # Through a temp file and the timeout runner, like the step above: an
-    # upgrade that never answers should say so rather than hold the whole
-    # bootstrap. Standard input is closed, so a question `--noconfirm' does not
-    # cover ends the run instead of waiting for an answer nobody can see.
-    $upgrade = (@'
-set -x
-pacman -Syu --noconfirm </dev/null
-'@) -replace "`r", ""
-
-    $tmp = [System.IO.Path]::GetTempFileName()
-    $savedMsystem = $env:MSYSTEM
-    try {
-        [System.IO.File]::WriteAllText($tmp, $upgrade, (New-Object System.Text.UTF8Encoding $false))
-        $posix = ConvertTo-MSYS2Path $tmp
-        $env:MSYSTEM = "UCRT64"
-        if (-not (Invoke-MSYS2Script -Bash $bash -PosixScript $posix)) {
-            Write-Host "Warning: the MSYS2 upgrade did not finish cleanly." -ForegroundColor Yellow
-        }
-    } finally {
-        $env:MSYSTEM = $savedMsystem
-        [System.IO.File]::Delete($tmp)
-    }
-
-    Write-PrintLine $leftMessage "Finished."
-}
-
 function Install-Fonts {
     # Builds and installs "PlemolJP NF" (non-Console PlemolJP + Nerd icons;
     # Japanese prose 2-cell, drawing/UI 1-cell) by running
-    # local/bin/build-plemoljp-nf in an MSYS2 UCRT64 bash. The script also
-    # installs the "PlemolJP Console NF" faces mintty uses -- unlike macOS
-    # (brew cask), Windows has no other copy. Run only while the fonts are
-    # missing; to rebuild an installed font, run build-plemoljp-nf from a
-    # UCRT64 shell. Mirrors install_fonts() in Unix bootstrap. Non-fatal on
+    # local/bin/build-plemoljp-nf in Git Bash, with Scoop's fontforge. The
+    # script also installs the "PlemolJP Console NF" faces mintty uses --
+    # unlike macOS (brew cask), Windows has no other copy. Run only while the
+    # fonts are missing; to rebuild an installed font, run build-plemoljp-nf
+    # from Git Bash. Mirrors install_fonts() in Unix bootstrap. Non-fatal on
     # failure.
     $userFontDir = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts"
 
@@ -1156,14 +982,14 @@ function Install-Fonts {
         return
     }
 
-    $bash = Get-MSYS2BashPath
+    $bash = Get-GitBashPath
     if (-not $bash) {
-        Write-Host "MSYS2 (via Scoop) not found; skipping PlemolJP NF font build." -ForegroundColor Yellow
-        Write-Host "  Install the ttf manually, or rerun bootstrap after MSYS2 is set up." -ForegroundColor Yellow
+        Write-Host "Git Bash (via Scoop) not found; skipping PlemolJP NF font build." -ForegroundColor Yellow
+        Write-Host "  Install the ttf manually, or rerun bootstrap after git is installed." -ForegroundColor Yellow
         return
     }
 
-    $leftMessage = "Building PlemolJP NF font (via MSYS2 fontforge)"
+    $leftMessage = "Building PlemolJP NF font (via fontforge)"
     Write-PrintLine $leftMessage "Started."
 
     $work = Join-Path $env:TEMP "plemoljp-nf-build"
@@ -1172,9 +998,10 @@ function Install-Fonts {
     }
     New-Item -ItemType Directory -Path $work -Force | Out-Null
 
-    # Same temp-file + env-var + cygpath approach as Install-MSYS2Packages: the
-    # build script downloads sources, merges with fontforge, and installs the
-    # result for the current user.
+    # The paths go in through the environment and the script through a temp
+    # file, so that nothing has to be quoted for two shells at once: the build
+    # script downloads sources, merges with fontforge, and installs the result
+    # for the current user.
     $bashScript = (@'
 set -e
 export WORKDIR="$(cygpath -u "$DOTFILES_FONT_WORKDIR")"
@@ -1183,14 +1010,12 @@ exec "$repo/local/bin/build-plemoljp-nf"
 '@) -replace "`r", ""
 
     $tmp = [System.IO.Path]::GetTempFileName()
-    $savedMsystem = $env:MSYSTEM
-    $savedRepo    = $env:DOTFILES_REPO
-    $savedWork    = $env:DOTFILES_FONT_WORKDIR
+    $savedRepo = $env:DOTFILES_REPO
+    $savedWork = $env:DOTFILES_FONT_WORKDIR
     try {
         [System.IO.File]::WriteAllText($tmp, $bashScript, (New-Object System.Text.UTF8Encoding $false))
-        $posix = ConvertTo-MSYS2Path $tmp
+        $posix = ConvertTo-GitBashPath $tmp
 
-        $env:MSYSTEM = "UCRT64"
         $env:DOTFILES_REPO = $script:ScriptDir
         $env:DOTFILES_FONT_WORKDIR = $work
         & $bash -l $posix
@@ -1201,7 +1026,6 @@ exec "$repo/local/bin/build-plemoljp-nf"
             return
         }
     } finally {
-        $env:MSYSTEM = $savedMsystem
         $env:DOTFILES_REPO = $savedRepo
         $env:DOTFILES_FONT_WORKDIR = $savedWork
         [System.IO.File]::Delete($tmp)
@@ -1250,152 +1074,6 @@ function Set-UserEnvironment {
     $sessionEntries = @($env:Path -split ";" | Where-Object { $_.TrimEnd('\') -ieq $localBin.TrimEnd('\') })
     if ($sessionEntries.Count -eq 0) {
         $env:Path = $env:Path.TrimEnd(';') + ";" + $localBin
-    }
-
-    Write-PrintLine $leftMessage "Finished."
-}
-
-function Enable-EmacsNativeComp {
-    # Puts libgccjit where Emacs can actually load it, which is not on PATH.
-    #
-    # The official GNU Windows build is compiled *with* native compilation --
-    # (featurep 'native-compile) is t -- but ships no libgccjit, so
-    # (native-comp-available-p) answers nil and every function stays byte-code.
-    # Scoop cannot help: it unpacks the prebuilt emacs-30.2.zip from ftp.gnu.org
-    # and has no build flags to pass.
-    #
-    # PATH does not work, and the reason is worth writing down because it cost
-    # two attempts. Windows searches the *application directory* before PATH,
-    # and Emacs's own bin already holds every MinGW library libgccjit depends
-    # on -- all nine of them, at the vintage Emacs was built against. A
-    # libgccjit from a current MSYS2 (GCC 16) meets those and fails to load,
-    # silently, which from the outside is indistinguishable from a missing
-    # library. No amount of PATH ordering beats the application directory.
-    #
-    # So the library goes into the application directory instead, with the nine
-    # it needs, and the rule that was fighting us becomes the one that settles
-    # it: one directory answers for all of them, consistently.
-    #
-    # The list is what `ldd /mingw64/bin/libgccjit-0.dll' reports, filtered to
-    # /mingw64. Re-derive it with that command if a future libgccjit wants
-    # something else; a name absent from the source is skipped rather than
-    # guessed at.
-    #
-    # Overwriting Emacs's bundled copies is safe in the direction that matters:
-    # these are newer, and each keeps its soname. `scoop reset emacs' puts the
-    # originals back if it ever is not.
-    $leftMessage = "Enabling Emacs native compilation (libgccjit into Emacs bin)"
-
-    if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) { return }
-
-    $msys = $null; $emacs = $null
-    try { $msys  = (scoop prefix msys2 2>$null | Select-Object -First 1) } catch { }
-    try { $emacs = (scoop prefix emacs 2>$null | Select-Object -First 1) } catch { }
-    if ($msys)  { $msys  = $msys.Trim() }
-    if ($emacs) { $emacs = $emacs.Trim() }
-    if (-not $msys -or -not (Test-Path -LiteralPath $msys))   { return }
-    if (-not $emacs -or -not (Test-Path -LiteralPath $emacs)) { return }
-
-    $src = Join-Path $msys "mingw64\bin"
-    $dst = Join-Path $emacs "bin"
-    # Fetched here rather than from pkg/pacman/msys2-packages.txt, which is a
-    # UCRT64 list read by pacboy. This one library is MINGW64 -- it is not for
-    # us, it is for Emacs, and Emacs is built under MINGW64 -- so it does not
-    # belong in that list under a name pacboy has to be told not to translate.
-    # It belongs with the one step that knows why it is wanted.
-    # Both, and for different reasons.  libgccjit is the library Emacs loads;
-    # gcc is the driver libgccjit goes on to invoke to assemble and link, and
-    # it must be the one from this same toolchain -- another build's gcc fails
-    # with "error invoking gcc driver" and every file quietly stays byte-code.
-    # libgccjit does not depend on gcc (only on gcc-libs), so asking for it
-    # alone leaves a machine that loads the library and can compile nothing.
-    # early-init.el puts this directory at the front of Emacs's own PATH; see
-    # the comment there for why it is not put on the system's.
-    $jit = Join-Path $src "libgccjit-0.dll"
-    $gcc = Join-Path $src "gcc.exe"
-    if (-not (Test-Path -LiteralPath $jit) -or -not (Test-Path -LiteralPath $gcc)) {
-        $bash = Get-MSYS2BashPath
-        if ($bash) {
-            Write-Host "Installing mingw-w64-x86_64-libgccjit and -gcc..."
-            $get = (@'
-set -x
-pacman -S --needed --noconfirm mingw-w64-x86_64-libgccjit mingw-w64-x86_64-gcc </dev/null
-'@) -replace "`r", ""
-            $tmp = [System.IO.Path]::GetTempFileName()
-            try {
-                [System.IO.File]::WriteAllText($tmp, $get, (New-Object System.Text.UTF8Encoding $false))
-                $posix = ConvertTo-MSYS2Path $tmp
-                Invoke-MSYS2Script -Bash $bash -PosixScript $posix -TimeoutSeconds 600 | Out-Null
-            } finally {
-                [System.IO.File]::Delete($tmp)
-            }
-        }
-    }
-    if (-not (Test-Path -LiteralPath $jit)) {
-        Write-Host "libgccjit (mingw64) still not present; skipping." -ForegroundColor Yellow
-        return
-    }
-    if (-not (Test-Path -LiteralPath $gcc)) {
-        Write-Host "gcc (mingw64) still not present; native compilation will fail at link time." -ForegroundColor Yellow
-    }
-    if (-not (Test-Path -LiteralPath $dst)) { return }
-
-    $needed = @(
-        "libgccjit-0.dll",
-        "libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll",
-        "libgmp-10.dll", "libisl-23.dll", "libmpc-3.dll", "libmpfr-6.dll",
-        "zlib1.dll", "libzstd.dll"
-    )
-
-    Write-PrintLine $leftMessage "Started."
-
-    $copied = 0
-    foreach ($name in $needed) {
-        $from = Join-Path $src $name
-        $to   = Join-Path $dst $name
-        if (-not (Test-Path -LiteralPath $from)) {
-            Write-Host "Not in MSYS2, skipping: $name" -ForegroundColor Yellow
-            continue
-        }
-        $a = Get-Item -LiteralPath $from
-        $b = if (Test-Path -LiteralPath $to) { Get-Item -LiteralPath $to } else { $null }
-        if ($b -and $b.Length -eq $a.Length -and $b.LastWriteTimeUtc -eq $a.LastWriteTimeUtc) {
-            continue
-        }
-        Copy-Item -LiteralPath $from -Destination $to -Force
-        $copied++
-    }
-    Write-Host "Copied $copied of $($needed.Count) libraries into $dst"
-
-    # The PATH entries earlier attempts left behind. They never worked and a
-    # PATH nobody prunes is a PATH nobody can reason about.
-    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
-    if ($userPath) {
-        $stale = @((Join-Path $msys "ucrt64\bin"), $src)
-        $entries = @($userPath -split ";" | Where-Object { $_ -ne "" })
-        $kept = @($entries | Where-Object {
-            $entry = $_.TrimEnd('\')
-            -not ($stale | Where-Object { $_.TrimEnd('\') -ieq $entry })
-        })
-        if ($kept.Count -ne $entries.Count) {
-            Write-Host "Removing from user PATH (no longer needed): $($entries.Count - $kept.Count) entry/entries"
-            [System.Environment]::SetEnvironmentVariable("Path", ($kept -join ";"), "User")
-        }
-    }
-
-    # Ask Emacs itself rather than leave the reader to reboot and find out.
-    $exe = Join-Path $dst "emacs.exe"
-    if (Test-Path -LiteralPath $exe) {
-        $answer = (& $exe -Q --batch --eval "(princ (native-comp-available-p))" 2>$null |
-                   Select-Object -First 1)
-        if ($answer -eq "t") {
-            Write-Host "native-comp-available-p => t" -ForegroundColor Green
-            Write-Host "The first start after this compiles the world in the background:"
-            Write-Host "one busy quarter of an hour, then .eln files in ~/.emacs.d/eln-cache."
-        } else {
-            Write-Host "Still nil. Compare what libgccjit wants against what is now here:" -ForegroundColor Yellow
-            Write-Host "  $msys\usr\bin\bash.exe -lc 'ldd /mingw64/bin/libgccjit-0.dll'"
-        }
     }
 
     Write-PrintLine $leftMessage "Finished."
@@ -1667,57 +1345,10 @@ function Setup-OrgProtocol {
     Write-PrintLine $leftMessage "Finished."
 }
 
-function Setup-ActivityWatchStartup {
-    # Register ActivityWatch (aw-qt) to launch at login by placing an
-    # ActivityWatch.lnk shortcut in the current user's Startup folder, targeting
-    # the Scoop-installed aw-qt.exe. The official installer normally creates this
-    # entry, but the Scoop bundle only unpacks the app, so it is set up here.
-    # aw-qt then autostarts the modules listed in aw-qt.toml (aw-server-rust plus
-    # the watchers). Idempotent: a shortcut already pointing at the same target is
-    # left alone. No-op when Scoop or ActivityWatch is unavailable.
-    if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
-        return
-    }
-
-    $prefix = (scoop prefix activitywatch 2>$null | Select-Object -First 1)
-    if (-not $prefix) {
-        return
-    }
-    $target = Join-Path $prefix "aw-qt.exe"
-    if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
-        return
-    }
-
-    $leftMessage = "Registering ActivityWatch startup shortcut"
-    Write-PrintLine $leftMessage "Started."
-
-    $startup = [System.Environment]::GetFolderPath("Startup")
-    $lnkPath = Join-Path $startup "ActivityWatch.lnk"
-    $ws = New-Object -ComObject WScript.Shell
-
-    if (Test-Path -LiteralPath $lnkPath) {
-        $existingTarget = $ws.CreateShortcut($lnkPath).TargetPath
-        if (Test-SamePath $existingTarget $target) {
-            Write-Host "Skipping existing correct shortcut: $lnkPath"
-            Write-PrintLine $leftMessage "Finished."
-            return
-        }
-        Write-Host "Replacing shortcut: $lnkPath"
-    }
-
-    $shortcut = $ws.CreateShortcut($lnkPath)
-    $shortcut.TargetPath = $target
-    $shortcut.WorkingDirectory = (Split-Path -Parent $target)
-    $shortcut.Save()
-    Write-Host "Created startup shortcut: $lnkPath -> $target"
-
-    Write-PrintLine $leftMessage "Finished."
-}
-
 function Remove-StartupShortcuts {
     # Remove only the Startup-folder .lnk shortcuts that point back into this
     # repository (the AHK shortcuts created by Setup-StartupShortcuts). Shortcuts
-    # placed by other apps (espanso, ActivityWatch, QuickLook, ...) are left
+    # placed by other apps (espanso, Flow Launcher, ...) are left
     # alone. Mirrors Is-ManagedLink's "managed = points into the repo" test, done
     # for .lnk shortcuts (the symlink helpers assume a reparse point).
     $startup = [System.Environment]::GetFolderPath("Startup")
@@ -1748,91 +1379,6 @@ function Remove-StartupShortcuts {
     }
 }
 
-function Install-PythonTools {
-    # Puts the Python tools that are not a project's own on PATH, with uv.
-    #
-    # One copy rather than one per project.  A language server is not a
-    # dependency of the code it reads -- nothing imports pyright -- so
-    # installing it into every virtualenv means the same package downloaded
-    # again for each checkout, and an editor that has to be told where each
-    # one is.  `uv tool install` keeps one, on PATH, for all of them.  That
-    # matters more here than on the Mac: every download and every process
-    # this machine starts is inspected on the way.
-    if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-        return
-    }
-
-    $leftMessage = "Installing Python tools"
-    Write-PrintLine $leftMessage "Started."
-
-    uv tool install --quiet pyright 2>$null
-    uv tool install --quiet ruff 2>$null
-
-    Write-PrintLine $leftMessage "Finished."
-}
-
-function Install-ZshPlugins {
-    # Clones the zsh plugins listed in pkg/zsh-plugins/plugins.txt by invoking
-    # the Scoop-installed MSYS2 bash, so the repos land in exactly the path the
-    # MSYS2 zsh reads ($XDG_DATA_HOME/zsh/plugins). Mirrors install_zsh_plugins()
-    # in the Unix 'bootstrap' (single clone implementation, in bash). Idempotent;
-    # no-op if MSYS2 (via Scoop) or git is unavailable.
-    $bash = Get-MSYS2BashPath
-    if (-not $bash) {
-        Write-Host "MSYS2 (via Scoop) not found; skipping zsh plugins." -ForegroundColor Yellow
-        return
-    }
-
-    $listFile = Join-Path (Join-Path (Join-Path $script:ScriptDir "pkg") "zsh-plugins") "plugins.txt"
-    if (-not (Test-Path -LiteralPath $listFile)) {
-        return
-    }
-
-    $leftMessage = "Installing zsh plugins"
-    Write-PrintLine $leftMessage "Started."
-
-    # Same temp-file + env-var + cygpath approach as Install-MSYS2Packages: a
-    # multi-line bash script across the Windows -> bash.exe boundary is corrupted
-    # if passed via -lc, so write it to a file and run `bash -l <posix-path>`.
-    # The list path is passed via $DOTFILES_PKGLIST and converted with cygpath.
-    $bashScript = (@'
-set -e
-command -v git >/dev/null 2>&1 || exit 0
-list="$(cygpath -u "$DOTFILES_PKGLIST")"
-plugin_dir="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/plugins"
-mkdir -p "$plugin_dir"
-while IFS= read -r url || [ -n "$url" ]; do
-  url=$(printf '%s' "$url" | sed -e 's/[[:space:]]*#.*$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-  [ -z "$url" ] && continue
-  name="$(basename "$url")"
-  dest="$plugin_dir/$name"
-  if [ -d "$dest/.git" ]; then
-    git -C "$dest" pull --ff-only --quiet || echo "Could not update $name"
-  else
-    git clone --depth 1 "$url" "$dest"
-  fi
-done < "$list"
-'@) -replace "`r", ""
-
-    $tmp = [System.IO.Path]::GetTempFileName()
-    $savedPkglist = $env:DOTFILES_PKGLIST
-    try {
-        [System.IO.File]::WriteAllText($tmp, $bashScript, (New-Object System.Text.UTF8Encoding $false))
-        $posix = ConvertTo-MSYS2Path $tmp
-
-        $env:DOTFILES_PKGLIST = $listFile
-        & $bash -l $posix
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Warning: some zsh plugins may have failed (exit $LASTEXITCODE)." -ForegroundColor Yellow
-        }
-    } finally {
-        $env:DOTFILES_PKGLIST = $savedPkglist
-        [System.IO.File]::Delete($tmp)
-    }
-
-    Write-PrintLine $leftMessage "Finished."
-}
-
 function Perform-FullBootstrap {
     $leftMessage = "Full bootstrap"
     Write-PrintLine $leftMessage "Started."
@@ -1840,17 +1386,12 @@ function Perform-FullBootstrap {
     Install-Scoop
     Set-UserEnvironment
     Install-ScoopPackages
-    Install-MSYS2Packages
-    Enable-EmacsNativeComp
     Install-Fonts
-    Install-PythonTools
-    Install-ZshPlugins
     Setup-Links
     Setup-DevPackages
     Install-Cmigemo
     Setup-StartupShortcuts
     Setup-OrgProtocol
-    Setup-ActivityWatchStartup
 
     Write-PrintLine $leftMessage "Finished."
 }

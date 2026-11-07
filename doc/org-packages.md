@@ -55,9 +55,6 @@ The bookmarklet does.  `bootstrap.ps1` (`Setup-OrgProtocol`, in a full
 bootstrap and in `update`) registers it for the user under HKCU with the
 real emacsclientw path.
 
-Web pages are kept with `monolith` (Brewfile, scoopfile).  Without it a page
-is taken as its URL only.
-
 | Where | Key / command | What |
 |---|---|---|
 | Anywhere in Emacs | `C-c m q` | quote the clipboard, titled; `C-u` picks the heading |
@@ -79,5 +76,4 @@ A key after `C-c m` (or any prefix) that is slow in coming brings up
 which-key's list; typed on, nothing shows.
 
 org-protocol is loaded by the first emacsclient call that carries an
-org-protocol URL, not at startup.  `C-c m` was Marp's in Markdown buffers;
-Marp's commands are now reached by `M-x`.
+org-protocol URL, not at startup.

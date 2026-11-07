@@ -4,8 +4,7 @@
 ;; The day, in every form I look at it: the agenda and the commands built on
 ;; it, org-foresight (which adds the parts of a day that are not entries --
 ;; journeys, gaps, the edges of the working span, how much may still be
-;; promised), the timeline and the blocks, and ActivityWatch, which is where
-;; the account of the day that was actually spent comes from.
+;; promised), the timeline and the blocks.
 ;;
 ;; Split from my-app-org.el by concern rather than by size.  That file is
 ;; about Org -- files, capture, refile, clocking, roam, export.  This one is
@@ -304,98 +303,6 @@ org's existing key table stays the single source of truth."
 ;; `use-package org-capture' runs its own, so anything appended from here was
 ;; silently thrown away.  Measured, not guessed: use-package's own statistics
 ;; timestamp org-capture's config at 35.346 and org's at 35.761.
-
-;; ActivityWatch -- where the Observed table, the leak and the lost come from.
-;; The only thing in Emacs that reads it is org-foresight, and
-;; `activity-watch-org-clock-active' is the setting that makes its rows carry
-;; the task being clocked: without it the day can be told what was on screen
-;; but not what it was for.
-(use-package activity-watch-mode
-  :diminish (activity-watch-mode " aw")
-  ;; Started with the session, because that is what it is for.  It hooks
-  ;; `pre-command-hook\=' and `after-save-hook\=' in each buffer, so it has to be
-  ;; on before there is anything to record -- and every way of putting that
-  ;; off lands the cost somewhere worse: on an idle timer it is unpredictable,
-  ;; on the first command it is a pause on a keystroke.
-  ;;
-  ;; It costs 145 ms, and nine tenths of that is two requires the package does
-  ;; not need until it sends: `request\=', which only the two functions that
-  ;; talk to the server use, and `ert\=' -- the test framework -- for one
-  ;; private time formatter.  Either could be moved into the function that
-  ;; wants it, which is a patch to somebody else's package rather than a
-  ;; setting here.
-  :demand t
-  :config
-  (setopt activity-watch-org-clock-active t)
-
-  ;; One heartbeat in fifteen seconds for the same file, where the package
-  ;; sends one every second it can -- which, from its two-second timer, is
-  ;; every tick for as long as anything is being typed.  Each one is a `curl'
-  ;; started by request.el: little on macOS, and on Windows a process start
-  ;; landing between two keystrokes every two seconds.
-  ;;
-  ;; Nothing in the record is lost.  The server merges heartbeats that arrive
-  ;; within `activity-watch-pulse-time' -- thirty seconds -- of each other into
-  ;; one event, so fifteen keeps a span of work in one piece, and moving to
-  ;; another file still sends at once.  What fifteen costs is the last few
-  ;; seconds before a pause, at most.  The name says per second and the
-  ;; package reads it as seconds between.
-  (setq activity-watch-max-heartbeat-per-sec 15)
-  (global-activity-watch-mode)
-
-  ;; Every heartbeat names the branch the file is on, and a heartbeat goes
-  ;; out every two seconds for as long as Emacs is in use.
-  ;; `magit-get-current-branch' answers by starting git and waiting for it,
-  ;; which on Windows is four hundred milliseconds -- and the timer runs
-  ;; between two keystrokes, so for that long nothing is read and nothing is
-  ;; drawn.  A key held down is where it shows: `j' down a folded outline
-  ;; stops, then lands a dozen headings on.
-  ;;
-  ;; The branch is one line of a file git keeps for the purpose, so it is read
-  ;; from there instead.  A detached HEAD holds a commit rather than a ref,
-  ;; and gives nil, as magit's answer does.
-  ;;
-  ;; Windows is where this was noticed and not where it stops being true: the
-  ;; same process runs every two seconds on the Mac, for an answer that was
-  ;; already on disk.
-  (defun my/activity-watch-branch ()
-    "Return the branch checked out where `default-directory' is, or nil.
-Read from the repository's HEAD file rather than asked of git."
-    (when-let* ((root (locate-dominating-file default-directory ".git"))
-                (dot-git (expand-file-name ".git" root))
-                (git-dir (if (file-directory-p dot-git)
-                             dot-git
-                           ;; A worktree or a submodule: `.git' is a file
-                           ;; naming the directory that is the repository.
-                           (with-temp-buffer
-                             (insert-file-contents dot-git)
-                             (when (looking-at "gitdir: *\\(.+\\)$")
-                               (expand-file-name (match-string 1) root)))))
-                (head (expand-file-name "HEAD" git-dir))
-                ((file-readable-p head)))
-      (with-temp-buffer
-        (insert-file-contents head)
-        (when (looking-at "ref: refs/heads/\\(.+\\)$")
-          (match-string 1)))))
-
-  (defun my/activity-watch-heartbeat-without-git (orig &rest args)
-    "Call ORIG with ARGS, finding the branch without starting git."
-    (cl-letf (((symbol-function 'magit-get-current-branch)
-               #'my/activity-watch-branch))
-      (apply orig args)))
-
-  (advice-add 'activity-watch--create-heartbeat :around
-              #'my/activity-watch-heartbeat-without-git)
-
-  ;; The project a heartbeat names is looked up once a buffer, down a list of
-  ;; resolvers, and the two after `project' ask magit.  They are reached only
-  ;; when project.el has found nothing -- a file in no repository -- and there
-  ;; they find nothing either, after six git processes: little where starting
-  ;; a process is cheap, most of a second on Windows, a moment after the file
-  ;; opens.  The first of them also `require's magit, so the first such file
-  ;; of a session pays for loading magit as well.  project.el reads the file
-  ;; system and finds the same repositories.
-  (setq activity-watch-project-name-resolvers '(projectile project)))
 
 (use-package org-foresight
   :straight (org-foresight :host github :repo "yoshzucker/org-foresight"

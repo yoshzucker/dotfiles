@@ -4,8 +4,8 @@
 ;; Org as a way of recording: files, capture, refile, clocking, roam, export.
 ;;
 ;; What today looks like is the other question and lives in
-;; my-app-org-agenda.el -- the agenda, org-foresight, the timeline, the blocks,
-;; ActivityWatch.  The line between the two files is that one: this file is
+;; my-app-org-agenda.el -- the agenda, org-foresight, the timeline, the
+;; blocks.  The line between the two files is that one: this file is
 ;; about how a thing gets written down and found again, that one is about a
 ;; day.
 ;;
@@ -354,7 +354,7 @@ agenda file set does not depend on whether rg is installed -- rg's own
   ;; Which files Emacs reads and which the OS opens is decided once, in
   ;; my-files-ops.el (`my/open-file'), for Dired, Org links and org-moor
   ;; alike; these entries only hand Org's links to it.  Org's own defaults
-  ;; would open every PDF outside, which pdf-tools reads here.  moor: links
+  ;; would open every PDF outside, which Emacs reads here.  moor: links
   ;; open their replicas through the same `org-file-apps', C-u and C-u C-u
   ;; included.  RET opens a link so; C-c C-o, outside, as it does in Dired.
   (setq org-file-apps
@@ -990,9 +990,10 @@ unaffected."
   ;; What is left is what has somewhere to go.  `ol-info' because Info is
   ;; already here; `ol-doi' because it costs one small library.  PDFs are not
   ;; missing from this list: `docview:' addresses a page of a document opened
-  ;; in `doc-view-mode', and `pdf-loader-install' below hands every PDF to
-  ;; pdf-tools instead, so doc-view never opens one.  A PDF is linked as a
-  ;; `file:', which pdf-tools opens; a place inside one has no link type here.
+  ;; in `doc-view-mode', and on the Mac `pdf-loader-install' below hands
+  ;; every PDF to pdf-tools instead, so doc-view never opens one there.  A
+  ;; PDF is linked as a `file:', which pdf-tools opens (doc-view on Windows);
+  ;; a place inside one has no link type here.
   (setq org-modules '(ol-doi ol-info))
 
   ;; Every `org-mode' activation rebuilds the menu bar's "File List for
@@ -1009,8 +1010,7 @@ unaffected."
   ;; `org-babel-execute:LANG' up as a function and gives up if it is not
   ;; there.  So the list is set directly and the require happens at the one
   ;; moment it is needed, which for a language used a few times a year is not
-  ;; every startup.  agent-shell is added to this list by `ob-agent-shell' in
-  ;; my-app-agent.el, and is lazy for the same reason without saying so.
+  ;; every startup.
   (setq org-babel-load-languages '((emacs-lisp . t) (R . t)))
 
   (defun my/org-babel-require-backend (&rest _)
@@ -1069,16 +1069,6 @@ unaffected."
   :straight nil
   :after org
   :diminish org-indent-mode)
-
-;; Structure templates via C-c C-, (no "<" → no electric-pair "<>").
-;; Keys: as = agent-shell.
-(use-package org-tempo
-  :straight nil
-  :after org
-  :config
-  (setq tempo-interactive nil)
-  (dolist (entry '(("as"  . "src agent-shell :results output drawer")))
-    (add-to-list 'org-structure-template-alist entry)))
 
 (use-package org-cliplink
   ;; Reached by its key, which is enough to load it.
@@ -1624,7 +1614,11 @@ block already shows what is out with them, as a live query."
          "F" #'consult-org-roam-forward-links)))
 
 (use-package pdf-tools
-  :if (display-graphic-p)
+  ;; Not on Windows: `epdfinfo', the C program pdf-tools talks to, does not
+  ;; build there, and nothing here packages it.  A PDF there opens in
+  ;; doc-view, which renders pages with mupdf's `mutool' (scoopfile) as soon
+  ;; as it is on PATH -- nothing to set.
+  :if (and (display-graphic-p) (not (eq system-type 'windows-nt)))
   ;; Not loaded until a PDF is opened.  `pdf-tools-install' checks that
   ;; `epdfinfo' is built and current, which means a subprocess and a walk of
   ;; the build directory -- nine seconds of every Windows startup, measured,
@@ -1634,32 +1628,6 @@ block already shows what is out with them, as a live query."
   :defer t
   :init (pdf-loader-install)
   :config
-  ;; On Windows the server is a package, not a build.
-  ;;
-  ;; `epdfinfo' is a C program, and building it here does not work: the
-  ;; Windows build is broken upstream, and `pdf-tools-install' answers a
-  ;; failed build by offering to try again.  MSYS2 packages it
-  ;; (`emacs-pdf-tools-server:p' in pkg/pacman/msys2-packages.txt, installed
-  ;; by bootstrap), from the same repository straight clones for the elisp,
-  ;; so both halves track one version.
-  ;;
-  ;; Pointing at it there rather than copying it into straight's build
-  ;; directory is what makes it survive: straight regenerates that directory
-  ;; from the repository on every rebuild, by copying rather than symlinking
-  ;; on Windows, so anything placed inside it is deleted by the next pull.
-  ;; And a binary in ucrt64/bin sits beside every dll it links, which is the
-  ;; first place Windows looks -- so the mingw64/bin that early-init.el puts
-  ;; at the front of PATH for native-comp does not reach it.
-  ;;
-  ;; `pdf-info-check-epdfinfo' asks only whether this path is executable, and
-  ;; `pdf-tools-install' rebuilds only when the server does not answer, so a
-  ;; working one here means nothing is ever built.
-  (when (eq system-type 'windows-nt)
-    (let ((exe (expand-file-name
-                "~/scoop/apps/msys2/current/ucrt64/bin/epdfinfo.exe")))
-      (when (file-executable-p exe)
-        (setq pdf-info-epdfinfo-program exe))))
-
   (blink-cursor-mode 0))    ;; Better UX for PDF buffers
 
 (use-package org-noter

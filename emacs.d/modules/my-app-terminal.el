@@ -47,25 +47,24 @@
   (when (eq system-type 'windows-nt)
     ;; `ghostel-shell' follows $SHELL, and Emacs on Windows points that at
     ;; its own cmdproxy.exe -- the helper it uses to quote arguments when it
-    ;; calls a shell, not a shell to sit in.  So the shell is named here, and
-    ;; it is the one mintty opens.  That it is a UCRT64 shell, and the PATH
-    ;; it runs with, are settled by the shell's own config/shell/env/msys.sh,
-    ;; the same way for both.
+    ;; calls a shell, not a shell to sit in.  So the shell is named here:
+    ;; Git Bash, as mintty opens it, set up by ~/.bashrc the same way for
+    ;; both.
     ;;
     ;; TERMINFO, because ncurses reads it as a colon-separated search path
-    ;; and ghostel names the directory in Windows form: MSYS2's ncurses
+    ;; and ghostel names the directory in Windows form: Git Bash's ncurses
     ;; splits `c:/Users/...' at the drive letter, looks in `c' and in
     ;; `/Users/...', and finds no xterm-ghostty in either.  A shell that
     ;; cannot read its terminfo cannot erase a character, so backspace walks
     ;; the cursor rightwards instead of deleting.  The same directory in
-    ;; MSYS2's own form carries no colon.  `ghostel-environment' is
+    ;; Git Bash's own form carries no colon.  `ghostel-environment' is
     ;; prepended to the spawn environment, so this wins over ghostel's own.
     ;;
     ;; LANG, because Windows hands Emacs `JPN', which is not a POSIX locale
-    ;; name: MSYS2 fails to set it, falls back to C, and stops reading the
+    ;; name: Git Bash fails to set it, falls back to C, and stops reading the
     ;; stream as UTF-8.  mintty runs this same shell as ja_JP.UTF-8.
     (setq ghostel-shell
-          (list (expand-file-name "~/scoop/apps/msys2/current/usr/bin/zsh.exe")
+          (list (expand-file-name "~/scoop/apps/git/current/usr/bin/bash.exe")
                 "-l")
           ghostel-environment
           (list "LANG=ja_JP.UTF-8"

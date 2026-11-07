@@ -1,2 +1,0 @@
-[aw-qt]
-autostart_modules = ["aw-server-rust", "aw-watcher-afk", "aw-watcher-window"]

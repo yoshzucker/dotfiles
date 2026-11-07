@@ -9,6 +9,10 @@ font-size = 13
 macos-option-as-alt = true
 
 # --- Appearance ---
+# Colors from config/ghostty/themes, which gen-theme-palette writes.  The
+# variant has to be the one config/tmux/tmux.conf sources; the zsh prompt
+# names this theme's slots and follows it.
+theme = gensho-light
 window-padding-x = 6
 window-padding-y = 6
 # window-decoration = false

@@ -21,62 +21,26 @@
 tap "d12frosted/emacs-plus" if OS.mac?
 
 # --- Core utilities ----------------------------------------------------------
-brew "coreutils"
-brew "diffutils"
-brew "findutils"
 brew "ripgrep"
 brew "ripgrep-all"              # rga: deadgrep document search (pdf/office via pandoc)
-brew "fd"
-brew "fzf"
 brew "cmigemo"
 brew "tmux"                     # terminal multiplexer (pre-warmed daemon in .zshrc)
-brew "eza"
-brew "bat"                      # cat replacement, also MANPAGER
-brew "git-delta"                # git diff pager
-brew "aspell"
 brew "poppler"                  # pdf-tools for Emacs, rga preprocessing etc.
 brew "automake"                 # pdf-tools for Emacs
+brew "pkgconf"                  # pdf-tools for Emacs: finds poppler when epdfinfo is built
 brew "pandoc"
-brew "weasyprint"               # for pandoc
-brew "monolith"                 # org-moor: a web page kept as one HTML file
-
-# --- Shell ergonomics --------------------------------------------------------
-brew "espanso"                  # text expander / snippets
 
 # --- Dev tools ---------------------------------------------------------------
 brew "git"
 brew "gitleaks"
+brew "gh"                       # GitHub from the command line, for Claude Code
 # The CLI emacs.d/modules/my-app-agent.el drives.  A cask rather than a
-# formula because that is how it ships, and it keeps itself up to date after
-# the first run -- so this is the seed, not the version that will be there.
+# formula because that is how it ships.  It does not update itself from here:
+# `./bootstrap update' does, through `brew bundle --upgrade'.
 cask "claude-code"        if OS.mac?
 
-# --- TUI file manager --------------------------------------------------------
-brew "yazi"
-brew "ffmpeg"                   # yazi preview: video/audio
-brew "sevenzip"                 # yazi preview: archives
-
 # --- Languages & runtimes ----------------------------------------------------
-brew "python"
-# uv manages Python itself -- interpreters, virtualenvs and the tools that
-# live outside a project -- so pyenv, virtualenv and pipx are not separately
-# installed.  `install_python_tools' in bootstrap puts pyright on PATH with
-# it; see doc/ for why that is one copy rather than one per project.
-brew "uv"
-# rustup rather than the rust formula: it is what adds a target beyond this
-# machine's own, and Windows code is checked from here against
-# x86_64-pc-windows-gnu.  Keg-only -- it conflicts with rust -- so
-# env/macos.sh puts its bin on PATH.  The Windows side is rustup-gnu in the
-# scoopfile, whose bundled MinGW linker spares a Visual C++ Build Tools
-# install.
-brew "rustup"
-# clang-format alone rather than the whole of llvm: a formatter is all that
-# is wanted from it, and clangd (the language server) ships with the Xcode
-# command line tools.
-brew "clang-format"
 brew "sbcl"
-brew "node"
-brew "marp-cli"
 
 # --- Fonts -------------------------------------------------------------------
 # fontforge builds the custom "PlemolJP NF" (full-width arrows + Nerd icons)
@@ -100,8 +64,10 @@ brew "emacs" if OS.linux?
 # --- macOS GUI / Casks -------------------------------------------------------
 cask "ghostty"            if OS.mac?
 cask "karabiner-elements" if OS.mac?
-cask "battery"            if OS.mac?
-cask "activitywatch@beta" if OS.mac?   # time tracker (Rust/Tauri: aw-server-rust)
+cask "battery"            if OS.mac?   # charge limiter
+cask "linearmouse"        if OS.mac?
+cask "maccy"              if OS.mac?   # clipboard history
+cask "mark-text"          if OS.mac?
 
 # --- Cleanup hint ------------------------------------------------------------
 # After changes: brew bundle --file pkg/brew/Brewfile

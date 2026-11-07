@@ -93,7 +93,7 @@
                   ("ls"      . ibuffer)
                   ("etags"   . create-etags)
                   ("dg"      . deadgrep)
-                  ("fd"      . my/fd-dired)))
+                  ("fd"      . find-name-dired)))
     (evil-ex-define-cmd (car pair) (cdr pair)))
 
   (defun my/evil-ex-define-cmd-local (cmd function)
@@ -190,7 +190,7 @@
   ;; org-agenda: keep evil's built-in emacs state; the agenda keymap in
   ;; my-app-org.el is built for emacs state, so don't let evil-collection
   ;; take it over (newer evil-collection moves it to normal state).
-  (let ((excludes '(agent-shell comint org-agenda)))
+  (let ((excludes '(comint org-agenda)))
     (dolist (mode excludes)
       (setq evil-collection-mode-list (remove mode evil-collection-mode-list))))
   (evil-collection-init)

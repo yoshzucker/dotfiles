@@ -30,7 +30,7 @@ command -v fontforge >/dev/null || { echo "error: fontforge not found (brew inst
 work="$(mktemp -d "${TMPDIR:-/tmp}/plemoljp-cw.XXXXXX")"
 trap 'rm -rf "$work"' EXIT
 
-# Windows-native paths for tools that don't parse MSYS2-style '/c/...' (Emacs,
+# Windows-native paths for tools that don't parse Git Bash-style '/c/...' (Emacs,
 # fontforge, python3 on Windows are native Win32 builds and interpret those as
 # relative). cygpath -m yields mixed 'C:/...' form which forward-slash-tolerant
 # tools accept. On macOS/Linux `cygpath` is missing; POSIX paths work directly.

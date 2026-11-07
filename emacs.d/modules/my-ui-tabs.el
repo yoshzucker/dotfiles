@@ -155,7 +155,7 @@
   :config
   ;; Only what the user opened belongs to a tab: buffers visiting a file
   ;; (indirect ones through their base) and Dired.  Everything else --
-  ;; *Messages*, *straight-process*, *Help*, magit, agent-shell, the agenda --
+  ;; *Messages*, *straight-process*, *Help*, magit, Claude, the agenda --
   ;; is put up by Emacs or a package, and is visible from every tab.  Listing
   ;; the shared ones instead hid each new kind until someone added it.
   (defun my/tabspaces-user-buffer-p (buffer)

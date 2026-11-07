@@ -118,8 +118,8 @@ esac
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# --- Platform detection (determines brew / apt / pacman) ------------------
-os="$(uname -s | tr '[:upper:]' '[:lower:]')"   # darwin | linux | msys* | mingw*
+# --- Platform detection (determines brew / apt) ---------------------------
+os="$(uname -s | tr '[:upper:]' '[:lower:]')"   # darwin | linux
 distribution=""
 [ -f /etc/os-release ] && distribution="$(. /etc/os-release && echo "$ID")"
 
@@ -131,7 +131,6 @@ case "$os" in
       *)             pkg_manager="brew" ;;
     esac
     ;;
-  msys*|mingw*) pkg_manager="pacman"  ;;
   *)            pkg_manager="unknown" ;;
 esac
 
@@ -172,8 +171,6 @@ main() {
     update_apt_packages
     update_brew
     update_brew_packages
-    update_pacman_packages
-    install_zsh_plugins
     setup_links
     setup_dev_packages
 
@@ -856,54 +853,6 @@ install_brew_packages() {
   print_line "$left_message" "Finished."
 }
 
-install_pacman_packages() {
-  # Installs MSYS2/ucrt64 shell tools from pkg/pacman/msys2-packages.txt via pacboy.
-  # `name:p` entries resolve to the active $MSYSTEM prefix; bare names hit the
-  # msys base repo. Idempotent (--needed) and safe to re-run.
-  if [ "$pkg_manager" != "pacman" ] || ! command -v pacman >/dev/null; then
-    return
-  fi
-
-  left_message="Installing MSYS2 packages (via pacman/pacboy)"
-  print_line "$left_message" "Started."
-
-  # pacboy ships in pactoys; ensure it is present before using `:p` notation.
-  command -v pacboy >/dev/null 2>&1 || pacman -S --needed --noconfirm pactoys
-
-  # Read pkg/pacman/msys2-packages.txt (one package per line, comments/blanks ignored)
-  local list_file="$script_dir/pkg/pacman/msys2-packages.txt"
-  packages=()
-
-  if [ -f "$list_file" ]; then
-    while IFS= read -r line || [ -n "$line" ]; do
-      # Strip inline comments, then leading/trailing whitespace.
-      line=$(echo "$line" | sed -e 's/[[:space:]]*#.*$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-      case "$line" in
-        '') continue ;;
-      esac
-      packages+=("$line")
-    done < "$list_file"
-  fi
-
-  [ "${#packages[@]}" -gt 0 ] && pacboy -S --needed --noconfirm "${packages[@]}"
-
-  print_line "$left_message" "Finished."
-}
-
-update_pacman_packages() {
-  # Updates all installed MSYS2 packages (full system upgrade).
-  if [ "$pkg_manager" != "pacman" ] || ! command -v pacman >/dev/null; then
-    return
-  fi
-
-  left_message="Updating MSYS2 packages (via pacman)"
-  print_line "$left_message" "Started."
-
-  pacman -Syu --noconfirm
-
-  print_line "$left_message" "Finished."
-}
-
 update_brew_packages() {
   # Updates packages declared in pkg/brew/Brewfile.
   # Also triggers a link refresh afterwards in the update flow.
@@ -949,68 +898,6 @@ install_fonts() {
   print_line "$left_message" "Finished."
 }
 
-install_python_tools() {
-  # Puts the Python tools that are not a project's own on PATH, with uv.
-  #
-  # One copy rather than one per project.  A language server is not a
-  # dependency of the code it reads -- nothing imports pyright -- so
-  # installing it into every virtualenv means the same package downloaded
-  # again for each checkout, and an editor that has to be told where each
-  # one is.  `uv tool install' keeps one, on PATH, for all of them.
-  #
-  # A project that needs a pinned version can still have its own; Emacs
-  # looks for the executable and does not care which of the two it finds.
-  if ! command -v uv >/dev/null; then
-    return
-  fi
-
-  left_message="Installing Python tools"
-  print_line "$left_message" "Started."
-
-  uv tool install --quiet pyright || true
-  uv tool install --quiet ruff || true
-
-  print_line "$left_message" "Finished."
-}
-
-install_zsh_plugins() {
-  # Clones the zsh plugins listed in pkg/zsh-plugins/plugins.txt, which
-  # config/shell/zsh/zsh.sh sources directly (no plugin manager: sheldon forks a
-  # native binary on every shell start and fails to lock its config dir on
-  # locked-down Windows). Idempotent: missing -> shallow clone, present ->
-  # fast-forward pull. bootstrap.ps1 mirrors this via Install-ZshPlugins.
-  if ! command -v git >/dev/null 2>&1; then
-    return
-  fi
-
-  local list_file="$script_dir/pkg/zsh-plugins/plugins.txt"
-  [ -f "$list_file" ] || return
-
-  left_message="Installing zsh plugins"
-  print_line "$left_message" "Started."
-
-  local plugin_dir="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/plugins"
-  mkdir -p "$plugin_dir"
-
-  local url name dest
-  while IFS= read -r url || [ -n "$url" ]; do
-    # Strip inline comments, then leading/trailing whitespace; skip blanks.
-    url=$(echo "$url" | sed -e 's/[[:space:]]*#.*$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-    case "$url" in '') continue ;; esac
-    name="$(basename "$url")"
-    dest="$plugin_dir/$name"
-    if [ -d "$dest/.git" ]; then
-      git -C "$dest" pull --ff-only --quiet || echo "⚠️  Could not update $name"
-    else
-      git clone --depth 1 "$url" "$dest"
-    fi
-  done < "$list_file"
-
-  print_line "$left_message" "Finished."
-}
-
-
-
 perform_full_bootstrap() {
   # Full initial (or re-deploy) bootstrap for fresh or existing machines.
   # Idempotent installs (early return if present) + package manifests from pkg/ + links.
@@ -1023,9 +910,6 @@ perform_full_bootstrap() {
   install_brew
   install_brew_packages
   install_fonts
-  install_pacman_packages
-  install_python_tools
-  install_zsh_plugins
   setup_links
   setup_dev_packages
 

@@ -7,17 +7,13 @@ Everything here lives **outside** `config/` so it is never symlinked into `~/.co
 
 - `brew/Brewfile` — Homebrew (macOS + Linux) — used by `brew bundle`
 - `apt/packages.txt` — APT packages for Debian/Ubuntu
-- `pacman/packages.txt` + `pacman/msys2-packages.txt` — pacman (Arch, MSYS2)
 - `scoop/scoopfile.json` — Scoop (Windows) — generated via `scoop export`
-- `zsh-plugins/plugins.txt` — zsh plugin git repos, cloned to `$XDG_DATA_HOME/zsh/plugins`
-  (no plugin manager; sourced directly by `config/shell/zsh/zsh.sh`)
 
 ## Usage from the bootstrap script
 
 Run `./bootstrap` (or `./bootstrap update`) or the platform-native commands directly:
 - `brew bundle --file pkg/brew/Brewfile`
 - `scoop import pkg/scoop/scoopfile.json` (Windows)
-- `pacboy -S --needed - < pkg/pacman/msys2-packages.txt` (MSYS2/ucrt64; needs `pactoys`)
 - `sudo apt install -y $(cat pkg/apt/packages.txt | grep -v '^#' | grep -v '^$')` etc.
 
 ## Regenerating

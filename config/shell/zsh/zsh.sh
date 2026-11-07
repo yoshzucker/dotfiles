@@ -1,5 +1,5 @@
 # --- zsh.sh ---------------------------------------------------------------
-# Interactive zsh. Requires THEME_* from colors.sh.
+# Interactive zsh.
 
 [ -n "$ZSH_VERSION" ] || return 0
 
@@ -23,41 +23,15 @@ disable log
 zmodload zsh/complist
 zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'l:|=* r:|=*'
 zstyle ':completion:*' menu select=2  # 1 match → insert; 2+ → menu
-# compinit's audit stats every file in every fpath directory, and the
-# endpoint scanner on the Windows machine inspects them one at a time: half
-# a second, before every prompt.  The audit earns its keep -- it is what
-# notices a completion installed since yesterday -- but not once per shell.
-# So it runs once a day and the rest of the day starts from the dump.
-#
-# The stamp is separate from the dump because compinit rewrites the dump
-# only when something changed, which would leave a quiet day looking like a
-# day the audit never ran.
-#
-# The `for' is how the age is read without starting anything: `[[ ]]' does
-# not expand patterns, so the glob qualifier has to land somewhere that
-# does.  It matches at most one file, or none when the stamp is old or
-# absent.
 autoload -Uz compinit
-() {
-  local fresh=0
-  for _ in ~/.zcompdump-stamp(N.mh-24); do fresh=1; done
-  if (( fresh )); then
-    compinit -C -d ~/.zcompdump
-  else
-    compinit -d ~/.zcompdump
-    print -n > ~/.zcompdump-stamp
-  fi
-}
+compinit -d ~/.zcompdump
 
-# ma= must include fg explicitly: zsh applies it standalone, not layered over di=.
-() {
-  local dihex="${THEME_CYAN#\#}" bhex="${THEME_MONO1#\#}"
-  local dr=$((16#${dihex[1,2]})) dg=$((16#${dihex[3,4]})) db=$((16#${dihex[5,6]}))
-  local br=$((16#${bhex[1,2]})) bg=$((16#${bhex[3,4]})) bb=$((16#${bhex[5,6]}))
-  zstyle ':completion:*' list-colors \
-    "di=38;2;${dr};${dg};${db}" \
-    "ma=38;2;${dr};${dg};${db};48;2;${br};${bg};${bb}"
-}
+# Colors by the terminal's slots, so the theme the terminal reads decides
+# them.  ma= must include fg explicitly: zsh applies it standalone, not
+# layered over di=.  Its background is the terminal's own (49).
+zstyle ':completion:*' list-colors "di=36" "ma=36;49"
+
+compdef _files open
 
 # ----- Prompt & VCS Info -----
 autoload -Uz add-zsh-hook
@@ -104,43 +78,17 @@ git_prompt_info() {
 add-zsh-hook precmd git_prompt_info
 
 # Two-line PROMPT: top=path + vcs_info, bottom=❯ colored by $?.
-PROMPT=$'\n%F{'"${THEME_MONO7}"$'}%(4~|.../%2~|%~)%f'\
-$' %F{'"${THEME_MONO5}"$'}${git_prompt_msg}%f\n'\
-$'%(?.%F{'"${THEME_MONO6}"$'}.%F{red})❯%f '
+PROMPT=$'\n%F{15}%(4~|.../%2~|%~)%f'\
+$' %F{12}${git_prompt_msg}%f\n'\
+$'%(?.%F{7}.%F{red})❯%f '
 
 # RPROMPT: SSH shows user@host; root shows user; otherwise empty.
 # All zsh prompt escapes -- no subshell fork.
 if [[ -n $SSH_CONNECTION || -n $SSH_TTY ]]; then
-  RPROMPT="%F{${THEME_MONO5}}%n@%m%f"
+  RPROMPT="%F{12}%n@%m%f"
 else
-  RPROMPT="%(!.%F{${THEME_MONO5}}%n%f.)"
+  RPROMPT="%(!.%F{12}%n%f.)"
 fi
-
-# ----- Plugins -----
-ZPLUGDIR="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/plugins"
-
-ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=${THEME_MONO4},italic"
-
-# The plugin wraps every ZLE widget so that each one refreshes the
-# suggestion, and by default it wraps them all again before every prompt --
-# six hundred widgets, 5 ms on the Mac, after every command.  Once is
-# enough: the wrapping still happens before the first prompt, after every
-# startup file has defined its widgets, and only a widget defined later --
-# by hand, at the prompt -- would go unwrapped.
-ZSH_AUTOSUGGEST_MANUAL_REBIND=1
-
-[[ -r $ZPLUGDIR/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && \
-  source $ZPLUGDIR/zsh-autosuggestions/zsh-autosuggestions.zsh
-
-# The plugin turns async on by itself for zsh 5.0.8 and newer, and async
-# means a fork on every keystroke.  Windows has no fork: MSYS2 emulates it by
-# copying the address space, and the endpoint scanner inspects each new
-# process, which together put about half a second between a key and its
-# character.  The Mac forks cheaply, and still more slowly than the search
-# it hands off: 1000 history entries take 0.1 ms in-process, the fork 0.4.
-#
-# `unset', not `=0': the plugin tests whether the variable exists.
-unset ZSH_AUTOSUGGEST_USE_ASYNC
 
 # ----- Keybindings -----
 bindkey -e
@@ -153,8 +101,7 @@ bindkey -s $'\e[1;5n'   '\t'  # mintty: XTermModifyOtherKeys=1
 # Delete, Home and End, as the terminals here send them: xterm's form from
 # Ghostty and mintty, the VT220 form from tmux.  The Mac's /etc/zshrc bound
 # these from terminfo, which names the application-mode sequences that are
-# only sent after smkx -- so only tmux's ever matched -- and MSYS2 has no
-# such file at all.
+# only sent after smkx -- so only tmux's ever matched.
 bindkey '^[[3~' delete-char
 bindkey '^[[H'  beginning-of-line
 bindkey '^[[1~' beginning-of-line
@@ -164,12 +111,12 @@ bindkey '^[[4~' end-of-line
 # menuselect keymap (active during completion menu): vim-style navigation.
 bindkey -M menuselect '^J' down-history
 bindkey -M menuselect '^K' up-history
-# ^F accepts the current candidate (mirrors autosuggest-accept outside menuselect).
+# ^F accepts the current candidate.
 bindkey -M menuselect '^F' accept-line
 
 # ----- Directory jumping -----
 # No zoxide.  Its hook starts a process on every cd -- a tenth of a second or
 # more under MSYS2 -- and the Windows hook zoxide 0.10.0 generates recorded
-# nothing at all.  `cd -<Tab>' (auto_pushd) and fzf's Alt-C remain.
+# nothing at all.  `cd -<Tab>' (auto_pushd) remains.
 
 # --- end of zsh.sh -------------------------------------------------------

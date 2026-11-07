@@ -30,7 +30,7 @@
   ;; is likely to read the file -- and not when a window is switched.
   ;;
   ;; A save is more than the write.  `after-save-hook' formats the buffer,
-  ;; reindexes an Org file into org-roam and tells ActivityWatch, and the
+  ;; reindexes an Org file into org-roam, and the
   ;; formatting alone holds a two-thousand-line Emacs Lisp file for fifty
   ;; to ninety milliseconds while it reindents.  Saving on a switch put all
   ;; of that between the key and the other window appearing; saving when

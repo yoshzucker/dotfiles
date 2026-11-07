@@ -131,7 +131,7 @@
           :func #'tempel-setup-capf))
   :config
   ;; Every file in the directory.  no-littering sets `tempel-path' too, to
-  ;; templates.eld alone, which would leave marp.eld unread.  Set here, when
+  ;; templates.eld alone, which would leave any other file unread.  Set here, when
   ;; tempel itself loads at the first completion, this is the value that
   ;; stands -- no-littering has long since run, wherever it is read from.
   (setq tempel-path (expand-file-name "etc/tempel/*.eld" user-emacs-directory))

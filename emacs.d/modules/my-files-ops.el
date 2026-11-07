@@ -55,7 +55,8 @@ need not be the one the OS opens HTML with."
 
 Under method `outside' -- C-c C-o, or C-u C-u on an Org link -- besides
 `my/open-in-browser-extensions'; the rest go to the OS default app.
-Under method `auto' they open as before: a PDF in pdf-tools."
+Under method `auto' they open as before: a PDF in pdf-tools, or doc-view
+where there is no pdf-tools."
   :type '(repeat string)
   :group 'my-config)
 
@@ -417,13 +418,12 @@ Default RET/f remain `find-file', which already honors
   :defer t
   :after evil
   :config
-  (when (memq system-type '(darwin gnu/linux))
-    (setq dired-listing-switches "-alh")
-    (when (executable-find "gls")
-      (setq insert-directory-program (executable-find "gls")
-            ls-lisp-use-insert-directory-program t
-            dired-use-ls-dired t
-            dired-listing-switches "-alh --group-directories-first")))
+  ;; Listed by ls-lisp, Emacs's own ls, on every system: the same listing
+  ;; everywhere, directories first, and no GNU ls to install for it.
+  (require 'ls-lisp)
+  (setq ls-lisp-use-insert-directory-program nil
+        ls-lisp-dirs-first t
+        dired-listing-switches "-alh")
   (setq dired-dwim-target t
         dired-auto-revert-buffer t)
   (put 'dired-find-alternate-file 'disabled nil)
@@ -620,133 +620,7 @@ With one marked file (or only file at point), prompt for the other."
   (advice-add 'dired-do-rename :override #'my/dired-do-rename)
   (defun my/dired-do-rename (&optional arg)
     (let ((dired-dwim-target (not arg)))
-      (dired-do-create-files 'move #'dired-rename-file "Move" nil dired-keep-marker-rename "Rename")))
-
-  (defvar my/fd-dired-history nil
-    "History list for `my/fd-dired' patterns.")
-
-  (defun my/fd-dired-sentinel (proc state)
-    "Sentinel for `my/fd-dired' processes.
-Appends a completion summary line in the result buffer and echoes a
-\"fd-dired … finished.\" message, mirroring `find-dired-sentinel'."
-    (let ((buf (process-buffer proc)))
-      (when (buffer-name buf)
-        (with-current-buffer buf
-          (let ((inhibit-read-only t))
-            (save-excursion
-              (save-restriction
-                (widen)
-                (let ((point (point-max)))
-                  (goto-char point)
-                  (insert "\n  fd "
-                          (substring state 0 -1)
-                          " at " (substring (current-time-string) 0 19))
-                  (dired-insert-set-properties point (point))))
-              (setq mode-line-process (format ":%s" (process-status proc)))
-              (delete-process proc)
-              (force-mode-line-update))))
-        (message "fd-dired %s finished." buf))))
-
-  (defun my/fd-dired (dir pattern)
-    "Run `fd' asynchronously and display results in a `find-dired'-style buffer.
-DIR is the search root.  PATTERN is passed to `fd' as the search pattern.
-Buffer name format: *fd <pattern> <root-dir>/*
-
-The function mirrors built-in `find-dired' for buffer layout, prompts and
-completion messages, while running the search via `make-process' through
-a shell pipeline `fd … -0 | xargs -0 ls -ld 2>/dev/null'.  Routing
-through `ls -ld' avoids the \"gls: cannot access …\" failure that
-`(dired (cons DIR FILES))' produces when any collected entry has gone
-away between scan and listing.  On Windows the process coding is set to
-cp932 so that mojibake doesn't occur in file names."
-    (interactive
-     (let* ((dir (read-directory-name "Run fd in directory: " nil default-directory t))
-            (pattern (read-string
-                      (format "Run fd in %s (with args): " (abbreviate-file-name dir))
-                      nil 'my/fd-dired-history)))
-       (list dir pattern)))
-    (require 'find-dired)
-    (let* ((search-dir (file-name-as-directory (expand-file-name dir)))
-           (root-name (file-name-nondirectory (directory-file-name search-dir)))
-           (result-buffer-name (format "*fd %s %s/*" pattern root-name))
-           (fd-executable (or (executable-find "fd")
-                              (executable-find "fdfind")))
-           (ls-program (or (executable-find "gls")
-                           (executable-find "ls")))
-           (ls-switches (if (and ls-program
-                                 (string-match-p "gls\\'" ls-program))
-                            "-ldh --group-directories-first"
-                          "-ldh"))
-           (coding (if (eq system-type 'windows-nt)
-                       '(utf-8-unix . cp932-dos)
-                     'utf-8-unix))
-           (shell (if (eq system-type 'windows-nt)
-                      (or (executable-find "bash") shell-file-name)
-                    shell-file-name))
-           (switch (if (eq system-type 'windows-nt) "-c" shell-command-switch))
-           command)
-      (unless fd-executable
-        (user-error "fd command not found"))
-      (unless ls-program
-        (user-error "ls/gls command not found"))
-      (unless (file-directory-p search-dir)
-        (error "my/fd-dired needs a directory: %s" search-dir))
-      (setq command
-            (format "%s --color=never -0%s | xargs -0 %s %s 2>/dev/null"
-                    (shell-quote-argument fd-executable)
-                    (if (string= pattern "")
-                        ""
-                      (concat " " (shell-quote-argument pattern)))
-                    (shell-quote-argument ls-program)
-                    ls-switches))
-      (pop-to-buffer-same-window (get-buffer-create result-buffer-name))
-      (let ((running (get-buffer-process (current-buffer))))
-        (when running
-          (if (or (not (eq (process-status running) 'run))
-                  (yes-or-no-p (format-message "A `fd' process is running; kill it? ")))
-              (condition-case nil
-                  (progn (interrupt-process running)
-                         (sit-for 1)
-                         (delete-process running))
-                (error nil))
-            (error "Cannot have two processes in `%s' at once" (buffer-name)))))
-      (widen)
-      (kill-all-local-variables)
-      (setq buffer-read-only nil)
-      (erase-buffer)
-      (setq default-directory search-dir)
-      (let ((proc (make-process
-                   :name "fd-dired"
-                   :buffer (current-buffer)
-                   :command (list shell switch command)
-                   :coding coding
-                   :connection-type 'pipe
-                   :filter #'find-dired-filter
-                   :sentinel #'my/fd-dired-sentinel)))
-        (move-marker (process-mark proc) (point) (current-buffer)))
-      (dired-mode search-dir (cdr find-ls-option))
-      (let ((map (make-sparse-keymap)))
-        (set-keymap-parent map (current-local-map))
-        (define-key map "\C-c\C-k" 'kill-find)
-        (use-local-map map))
-      (setq-local dired-sort-inhibit t)
-      (setq-local revert-buffer-function
-                  (lambda (_ignore-auto _noconfirm)
-                    (my/fd-dired search-dir pattern)))
-      (if (fboundp 'dired-simple-subdir-alist)
-          (dired-simple-subdir-alist)
-        (setq dired-subdir-alist
-              (list (cons default-directory (point-min-marker)))))
-      (setq-local dired-subdir-switches find-ls-subdir-switches)
-      (setq buffer-read-only nil)
-      (insert "  " search-dir ":\n")
-      (when (bound-and-true-p dired-make-directory-clickable)
-        (dired--make-directory-clickable))
-      (let ((point (point)))
-        (insert "  " command "\n")
-        (dired-insert-set-properties point (point)))
-      (setq buffer-read-only t)
-      (setq mode-line-process '(":%s")))))
+      (dired-do-create-files 'move #'dired-rename-file "Move" nil dired-keep-marker-rename "Rename"))))
 
 (use-package wdired
   :defer t

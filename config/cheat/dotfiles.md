@@ -6,12 +6,6 @@
 
 | キー                | 機能                                         |
 |---------------------|----------------------------------------------|
-| `Ctrl-R`            | fzf: 履歴 fuzzy 検索                         |
-| `Ctrl-T`            | fzf: ファイル選択 + bat preview              |
-| `Alt-c`             | fzf: ディレクトリ jump + eza tree preview    |
-| `Ctrl-/`            | fzf 内: preview トグル                       |
-| `Ctrl-y`            | fzf 内: 選択を pbcopy して終了               |
-| `Alt-a` / `Alt-d`   | fzf 内: 全選択 / 全解除                      |
 | `Tab`               | zsh 補完メニュー (候補 2 以上で menu select) |
 | `Ctrl-w e` / `Ctrl-w m` | ウィンドウサイズ循環 / 最大化 (Emacs と同じ。`Ctrl-w` は prefix 専用) |
 | `Alt-Backspace`     | 単語削除                                     |
@@ -19,10 +13,6 @@
 
 ## Aliases
 
-- `ll` / `lla` — eza 詳細 (icons + git + age gradient)
-- `lt` — eza tree (深さ 2, gitignore 尊重)
-- `cat` — bat (`--paging=never`)
-- `y` — yazi 起動、抜けたら cd 追従
 - `?` / `cheat` — このファイル
 - `gitroot` — リポジトリルートへ cd
 
@@ -30,12 +20,9 @@
 
 | 用途        | コマンド                           |
 |-------------|------------------------------------|
-| ファイラ    | `yazi` (= `y`)                     |
 | Git         | Emacs magit (メイン)               |
 | multiplexer | `tmux`                             |
-| viewer      | `bat`                              |
-| diff        | `delta` (git pager に統合済み)     |
 
 ## Config 配置
 
-`~/.config/{ripgrep,fd,eza,bat,cheat}` (dotfiles リポから symlink)
+`~/.config/{ripgrep,cheat}` (dotfiles リポから symlink)

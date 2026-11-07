@@ -45,11 +45,7 @@
 ;; `after-change-major-mode-hook' once for `fundamental-mode' before the real
 ;; mode's `kill-all-local-variables' throws the first answer away.  Four
 ;; hundred milliseconds a process in a repository on a synced folder on
-;; Windows, so seconds to open a file there.  And on Windows it can fail: git
-;; is MSYS2's and answers in /c/ paths, which `magit-toplevel' does not
-;; translate in its `--show-cdup' branch -- the one taken when the directory
-;; was reached through a junction -- and the error, from the first of the two
-;; runs, leaves the file in `fundamental-mode'.
+;; Windows, so seconds to open a file there.
 ;;
 ;; git is not the only thing that rewrites files under an open buffer.  A
 ;; synced folder does it whenever the other machine saves.  So every file
@@ -279,16 +275,6 @@ the subject is one \\<magit-status-mode-map>\\[magit-log] away."
 
 (use-package git-timemachine
   :defer t)
-
-(use-package grep
-  :if (eq system-type 'windows-nt)
-  ;; The first grep or find command loads it, and this is in time for that.
-  :defer t
-  :config
-  (let ((find (expand-file-name "~/scoop/shims/find.exe")))
-    (if (file-exists-p find)
-        (setq find-program find)
-      (user-error "find not found. install findutils with scoop."))))
 
 (provide 'my-files-vc)
 ;;; my-files-vc.el ends here

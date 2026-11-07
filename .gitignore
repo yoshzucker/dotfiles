@@ -17,4 +17,3 @@ custom.el
 desktop.ini
 *.exe
 *.lnk
-/.agent-shell/

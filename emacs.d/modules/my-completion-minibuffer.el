@@ -119,7 +119,6 @@ Returning nil leaves the styles beside this one to answer."
                (org-refile         (styles my/orderless-migemo-dot))
                (org-roam-node      (styles my/orderless-migemo-dot))
                (consult-location   (styles my/orderless-migemo-dot))
-               (agent-shell-config (styles my/orderless-migemo-dot))
                (nil                (styles my/orderless-migemo-dot))))
       (setq completion-category-overrides
             (assq-delete-all (car entry) completion-category-overrides))
@@ -150,7 +149,7 @@ Returning nil leaves the styles beside this one to answer."
          ;; heading is answers a question `gs' and `g.' cannot -- a task is
          ;; not a buffer and not a file name.
          "g[" #'consult-org-agenda
-         "g." #'consult-fd
+         "g." #'consult-find
          "g/" #'consult-ripgrep)
    (:map org-mode-map
          :state motion
@@ -158,7 +157,7 @@ Returning nil leaves the styles beside this one to answer."
          :key
          "g]" #'consult-org-heading))
 
-  ;; Fire async searches (ripgrep/fd) at 2 chars instead of 3, so 2-char
+  ;; Fire async searches (ripgrep/find) at 2 chars instead of 3, so 2-char
   ;; Japanese terms trigger a search.  Affects all consult async commands.
   (setq consult-async-min-input 2)
 

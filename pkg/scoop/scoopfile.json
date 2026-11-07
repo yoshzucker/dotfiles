@@ -11,27 +11,11 @@
   ],
   "apps": [
     {
-      "Name": "msys2",
-      "Source": "main"
-    },
-    {
-      "Name": "gcc",
-      "Source": "main"
-    },
-    {
       "Name": "ripgrep",
       "Source": "main"
     },
     {
-      "Name": "fd",
-      "Source": "main"
-    },
-    {
-      "Name": "fzf",
-      "Source": "main"
-    },
-    {
-      "Name": "eza",
+      "Name": "rga",
       "Source": "main"
     },
     {
@@ -39,24 +23,20 @@
       "Source": "main"
     },
     {
-      "Name": "findutils",
-      "Source": "main"
-    },
-    {
       "Name": "pandoc",
-      "Source": "main"
-    },
-    {
-      "Name": "weasyprint",
-      "Source": "main"
-    },
-    {
-      "Name": "monolith",
       "Source": "main"
     },
     {
       "Name": "poppler",
       "Source": "main"
+    },
+    {
+      "Name": "mupdf",
+      "Source": "extras"
+    },
+    {
+      "Name": "fontforge",
+      "Source": "extras"
     },
     {
       "Name": "git",
@@ -67,40 +47,12 @@
       "Source": "main"
     },
     {
-      "Name": "python",
-      "Source": "main"
-    },
-    {
-      "Name": "nodejs",
-      "Source": "main"
-    },
-    {
-      "Name": "claude-code",
-      "Source": "main"
-    },
-    {
-      "Name": "marp",
-      "Source": "main"
-    },
-    {
-      "Name": "sbcl",
-      "Source": "main"
-    },
-    {
       "Name": "emacs",
-      "Source": "extras"
-    },
-    {
-      "Name": "claude",
       "Source": "extras"
     },
     {
       "Name": "marktext",
       "Source": "extras"
-    },
-    {
-      "Name": "win32yank",
-      "Source": "main"
     },
     {
       "Name": "espanso",
@@ -117,26 +69,6 @@
     {
       "Name": "flow-launcher",
       "Source": "extras"
-    },
-    {
-      "Name": "quicklook",
-      "Source": "extras"
-    },
-    {
-      "Name": "winmerge",
-      "Source": "extras"
-    },
-    {
-      "Name": "activitywatch",
-      "Source": "extras"
-    },
-    {
-      "Name": "uv",
-      "Source": "main"
-    },
-    {
-      "Name": "rustup-gnu",
-      "Source": "main"
     }
   ]
 }

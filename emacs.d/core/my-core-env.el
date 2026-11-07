@@ -34,16 +34,27 @@
 ;; A login shell, not an interactive one.  The package's default asks for both,
 ;; which runs the whole of ~/.zshrc to read a PATH that ~/.zshenv has already
 ;; finished setting -- the same twenty-four entries either way, checked against
-;; each other.  What the interactive half adds is the prompt, the completion
-;; system, and the palette `colors.sh' writes to the terminal: those escape
-;; sequences arrive in the output this package is parsing, which it survives
-;; but should not have to.  Measured at 74 ms against 29 ms.
+;; each other.  What the interactive half adds is the prompt and the
+;; completion system, which nothing here reads.  Measured at 74 ms against
+;; 29 ms.
 (use-package exec-path-from-shell
   :if (or (memq window-system '(mac ns x)) (daemonp))
   :init
   (setq exec-path-from-shell-arguments '("-l"))
   :config
   (exec-path-from-shell-initialize))
+
+;; Git for Windows' own tools on Windows: `diff' for ediff, which is how
+;; claude-code-ide shows a change, and the find and grep that xref and
+;; `find-name-dired' run.  Windows has none of them, and Emacs there does
+;; not start a shell to learn a PATH.  Ahead of the rest, so its find is
+;; the one Emacs runs rather than Windows's own.  Where git is not there,
+;; nothing is added, and those commands do not work.
+(when (eq system-type 'windows-nt)
+  (let ((usr (expand-file-name "~/scoop/apps/git/current/usr/bin")))
+    (when (file-directory-p usr)
+      (add-to-list 'exec-path usr)
+      (setenv "PATH" (concat usr ";" (getenv "PATH"))))))
 
 (defconst my/wsl-p
   (and (eq system-type 'gnu/linux)

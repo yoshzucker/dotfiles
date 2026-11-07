@@ -5,26 +5,21 @@
 
 ;;; Code:
 (defconst my/language-tools
-  '(("pyright-langserver" "Python" "uv tool install pyright")
-    ("ruff"               "Python" "uv tool install ruff")
-    ("clangd"             "C/C++"  "Xcode on macOS | scoop install llvm")
-    ("clang-format"       "C/C++"  "brew install clang-format | scoop install llvm")
+  '(("clangd"             "C/C++"  "Xcode on macOS | scoop install llvm")
     ("xcrun"              "Swift"  "Xcode -- sourcekit-lsp and swift-format are inside it")
-    ("claude"             "Agent"  "scoop install claude-code, then it updates itself"))
+    ("claude"             "Agent"  "brew install --cask claude-code | the Claude Code installer"))
   "The programs outside Emacs that the modes configured here look for.
 
 One of each on PATH, and every checkout uses that one.  A language
-server is not a dependency of the code it reads -- nothing imports
-pyright -- so a copy per project is the same download repeated and an
-editor that has to be told which is which.  `install_python_tools' in
-bootstrap installs the Python half of this list.
+server is not a dependency of the code it reads, so a copy per project
+is the same download repeated and an editor that has to be told which
+is which.
 
 `claude' is here for a different reason: not whether it is installed,
-but which of them is.  It can be present twice over -- scoop puts one
-under its shims, the CLI replaces itself in ~/.local/bin the first
-time it updates -- and running the wrong one looks nothing like a path
-problem.  The session starts, says so, and its window shuts.  The
-resolved path answers that in one line.")
+but which of them is.  There can be a second copy under the same name,
+left by another way of installing it, and running the wrong one looks
+nothing like a path problem.  The session starts, says so, and its window
+shuts.  The resolved path answers that in one line.")
 
 (defun my/language-tools-report ()
   "Say which of `my/language-tools' this machine has, and where the rest come from.
@@ -50,8 +45,6 @@ up for one language and not another."
 (defconst my/eglot-servers
   '((swift-mode     . "xcrun")
     (swift-ts-mode  . "xcrun")
-    (python-mode    . "pyright-langserver")
-    (python-ts-mode . "pyright-langserver")
     (c-mode         . "clangd")
     (c-ts-mode      . "clangd")
     (c++-mode       . "clangd")
@@ -83,10 +76,10 @@ answer for the other two from the live image or session -- xref included
   ;; opening a file in one of these modes is what loads eglot.
   ;;
   ;; They are in `:init' because `:config' runs only once eglot is loaded,
-  ;; and nothing else loads it.  Waiting on `(python swift-ts-mode)' waited
-  ;; on both: a Python file loads `python' and never `swift-ts-mode', so
-  ;; eglot stayed unloaded, these hooks unregistered, and no buffer got a
-  ;; language server unless a Swift file had been opened first.
+  ;; and nothing else loads it.  Waiting on `(cc-mode swift-ts-mode)' would
+  ;; wait on both: a C file loads `cc-mode' and never `swift-ts-mode', so
+  ;; eglot would stay unloaded, these hooks unregistered, and no buffer would
+  ;; get a language server unless a Swift file had been opened first.
   ;;
   ;; `eglot-server-programs' stays in `:config' and is still in time: an
   ;; autoloaded function loads its file and runs the after-load forms before
@@ -96,10 +89,6 @@ answer for the other two from the live image or session -- xref included
   (my/add-hook
    (:hook swift-mode-hook swift-ts-mode-hook
           c-mode-hook c-ts-mode-hook c++-mode-hook c++-ts-mode-hook
-          ;; The parent of python-mode and python-ts-mode both, and the one
-          ;; pet runs on first -- so the executables found here are the
-          ;; ones the project's own environment put there.
-          python-base-mode-hook
           :func #'my/eglot-ensure-when-available))
   :config
   ;; Prevent eglot from hijacking imenu or other features
@@ -119,18 +108,7 @@ answer for the other two from the live image or session -- xref included
   ;; Swift
   (dolist (mode '(swift-mode swift-ts-mode))
     (add-to-list 'eglot-server-programs
-		         `(,mode . ("xcrun" "sourcekit-lsp"))))
-
-  ;; Python
-  (dolist (mode '(python-mode python-ts-mode))
-    (add-to-list 'eglot-server-programs
-		         `(,mode . ("pyright-langserver" "--stdio"))))
-
-  (setq-default eglot-workspace-configuration
-                '((:pyright . (:useLibraryCodeForTypes t
-                                                       :useTypeCheckingMode "strict"
-                                                       :reportMissingImports t
-                                                       :reportMissingTypeStubs t)))))
+		         `(,mode . ("xcrun" "sourcekit-lsp")))))
 (use-package apheleia
   ;; Where code is written, and not where anything else is.  The global mode
   ;; turns it on in every buffer there is and leaves it to each one's major
@@ -149,12 +127,6 @@ answer for the other two from the live image or session -- xref included
    (:hook prog-mode-hook
           :func #'apheleia-mode))
   :config
-  ;; ruff rather than black and isort: one binary does both, and it is the
-  ;; one `install_python_tools' puts on PATH.  Sorting first, then the
-  ;; formatting -- apheleia runs a list in order.
-  (dolist (mode '(python-mode python-ts-mode))
-    (setf (alist-get mode apheleia-mode-alist) '(ruff-isort ruff)))
-
   ;; swift-format is in the Xcode toolchain and not on PATH; `xcrun' is how
   ;; that toolchain is reached.  The bare `-' is what makes it read the
   ;; buffer from standard input, which is what apheleia hands it -- without

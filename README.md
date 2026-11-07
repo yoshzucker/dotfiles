@@ -82,7 +82,6 @@ All package lists live under `pkg/` (intentionally **outside** `config/`, so the
 
 - `pkg/brew/Brewfile` — Homebrew (macOS + Linux) — `brew bundle`
 - `pkg/apt/packages.txt` — Base APT packages (Debian/Ubuntu/WSL)
-- `pkg/pacman/{packages.txt,msys2-packages.txt}` — Arch / MSYS2
 - `pkg/scoop/scoopfile.json` — Scoop (Windows) — `scoop import`
 
 **Why this layout?**
@@ -172,7 +171,7 @@ block that installs them; see the commentary in `test/my-test.el`.
 
 - Brew: `brew bundle dump --force --file pkg/brew/Brewfile`
 - Scoop: `scoop export | Out-File pkg/scoop/scoopfile.json -Encoding utf8`
-- APT / pacman: edit the .txt files manually (keep one package per line + comments).
+- APT: edit the .txt file manually (keep one package per line + comments).
 
 ## License
 

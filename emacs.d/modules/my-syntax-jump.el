@@ -50,9 +50,6 @@
    (:hook lisp-mode-hook
           :func
           (lambda () (my/xref-add #'my/xref-backend-slime t)))
-   (:hook python-mode-hook python-ts-mode
-          :func
-          (lambda () (my/xref-add #'my/xref-backend-eglot t)))
    (:hook prog-mode-hook
           :func
           (lambda () (my/xref-add #'my/xref-backend-dumb-jump t))))

@@ -1,10 +1,10 @@
 # --- macos.sh ----------------------------------------------------------------
-# macOS-specific: Homebrew environment, GNU coreutils/findutils PATH, and the
-# system directories path_helper would have added.
+# macOS-specific: Homebrew environment, and the system directories
+# path_helper would have added.
 # No-op on non-Darwin systems.  zsh only: sourced by ~/.zshenv.
 # Exports: HOMEBREW_PREFIX, HOMEBREW_CELLAR, HOMEBREW_REPOSITORY, INFOPATH,
 #          HOMEBREW_CURLRC (when ~/.curlrc exists), HOMEBREW_NO_ENV_HINTS
-# Modifies: PATH (Homebrew bin, gnubin, rustup, /etc/paths), FPATH, MANPATH
+# Modifies: PATH (Homebrew bin, /etc/paths), FPATH, MANPATH
 
 # `$OSTYPE' rather than `uname': the shell already knows.  Asking the system
 # means starting a process, which is a fifth of a second on the Windows
@@ -29,14 +29,6 @@ if [ -d /opt/homebrew ]; then
   export PATH="/opt/homebrew/bin:/opt/homebrew/sbin${PATH+:$PATH}"
   [ -z "${MANPATH-}" ] || { export MANPATH="${MANPATH%"${MANPATH##*[!:]}"}"; export MANPATH=":${MANPATH#"${MANPATH%%[!:]*}"}"; }
   export INFOPATH="/opt/homebrew/share/info:${INFOPATH:-}"
-
-  [ -d "$HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin" ] &&
-    PATH="$HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin:$PATH"
-  [ -d "$HOMEBREW_PREFIX/opt/findutils/libexec/gnubin" ] &&
-    PATH="$HOMEBREW_PREFIX/opt/findutils/libexec/gnubin:$PATH"
-  # rustup is keg-only, so its cargo and rustc proxies are not in bin/.
-  [ -d "$HOMEBREW_PREFIX/opt/rustup/bin" ] &&
-    PATH="$HOMEBREW_PREFIX/opt/rustup/bin:$PATH"
 fi
 
 [ -e "$HOME/.curlrc" ] && export HOMEBREW_CURLRC=1

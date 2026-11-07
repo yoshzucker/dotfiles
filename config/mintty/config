@@ -1,6 +1,9 @@
 # wsltty config
 
 # Looks
+# Colors from config/mintty/themes, which gen-theme-palette writes.  The
+# variant has to be the one config/tmux/tmux.conf sources.
+ThemeFile=gensho-light
 Transparency=off
 CursorType=block
 CursorBlinks=no

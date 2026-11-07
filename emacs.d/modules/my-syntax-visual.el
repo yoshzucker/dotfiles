@@ -3,7 +3,7 @@
 ;;; Commentary:
 ;; Configures syntax-related behavior for editing across multiple modes.
 ;; Includes word boundary tweaks, Tree-sitter grammar integration,
-;; and support for Flyspell, Flycheck, and other syntax-aware tools.
+;; and support for Flycheck and other syntax-aware tools.
 
 ;;; Code:
 
@@ -13,27 +13,6 @@
   :config
   (setq eldoc-echo-area-use-multiline-p t
         eldoc-idle-delay 0.25))
-
-(use-package flyspell
-  :if (executable-find "aspell")
-  :diminish flyspell-mode
-  ;; The hook is what brings it: `flyspell-mode\=' is autoloaded, so the first
-  ;; text buffer of a session loads the package and a session that opens none
-  ;; loads nothing.  The hook has to be in `:init' for that -- in `:config' it
-  ;; would only be registered by whatever loaded flyspell first.
-  :defer t
-  :init
-  (setq-default ispell-program-name "aspell")
-
-  ;; `text-mode-hook\=' alone: org-mode derives from text-mode, so an Org buffer
-  ;; runs it already and naming `org-mode-hook\=' beside it only calls
-  ;; `flyspell-mode\=' a second time on the buffers where it costs most.
-  (my/add-hook
-   (:hook text-mode-hook
-          :func #'flyspell-mode))
-  :config
-  ;; Skip non-ASCII regions when checking spelling
-  (add-to-list 'ispell-skip-region-alist '("[^\000-\377]+")))
 
 (defun my/elisp-flymake-setup ()
   "Turn flymake on for Emacs Lisp, minus the backend a process costs too much.
@@ -110,18 +89,12 @@ byte-compile one, which is the half worth having and the half that costs."
           ;; itself once the grammars are available -- no remap needed.
           (yaml-mode   . yaml-ts-mode)))
 
-  ;; The compiler grammars are built with is put on PATH in early-init.el,
-  ;; where it has to be chosen anyway: native compilation needs the driver
-  ;; that matches the libgccjit Emacs loaded, and two compilers at the front
-  ;; of one PATH is one compiler too many.  See the comment there.
+  ;; No tree-sitter on Windows: a grammar is a C library built on the spot,
+  ;; and Windows here has no C compiler.  Each mode stays its own
+  ;; non-tree-sitter self.
   (when (eq system-type 'windows-nt)
-    ;; kill treesit remaps for these modes (Emacs 30.2)
-    (dolist (src '(bash c cpp javascript python))
-      (setq treesit-language-source-alist
-            (assq-delete-all src treesit-language-source-alist)))
-    (dolist (src '(sh-mode c-mode c++-mode js-mode python-mode))
-      (setq major-mode-remap-alist
-            (assq-delete-all src major-mode-remap-alist))))
+    (setq treesit-language-source-alist nil
+          major-mode-remap-alist nil))
 
   (defun my/treesit-install-grammars (&optional force)
     "Install the Tree-sitter grammars named above that are not there yet.
