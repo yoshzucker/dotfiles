@@ -25,6 +25,4 @@ alias emacsc='emacsclient -t -a '''
 alias killemacs="emacsclient -e '(client-save-kill-emacs)'"
 alias gitroot='cd "$(git rev-parse --show-toplevel)"'
 
-alias R='R --no-save'
-
 # --- end of aliases.sh ---------------------------------------------------

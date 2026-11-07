@@ -133,12 +133,8 @@ Emacs, C-u C-u outside."
 (defun my/open-system-command ()
   "Return (PROGRAM . PATH-TRANSFORM) for the OS default open command."
   (cond
-   (my/wsl-p
-    '("wsl-open" . identity))
    ((eq system-type 'darwin)
     '("open" . identity))
-   ((eq system-type 'gnu/linux)
-    '("xdg-open" . identity))
    ((eq system-type 'windows-nt)
     '("open" . (lambda (path)
                  (replace-regexp-in-string "/" "\\" path t t))))

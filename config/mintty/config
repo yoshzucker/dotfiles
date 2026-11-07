@@ -1,4 +1,4 @@
-# wsltty config
+# mintty config (Git Bash)
 
 # Looks
 # Colors from config/mintty/themes, which gen-theme-palette writes.  The
@@ -64,6 +64,6 @@ AllowBlinking=no
 
 BellType=0
 
-# wsltty config ends here
+# mintty config ends here
 ComposeKey=off
 SwitchShortcuts=no

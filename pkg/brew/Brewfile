@@ -8,17 +8,13 @@
 # This file is the single source of truth for brew-managed packages.
 # Run `./bootstrap update` (or `./bootstrap`) or `brew bundle` directly.
 #
-# macOS vs Linux conditionals use the Ruby DSL provided by `brew bundle`.
-# On macOS, Emacs ships via the emacs-plus-app cask, which installs
+# macOS only.  Emacs ships via the emacs-plus-app cask, which installs
 # Emacs.app into /Applications directly — no post-install copy needed.
 
 # --- Taps --------------------------------------------------------------------
 # homebrew/core and homebrew/cask are fetched automatically via the JSON API;
 # tapping them explicitly is no longer needed (and is rejected without --force).
-#
-# Note: brew bundle ignores `if: OS.mac?` keyword args silently — use Ruby's
-# trailing `if` form (e.g. `brew "foo" if OS.mac?`) to actually gate entries.
-tap "d12frosted/emacs-plus" if OS.mac?
+tap "d12frosted/emacs-plus"
 
 # --- Core utilities ----------------------------------------------------------
 brew "ripgrep"
@@ -36,7 +32,7 @@ brew "gh"                       # GitHub from the command line, for Claude Code
 # The CLI emacs.d/modules/my-app-agent.el drives.  A cask rather than a
 # formula because that is how it ships.  It does not update itself from here:
 # `./bootstrap update' does, through `brew bundle --upgrade'.
-cask "claude-code"        if OS.mac?
+cask "claude-code"
 
 # --- Languages & runtimes ----------------------------------------------------
 brew "sbcl"
@@ -47,25 +43,18 @@ brew "sbcl"
 # fontforge for the build and removes it after -- so it is not listed here.
 # PlemolJP Console NF: used directly by Ghostty, and as the Nerd-glyph source
 # for the "PlemolJP NF" build (so the build skips re-downloading it).
-cask "font-plemol-jp-nf" if OS.mac?
-
-# --- Linux-only CLI ----------------------------------------------------------
-# (none for now)
+cask "font-plemol-jp-nf"
 
 # --- Emacs -------------------------------------------------------------------
-# macOS: prebuilt Emacs.app cask (auto-places into /Applications).
+# Prebuilt Emacs.app cask (auto-places into /Applications).
 # Requires `brew trust d12frosted/emacs-plus` once to allow the 3rd-party tap.
-cask "emacs-plus-app" if OS.mac?
-
-# linux / others: standard Emacs from core
-brew "emacs" if OS.linux?
+cask "emacs-plus-app"
 
 # --- macOS GUI / Casks -------------------------------------------------------
-cask "ghostty"            if OS.mac?
-cask "karabiner-elements" if OS.mac?
-cask "battery"            if OS.mac?   # charge limiter
-cask "linearmouse"        if OS.mac?
-cask "maccy"              if OS.mac?   # clipboard history
+cask "ghostty"
+cask "karabiner-elements"
+cask "linearmouse"
+cask "maccy"   # clipboard history
 
 # --- Cleanup hint ------------------------------------------------------------
 # After changes: brew bundle --file pkg/brew/Brewfile

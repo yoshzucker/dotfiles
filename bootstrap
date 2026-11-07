@@ -118,24 +118,12 @@ esac
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# --- Platform detection (determines brew / apt) ---------------------------
-os="$(uname -s | tr '[:upper:]' '[:lower:]')"   # darwin | linux
-distribution=""
-[ -f /etc/os-release ] && distribution="$(. /etc/os-release && echo "$ID")"
-
-case "$os" in
-  darwin)       pkg_manager="brew"    ;;
-  linux)
-    case "${distribution:-}" in
-      ubuntu|debian) pkg_manager="apt"  ;;
-      *)             pkg_manager="brew" ;;
-    esac
-    ;;
-  *)            pkg_manager="unknown" ;;
-esac
-
-printf "Detected: os=%s distribution=%s pkg_manager=%s\n" \
-  "$os" "${distribution:-n/a}" "$pkg_manager"
+# --- Platform ----------------------------------------------------------------
+# macOS only.  Windows has bootstrap.ps1.
+if [ "$(uname -s)" != "Darwin" ]; then
+  echo "This bootstrap is for macOS; on Windows run bootstrap.ps1." >&2
+  exit 1
+fi
 
 
 main() {
@@ -168,7 +156,6 @@ main() {
   # Update flow (packages + links)
   # ------------------------------------------------------------------
   if [ "$update" -eq 1 ]; then
-    update_apt_packages
     update_brew
     update_brew_packages
     setup_links
@@ -735,63 +722,8 @@ setup_dev_packages() {
 # =============================================================================
 # Package Management Utilities
 # =============================================================================
-# Functions responsible for installing and updating packages via apt, brew,
-# Scoop (via ps1), etc. These are mostly independent of the link logic.
-
-install_apt_packages() {
-  # Installs base APT packages required before Homebrew and other tools.
-  # Reads from pkg/apt/packages.txt when possible (transition in progress).
-  if [[ "$distribution" != "ubuntu" && "$distribution" != "debian" ]]; then
-    return
-  fi
-
-  left_message="Installing APT packages"
-  print_line "$left_message" "Started."
-
-  # Read from pkg/apt/packages.txt (one package per line, comments and blanks ignored)
-  local apt_list_file="$script_dir/pkg/apt/packages.txt"
-  packages=()
-
-  if [ -f "$apt_list_file" ]; then
-    while IFS= read -r line || [ -n "$line" ]; do
-      # Trim leading/trailing whitespace and skip comments/empty
-      line=$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-      case "$line" in
-        ''|\#*) continue ;;
-      esac
-      packages+=("$line")
-    done < "$apt_list_file"
-  fi
-
-  # Fallback if file missing or empty (should not normally happen after manifest move)
-  if [ "${#packages[@]}" -eq 0 ]; then
-    packages=(
-      zsh curl build-essential procps git x11-apps language-pack-ja
-      fonts-noto-cjk locales libcurl4-openssl-dev libssl-dev libxml2-dev
-    )
-  fi
-
-  sudo apt update
-  sudo DEBIAN_FRONTEND=noninteractive apt install -y "${packages[@]}"
-  sudo apt autoremove -y
-
-  print_line "$left_message" "Finished."
-}
-
-update_apt_packages() {
-  # Updates all installed APT packages on Debian/Ubuntu systems.
-  if [[ "$distribution" != "ubuntu" && "$distribution" != "debian" ]]; then
-    return
-  fi
-
-  left_message="Updating APT packages"
-  print_line "$left_message" "Started."
-
-  sudo apt update && sudo apt upgrade -y
-  sudo apt autoremove -y
-
-  print_line "$left_message" "Finished."
-}
+# Functions responsible for installing and updating packages via brew.
+# These are mostly independent of the link logic.
 
 install_brew() {
   # Installs Homebrew itself (the package manager) if not present.
@@ -805,14 +737,7 @@ install_brew() {
 
   NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   
-  if [[ "$os" == "darwin" ]]; then
-    eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null)"
-  elif [[ "$os" == "linux" ]]; then
-    test -d ~/.linuxbrew && eval "$(~/.linuxbrew/bin/brew shellenv)"
-    test -d /home/linuxbrew/.linuxbrew && eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-    umask 002
-  fi
+  eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null)"
   
   print_line "$left_message" "Finished."
 }
@@ -879,14 +804,7 @@ install_fonts() {
   # there before: a build is rare, and a large C program that parses fonts
   # is not worth keeping for it.  Windows does not build; it takes the built
   # files by hand (bootstrap.ps1, Install-Fonts).
-  local font_dir
-  case "$os" in
-    darwin) font_dir="$HOME/Library/Fonts" ;;
-    linux)  font_dir="$HOME/.local/share/fonts" ;;
-    *)      return ;;
-  esac
-
-  if [ -f "$font_dir/PlemolJPNF-Regular.ttf" ]; then
+  if [ -f "$HOME/Library/Fonts/PlemolJPNF-Regular.ttf" ]; then
     return
   fi
 
@@ -919,7 +837,6 @@ perform_full_bootstrap() {
   left_message="Full bootstrap"
   print_line "$left_message" "Started."
 
-  install_apt_packages
   install_brew
   install_brew_packages
   install_fonts

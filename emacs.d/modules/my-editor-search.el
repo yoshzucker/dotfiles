@@ -39,7 +39,7 @@
     ;; into: share/ next to bin/.  Found from where cmigemo is rather than by
     ;; asking `brew --prefix', which costs a shell and a brew at every startup
     ;; to say the same thing.
-    ((or 'darwin 'gnu/linux)
+    ('darwin
      (let ((dict (expand-file-name
                   "../share/migemo/utf-8/migemo-dict"
                   (file-name-directory (executable-find "cmigemo")))))

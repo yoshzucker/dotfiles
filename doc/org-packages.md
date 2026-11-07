@@ -17,7 +17,7 @@ and the parts that are not Emacs configuration live here.
 
 ## Loading them from the working tree
 
-`bootstrap` (macOS/Linux) and `bootstrap.ps1`'s `Setup-DevPackages` (Windows)
+`bootstrap` (macOS) and `bootstrap.ps1`'s `Setup-DevPackages` (Windows)
 point straight.el's clone at `~/Developer/<package>`, so editing a package and
 restarting Emacs is enough to see the change. Without it the loaded copy is
 straight's own clone and every experiment costs a commit, a push and a pull.

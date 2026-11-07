@@ -4,7 +4,7 @@ Modular, maintainable personal configuration files.
 
 ## Quick Start
 
-**Unix-like (macOS / Linux / WSL)**
+**macOS**
 
 ```sh
 # Fresh install or re-deploy after git pull
@@ -40,10 +40,10 @@ All operations are **non-interactive** and **safe to re-run** any number of time
 
 ## Fresh Environment via curl (or equivalent)
 
-- Unix: the one-liner above works from a minimal system (requires curl, git will be pulled in via packages on Linux).
+- macOS: the one-liner above works from a fresh system (requires curl).
 - Windows: download the repo (or just bootstrap.ps1 + pkg/ and the directories you want), run `.\bootstrap.ps1`. On first Scoop install it will guide you to reopen the terminal and re-run.
 
-After bootstrap completes, restart your shell (`exec $SHELL -l` on Unix, or new PowerShell on Windows) to pick up PATH and env changes.
+After bootstrap completes, restart your shell (`exec $SHELL -l` on macOS, or new PowerShell on Windows) to pick up PATH and env changes.
 
 ## After Pulling Changes
 
@@ -53,7 +53,7 @@ git pull
 .\bootstrap.ps1 update # Windows
 ```
 
-This updates packages (brew/Scoop/apt) to latest per manifests + refreshes all symlinks + removes any newly-broken ones.
+This updates packages (brew/Scoop) to latest per manifests + refreshes all symlinks + removes any newly-broken ones.
 
 ## How Symlinks Work (Safety First)
 
@@ -80,8 +80,7 @@ This design guarantees that re-running after a `git pull` (or on a fresh machine
 
 All package lists live under `pkg/` (intentionally **outside** `config/`, so they are never symlinked into `~/.config` or `~/.local`).
 
-- `pkg/brew/Brewfile` — Homebrew (macOS + Linux) — `brew bundle`
-- `pkg/apt/packages.txt` — Base APT packages (Debian/Ubuntu/WSL)
+- `pkg/brew/Brewfile` — Homebrew (macOS) — `brew bundle`
 - `pkg/scoop/scoopfile.json` — Scoop (Windows) — `scoop import`
 
 **Why this layout?**
@@ -94,7 +93,6 @@ Run `./bootstrap update` (or the explicit package commands) to apply.
 ## Platform Notes
 
 - **macOS**: Homebrew + emacs-plus (provides Emacs.app). Post-install step places Emacs.app in /Applications.
-- **Linux (Debian/Ubuntu/WSL)**: APT base packages first, then Homebrew on top. `language-pack-ja` etc. for Japanese support.
 - **Windows**: Scoop (extras bucket included). Symlink support requires **Developer Mode** enabled (Settings → Update & Security → For developers) or running PowerShell as Administrator. First run after Scoop install usually requires terminal restart.
 - **Emacs**: The `emacs.d/` tree in the repo is linked under `~/.emacs.d` by bootstrap.
 
@@ -151,7 +149,7 @@ nothing asked for.
 
 ## Requirements
 
-- Unix: bash, curl, git (git and curl are typically pulled in early on minimal systems via the bootstrap process on Linux).
+- macOS: bash, curl, git.
 - Windows: PowerShell 5.0+, internet access. Developer Mode recommended for symlinks.
 - All: 64-bit system, reasonable free disk space.
 
@@ -171,7 +169,6 @@ block that installs them; see the commentary in `test/my-test.el`.
 
 - Brew: `brew bundle dump --force --file pkg/brew/Brewfile`
 - Scoop: `scoop export | Out-File pkg/scoop/scoopfile.json -Encoding utf8`
-- APT: edit the .txt file manually (keep one package per line + comments).
 
 ## License
 

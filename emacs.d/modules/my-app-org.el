@@ -360,8 +360,6 @@ agenda file set does not depend on whether rg is installed -- rg's own
   (setq org-file-apps
         `((remote . emacs)
           (auto-mode . emacs)
-          ,@(when my/wsl-p
-              '((directory . (lambda (file _link) (my/open--system file)))))
           ,@(my/open-org-file-apps)))
 
   ;; Refile Settings.  A *static* target list (built from these files), so
@@ -1011,7 +1009,7 @@ unaffected."
   ;; there.  So the list is set directly and the require happens at the one
   ;; moment it is needed, which for a language used a few times a year is not
   ;; every startup.
-  (setq org-babel-load-languages '((emacs-lisp . t) (R . t)))
+  (setq org-babel-load-languages '((emacs-lisp . t)))
 
   (defun my/org-babel-require-backend (&rest _)
     "Load the backend for the source block at point, if it is not loaded."
@@ -1026,11 +1024,6 @@ unaffected."
         org-src-window-setup 'current-window)
   
   (add-hook 'org-babel-after-execute-hook #'org-display-inline-images)
-  
-  (with-eval-after-load 'ob-R
-    (setq org-babel-default-header-args:R
-          (cons '(:session . "*R*")
-                (assq-delete-all :session org-babel-default-header-args:R))))
   
   ;; Export
   (setq org-export-preserve-breaks nil)
@@ -1181,18 +1174,7 @@ Return non-nil when there was one to write."
                        "-File" script "-OutputPath" target)))
       ('darwin
        (call-process "osascript" nil nil nil
-                     "-e" my/org-attach-clipboard-applescript target))
-      ('gnu/linux
-       (when-let* ((wayland (string= "wayland" (getenv "XDG_SESSION_TYPE")))
-                   (paste (executable-find (if wayland "wl-paste" "xclip"))))
-         (with-temp-buffer
-           (set-buffer-multibyte nil)
-           (when (zerop (apply #'call-process paste nil t nil
-                               (if wayland
-                                   '("-t" "image/png")
-                                 '("-selection" "clipboard" "-t" "image/png" "-o"))))
-             (let ((coding-system-for-write 'no-conversion))
-               (write-region (point-min) (point-max) target nil 'quiet)))))))
+                     "-e" my/org-attach-clipboard-applescript target)))
     (my/org-attach-screenshot--have target))
 
   (defun my/org-attach-screenshot--screen (target)
@@ -1221,12 +1203,6 @@ Return non-nil when one was taken."
                           "}; "
                           "& '%s' -OutputPath '%s'")
                   my/org-attach-screenshot-wait script target))))
-      ('gnu/linux
-       (with-temp-buffer
-         (set-buffer-multibyte nil)
-         (when (zerop (call-process "flameshot" nil t nil "gui" "--raw"))
-           (let ((coding-system-for-write 'no-conversion))
-             (write-region (point-min) (point-max) target nil 'quiet)))))
       (_
        (user-error "No screenshot backend for system-type %s" system-type)))
     (my/org-attach-screenshot--have target))

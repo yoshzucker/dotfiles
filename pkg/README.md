@@ -5,8 +5,7 @@ Everything here lives **outside** `config/` so it is never symlinked into `~/.co
 
 ## Contents
 
-- `brew/Brewfile` — Homebrew (macOS + Linux) — used by `brew bundle`
-- `apt/packages.txt` — APT packages for Debian/Ubuntu
+- `brew/Brewfile` — Homebrew (macOS) — used by `brew bundle`
 - `scoop/scoopfile.json` — Scoop (Windows) — generated via `scoop export`
 
 ## Usage from the bootstrap script
@@ -14,7 +13,6 @@ Everything here lives **outside** `config/` so it is never symlinked into `~/.co
 Run `./bootstrap` (or `./bootstrap update`) or the platform-native commands directly:
 - `brew bundle --file pkg/brew/Brewfile`
 - `scoop import pkg/scoop/scoopfile.json` (Windows)
-- `sudo apt install -y $(cat pkg/apt/packages.txt | grep -v '^#' | grep -v '^$')` etc.
 
 ## Regenerating
 

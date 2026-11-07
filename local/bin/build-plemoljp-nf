@@ -64,9 +64,8 @@ IFS=$'\n\t'
 # Font Names, and a modified font under the name "PlemolJP" may be used but
 # not given out.
 #
-# Installs into ~/Library/Fonts (macOS) or ~/.local/share/fonts (Linux). The
-# last lines say where the built fonts are and where they went. Override
-# WORKDIR to control the build location.
+# Installs into ~/Library/Fonts. The last lines say where the built fonts are
+# and where they went. Override WORKDIR to control the build location.
 
 PLEMOLJP_VERSION="${PLEMOLJP_VERSION:-3.0.0}"
 JULIAMONO_VERSION="${JULIAMONO_VERSION:-0.63.2}"
@@ -84,7 +83,7 @@ JULIAMONO_SHA256="${JULIAMONO_SHA256:-bc7140ccf1cbd84ee66a4c00a41628ee0a531a241e
 fetch() {
   curl -fsSL -o "$2" "$1"
   local actual
-  if command -v shasum >/dev/null; then actual="$(shasum -a 256 "$2")"; else actual="$(sha256sum "$2")"; fi
+  actual="$(shasum -a 256 "$2")"
   actual="${actual%% *}"
   if [ "$actual" != "$3" ]; then
     echo "error: $(basename "$2"): sha256 $actual, expected $3" >&2
@@ -113,7 +112,7 @@ base_dir="$WORKDIR/src/PlemolJP_v${PLEMOLJP_VERSION}/PlemolJP"
 # when it is release v$PLEMOLJP_VERSION: another release would build a font
 # that differs from the pinned one.
 sym_dir=""
-for d in "$HOME/Library/Fonts" "$HOME/.local/share/fonts" "$HOME/.fonts" "/Library/Fonts"; do
+for d in "$HOME/Library/Fonts" "/Library/Fonts"; do
   f="$d/PlemolJPConsoleNF-Regular.ttf"
   [ -f "$f" ] || continue
   v="$(fontforge -lang=py -c 'import fontforge, sys; print(fontforge.open(sys.argv[1]).version.split(";")[0])' "$f" 2>/dev/null | tail -n 1)"
@@ -486,25 +485,15 @@ for s in "${STYLES[@]}"; do
     "$sup_dir/$sup" "$DISTDIR/PlemolJPNF-$s.ttf" 2>&1 | grep -E '  PlemolJPNF-' || true
 done
 
-os="$(uname -s)"
-
 # The downloads and their unpacked trees are spent; only dist is kept.
 rm -rf "$WORKDIR/src" "$WORKDIR/nf" "$WORKDIR/jm" "$WORKDIR"/*.zip
 
-case "$os" in
-  Darwin|Linux)
-    if [ "$os" = Darwin ]; then dest="$HOME/Library/Fonts"; else dest="$HOME/.local/share/fonts"; fi
-    mkdir -p "$dest"
-    echo ">> installing into $dest"
-    cp -f "$DISTDIR"/*.ttf "$dest"/
-    command -v fc-cache >/dev/null && fc-cache -f "$dest" >/dev/null 2>&1 || true
-    echo ">> built:     $DISTDIR"
-    echo ">> installed: $dest (restart Emacs to use it)"
-    echo ">> for Windows: carry $dest/PlemolJPNF-*.ttf over and install them there"
-    ;;
-  *)
-    echo ">> built: $DISTDIR (no installer for $os)"
-    ;;
-esac
+dest="$HOME/Library/Fonts"
+mkdir -p "$dest"
+echo ">> installing into $dest"
+cp -f "$DISTDIR"/*.ttf "$dest"/
+echo ">> built:     $DISTDIR"
+echo ">> installed: $dest (restart Emacs to use it)"
+echo ">> for Windows: carry $dest/PlemolJPNF-*.ttf over and install them there"
 
 echo ">> done. family: \"PlemolJP NF\""

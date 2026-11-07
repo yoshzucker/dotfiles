@@ -33,7 +33,7 @@ trap 'rm -rf "$work"' EXIT
 # Windows-native paths for tools that don't parse Git Bash-style '/c/...' (Emacs,
 # fontforge, python3 on Windows are native Win32 builds and interpret those as
 # relative). cygpath -m yields mixed 'C:/...' form which forward-slash-tolerant
-# tools accept. On macOS/Linux `cygpath` is missing; POSIX paths work directly.
+# tools accept. On macOS `cygpath` is missing; POSIX paths work directly.
 if command -v cygpath >/dev/null; then
     work_native="$(cygpath -m "$work")"
     module_native="$(cygpath -m "$module")"

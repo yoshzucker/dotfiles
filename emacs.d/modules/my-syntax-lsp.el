@@ -63,10 +63,10 @@ Opening a file should not go wrong because a toolchain is missing.
 the reader can do nothing about at that moment -- and on a machine set up
 for one language and not another, that is every file of the other kind.
 
-Emacs Lisp, Common Lisp and R are absent from `my/eglot-servers' on
-purpose.  Emacs is its own analyser for the first, and SLIME and ESS
-answer for the other two from the live image or session -- xref included
--- which is better than a server reading the files from outside."
+Emacs Lisp and Common Lisp are absent from `my/eglot-servers' on
+purpose.  Emacs is its own analyser for the first, and SLIME answers for
+the second from the live image -- xref included -- which is better than a
+server reading the files from outside."
   (when-let* ((program (alist-get major-mode my/eglot-servers))
               ((executable-find program)))
     (eglot-ensure)))

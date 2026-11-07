@@ -56,16 +56,6 @@
       (add-to-list 'exec-path usr)
       (setenv "PATH" (concat usr ";" (getenv "PATH"))))))
 
-(defconst my/wsl-p
-  (and (eq system-type 'gnu/linux)
-       (file-readable-p "/proc/version")
-       (let ((case-fold-search t))
-         (string-match-p "microsoft"
-                         (with-temp-buffer
-                           (insert-file-contents "/proc/version")
-                           (buffer-string)))))
-  "Non-nil if running under Windows Subsystem for Linux.")
-
 (when (native-comp-available-p)
   (add-hook 'kill-emacs-hook #'native-compile-prune-cache))
 
