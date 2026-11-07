@@ -131,12 +131,12 @@
 
   (gcmh-mode 1))
 
-(use-package immortal-scratch
-  :config
-  (setq eval-expression-print-length nil
-        eval-expression-print-level nil)
+(setq eval-expression-print-length nil
+      eval-expression-print-level nil)
 
-  (immortal-scratch-mode 1))
+;; *scratch* stays: killing it is refused rather than undone.
+(with-current-buffer "*scratch*"
+  (emacs-lock-mode 'kill))
 
 (provide 'my-emacs-ops)
 ;;; my-emacs-ops.el ends here

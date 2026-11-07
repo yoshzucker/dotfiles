@@ -41,11 +41,9 @@ Also used under method `auto' when FORCE is a plain C-u."
   :group 'my-config)
 
 (defcustom my/open-in-browser-extensions
-  ;; A PDF too on Windows, where Emacs has nothing to read one with: no
-  ;; pdf-tools, and no renderer for doc-view.  The browser's viewer is
-  ;; sandboxed, which a PDF parser in Emacs is not.
-  (append '("html" "htm" "xhtml")
-          (when (eq system-type 'windows-nt) '("pdf")))
+  ;; A PDF too: the browser's viewer is sandboxed, which a PDF parser in
+  ;; Emacs is not.
+  '("html" "htm" "xhtml" "pdf")
   "File extensions opened in the browser under method `auto'.
 
 The browser `browse-url-browser-function' names, as a file: URL, which
@@ -54,13 +52,12 @@ need not be the one the OS opens HTML with."
   :group 'my-config)
 
 (defcustom my/open-outside-in-browser-extensions
-  '("pdf")
+  nil
   "File extensions opened in the browser when opened outside Emacs.
 
 Under method `outside' -- C-c C-o, or C-u C-u on an Org link -- besides
 `my/open-in-browser-extensions'; the rest go to the OS default app.
-Under method `auto' they open as before: a PDF in pdf-tools, or on
-Windows in the browser (see `my/open-in-browser-extensions')."
+Under method `auto' they open in Emacs."
   :type '(repeat string)
   :group 'my-config)
 
@@ -650,16 +647,6 @@ With one marked file (or only file at point), prompt for the other."
          :key
          "gh" #'my/find-file-from-base
          "gH" #'dired-subtree-up)))
-
-(use-package dired-filter
-  :after (dired evil)
-  :config
-  ;; Use dired-filter with C-c /, keep / for evil motion
-  (my/define-key
-   (:map dired-mode-map
-         :key
-         "C-c /" #'dired-filter-map
-         "/" (lookup-key evil-motion-state-map "/"))))
 
 (use-package ibuffer
   ;; One key, against the command Emacs autoloads, so the listing arrives when

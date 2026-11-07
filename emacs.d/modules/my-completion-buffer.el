@@ -103,8 +103,7 @@
   ;; Read once a session, at the first completion that asks for them.
   ;; Reloading lists the directory and reads every file's modification time
   ;; on every completion, only to notice that a template has been edited; an
-  ;; edited template now waits for the next start.  tempel-collection is not
-  ;; affected -- it reads each mode's file once and keeps it.
+  ;; edited template now waits for the next start.
   (setq tempel-auto-reload nil)
 
   (defun tempel-setup-capf ()
@@ -128,10 +127,6 @@
          :key
          "TAB" #'tempel-next
          "C-e" #'tempel-done)))
-
-(use-package tempel-collection
-  ;; Templates for tempel to find, and nothing without it.
-  :after tempel)
 
 (provide 'my-completion-buffer)
 ;;; my-completion-buffer.el ends here

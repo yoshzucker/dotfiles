@@ -285,14 +285,7 @@ org's existing key table stays the single source of truth."
                    (org-agenda-sorting-strategy '(scheduled-up priority-down)))))
            ((org-foresight-report-style nil))))))
 
-(use-package adaptive-wrap
-  :after org-agenda
-  :config
-  (setq adaptive-wrap-extra-indent 20)
-  (add-hook 'org-agenda-mode-hook
-            (lambda ()
-              (setq truncate-lines t)
-              (adaptive-wrap-prefix-mode t))))
+(add-hook 'org-agenda-mode-hook (lambda () (setq truncate-lines t)))
 
 ;;;; org-foresight -- the forward-looking half of the day
 

@@ -124,8 +124,7 @@
   ;; directory: `consult-org-heading' is consult's, and opening what it finds
   ;; is what loads Org.  Defined here rather than in `:config' for that
   ;; reason -- a key bound before Org exists has to call something that does.
-  ;; Corpus heading nav: jump to any heading under `org-directory'.  The
-  ;; heading layer, vs `consult-org-roam-search' which searches body text.
+  ;; Corpus heading nav: jump to any heading under `org-directory'.
   (defun my/consult-org-headings-all (&optional archivep)
     "Consult all headings under `org-directory` (archives directory excluded).
 With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_archive files."
@@ -986,10 +985,9 @@ unaffected."
   ;; What is left is what has somewhere to go.  `ol-info' because Info is
   ;; already here; `ol-doi' because it costs one small library.  PDFs are not
   ;; missing from this list: `docview:' addresses a page of a document opened
-  ;; in `doc-view-mode', and on the Mac `pdf-loader-install' below hands
-  ;; every PDF to pdf-tools instead, so doc-view never opens one there.  A
-  ;; PDF is linked as a `file:', which pdf-tools opens (the browser on Windows);
-  ;; a place inside one has no link type here.
+  ;; in `doc-view-mode', and no PDF is read inside Emacs here.  A PDF is
+  ;; linked as a `file:', which opens in the browser; a place inside one has
+  ;; no link type here.
   (setq org-modules '(ol-doi ol-info))
 
   ;; Every `org-mode' activation rebuilds the menu bar's "File List for
@@ -1502,65 +1500,6 @@ block already shows what is out with them, as a live query."
            :target (file+head "%<%Y-%m-%dT%H-%M-%S>-${slug}.org"
                               "#+title: ${title}")
            :unnarrowed t))))
-
-;; Stable, refreshable buffer of nodes matching a tag/link/backlink/date
-;; query.  Complements Deft (filename/full-text) rather than replacing it.
-(use-package org-roam-ql :after org-roam)
-
-;; Minibuffer-driven full-text search and backlink navigation, on top of the
-;; existing consult/vertico stack.  Coexists with Deft and deadgrep.
-(use-package consult-org-roam
-  :after org-roam
-  :diminish consult-org-roam-mode
-  :config
-  (consult-org-roam-mode 1)
-  (setq consult-org-roam-grep-func #'consult-ripgrep)
-  (my/define-key
-   (:map global-map
-         :prefix "C-c"
-         :key
-         "s" #'consult-org-roam-search)
-   (:map global-map
-         :prefix "C-c n"
-         :key
-         "s" #'consult-org-roam-search
-         "B" #'consult-org-roam-backlinks
-         "F" #'consult-org-roam-forward-links)))
-
-(use-package pdf-tools
-  ;; Not on Windows: `epdfinfo', the C program pdf-tools talks to, does not
-  ;; build there, and nothing here packages it.  A PDF there opens in the
-  ;; browser (`my/open-in-browser-extensions' in my-files-ops.el).
-  :if (and (display-graphic-p) (not (eq system-type 'windows-nt)))
-  ;; Not loaded until a PDF is opened.  `pdf-tools-install' checks that
-  ;; `epdfinfo' is built and current, which means a subprocess and a walk of
-  ;; the build directory -- nine seconds of every Windows startup, measured,
-  ;; against under two on macOS, for a program most sessions never open a PDF
-  ;; in.  `pdf-loader-install' registers the file associations and defers that
-  ;; check to the first PDF, which is the only moment its answer is wanted.
-  :defer t
-  :init (pdf-loader-install)
-  :config
-  (blink-cursor-mode 0))    ;; Better UX for PDF buffers
-
-(use-package org-noter
-  :after (org pdf-tools)
-  :config
-  (my/define-key
-   (:map pdf-view-mode-map
-         :state normal
-         :key
-         "i" #'org-noter-insert-note
-         "q" #'org-noter-kill-session
-         "&" #'my/open-buffer-file-outside)
-   (:map pdf-history-minor-mode-map
-         :state normal
-         :key
-         "TAB" #'org-noter-insert-note-toggle-no-questions))
-
-  (setq org-noter-always-create-frame nil
-        org-noter-notes-search-path (list org-directory)
-        org-noter-doc-property-in-notes t))
 
 ;; org-dock: one heading taken out of its file into a copy of its own, with
 ;; everything under it, to be written in -- by me, or by Claude -- and

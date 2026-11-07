@@ -765,7 +765,8 @@ What makes the answer trustworthy is two things, both checked rather than
 assumed.  Every `use-package' form here is at top level and every module
 is read, so each registers its recipe whether or not the package is used:
 a `:if' that is false stops the package loading and not the recipe
-(pdf-tools keeps its recipe on Windows, where its `:if' is nil).  And a dependency is registered when its parent's recipe is, not
+(a package behind `:if (eq system-type 'darwin)' keeps its recipe on
+Windows).  And a dependency is registered when its parent's recipe is, not
 when the parent loads, so a deferred package does not hide what it needs
 (magit is unloaded in a fresh session and transient is named all the same).
 

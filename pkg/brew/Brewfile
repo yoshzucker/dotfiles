@@ -20,9 +20,7 @@ tap "d12frosted/emacs-plus"
 brew "ripgrep"
 brew "cmigemo"
 brew "tmux"                     # terminal multiplexer (pre-warmed daemon in .zshrc)
-brew "poppler"                  # pdf-tools for Emacs, org-moor (pdftotext)
-brew "automake"                 # pdf-tools for Emacs
-brew "pkgconf"                  # pdf-tools for Emacs: finds poppler when epdfinfo is built
+brew "poppler"                  # org-moor (pdftotext)
 brew "pandoc"
 
 # --- Dev tools ---------------------------------------------------------------
