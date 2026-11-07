@@ -150,7 +150,7 @@ Returning nil leaves the styles beside this one to answer."
          ;; not a buffer and not a file name.
          "g[" #'consult-org-agenda
          "g." #'consult-find
-         "g/" #'consult-ripgrep)
+         "g/" #'deadgrep)
    (:map org-mode-map
          :state motion
          :after evil

@@ -55,41 +55,16 @@
   (migemo-init))
 
 (use-package deadgrep
-  ;; A search, started by `:memex', `:reference' or `:project' on the ex line
-  ;; and by nothing else.  Those three have to be typeable from the start, so
-  ;; they and the functions behind them are in `:init'; how the search runs is
-  ;; in `:config', which the search itself brings on.
+  ;; Reached by `g/' (my-completion-minibuffer.el), which searches the
+  ;; project, and by `:source' on the ex line, which searches org-moor's
+  ;; sources -- left out of the notes' project only by living apart.
+  ;; `:source' has to be typeable from the start, so it and the function
+  ;; behind it are in `:init'.
   :after evil
   :defer t
   :init
-  (defcustom my/deadgrep-reference-directory
-    (file-name-as-directory "~/Documents/reference/")
-    "Directory searched by `my/deadgrep-reference'."
-    :type 'directory
-    :group 'deadgrep)
-
-  (defcustom my/deadgrep-project-directory
-    (file-name-as-directory "~/Documents/project/")
-    "Directory searched by `my/deadgrep-project'."
-    :type 'directory
-    :group 'deadgrep)
-
-  ;; memex is notes, and searching notes should be instant, so `:memex'
-  ;; leaves out the documents kept beside them -- org-moor's sources in
-  ;; sources/, older attachments in data/ -- which `:source' searches when
-  ;; asked.  Everything is rg: a document is found by its text, which for a
-  ;; source is the machine-readable copy org-moor keeps beside it.
-  (defvar-local my/deadgrep-engine nil
-    "Executable and extra arguments for this deadgrep buffer, or nil.
-Kept per buffer so that searching again from the results (`g', a new term)
-uses the same engine as the search that made them.")
-
-  (defvar my/deadgrep--next-engine nil
-    "The engine the deadgrep buffer being made is to keep.")
-
-  (defun my/deadgrep-in (dir &optional engine)
+  (defun my/deadgrep-in (dir)
     "Run `deadgrep' rooted at DIR, ignoring any enclosing VC/project root.
-ENGINE is (EXECUTABLE . EXTRA-ARGUMENTS); nil is deadgrep's own, rg.
 `deadgrep--project-root' otherwise walks up to a parent `.git' (e.g. ~/.git),
 so pin the search root to DIR explicitly.
 
@@ -100,44 +75,19 @@ which would fail by searching the wrong tree rather than by complaining."
     (require 'deadgrep)
     (let* ((dir (expand-file-name dir))
            (default-directory dir)
-           (deadgrep-project-root-function (lambda () dir))
-           (my/deadgrep--next-engine engine))
+           (deadgrep-project-root-function (lambda () dir)))
       (call-interactively #'deadgrep)))
 
-  (defun my/deadgrep-memex ()
-    (interactive)
-    (my/deadgrep-in org-directory
-                    (list "rg" "--no-config" "--glob=!/sources/" "--glob=!/data/")))
   (defun my/deadgrep-source ()
+    "Search org-moor's sources with deadgrep."
     (interactive)
     (my/deadgrep-in (if (boundp 'org-moor-sources-directory)
                         org-moor-sources-directory
                       (expand-file-name "sources/" org-directory))))
-  (defun my/deadgrep-reference () (interactive) (my/deadgrep-in my/deadgrep-reference-directory))
-  (defun my/deadgrep-project ()   (interactive) (my/deadgrep-in my/deadgrep-project-directory))
 
-  (evil-ex-define-cmd "memex"       #'my/deadgrep-memex)
-  (evil-ex-define-cmd "source"      #'my/deadgrep-source)
-  (evil-ex-define-cmd "ref[erence]" #'my/deadgrep-reference)
-  (evil-ex-define-cmd "pro[ject]"   #'my/deadgrep-project)
+  (evil-ex-define-cmd "source" #'my/deadgrep-source)
 
   :config
-  ;; deadgrep reads `deadgrep-executable' and `deadgrep-extra-arguments'
-  ;; each time it starts rg, in the results buffer.  The buffer takes its
-  ;; engine when it is made, and every start in it binds the two from that.
-  (add-hook 'deadgrep-mode-hook
-            (lambda ()
-              (when my/deadgrep--next-engine
-                (setq my/deadgrep-engine my/deadgrep--next-engine))))
-  (advice-add 'deadgrep--start :around
-              (lambda (fn &rest args)
-                (if my/deadgrep-engine
-                    (let ((deadgrep-executable (car my/deadgrep-engine))
-                          (deadgrep-extra-arguments (cdr my/deadgrep-engine)))
-                      (apply fn args))
-                  (apply fn args)))
-              '((name . my/deadgrep-engine)))
-
   (when (eq system-type 'windows-nt)
     (add-to-list 'process-coding-system-alist
                  '("rg" utf-8-dos . cp932-dos))))

@@ -144,8 +144,7 @@ Read before straight has added a package, so whatever lives under
 `user-emacs-directory' at this point belongs to straight rather than Emacs.")
 
 (defconst my/straight-packages-before-emacs-lisp
-  '("bind-key" "compat" "map" "org" "peg" "seq" "svg" "transient"
-    "use-package")
+  '("bind-key" "compat" "org" "seq" "svg" "transient" "use-package")
   "Packages that must stay ahead of Emacs's own lisp in `load-path'.
 Each ships at least one library Emacs also bundles, so behind Emacs's lisp
 the bundled copy would win and the installed package would be unreachable.

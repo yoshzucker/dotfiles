@@ -273,8 +273,5 @@ the subject is one \\<magit-status-mode-map>\\[magit-log] away."
            :key
            "C-c C-a" #'my/magit-status-toggle-everything))))
 
-(use-package git-timemachine
-  :defer t)
-
 (provide 'my-files-vc)
 ;;; my-files-vc.el ends here

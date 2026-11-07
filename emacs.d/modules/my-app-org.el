@@ -360,8 +360,7 @@ agenda file set does not depend on whether rg is installed -- rg's own
           ,@(my/open-org-file-apps)))
 
   ;; Refile Settings.  A *static* target list (built from these files), so
-  ;; standard `org-refile' narrowing works with orderless+migemo -- unlike
-  ;; `org-ql-refile', which pre-filters via org-ql (no migemo) and defeats it.
+  ;; standard `org-refile' narrowing works with orderless+migemo.
   ;; maxlevel 6 covers the deepest current heading (project.org/memex.org at 5)
   ;; plus one level of headroom for sub-entries under journal datetree tasks
   ;; (year/month/day = 1-3, captured entry = 4).
@@ -1270,29 +1269,6 @@ answering yes deletes it without putting anything back."
                      (list month (- day (1- calendar-week-start-day)) year)))))
           'font-lock-face 'my/calendar-iso-week-header)))
 
-(use-package org-ql
-  ;; A query language, entered through one of two commands.  Binding them is
-  ;; all that has to happen at startup; straight's autoloads take it from
-  ;; there, and they point at org-ql-search.el and org-ql-view.el, which is
-  ;; where those commands actually live.
-  :defer t
-  :init
-  (my/define-key
-   (:map global-map
-         :prefix "C-c"
-         :key
-         "q" #'org-ql-search)
-   (:map global-map
-         :prefix "C-c n"
-         :key
-         "q" #'org-ql-search
-         "v" #'org-ql-view))
-  :config
-  (with-eval-after-load 'org-ql-view
-    (dolist (key '("g"))
-      (define-key org-ql-view-map (kbd key)
-                  (lookup-key evil-motion-state-map (kbd key))))))
-
 (use-package org-roam
   ;; Reached by command, so loaded by one.  The keys are bound at startup and
   ;; straight's autoloads carry them into the right file -- which for the
@@ -1367,30 +1343,37 @@ relation: WAIT and DELEG are with them, anything else needs them.  So one
 block answers both halves of a person -- what they owe and what they are
 holding up -- where two blocks would have had to be read together.
 
-Unlike the built-in `org-ql' dynamic block (current-buffer only), this
-searches `org-agenda-files', so a `person' node shows everything anywhere.
+It searches `org-agenda-files', so a `person' node shows everything anywhere.
 Header: `#+BEGIN: people :who \"名前\"'.  Refresh with C-c C-c on the block or
 `org-update-all-dblocks'."
-    (require 'org-ql)
     (let* ((who (or (plist-get params :who) ""))
+           (entries
+            ;; Every heading that names WHO, with its state and when it is
+            ;; scheduled; the two halves are told apart below.
+            (org-map-entries
+             (lambda ()
+               (list (org-get-todo-state)
+                     (org-entry-is-done-p)
+                     (org-get-heading t t t t)
+                     (org-entry-get nil "SCHEDULED")))
+             (format "PEOPLE=%S" who)
+             'agenda))
            (render
-            (lambda (query)
-              (ignore-errors
-                (org-ql-select (org-agenda-files) query
-                  :sort 'scheduled
-                  :action (lambda ()
-                            (format "- %s %s%s"
-                                    (org-get-todo-state)
-                                    (org-get-heading t t t t)
-                                    (let ((s (org-entry-get nil "SCHEDULED")))
-                                      (if s (format "  %s" s) ""))))))))
-           (with-them (funcall render
-                               `(and (todo "WAIT" "DELEG")
-                                     (property "PEOPLE" ,who))))
-           (needs-them (funcall render
-                                `(and (not (todo "WAIT" "DELEG"))
-                                      (not (done))
-                                      (property "PEOPLE" ,who)))))
+            (lambda (keep)
+              (mapcar (pcase-lambda (`(,state ,_ ,heading ,scheduled))
+                        (format "- %s%s%s" (if state (concat state " ") "") heading
+                                (if scheduled (format "  %s" scheduled) "")))
+                      ;; Soonest first, the unscheduled after them all.
+                      (sort (seq-filter keep entries)
+                            (lambda (a b)
+                              (let ((a (nth 3 a)) (b (nth 3 b)))
+                                (cond ((null a) nil)
+                                      ((null b) t)
+                                      (t (< (org-time-string-to-seconds a)
+                                            (org-time-string-to-seconds b))))))))))
+           (with-them (funcall render (lambda (e) (member (car e) '("WAIT" "DELEG")))))
+           (needs-them (funcall render (lambda (e) (not (or (member (car e) '("WAIT" "DELEG"))
+                                                           (nth 1 e)))))))
       (insert "With them:\n"
               (if with-them (string-join with-them "\n") "- (none)")
               "\n\nNeeds them:\n"
@@ -1550,8 +1533,8 @@ block already shows what is out with them, as a live query."
 ;; to a shared drive, a manual -- taken into memex and tied to a heading,
 ;; and the way back to it.  Each source is a directory of memex/sources/
 ;; (the package's default), its copy and its record, beside the notes so
-;; they travel together, and out of `:memex'; `:source' searches them on
-;; purpose (see my-editor-search.el).  A heading points to a source with a
+;; they travel together; `:source' searches them on purpose (see
+;; my-editor-search.el).  A heading points to a source with a
 ;; `moor:' link; no heading has to be a source's.
 (use-package org-moor
   :straight (org-moor :host github :repo "yoshzucker/org-moor"
