@@ -37,6 +37,10 @@ fi
 # brew prints after auto-update. Auto-update itself stays enabled.
 export HOMEBREW_NO_ENV_HINTS=1
 
+# No usage reports to Homebrew: which formulae are installed here, and when,
+# is nobody else's to collect.
+export HOMEBREW_NO_ANALYTICS=1
+
 # The directories /etc/zprofile's path_helper would add -- /usr/local/bin,
 # the cryptexes, whatever an installer dropped into /etc/paths.d -- read
 # here because ~/.zshenv skips that file.  Appended, where path_helper puts

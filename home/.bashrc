@@ -17,6 +17,9 @@ case $- in
   *) return ;;
 esac
 
+# A command typed with a leading space is not kept, as in zsh.
+HISTCONTROL=ignoreboth
+
 [ -f ~/.config/shell/colors.sh  ] && . ~/.config/shell/colors.sh
 [ -f ~/.config/shell/aliases.sh ] && . ~/.config/shell/aliases.sh
 

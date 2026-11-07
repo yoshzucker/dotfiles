@@ -1016,8 +1016,10 @@ unaffected."
 
   (advice-add 'org-babel-execute-src-block :before #'my/org-babel-require-backend)
   
-  (setq org-confirm-babel-evaluate nil
-        org-src-window-setup 'current-window)
+  ;; `org-confirm-babel-evaluate' stays at its default, asking before every
+  ;; block runs -- on C-c C-c and on export alike.  A block is code in
+  ;; whatever language its header names, and a file can come from anywhere.
+  (setq org-src-window-setup 'current-window)
   
   (add-hook 'org-babel-after-execute-hook #'org-display-inline-images)
   
