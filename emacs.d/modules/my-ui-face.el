@@ -1,7 +1,7 @@
 ;;; my-ui-face.el --- Theme selection and user environment configuration -*- lexical-binding: t; -*-
 ;;; Commentary:
 ;; Theme selection, user fonts, and personal workflow faces.
-;; Generic helpers for special packages (dired-rainbow, smartrep, etc.)
+;; Generic helpers for special packages (dired-rainbow, etc.)
 ;; are registered by each theme's use-package :config and applied from
 ;; my/setup-theme (including on my/toggle-theme).
 
@@ -85,7 +85,7 @@
 
 (defvar my/theme-special-setups nil
   "Alist of (THEME-SYMBOL . FUNCTION) for applying theme-specific
-special package configurations (dired-rainbow, smartrep, etc.).
+special package configurations (dired-rainbow, etc.).
 Called from my/setup-theme (so my/toggle-theme also re-applies them).
 Themes without an entry simply leave previous settings as-is.")
 
@@ -446,10 +446,10 @@ anything to put between them."
   :defer t)
 
 (use-package transwin
-  ;; The two commands, reached from the `C-w' repeat map that smartrep builds
-  ;; -- and that map is defined in my-editor-evil.el beside the rest of `C-w',
-  ;; naming these two as symbols.  A symbol is enough: smartrep looks them up
-  ;; when the key is pressed, and the autoload does the rest.
+  ;; The two commands, reached from `C-w i' and `C-w d' -- bound in
+  ;; my-editor-evil.el beside the rest of `C-w', and repeated there, naming
+  ;; these two as symbols.  A symbol is enough: the key is looked up when it
+  ;; is pressed, and the autoload does the rest.
   :defer t
   :commands (transwin-inc transwin-dec))
 
@@ -472,7 +472,6 @@ anything to put between them."
                              (green  (alist-get 'green  colors))
                              (cyan   (alist-get 'cyan   colors))
                              (blue   (alist-get 'blue   colors)))
-                        (setq smartrep-mode-line-active-bg mono3)
                         (my/set-dired-rainbow-faces
                          `((("docx" "docm") . ,blue)
                            (("xlsx" "xlsm") . ,green)
@@ -510,7 +509,6 @@ anything to put between them."
                              (green  (alist-get 'green  colors))
                              (cyan   (alist-get 'cyan   colors))
                              (blue   (alist-get 'blue   colors)))
-                        (setq smartrep-mode-line-active-bg mono3)
                         (my/set-dired-rainbow-faces
                          `((("docx" "docm") . ,blue)
                            (("xlsx" "xlsm") . ,green)

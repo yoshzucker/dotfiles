@@ -9,18 +9,37 @@
   (save-place-mode 1))
 
 (use-package recentf
+  :straight nil
   :after no-littering
   :config
   (setq recentf-max-saved-items 1000
-	find-file-visit-truename nil))
-
-(use-package recentf-ext
-  :after no-littering
-  :config
+	find-file-visit-truename nil)
   (add-to-list 'recentf-exclude no-littering-var-directory)
   (add-to-list 'recentf-exclude no-littering-etc-directory)
   (setq auto-save-file-name-transforms
-        `((".*" ,(no-littering-expand-var-file-name "auto-save/") t))))
+        `((".*" ,(no-littering-expand-var-file-name "auto-save/") t)))
+
+  ;; Recent means seen, not only opened: a file brought back into a window
+  ;; moves to the top again.
+  (defun my/recentf-push-visible-files ()
+    "Add the file of every window in this frame to `recentf-list'."
+    (walk-windows
+     (lambda (win)
+       (when-let* ((file (buffer-local-value 'buffer-file-name (window-buffer win))))
+         (recentf-add-file file)))))
+  (add-hook 'window-configuration-change-hook #'my/recentf-push-visible-files)
+
+  ;; Directories opened in dired count too, stored with the trailing slash
+  ;; dired gives them -- which is what tells a directory from a file when
+  ;; the list is sorted (`my/recentf-sort-key').
+  (defun my/recentf-add-dired-directory ()
+    "Add this dired buffer's directory to `recentf-list'."
+    (when (and (stringp dired-directory)
+               (string-empty-p (file-name-nondirectory dired-directory)))
+      (recentf-add-file dired-directory)))
+  (add-hook 'dired-mode-hook #'my/recentf-add-dired-directory)
+
+  (recentf-mode 1))
 
 (use-package super-save
   :diminish (super-save-mode " ss")

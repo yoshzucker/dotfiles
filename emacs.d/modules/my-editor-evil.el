@@ -230,19 +230,6 @@
   :defer t
   :diminish evil-commentary-mode)
 
-(use-package evil-textobj-anyblock
-  ;; No mode to turn on: two text objects, both autoloaded, so the bindings
-  ;; below reach them and pressing one is what brings the package.
-  :after evil
-  :defer t
-  :init
-  (my/define-key
-   (:map evil-inner-text-objects-map
-         :key
-         "b" #'evil-textobj-anyblock-inner-block)
-   (:map evil-outer-text-objects-map
-         :key "b" #'evil-textobj-anyblock-a-block)))
-
 (use-package evil-surround
   :defer t
   :config
@@ -323,56 +310,68 @@
   :config
   (global-hungry-delete-mode 1))
 
-(use-package origami
-  ;; Folding, reached by the `z' keys and by nothing else, so it waits for one
-  ;; of them.  `:commands' is what makes that possible: origami autoloads its
-  ;; modes and not the commands underneath, so without this the first `za'
-  ;; would find nothing to call.  `global-origami-mode' then comes on in
-  ;; `:config', which reaches the buffer already open as well as the next.
-  :after evil
+;; Folding is evil's own: the `z' keys drive whichever of outline,
+;; hideshow and the rest the buffer has on, so hideshow on in code is all it
+;; needs.
+(use-package hideshow
+  :straight nil
+  :diminish hs-minor-mode
   :defer t
-  :commands (origami-toggle-node origami-close-node origami-close-all-nodes
-             origami-open-node origami-open-all-nodes
-             origami-open-node-recursively)
   :init
-  (my/define-key
-   (:map evil-normal-state-map
-         :key
-         "za" #'origami-toggle-node
-         "zc" #'origami-close-node
-         "zm" #'origami-close-all-nodes
-         "zo" #'origami-open-node
-         "zr" #'origami-open-all-nodes
-         "zO" #'origami-open-node-recursively))
-  :config
-  (global-origami-mode))
+  (my/add-hook
+   (:hook prog-mode-hook
+          :func #'hs-minor-mode)))
 
-(use-package smartrep
+;; Keys that go on repeating without their prefix: after `C-w +', a bare `+'
+;; again, until any other key.  Each map below names the commands it repeats,
+;; and `:repeat t' marks every one of them, which is all `repeat-mode' reads.
+(use-package repeat
+  :straight nil
   :after evil
   :config
-  (smartrep-define-key global-map "C-w"
-    '(("i" . transwin-inc)
-      ("d" . transwin-dec)
-      ("+" . evil-window-increase-height)
-      ("-" . evil-window-decrease-height)
-      (">" . evil-window-increase-width)
-      ("<" . evil-window-decrease-width)
-      ("C-w" . evil-window-next)
-      ("C-h" . evil-window-left)
-      ("C-j" . evil-window-down)
-      ("C-k" . evil-window-up)
-      ("C-l" . evil-window-right)
-      ("e" . my/cycle-frame-size)))
-  
-  (smartrep-define-key evil-motion-state-map "g"
-    '(("t" . evil-tab-next)
-      ("T" . evil-tab-previous)))
-  
-  (smartrep-define-key evil-motion-state-map "["
-    '(("b" . evil-prev-buffer)))
-  
-  (smartrep-define-key evil-motion-state-map "]"
-    '(("b" . evil-next-buffer))))
+  (defvar-keymap my/window-repeat-map
+    :doc "Window keys that repeat after `C-w'."
+    :repeat t
+    "i" #'transwin-inc
+    "d" #'transwin-dec
+    "+" #'evil-window-increase-height
+    "-" #'evil-window-decrease-height
+    ">" #'evil-window-increase-width
+    "<" #'evil-window-decrease-width
+    "C-w" #'evil-window-next
+    "C-h" #'evil-window-left
+    "C-j" #'evil-window-down
+    "C-k" #'evil-window-up
+    "C-l" #'evil-window-right
+    "e" #'my/cycle-frame-size)
+
+  (defvar-keymap my/tab-repeat-map
+    :doc "Tab keys that repeat after `gt' or `gT'."
+    :repeat t
+    "t" #'my/evil-tab-next
+    "T" #'my/evil-tab-previous)
+
+  ;; One map each: the repeating key is `b' both ways, and which way it goes
+  ;; is the bracket that started it.
+  (defvar-keymap my/prev-buffer-repeat-map
+    :repeat t
+    "b" #'evil-prev-buffer)
+  (defvar-keymap my/next-buffer-repeat-map
+    :repeat t
+    "b" #'evil-next-buffer)
+
+  (my/define-key
+   (:map evil-window-map
+         :key
+         "i" #'transwin-inc
+         "d" #'transwin-dec
+         "e" #'my/cycle-frame-size)
+   (:map evil-motion-state-map
+         :key
+         "[b" #'evil-prev-buffer
+         "]b" #'evil-next-buffer))
+
+  (repeat-mode 1))
 
 (provide 'my-editor-evil)
 ;;; my-editor-evil.el ends here

@@ -78,14 +78,5 @@ changes are detected."
   (when (eq system-type 'windows-nt)
     (advice-add 'sly :before #'my/sly-patch-slynk)))
 
-(use-package lisp-extra-font-lock
-  ;; The global mode asks of every buffer opened whether it is Lisp; the hooks
-  ;; are asked only by the buffers that are.
-  :defer t
-  :init
-  (my/add-hook
-   (:hook emacs-lisp-mode-hook lisp-mode-hook lisp-data-mode-hook
-          :func #'lisp-extra-font-lock-mode)))
-
 (provide 'my-lang-common-lisp)
 ;;; my-lang-common-lisp.el ends here

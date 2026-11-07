@@ -66,11 +66,7 @@ byte-compile one, which is the half worth having and the half that costs."
          '((bash . ("https://github.com/tree-sitter/tree-sitter-bash"))
            (c . ("https://github.com/tree-sitter/tree-sitter-c"))
            (cpp . ("https://github.com/tree-sitter/tree-sitter-cpp"))
-           (python . ("https://github.com/tree-sitter/tree-sitter-python"))
            (json . ("https://github.com/tree-sitter/tree-sitter-json"))
-           (javascript . ("https://github.com/tree-sitter/tree-sitter-javascript" "master" "src"))
-           (typescript . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "typescript/src"))
-           (tsx . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src"))
            (yaml . ("https://github.com/ikatyang/tree-sitter-yaml")))))
 
   ;; Remap major modes to Tree-sitter equivalents
@@ -78,11 +74,7 @@ byte-compile one, which is the half worth having and the half that costs."
 	    '((sh-mode     . bash-ts-mode)
           (c-mode      . c-ts-mode)
           (c++-mode    . c++-ts-mode)
-          (python-mode . python-ts-mode)
           (json-mode   . json-ts-mode)
-          (js-mode     . js-ts-mode)
-          ;; .ts/.tsx are registered in `auto-mode-alist' by typescript-ts-mode
-          ;; itself once the grammars are available -- no remap needed.
           (yaml-mode   . yaml-ts-mode)))
 
   ;; No tree-sitter on Windows: a grammar is a C library built on the spot,

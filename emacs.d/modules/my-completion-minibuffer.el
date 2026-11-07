@@ -226,9 +226,9 @@ the alternative is to leave the prompt, remember the path, and type it.")
   ;; comparison of strings.  Asking inside the comparison instead costs a
   ;; question per comparison rather than per entry -- about thirteen times the
   ;; list's length -- and the question used to be `file-directory-p', which is
-  ;; a trip to the filesystem.  recentf-ext stores a directory the way dired
-  ;; hands it over, with the trailing slash a file name never has, so the
-  ;; answer is already in the string.
+  ;; a trip to the filesystem.  A directory is stored the way dired hands it
+  ;; over (my-files-persistence.el), with the trailing slash a file name never
+  ;; has, so the answer is already in the string.
   ;;
   ;; The NUL between the directory and the name is what keeps the two halves
   ;; from running together: it sorts below every character a name can hold, so
