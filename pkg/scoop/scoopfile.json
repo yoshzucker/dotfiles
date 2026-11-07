@@ -39,10 +39,6 @@
       "Source": "extras"
     },
     {
-      "Name": "espanso",
-      "Source": "main"
-    },
-    {
       "Name": "autohotkey",
       "Source": "extras"
     },
