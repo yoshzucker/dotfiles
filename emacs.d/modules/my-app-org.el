@@ -1541,9 +1541,7 @@ block already shows what is out with them, as a live query."
                    (shell-quote-argument (expand-file-name org-dock-directory) t)))))
   :config
   ;; The functions that ask Claude are in my-app-agent.el.
-  (setq org-dock-agent-function #'my/org-dock-claude
-        org-dock-background-agent-function #'my/org-dock-claude-background)
-  (add-hook 'org-dock-status-functions #'my/org-dock-claude-status)
+  (setq org-dock-agent-function #'my/org-dock-claude)
 
   ;; The list of copies is a tabulated list, which evil-collection puts in
   ;; normal state, where RET is `evil-ret' and = `evil-indent'.  It sits in
