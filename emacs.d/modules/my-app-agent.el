@@ -9,43 +9,16 @@
 
 ;; The same CLI that runs in a terminal, connected to Emacs over the protocol
 ;; its VS Code and JetBrains extensions speak.  What that buys over running
-;; `claude' in a terminal is the direction of the arrow: Claude can ask Emacs
-;; things.  The file being looked at and the region marked arrive without
-;; being pasted, diffs come back through ediff to be edited before they are
-;; applied, and `claude-code-ide-emacs-tools-setup' hands over xref, imenu,
-;; the project's shape and its diagnostics as tools to call.
+;; `claude' in a terminal: the file being looked at and the region marked
+;; arrive without being pasted, and diffs come back through ediff to be
+;; edited before they are applied.
 ;;
-;; What that is worth depends on the language.  Emacs answers from what it
-;; has already parsed -- imenu's outline, project.el's shape, the obarray
-;; behind elisp's apropos -- and those cost no process
-;; at all, which is a fifth of a second saved on the Windows machine every
-;; time one is not started.
-;;
-;; References are the exception worth knowing.  No language server answers
-;; them here, so `xref-find-references' falls to a default that runs find
-;; and grep over the project and its external roots.  Asked who calls a
-;; function, ripgrep is the better tool and Claude is right to reach for it.
-
-;; claude-code-ide's MCP tools server is an HTTP server, and the library it
-;; runs on is `web-server' -- eschulte's.  `simple-httpd' is skeeto's, and
-;; both are published from a repository called emacs-web-server.  straight
-;; keys its clones by that name, so the second one asked for finds the first
-;; one's checkout: with simple-httpd cloned first, `web-server' resolved to a
-;; directory holding simple-httpd.el and no web-server.el.
-;;
-;; The failure is quiet.  claude-code-ide requires the library inside a
-;; `condition-case' that reports through its debug log, which is off, and
-;; the tools server then declines to start -- so Claude is handed the
-;; editor connection but none of the Emacs tools, and answers questions
-;; about the code by shelling out to ripgrep instead of asking xref.
-;;
-;; Given a local name of its own, so whatever else asks for an
-;; emacs-web-server can never be handed this clone, or this one that.
-(use-package web-server
-  :straight (web-server :type git :host github :repo "eschulte/emacs-web-server"
-                        :local-repo "emacs-web-server-eschulte")
-  :defer t)
-
+;; That connection only.  The package can also start an MCP server of its
+;; own, over HTTP, handing Claude xref, imenu and the project's shape as
+;; tools; it is off by default and left off.  With no language server here
+;; those answer little that grep and reading the file do not, and they have
+;; Emacs open whatever file Claude names -- one more server listening, and
+;; one more way to have Emacs visit a file nobody chose.
 
 ;; The package drives a CLI it does not install: `claude', from the Claude
 ;; Code installer on Windows and from Homebrew's cask on the Mac.
@@ -115,18 +88,8 @@
   ;; reporting the tail of this sentence as a program it cannot find.
   (claude-code-ide-system-prompt
    (concat
-    "Emacs is attached as the editor, and it does two things for you. "
-    ;; Asking it.
-    "It answers some questions from what it has already parsed, without "
-    "starting a process: claude-code-ide-mcp-imenu-list-symbols for a "
-    "file's outline, claude-code-ide-mcp-project-info for the shape of the "
-    "project, and claude-code-ide-mcp-xref-find-apropos to find a symbol "
-    "by part of its name. Prefer these over reading whole files or "
-    "searching text for those questions. "
-    "For references, no language server is attached, so "
-    "claude-code-ide-mcp-xref-find-references only greps; grep yourself. "
-    ;; Changing a file through it.
-    "And it shows the user each change you make to a file as an ediff, "
+    "Emacs is attached as the editor. "
+    "It shows the user each change you make to a file as an ediff, "
     "which they read, and can edit, before it is applied, but only when "
     "the change is made with the Edit or Write tool. So write every change "
     "to a file with those tools, never through the shell: not with sed, "
@@ -139,25 +102,22 @@
   ;; The CLI is exec'd directly rather than through a shell, so on Windows it
   ;; is the native `claude' and both sides speak the same path form.  Nothing
   ;; to arrange for that; it is only worth knowing when a path looks wrong.
-  (claude-code-ide-emacs-tools-setup)
 
-  ;; Only the CLI may talk to the two servers the package starts.  Both
-  ;; listen on 127.0.0.1 with no token, so a page open in the browser can
-  ;; reach them: a WebSocket is not held back by the same-origin policy, and
-  ;; the MCP server answers every origin with `Access-Control-Allow-Origin:
-  ;; *'.  The WebSocket's new connection also replaces the old one, so such a
-  ;; page would drop Claude and stand in its place -- reading the selection
-  ;; and the open files, opening diffs.
+  ;; Only the CLI may talk to the server the package starts.  It listens on
+  ;; 127.0.0.1 with no token, so a page open in the browser can reach it: a
+  ;; WebSocket is not held back by the same-origin policy.  A new connection
+  ;; also replaces the old one, so such a page would drop Claude and stand in
+  ;; its place -- reading the selection and the open files, opening diffs.
   ;;
-  ;; A browser names the page's origin on every such request, and the CLI,
-  ;; which is no browser, sends no Origin at all; so a request carrying one
-  ;; is refused before the package sees it.  Said in the echo area, since a
-  ;; CLI that ever began to send one would find its connection refused, and
-  ;; this is where it would show.
+  ;; A browser names the page's origin when it opens a WebSocket, and the
+  ;; CLI, which is no browser, sends no Origin at all; so a connection
+  ;; carrying one is closed before the package sees it.  Said in the echo
+  ;; area, since a CLI that ever began to send one would find its
+  ;; connection refused, and this is where it would show.
   ;;
-  ;; The functions advised are the package's internals.  Should one be
-  ;; renamed, the advice would wait on a name nothing calls and the servers
-  ;; stand open again, quietly; my-app-agent-test.el fails instead.
+  ;; The function advised is the package's internal.  Should it be renamed,
+  ;; the advice would wait on a name nothing calls and the server stand open
+  ;; again, quietly; my-app-agent-test.el fails instead.
   (defun my/claude-code-ide-refuse-browser-socket (orig session ws)
     "Call ORIG with SESSION and WS, unless WS was opened by a web page."
     (if-let* ((origin (websocket-origin ws)))
@@ -166,36 +126,18 @@
           (websocket-close ws))
       (funcall orig session ws)))
 
-  (defun my/claude-code-ide-refuse-browser-request (orig request)
-    "Call ORIG with REQUEST, unless REQUEST was sent by a web page."
-    (if-let* ((origin (alist-get :ORIGIN (ws-headers request))))
-        (with-slots (process) request
-          (message "claude-code-ide: refused a request from %s" origin)
-          (ws-response-header process 403 '("Content-Type" . "text/plain"))
-          (ws-send process "Forbidden")
-          (throw 'close-connection nil))
-      (funcall orig request)))
-
   (advice-add 'claude-code-ide-mcp--on-open :around
               #'my/claude-code-ide-refuse-browser-socket)
-  (advice-add 'claude-code-ide-mcp-http-server--handle-post :around
-              #'my/claude-code-ide-refuse-browser-request)
 
-  ;; On Windows the CLI exits as soon as it starts: the window opens, Claude
-  ;; reports "Invalid MCP configuration: MCP config file not found", and the
-  ;; window shuts a moment later.
-  ;;
-  ;; The package writes the command line as one string and then splits it
-  ;; back into words for ghostel, which execs them.  Writing, it escapes the
-  ;; double quotes of the MCP configuration -- JSON, passed inline -- with
-  ;; backslashes, and quotes the system prompt with `shell-quote-argument',
-  ;; which on Windows quotes for cmd.exe.  Reading, `split-string-shell-command'
-  ;; takes a backslash as an escape only where `shell-file-name-quote-list'
-  ;; is non-nil, and on Windows it is nil so that a path's backslashes
-  ;; survive.  So the JSON reaches the CLI with its backslashes still in it,
-  ;; is not JSON, and is taken for the name of a file to read the
-  ;; configuration from.  The prompt gets through only because it has none
-  ;; of the characters cmd.exe quotes: a `%' in it would arrive as `^%'.
+  ;; On Windows the command line that starts the CLI is quoted one way and
+  ;; split another.  The package writes it as one string and then splits it
+  ;; back into words for ghostel, which execs them.  Writing, it quotes the
+  ;; system prompt with `shell-quote-argument', which on Windows quotes for
+  ;; cmd.exe -- a `%' would arrive as `^%' -- while the --add-dir org-dock
+  ;; puts in `claude-code-ide-cli-extra-flags' is quoted for a POSIX shell.
+  ;; Reading, `split-string-shell-command' takes a backslash as an escape
+  ;; only where `shell-file-name-quote-list' is non-nil, and on Windows it
+  ;; is nil so that a path's backslashes survive.
   ;;
   ;; Both halves are made to speak POSIX, as they do on the Mac.  Nothing in
   ;; the line has a backslash of its own to lose: the program is the bare
