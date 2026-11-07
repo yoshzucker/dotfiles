@@ -32,8 +32,8 @@
 ;; runs on is `web-server' -- eschulte's.  `simple-httpd' is skeeto's, and
 ;; both are published from a repository called emacs-web-server.  straight
 ;; keys its clones by that name, so the second one asked for finds the first
-;; one's checkout: org-roam-ui pulls in simple-httpd, and `web-server' then
-;; resolved to a directory holding simple-httpd.el and no web-server.el.
+;; one's checkout: with simple-httpd cloned first, `web-server' resolved to a
+;; directory holding simple-httpd.el and no web-server.el.
 ;;
 ;; The failure is quiet.  claude-code-ide requires the library inside a
 ;; `condition-case' that reports through its debug log, which is off, and
@@ -41,8 +41,8 @@
 ;; editor connection but none of the Emacs tools, and answers questions
 ;; about the code by shelling out to ripgrep instead of asking xref.
 ;;
-;; Named here, before the module that brings in org-roam-ui, so the clone
-;; this one needs is its own.
+;; Given a local name of its own, so whatever else asks for an
+;; emacs-web-server can never be handed this clone, or this one that.
 (use-package web-server
   :straight (web-server :type git :host github :repo "eschulte/emacs-web-server"
                         :local-repo "emacs-web-server-eschulte")

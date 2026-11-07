@@ -6,7 +6,6 @@
 ;;; Code:
 (defconst my/language-tools
   '(("clangd"             "C/C++"  "Xcode on macOS | scoop install llvm")
-    ("xcrun"              "Swift"  "Xcode -- sourcekit-lsp and swift-format are inside it")
     ("claude"             "Agent"  "brew install --cask claude-code | the Claude Code installer"))
   "The programs outside Emacs that the modes configured here look for.
 
@@ -43,9 +42,7 @@ up for one language and not another."
     (display-buffer (current-buffer))))
 
 (defconst my/eglot-servers
-  '((swift-mode     . "xcrun")
-    (swift-ts-mode  . "xcrun")
-    (c-mode         . "clangd")
+  '((c-mode         . "clangd")
     (c-ts-mode      . "clangd")
     (c++-mode       . "clangd")
     (c++-ts-mode    . "clangd"))
@@ -76,10 +73,7 @@ server reading the files from outside."
   ;; opening a file in one of these modes is what loads eglot.
   ;;
   ;; They are in `:init' because `:config' runs only once eglot is loaded,
-  ;; and nothing else loads it.  Waiting on `(cc-mode swift-ts-mode)' would
-  ;; wait on both: a C file loads `cc-mode' and never `swift-ts-mode', so
-  ;; eglot would stay unloaded, these hooks unregistered, and no buffer would
-  ;; get a language server unless a Swift file had been opened first.
+  ;; and nothing else loads it.
   ;;
   ;; `eglot-server-programs' stays in `:config' and is still in time: an
   ;; autoloaded function loads its file and runs the after-load forms before
@@ -87,28 +81,12 @@ server reading the files from outside."
   :defer t
   :init
   (my/add-hook
-   (:hook swift-mode-hook swift-ts-mode-hook
-          c-mode-hook c-ts-mode-hook c++-mode-hook c++-ts-mode-hook
+   (:hook c-mode-hook c-ts-mode-hook c++-mode-hook c++-ts-mode-hook
           :func #'my/eglot-ensure-when-available))
   :config
   ;; Prevent eglot from hijacking imenu or other features
-  (setq eglot-stay-out-of '(imenu))
+  (setq eglot-stay-out-of '(imenu)))
 
-  ;; Take the server's log lines however they are shaped.  eglot declares
-  ;; this notification as `&key _type _message' with no `&allow-other-keys',
-  ;; so a server that adds a field to it -- sourcekit-lsp sends `logName' --
-  ;; makes the keyword parsing fail, once per line logged, while the handler
-  ;; it failed to reach is a noop that discards them anyway.  Same shape
-  ;; eglot gives `telemetry/event', and same specializers as the method it
-  ;; replaces.
-  (cl-defmethod eglot-handle-notification
-    (_server (_method (eql window/logMessage)) &rest _any)
-    "Discard the server's log lines, whatever fields they carry.")
-
-  ;; Swift
-  (dolist (mode '(swift-mode swift-ts-mode))
-    (add-to-list 'eglot-server-programs
-		         `(,mode . ("xcrun" "sourcekit-lsp")))))
 (use-package apheleia
   ;; Where code is written, and not where anything else is.  The global mode
   ;; turns it on in every buffer there is and leaves it to each one's major
@@ -125,17 +103,7 @@ server reading the files from outside."
   :init
   (my/add-hook
    (:hook prog-mode-hook
-          :func #'apheleia-mode))
-  :config
-  ;; swift-format is in the Xcode toolchain and not on PATH; `xcrun' is how
-  ;; that toolchain is reached.  The bare `-' is what makes it read the
-  ;; buffer from standard input, which is what apheleia hands it -- without
-  ;; it the tool works and says it is deprecated, once per save.
-  (when (eq system-type 'darwin)
-    (setf (alist-get 'swift-format apheleia-formatters)
-          '("xcrun" "swift-format" "-"))
-    (dolist (mode '(swift-mode swift-ts-mode))
-      (setf (alist-get mode apheleia-mode-alist) 'swift-format))))
+          :func #'apheleia-mode)))
 
 (provide 'my-syntax-lsp)
 ;;; my-syntax-lsp.el ends here

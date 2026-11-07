@@ -80,21 +80,6 @@
   (when (eq system-type 'windows-nt)
     (setopt text-mode-ispell-word-completion nil)))
 
-;; corfu-terminal draws its popup with popon, which only nongnu-elpa carries,
-;; and that is not among the recipe repositories init.el keeps.  Registered
-;; here as nongnu-elpa described it -- the same repository and the same
-;; local name -- so the clone already made goes on being the one used.
-(straight-register-package
- '(popon :type git :repo "https://codeberg.org/akib/emacs-popon"
-         :local-repo "popon"))
-
-(use-package corfu-terminal
-  :straight (:host codeberg :repo "akib/emacs-corfu-terminal" :branch "master" :files ("*.el" "out"))
-  :if (not (display-graphic-p))
-  :after corfu
-  :config
-  (corfu-terminal-mode 1))
-
 (use-package cape
   ;; Nothing here but two entries on a list of functions, and cape autoloads
   ;; both -- so the package arrives at the first completion that reaches them.

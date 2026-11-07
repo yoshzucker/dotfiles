@@ -96,7 +96,6 @@
 (defconst my/org-daily-head "#+title: %<%Y-%m-%d>\n")
 
 (use-package org
-  :straight org-contrib
   ;; Waited for, because the keys that reach it do not need it yet.
   ;;
   ;; It used to be demanded, on the argument that Org is the first thing
@@ -156,7 +155,6 @@ With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_arc
          "l" #'org-store-link
          "c" #'org-capture
          "a" #'org-agenda
-         "p" #'org-cliplink
          "]" #'my/consult-org-headings-all)
    (:map global-map
          :prefix "C-c C-x"
@@ -1063,12 +1061,6 @@ unaffected."
   :after org
   :diminish org-indent-mode)
 
-(use-package org-cliplink
-  ;; Reached by its key, which is enough to load it.
-  :defer t
-  :init
-  (my/define-key (:map org-mode-map :after org :key "C-c p" #'org-cliplink)))
-
 (use-package org-attach
   :straight nil
   :after org
@@ -1261,38 +1253,6 @@ answering yes deletes it without putting anything back."
         (insert (format "[[attachment:%s]]" (org-link-escape basename)))
         (org-display-inline-images)))))
 
-(use-package org-pomodoro
-  ;; Deferred to the first timer.  The key that starts one is bound when Org
-  ;; loads, so nothing about reaching it changes; what stops loading at startup
-  ;; is `alert' and the notification backends behind it.
-  :defer t
-  :commands (org-pomodoro)
-  :init
-  (my/define-key
-   (:map global-map org-mode-map
-         :after org
-         :key
-         "C-c C-x C-p" #'org-pomodoro))
-  :config
-  (setq org-pomodoro-format "%s")
-
-  (defun my/org-pomodoro-update-mode-line ()
-    "Update mode-line with bracket styling for Pomodoro."
-    (let ((s (cl-case org-pomodoro-state
-               (:pomodoro org-pomodoro-format)
-               (:overtime org-pomodoro-overtime-format)
-               (:short-break org-pomodoro-short-break-format)
-               (:long-break org-pomodoro-long-break-format))))
-      (setq org-pomodoro-mode-line
-            (when (and (org-pomodoro-active-p) (> (length s) 0))
-              (list
-               (propertize "[" 'face 'org-pomodoro-mode-line)
-               (format s (org-pomodoro-format-seconds))
-               (propertize "]" 'face 'org-pomodoro-mode-line))))
-      (force-mode-line-update t)))
-  
-  (advice-add 'org-pomodoro-update-mode-line :override #'my/org-pomodoro-update-mode-line))
-
 (use-package calendar
   ;; Drawn by the agenda, by the diary, or by `M-x calendar', and by nothing
   ;; at startup.  Everything below is read when the calendar is drawn, which
@@ -1309,16 +1269,6 @@ answering yes deletes it without putting anything back."
                     (calendar-absolute-from-gregorian
                      (list month (- day (1- calendar-week-start-day)) year)))))
           'font-lock-face 'my/calendar-iso-week-header)))
-
-(use-package ox-pandoc
-  ;; An export backend is reachable from one place, the export dispatcher, and
-  ;; that dispatcher lives in `ox' -- so `ox' loading is exactly the moment this
-  ;; has to exist, and no earlier.  Under `:after org' it loaded with Org and
-  ;; brought the whole export tree with it (ox, ox-org, ox-html, ox-latex,
-  ;; ox-odt, ox-ascii), three seconds of every startup for a converter reached
-  ;; a few times a year.
-  :defer t
-  :init (with-eval-after-load 'ox (require 'ox-pandoc)))
 
 (use-package org-ql
   ;; A query language, entered through one of two commands.  Binding them is
@@ -1552,18 +1502,6 @@ block already shows what is out with them, as a live query."
            :target (file+head "%<%Y-%m-%dT%H-%M-%S>-${slug}.org"
                               "#+title: ${title}")
            :unnarrowed t))))
-
-(use-package org-roam-ui
-  :straight (:host github :repo "org-roam/org-roam-ui" :branch "main" :files ("*.el" "out"))
-  :after org-roam
-  :diminish (org-roam-ui-mode org-roam-ui-follow-mode)
-  :config
-  (setq org-roam-ui-sync-theme t
-        org-roam-ui-follow t
-        org-roam-ui-update-on-save t
-        org-roam-ui-open-on-start nil)
-  (unless org-roam-ui-mode
-    (org-roam-ui-mode 1)))
 
 ;; Stable, refreshable buffer of nodes matching a tag/link/backlink/date
 ;; query.  Complements Deft (filename/full-text) rather than replacing it.

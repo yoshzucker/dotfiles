@@ -48,9 +48,8 @@
 ;; ELPA mirror, or names its own recipe; the other three supplied nothing but
 ;; an inherited lookup.  nongnu-elpa is the one that cost: the mirror is a
 ;; single git history holding every package of that archive, 489 MB on disk,
-;; to supply popon -- which is now named where corfu-terminal is.  el-get is
-;; two thousand files, which the startup scan for modified repositories walks
-;; on macOS, for no recipe at all.
+;; for nothing used here.  el-get is two thousand files, which the startup
+;; scan for modified repositories walks on macOS, for no recipe at all.
 ;;
 ;; Removed from the list rather than restated: what remains is straight's own
 ;; definition of each, so it follows straight when that changes.  A package

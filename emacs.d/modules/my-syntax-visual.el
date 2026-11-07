@@ -71,11 +71,7 @@ byte-compile one, which is the half worth having and the half that costs."
            (javascript . ("https://github.com/tree-sitter/tree-sitter-javascript" "master" "src"))
            (typescript . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "typescript/src"))
            (tsx . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src"))
-           (yaml . ("https://github.com/ikatyang/tree-sitter-yaml")))
-         (let ((path (expand-file-name "var/treesit/tree-sitter-swift" user-emacs-directory)))
-           ;; https://github.com/alex-pinkus/tree-sitter-swift#where-is-your-parserc
-           (when (file-directory-p path)
-             `((swift . (,path)))))))
+           (yaml . ("https://github.com/ikatyang/tree-sitter-yaml")))))
 
   ;; Remap major modes to Tree-sitter equivalents
   (setq major-mode-remap-alist

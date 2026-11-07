@@ -1,10 +1,6 @@
 ;;; my-app-terminal.el --- A terminal inside Emacs -*- lexical-binding: t; -*-
 
 ;;; Commentary:
-;; The other half of my-ui-tmux.el.  There Emacs is the guest: it runs in a
-;; pane and has to agree with tmux about what a window is.  Here Emacs is the
-;; host and the shell is the guest.
-;;
 ;; ghostel drives the shell through libghostty's VT engine in a dynamic
 ;; module, which is also why it is this one rather than vterm or eat: vterm
 ;; has no Windows support at all and eat needs a real PTY, which Windows does

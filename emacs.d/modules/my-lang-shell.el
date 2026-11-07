@@ -4,8 +4,7 @@
 ;; Editing shell scripts: how they are indented, and the modes that read them.
 ;;
 ;; Not the shells themselves.  A process buffer is comint's, and comint is
-;; configured in my-syntax-repl.el beside everything else that runs code and
-;; reads back what it said.
+;; configured in my-syntax-repl.el.
 
 ;;; Code:
 

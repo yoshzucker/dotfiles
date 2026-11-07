@@ -175,13 +175,6 @@
          "," #'winner-undo
          "." #'winner-redo)))
 
-(use-package evil-terminal-cursor-changer
-  :if (not (display-graphic-p))
-  :after evil
-  :config
-  (setq etcc-term-type-override (or etcc-term-type-override 'xterm))
-  (evil-terminal-cursor-changer-activate))
-
 (use-package evil-collection
   :diminish evil-collection-unimpaired-mode
   :after evil
@@ -324,11 +317,6 @@
          my/backslash #'evil-avy-goto-char-timer))
   :config
   (setq avy-timeout-seconds 0.25))
-
-(use-package avy-migemo
-  :after avy
-  :config
-  (avy-migemo-mode 1))
 
 (use-package hungry-delete
   :diminish hungry-delete-mode
