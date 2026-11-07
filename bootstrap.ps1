@@ -1267,7 +1267,7 @@ function Setup-OrgProtocol {
 function Remove-StartupShortcuts {
     # Remove only the Startup-folder .lnk shortcuts that point back into this
     # repository (the AHK shortcuts created by Setup-StartupShortcuts). Shortcuts
-    # placed by other apps (PowerToys, ...) are left alone. Mirrors Is-ManagedLink's "managed = points into the repo" test, done
+    # placed by other apps are left alone. Mirrors Is-ManagedLink's "managed = points into the repo" test, done
     # for .lnk shortcuts (the symlink helpers assume a reparse point).
     $startup = [System.Environment]::GetFolderPath("Startup")
     if (-not (Test-Path -LiteralPath $startup -PathType Container)) {
