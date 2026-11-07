@@ -45,10 +45,6 @@
     {
       "Name": "everything",
       "Source": "extras"
-    },
-    {
-      "Name": "flow-launcher",
-      "Source": "extras"
     }
   ]
 }
