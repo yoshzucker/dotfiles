@@ -1,13 +1,17 @@
-;;; my-lang-common-lisp.el --- Common Lisp development setup with SLIME -*- lexical-binding: t; -*-
+;;; my-lang-common-lisp.el --- Common Lisp with SLY and SBCL -*- lexical-binding: t; -*-
 
 ;;; Commentary:
-;; Configuration for Common Lisp using SLY and SBCL.
+;; Configuration for Common Lisp using SLY and SBCL, on the Mac only.
 ;;
 ;; Place the Common Lisp Hyperspec in `~/.local/share/HyperSpec/` for local browsing.
 
 ;;; Code:
 
 (use-package sly
+  ;; Not on Windows, which has no SBCL.  While it runs, SLY's slynk listens on
+  ;; a local port with no token and evaluates whatever Lisp it is sent, so it
+  ;; is not loaded on the machine that is not meant to run it.
+  :if (eq system-type 'darwin)
   ;; Loaded by `M-x sly'.  Eager, it pulled in `hyperspec' and `browse-url' and
   ;; `arc-mode' on every startup, for a REPL that is started deliberately or not
   ;; at all.
@@ -54,29 +58,7 @@ Sets `common-lisp-hyperspec-root` to the local path."
       (message "HyperSpec is ready at: %s" common-lisp-hyperspec-root)))
 
   (setq browse-url-handlers
-        '(("file:///.*HyperSpec/" . eww-browse-url)))
-
-  (defun my/sly-patch-slynk ()
-    "Patch `slynk.lisp` to replace any `~<newline>` sequences with `~%`.
-
-This works around Windows newline issues affecting format strings.
-The function is idempotent: it only rewrites the file when actual
-changes are detected."
-    (let ((file (locate-library "slynk/slynk.lisp")))
-      (when (and file (file-exists-p file))
-        (with-temp-buffer
-          (insert-file-contents file)
-          (goto-char (point-min))
-          (let ((modified nil))
-            (while (re-search-forward "~\r?\n" nil t)
-              (setq modified t)
-              (replace-match "~%"))
-            (when modified
-              (write-region (point-min) (point-max) file)
-              (message "Patched %s to normalize format string newlines." file)))))))
-  
-  (when (eq system-type 'windows-nt)
-    (advice-add 'sly :before #'my/sly-patch-slynk)))
+        '(("file:///.*HyperSpec/" . eww-browse-url))))
 
 (provide 'my-lang-common-lisp)
 ;;; my-lang-common-lisp.el ends here

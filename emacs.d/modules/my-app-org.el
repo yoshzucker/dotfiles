@@ -1493,16 +1493,6 @@ block already shows what is out with them, as a live query."
                  (window-width . 0.33)
                  (window-height . fit-window-to-buffer))))
 
-(use-package org-roam-protocol
-  :straight nil
-  :after org-roam
-  :config
-  (setq org-roam-capture-ref-templates
-        '(("r" "ref" plain "%?"
-           :target (file+head "%<%Y-%m-%dT%H-%M-%S>-${slug}.org"
-                              "#+title: ${title}")
-           :unnarrowed t))))
-
 ;; org-dock: one heading taken out of its file into a copy of its own, with
 ;; everything under it, to be written in -- by me, or by Claude -- and
 ;; written back on C-c C-c.  While it is out the heading cannot change in
@@ -1665,26 +1655,6 @@ block already shows what is out with them, as a live query."
          "a" "copies to save"
          "q" "quote clipboard"
          "M" "open machine readable"))
-
-  ;; The bookmarklet (script/org-moor-bookmarklet.txt in the package)
-  ;; arrives through emacsclient as `org-protocol://moor?...', which works
-  ;; only once org-protocol is loaded and the handler registered.  Loading
-  ;; it at startup would bring Org with it, and a timer would only be the
-  ;; same cost a few seconds later.  So it is loaded by the first
-  ;; emacsclient call that carries an org-protocol URL, and the call is
-  ;; then made again, through the advice org-protocol has just put on
-  ;; `server-visit-files'.  The handler is registered the moment it loads.
-  (with-eval-after-load 'org-protocol
-    (org-moor-protocol-setup))
-  (defun my/org-protocol-on-demand (fn files &rest args)
-    "Load org-protocol for the first FILES that need it, then visit them."
-    (if (and (not (featurep 'org-protocol))
-             (seq-some (lambda (f) (string-match-p "org-protocol:/" (car f)))
-                       files))
-        (progn (require 'org-protocol)
-               (apply #'server-visit-files files args))
-      (apply fn files args)))
-  (advice-add 'server-visit-files :around #'my/org-protocol-on-demand)
   :config
   ;; Moved from where things pile up -- taking a file there is tidying it,
   ;; and a copy left behind is the backlog this is for -- and copied from

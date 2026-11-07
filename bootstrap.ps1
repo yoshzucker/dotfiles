@@ -145,7 +145,6 @@ function Main {
         Setup-DevPackages
         Install-Cmigemo
         Setup-StartupShortcuts
-        Setup-OrgProtocol
         Show-RestartNotice
     }
 }
@@ -1219,51 +1218,6 @@ function Setup-StartupShortcuts {
     Write-PrintLine $leftMessage "Finished."
 }
 
-function Get-EmacsClientW {
-    # The program, not Scoop's shim for it: a shim is a console program, and
-    # a protocol handler that is one opens a console window on every call.
-    # The shim's .shim file names what it stands for, under apps\emacs\current,
-    # a junction Scoop moves on every update, so the path outlives updates.
-    $cmd = Get-Command emacsclientw.exe -CommandType Application -ErrorAction SilentlyContinue |
-        Select-Object -First 1
-    if (-not $cmd) { return $null }
-    $shim = [IO.Path]::ChangeExtension($cmd.Source, ".shim")
-    if (Test-Path -LiteralPath $shim) {
-        $line = Get-Content -LiteralPath $shim | Where-Object { $_ -match '^\s*path\s*=' } | Select-Object -First 1
-        if ($line -match '=\s*"?([^"]+?)"?\s*$' -and (Test-Path -LiteralPath $Matches[1])) {
-            return $Matches[1]
-        }
-    }
-    return $cmd.Source
-}
-
-function Setup-OrgProtocol {
-    # Register org-protocol:// for this user, pointing at emacsclientw, so a
-    # browser's bookmarklet reaches Emacs.  HKCU rather than HKCR: no
-    # administrator, and the path is found rather than written by hand.  The
-    # hotkey that takes the document in front (org-moor) does not need this;
-    # it calls emacsclientw itself.  Idempotent.
-    $leftMessage = "Registering org-protocol"
-    Write-PrintLine $leftMessage "Started."
-
-    $client = Get-EmacsClientW
-    if (-not $client) {
-        Write-Host "emacsclientw.exe not found on PATH; skipping." -ForegroundColor Yellow
-        Write-PrintLine $leftMessage "Finished."
-        return
-    }
-
-    $root = "HKCU:\Software\Classes\org-protocol"
-    New-Item -Path "$root\shell\open\command" -Force | Out-Null
-    Set-ItemProperty -Path $root -Name "(default)" -Value "URL:Org Protocol"
-    Set-ItemProperty -Path $root -Name "URL Protocol" -Value ""
-    Set-ItemProperty -Path "$root\shell\open\command" -Name "(default)" `
-        -Value ('"{0}" -n "%1"' -f $client)
-    Write-Host "org-protocol -> $client"
-
-    Write-PrintLine $leftMessage "Finished."
-}
-
 function Remove-StartupShortcuts {
     # Remove only the Startup-folder .lnk shortcuts that point back into this
     # repository (the AHK shortcuts created by Setup-StartupShortcuts). Shortcuts
@@ -1309,7 +1263,6 @@ function Perform-FullBootstrap {
     Setup-DevPackages
     Install-Cmigemo
     Setup-StartupShortcuts
-    Setup-OrgProtocol
 
     Write-PrintLine $leftMessage "Finished."
 }

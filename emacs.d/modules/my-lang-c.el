@@ -1,10 +1,8 @@
 ;;; my-lang-c.el --- C/C++ development configuration -*- lexical-binding: t; -*-
 
 ;;; Commentary:
-;; Provides configuration for C and C++ development in Emacs.
-;; Includes indentation and syntax tweaks.  The language server is started
-;; from my-syntax-lsp.el, with the other languages', and only when clangd is
-;; installed.
+;; Reading C and C++: indentation and syntax.  No language server -- jumps
+;; go through etags (my-syntax-jump.el).
 
 ;;; Code:
 

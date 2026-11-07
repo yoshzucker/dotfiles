@@ -1,8 +1,9 @@
 ;;; my-syntax-jump.el --- Syntax-aware navigation and cross-referencing -*- lexical-binding: t; -*-
 
 ;;; Commentary:
-;; Provides semantic navigation support using xref, dumb-jump, eglot, etc.
-;; Enables jumping to definitions, references, and symbol discovery with Vim-style bindings.
+;; Jumping to definitions and references through xref, with Vim-style keys.
+;; Emacs Lisp answers from the running Emacs; C and Common Lisp fall to
+;; etags, whose tags file `etags-regen-mode' keeps current.
 
 ;;; Code:
 
@@ -22,37 +23,6 @@
          "C-]" #'xref-find-definitions
          "C-t" #'xref-pop-marker-stack))
 
-  ;; The backends and the hooks that register them, in `:init', because the
-  ;; hook that would register one has run long before `gd' is pressed: in
-  ;; `:config' the buffer in hand goes without its backend, silently, and
-  ;; only buffers opened after the first jump get one.
-  ;;
-  ;; None of this needs xref loaded.  Each backend asks whether its mode is
-  ;; on, with a guard, and `my/xref-add' adds buffer-locally -- which leaves
-  ;; the global list alone, and that list is `etags--xref-backend' put there
-  ;; by etags itself when etags loads.  Nothing of xref's is touched, so
-  ;; nothing of xref's is lost by it not being here yet.
-  (defun my/xref-backend-slime ()
-    (when (bound-and-true-p slime-mode) 'slime))
-  
-  (defun my/xref-backend-eglot ()
-    (when (bound-and-true-p eglot--managed-mode) 'eglot))
-
-  (defun my/xref-backend-dumb-jump ()
-    (when (require 'dumb-jump nil t)
-      (dumb-jump-xref-activate)
-      'dumb-jump))
-
-  (defun my/xref-add (backend &optional append)
-    (add-hook 'xref-backend-functions backend append t))
-
-  (my/add-hook
-   (:hook lisp-mode-hook
-          :func
-          (lambda () (my/xref-add #'my/xref-backend-slime t)))
-   (:hook prog-mode-hook
-          :func
-          (lambda () (my/xref-add #'my/xref-backend-dumb-jump t))))
   :config
   ;; Avoid prompts when identifier is at point
   (setq xref-prompt-for-identifier
@@ -76,6 +46,24 @@
                                (user-error "No word list given"))
                          pattern))
                       nil)))
+
+(use-package etags-regen
+  ;; Tag jumps with no language server: the first `gd' in a project runs
+  ;; Emacs's own etags over its files, and the tags are brought up to date
+  ;; as files are saved.  Turned on by the first C or Lisp buffer, the
+  ;; languages it is for, so that a jump in an Org file never sets it to
+  ;; reading the notes.
+  :straight nil
+  :defer t
+  :init
+  (my/add-hook
+   (:hook c-mode-common-hook lisp-mode-hook
+          :func (lambda () (etags-regen-mode 1))))
+  :config
+  ;; etags is what puts its backend on `xref-backend-functions', and
+  ;; nothing else loads it: without this `gd' finds the tags regenerated and
+  ;; no backend to read them.
+  (require 'etags))
 
 (provide 'my-syntax-jump)
 ;;; my-syntax-jump.el ends here

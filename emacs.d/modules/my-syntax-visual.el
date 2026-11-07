@@ -1,9 +1,8 @@
-;;; my-syntax-visual.el --- Syntax behavior and language parsing setup -*- lexical-binding: t -*-
+;;; my-syntax-visual.el --- What the code says back while it is edited -*- lexical-binding: t -*-
 
 ;;; Commentary:
-;; Configures syntax-related behavior for editing across multiple modes.
-;; Includes word boundary tweaks, Tree-sitter grammar integration,
-;; and support for Flycheck and other syntax-aware tools.
+;; eldoc and flymake: the signature at point and the diagnostics, across
+;; the modes that have them.
 
 ;;; Code:
 
@@ -51,58 +50,6 @@ byte-compile one, which is the half worth having and the half that costs."
   :init
   (my/add-hook
    (:hook emacs-lisp-mode-hook :func #'my/elisp-flymake-setup)))
-
-(use-package treesit
-  :straight nil
-  :when (and (fboundp 'treesit-available-p)
-             (treesit-available-p))
-  ;; Everything below is a value or a command, and none of it needs treesit.el
-  ;; loaded: the first `-ts-mode' to open a buffer brings it.
-  :defer t
-  :init
-  ;; Define language grammar sources
-  (setq treesit-language-source-alist
-        (append
-         '((bash . ("https://github.com/tree-sitter/tree-sitter-bash"))
-           (c . ("https://github.com/tree-sitter/tree-sitter-c"))
-           (cpp . ("https://github.com/tree-sitter/tree-sitter-cpp"))
-           (json . ("https://github.com/tree-sitter/tree-sitter-json"))
-           (yaml . ("https://github.com/ikatyang/tree-sitter-yaml")))))
-
-  ;; Remap major modes to Tree-sitter equivalents
-  (setq major-mode-remap-alist
-	    '((sh-mode     . bash-ts-mode)
-          (c-mode      . c-ts-mode)
-          (c++-mode    . c++-ts-mode)
-          (json-mode   . json-ts-mode)
-          (yaml-mode   . yaml-ts-mode)))
-
-  ;; No tree-sitter on Windows: a grammar is a C library built on the spot,
-  ;; and Windows here has no C compiler.  Each mode stays its own
-  ;; non-tree-sitter self.
-  (when (eq system-type 'windows-nt)
-    (setq treesit-language-source-alist nil
-          major-mode-remap-alist nil))
-
-  (defun my/treesit-install-grammars (&optional force)
-    "Install the Tree-sitter grammars named above that are not there yet.
-With FORCE (a prefix argument), install all of them again --
-`treesit-install-language-grammar\=' has no force flag of its own, but a plain
-install overwrites the library it finds.
-
-A command, and deliberately not something startup does.  Finding out whether
-a grammar is present means loading its shared library; finding out that it is
-absent means cloning a repository and running a C compiler.  Neither belongs
-in the way of a frame appearing, and both were there: nine `dlopen\='s measured
-at 22ms on macOS, and a missing grammar turned a startup into a download.
-
-What is given up is that a grammar can now be missing.  Emacs says so rather
-than failing -- `treesit-ready-p\=' warns once and the mode falls back to its
-non-tree-sitter self -- and this is the command that answers it."
-    (interactive "P")
-    (dolist (lang (mapcar #'car treesit-language-source-alist))
-      (when (or force (not (treesit-language-available-p lang)))
-        (treesit-install-language-grammar lang)))))
 
 (provide 'my-syntax-visual)
 ;;; my-syntax-visual.el ends here

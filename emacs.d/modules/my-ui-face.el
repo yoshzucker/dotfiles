@@ -365,23 +365,12 @@ redundant: it arrives with a slant drawn for the tab bar, and a slant in
 a mode line is a wedge pointing at nothing.
 
 The rest of `mode-line-misc-info' is not that string, whatever its name
-suggests.  Packages add themselves there: eglot puts its server
-indicator in it, and dropping the variable wholesale dropped that too,
-so a buffer with a language server attached said nothing about it
-anywhere.  Read at draw time rather than snapshotted, because a package
-that has not loaded yet has not added itself yet.
-
-eglot wraps its own in brackets.  Every other field here is told apart
-by a space, so it is unwrapped on the way past -- cosmetic, and matched
-by name, so a rename upstream puts the brackets back rather than
-breaking the line."
-  (mapcar (lambda (element)
-            (pcase element
-              (`(eglot--managed-mode . ,_)
-               '(eglot--managed-mode (" " eglot--mode-line-format)))
-              (_ element)))
-          (remq (assq 'global-mode-string mode-line-misc-info)
-                mode-line-misc-info)))
+suggests.  Packages add themselves there, and dropping the variable
+wholesale would drop them too.  Read at draw time rather than
+snapshotted, because a package that has not loaded yet has not added
+itself yet."
+  (remq (assq 'global-mode-string mode-line-misc-info)
+        mode-line-misc-info))
 
 (defun my/mode-line-misc-band ()
   "Close the mode-line, carrying `mode-line-misc-info' in a band of its own.

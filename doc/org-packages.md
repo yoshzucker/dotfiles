@@ -47,12 +47,11 @@ is found by the machine-readable copy org-moor keeps beside it.
 The hotkey runs `script/org-moor-front.*` in straight's clone once and
 exits; nothing new stays running.  On macOS the first use asks to let
 Karabiner control the app in front; allow it.  On Windows the script calls
-emacsclientw itself (Scoop's shim followed to the real program), so it
-does not depend on org-protocol being registered.
+emacsclientw itself (Scoop's shim followed to the real program).
 
-The bookmarklet does.  `bootstrap.ps1` (`Setup-OrgProtocol`, in a full
-bootstrap and in `update`) registers it for the user under HKCU with the
-real emacsclientw path.
+No `org-protocol://` handler is registered and org-protocol is never
+loaded: a web page cannot hand Emacs anything.  A page is taken with the
+hotkey, or with `C-c m w`.
 
 | Where | Key / command | What |
 |---|---|---|
@@ -67,12 +66,8 @@ real emacsclientw path.
 | | `C-c m o` | open the source's copy; `C-u` its origin |
 | | `C-c m x` | prune: copies largest first, `d` mark, `x` let go (heading, notes and origin stay) |
 | ex line | `:source` | search the copies |
-| Browser | bookmarklet in `script/org-moor-bookmarklet.txt` | `org-protocol://moor?url=…` |
 | Anywhere (macOS) | `control+option+m` | take the document in front (Karabiner rule `org-moor-front`, enable it in Karabiner's settings) |
 | Anywhere (Windows) | `Ctrl+Alt+M` | the same, from `etc/ahk/remap-windows-keys.ahk` |
 
 A key after `C-c m` (or any prefix) that is slow in coming brings up
 which-key's list; typed on, nothing shows.
-
-org-protocol is loaded by the first emacsclient call that carries an
-org-protocol URL, not at startup.

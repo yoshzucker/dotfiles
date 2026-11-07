@@ -13,20 +13,18 @@
 ;; things.  The file being looked at and the region marked arrive without
 ;; being pasted, diffs come back through ediff to be edited before they are
 ;; applied, and `claude-code-ide-emacs-tools-setup' hands over xref, imenu,
-;; tree-sitter, the project's shape and its diagnostics as tools to call.
+;; the project's shape and its diagnostics as tools to call.
 ;;
 ;; What that is worth depends on the language.  Emacs answers from what it
-;; has already parsed -- imenu's outline, tree-sitter's tree, project.el's
-;; shape, the obarray behind elisp's apropos -- and those cost no process
+;; has already parsed -- imenu's outline, project.el's shape, the obarray
+;; behind elisp's apropos -- and those cost no process
 ;; at all, which is a fifth of a second saved on the Windows machine every
 ;; time one is not started.
 ;;
-;; References are the exception worth knowing.  With eglot attached the
-;; language server answers them, but Emacs Lisp has no backend for
-;; references, so `xref-find-references' falls to a default that runs find
-;; and grep over the project and its external roots.  Asked who calls an
-;; elisp function, ripgrep is the better tool and Claude is right to reach
-;; for it.
+;; References are the exception worth knowing.  No language server answers
+;; them here, so `xref-find-references' falls to a default that runs find
+;; and grep over the project and its external roots.  Asked who calls a
+;; function, ripgrep is the better tool and Claude is right to reach for it.
 
 ;; claude-code-ide's MCP tools server is an HTTP server, and the library it
 ;; runs on is `web-server' -- eschulte's.  `simple-httpd' is skeeto's, and
@@ -121,15 +119,12 @@
     ;; Asking it.
     "It answers some questions from what it has already parsed, without "
     "starting a process: claude-code-ide-mcp-imenu-list-symbols for a "
-    "file's outline, claude-code-ide-mcp-treesit-info for syntax "
-    "structure, claude-code-ide-mcp-project-info for the shape of the "
+    "file's outline, claude-code-ide-mcp-project-info for the shape of the "
     "project, and claude-code-ide-mcp-xref-find-apropos to find a symbol "
     "by part of its name. Prefer these over reading whole files or "
     "searching text for those questions. "
-    "claude-code-ide-mcp-xref-find-references is worth preferring where a "
-    "language server is attached, since the server answers it. Emacs Lisp "
-    "has no such backend and it greps like any other search, so grep is "
-    "fine there. "
+    "For references, no language server is attached, so "
+    "claude-code-ide-mcp-xref-find-references only greps; grep yourself. "
     ;; Changing a file through it.
     "And it shows the user each change you make to a file as an ediff, "
     "which they read, and can edit, before it is applied, but only when "
