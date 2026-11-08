@@ -46,8 +46,7 @@ Also used under method `auto' when FORCE is a plain C-u."
   '("html" "htm" "xhtml" "pdf")
   "File extensions opened in the browser under method `auto'.
 
-The browser `browse-url-browser-function' names, as a file: URL, which
-need not be the one the OS opens HTML with."
+Handed to `my/open--browser' as a file: URL."
   :type '(repeat string)
   :group 'my-config)
 
@@ -125,6 +124,17 @@ Emacs, C-u C-u outside."
   (pcase system-type
     ('windows-nt (w32-shell-execute program (car program-args)))
     (_ (apply #'start-process name buffer program program-args))))
+
+(defun my/open--browser (path)
+  "Open PATH, as a file: URL, outside Emacs.  Return nil.
+
+Not by `browse-url-of-file': Emacs's own `browse-url-default-handlers'
+send every file: URL but an HTML one to `browse-url-emacs', which visits
+it here.  An external browser kind skips that handler, and the URL goes
+to what the OS opens it with."
+  (require 'browse-url)
+  (browse-url-with-browser-kind 'external (browse-url-file-url path))
+  nil)
 
 (defun my/open--system (path)
   "Open PATH with the OS default application.  Return nil."
@@ -269,8 +279,7 @@ Interactive and Embark-friendly (prompts for a file)."
       ('browser
        (when (fboundp 'recentf-push)
          (recentf-push path))
-       (browse-url-of-file path)
-       nil)
+       (my/open--browser path))
       ('emacs
        (let ((my/open--in-emacs t))
          (find-file path))))))
@@ -513,7 +522,7 @@ ARG is passed to `dired-get-marked-files'."
            (when (fboundp 'recentf-push)
              (recentf-push f))
            (my/open--system f))
-          ('browser (browse-url-of-file f))
+          ('browser (my/open--browser f))
           ('emacs (view-file f))))))
 
   (defun my/dired-open-file-with-system ()
