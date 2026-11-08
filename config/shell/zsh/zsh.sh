@@ -39,8 +39,7 @@ compdef _files open
 autoload -Uz add-zsh-hook
 
 # What `vcs_info' gave, without the processes it spent on giving it.  It runs
-# git several times per prompt, and a git process costs a third of a second
-# on the Windows machine -- paid again after every command, in every
+# git several times per prompt, paid again after every command, in every
 # repository.  None of it is needed: the branch is the one line in
 # .git/HEAD, and an interrupted operation is a file or directory beside it,
 # so this reads them with zsh builtins and starts nothing at all.
@@ -95,30 +94,20 @@ fi
 # ----- Keybindings -----
 bindkey -e
 
-# Terminal-specific Tab (Ctrl+I) aliases.
-bindkey -s $'\e[105;5u' '\t'  # Ghostty: CSI u (codepoint i=105)
-bindkey -s $'\e[9;5u'   '\t'  # kitty fallback
-bindkey -s $'\e[1;5n'   '\t'  # mintty: XTermModifyOtherKeys=1
+# Ctrl+I as Ghostty sends it (CSI u, codepoint i=105), taken as Tab.
+bindkey -s $'\e[105;5u' '\t'
 
-# Delete, Home and End, as the terminals here send them: xterm's form from
-# Ghostty and mintty, and the VT220 form as well.  The Mac's /etc/zshrc bound
-# these from terminfo, which names the application-mode sequences that are
-# only sent after smkx -- so they never matched.
+# Delete, Home and End, in the xterm form Ghostty sends.  The Mac's
+# /etc/zshrc bound these from terminfo, which names the application-mode
+# sequences that are only sent after smkx -- so they never matched.
 bindkey '^[[3~' delete-char
 bindkey '^[[H'  beginning-of-line
-bindkey '^[[1~' beginning-of-line
 bindkey '^[[F'  end-of-line
-bindkey '^[[4~' end-of-line
 
 # menuselect keymap (active during completion menu): vim-style navigation.
 bindkey -M menuselect '^J' down-history
 bindkey -M menuselect '^K' up-history
 # ^F accepts the current candidate.
 bindkey -M menuselect '^F' accept-line
-
-# ----- Directory jumping -----
-# No zoxide.  Its hook starts a process on every cd -- a tenth of a second or
-# more under MSYS2 -- and the Windows hook zoxide 0.10.0 generates recorded
-# nothing at all.  `cd -<Tab>' (auto_pushd) remains.
 
 # --- end of zsh.sh -------------------------------------------------------
