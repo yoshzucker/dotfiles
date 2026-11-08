@@ -32,6 +32,21 @@
               xref-find-references
 	          xref-find-apropos))
 
+  ;; The search behind `project-find-regexp' -- `:rg' on the ex line
+  ;; (my-editor-evil.el) -- run by ripgrep rather than grep.
+  (setq xref-search-program 'ripgrep)
+
+  ;; On Windows the search is a shell line, `xargs -0 rg', fed the file
+  ;; names on its input, and Emacs talks to a shell there in cp932.  Git's
+  ;; xargs and rg read and write UTF-8, so Japanese file names arrive
+  ;; mangled and the matching lines come back unreadable.
+  (when (eq system-type 'windows-nt)
+    (define-advice xref-matches-in-files (:around (orig &rest args) my/utf-8)
+      "Talk to the search in UTF-8."
+      (let ((coding-system-for-read 'utf-8-dos)
+            (coding-system-for-write 'utf-8-unix))
+        (apply orig args))))
+
   (defun my/xref-find-apropos (pattern)
     "Find symbols matching PATTERN using xref and apropos."
     (interactive

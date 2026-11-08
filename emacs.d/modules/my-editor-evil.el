@@ -96,7 +96,7 @@
   (dolist (pair '(("bk[ill]" . kill-current-buffer)
                   ("ls"      . ibuffer)
                   ("etags"   . create-etags)
-                  ("dg"      . deadgrep)
+                  ("rg"      . project-find-regexp)
                   ("fd"      . find-name-dired)))
     (evil-ex-define-cmd (car pair) (cdr pair)))
 

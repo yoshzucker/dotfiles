@@ -40,7 +40,7 @@ straight (`setup_dev_packages`), or straight tries to clone a repository that
 does not exist.
 
 Copies go to `memex/source/`, the package default, so they travel with memex
-and are never browsed by hand.  `:dg` in memex searches them with the notes:
+and are never browsed by hand.  `:rg` in memex searches them with the notes:
 a source is found by the machine-readable copy org-moor keeps beside it.
 
 The hotkey runs `script/org-moor-front.*` in straight's clone once and

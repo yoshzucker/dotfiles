@@ -64,14 +64,5 @@
   
   (migemo-init))
 
-(use-package deadgrep
-  ;; Reached by `:dg' on the ex line (my-editor-evil.el), which searches the
-  ;; project it is typed in.
-  :defer t
-  :config
-  (when (eq system-type 'windows-nt)
-    (add-to-list 'process-coding-system-alist
-                 '("rg" utf-8-dos . cp932-dos))))
-
 (provide 'my-editor-search)
 ;;; my-editor-search.el ends here
