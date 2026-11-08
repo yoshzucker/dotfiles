@@ -35,6 +35,10 @@
       "Source": "main"
     },
     {
+      "Name": "python",
+      "Source": "main"
+    },
+    {
       "Name": "emacs",
       "Source": "extras"
     },
