@@ -90,10 +90,25 @@ Every straight.el repository is pinned to a commit in `emacs.d/straight/versions
 
 Following is the default. A machine may pull only where an empty file, `~/.emacs.d/allow-straight-pull`, exists — created by hand and never tracked, so which machine pulls stays on that machine, and a new or rebuilt one follows until told otherwise.
 
-- **Where pulling is allowed**: `M-x my/straight-pull-all`, try the result, then `M-x straight-freeze-versions` and commit the lockfile. My own packages have to be pushed before the push of dotfiles, or the lockfile names commits GitHub does not have yet.
-- **Followers**: after `git pull`, `M-x my/straight-thaw-all` puts every repository at the lockfile's commit; restart Emacs to rebuild what moved. Every command that would move a repository off the lockfile — `my/straight-pull-all` and straight's own pull, merge, normalize, push and freeze — refuses there, and a package the lockfile does not name is not cloned at all. A follower's start that stops on "not in the lockfile" means a package was added on the pulling machine without freezing.
+- **Where pulling is allowed**: see [Updating](#updating). My own packages have to be pushed before the push of dotfiles, or the lockfile names commits GitHub does not have yet.
+- **Followers**: after `git pull`, `M-x my/straight-apply-lockfile` puts every repository at the lockfile's commit; restart Emacs to rebuild what moved. Every command that would move a repository off the lockfile — `my/straight-update-lockfile`, `my/straight-pull-all` and straight's own pull, merge, normalize, push and freeze — refuses there, and a package the lockfile does not name is not cloned at all. A follower's start that stops on "not in the lockfile" means a package was added on the pulling machine without freezing.
 
 straight itself is cloned by `init.el` at the lockfile's commit, not by straight's installer, which evaluates a file from a branch that moves. ghostel's native module and its Windows ConPTY files are kept only when their SHA-256 matches the one recorded in `emacs.d/modules/my-app-terminal.el`; when ghostel starts asking for a newer release, the download stops until that release's digests are added there.
+
+## Updating
+
+Look first, then move. Nothing upgrades on its own; each step below changes nothing until the last one, which the user runs.
+
+**Emacs packages** (where pulling is allowed):
+
+1. `M-x my/straight-update-lockfile` fetches every repository and writes into the lockfile the commit each would move to: the newest one at least seven days upstream (`C-u N` for another number), my own packages at their HEAD. No package moves. What would arrive is in `*straight-update-lockfile*` and `~/.emacs.d/var/straight-update-lockfile.txt`, beside the lockfile's diff.
+2. Read it. Put back any line of the lockfile that should stay where it is.
+3. `M-x my/straight-apply-lockfile` and restart Emacs: every repository moves to exactly the commit that was read, and nothing that arrived upstream since. The working trees linked from `~/Developer` are left alone.
+4. Try it, run `./test/run`, and commit the lockfile. To go back instead: `git checkout emacs.d/straight/versions/default.el`, then `my/straight-apply-lockfile` again.
+
+**Homebrew and Scoop**: `./bootstrap outdated` (`.\bootstrap.ps1 outdated`) lists installed and newer versions and changes nothing. Then `brew upgrade NAME` or `scoop update NAME` for the ones chosen, or `update` for all. Scoop can go back with `scoop reset NAME@VERSION` until `scoop cleanup`; Homebrew cannot go back, so the ones that matter are taken one at a time.
+
+**With Claude**: the `update-review` skill (in `claude/skills/`) does the reading — runs the steps that change nothing, reads the commits and release notes, and returns a table of what changes, what is worth noticing, and whether to upgrade, wait or skip. It never upgrades. On a machine that only follows the lockfile it reviews the OS packages alone.
 
 ## My Own Packages
 
