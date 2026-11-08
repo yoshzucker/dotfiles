@@ -54,7 +54,5 @@ cask "maccy"   # clipboard history
 
 # --- Cleanup hint ------------------------------------------------------------
 # After changes: brew bundle --file pkg/brew/Brewfile
-# To dump current state for review: brew bundle dump --file pkg/brew/Brewfile --force
-# (then edit to add comments/conditionals)
 
 # vim: ft=ruby

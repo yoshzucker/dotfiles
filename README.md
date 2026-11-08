@@ -86,7 +86,7 @@ All package lists live under `pkg/` (intentionally **outside** `config/`, so the
 **Why this layout?**
 - Single source of truth per platform.
 - `config/` stays pure user configuration (XDG-clean).
-- Easy to dump/regenerate: `brew bundle dump --force --file pkg/brew/Brewfile`, `scoop export | Out-File ...`
+- Written by hand. A dump (`brew bundle dump`, `scoop export`) would take in whatever happens to be installed and drop the Brewfile's comments on why each entry is there, so a package is added by editing the file.
 
 Run `./bootstrap update` (or the explicit package commands) to apply.
 
@@ -175,11 +175,6 @@ A bare `emacs -Q --batch`, not the configuration: a test takes the
 definitions it needs out of a module by name, so nothing has to be cloned
 first. That means a test covers the functions and not the `use-package`
 block that installs them; see the commentary in `test/my-test.el`.
-
-## Regenerating Manifests
-
-- Brew: `brew bundle dump --force --file pkg/brew/Brewfile`
-- Scoop: `scoop export | Out-File pkg/scoop/scoopfile.json -Encoding utf8`
 
 ## License
 
