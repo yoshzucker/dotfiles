@@ -245,20 +245,11 @@ the alternative is to leave the prompt, remember the path, and type it.")
                           recentf-list)
                   (lambda (a b) (string< (car a) (car b))))))
 
-  ;; Xref
-  (defun my/toggle-xref-show-destination (&optional arg)
-    "Toggle between `consult' and default xref UI for displaying results."
-    (interactive)
-    (let* ((use-consult (or arg (not (eq xref-show-definitions-function #'consult-xref))))
-           (show-fn     (if use-consult #'consult-xref #'xref--show-defs-buffer))
-           (xrefs-fn    (if use-consult #'consult-xref #'xref--show-xrefs-buffer)))
-      (setq xref-show-definitions-function show-fn
-            xref-show-xrefs-function xrefs-fn)
-      (message "xref display is now: %s"
-               (if use-consult "consult minibuffer" "default buffer"))))
-
-  ;; Default to consult-based xref display
-  (my/toggle-xref-show-destination 1)
+  ;; Xref.  A definition is picked here, from candidates narrowed as they
+  ;; are typed; one definition is jumped to without asking.  References and
+  ;; `:rg' matches are left to xref's own buffer, where they stay to be
+  ;; gone back over, and `r' replaces across them.
+  (setq xref-show-definitions-function #'consult-xref)
 
   ;; Omit completion candidates
   (when (eq system-type 'windows-nt)
