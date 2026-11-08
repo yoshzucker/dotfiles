@@ -53,6 +53,7 @@ bootstrap.ps1 - Windows dotfiles environment bootstrapper
 Usage:
   .\bootstrap.ps1 [bootstrap]     # Install what is missing, then link (a fresh machine, or any time)
   .\bootstrap.ps1 link            # Create or refresh links only -- what a git pull needs
+  .\bootstrap.ps1 outdated        # List what update would upgrade, and change nothing
   .\bootstrap.ps1 update          # Upgrade every Scoop app, then link
   .\bootstrap.ps1 unlink          # Remove only links and startup shortcuts managed by this repo
   .\bootstrap.ps1 doctor [--fix]  # Report (or remove) broken links
@@ -62,7 +63,8 @@ A fresh machine:
   git clone https://github.com/yoshzucker/dotfiles.git $HOME\dotfiles
   & $HOME\dotfiles\bootstrap.ps1
 
-Nothing here upgrades a package except 'update', which is asked for by name.
+Nothing here upgrades a package except 'update', which is asked for by name;
+'outdated' says first what it would do, and 'scoop update NAME' takes one.
 A real item in the way of a link is moved under %LOCALAPPDATA%\dotfiles\backups first.
 Requires Windows Developer Mode (or Admin) for symlink creation.
 "@
@@ -112,6 +114,7 @@ function Initialize-Arguments {
         "" { }
         "link" { }
         "unlink" { }
+        "outdated" { }
         "update" { }
         "bootstrap" { }
         "doctor" { }
@@ -140,6 +143,10 @@ function Main {
 
     if ($script:MainMode -eq "doctor") {
         Doctor -Fix:$script:DoctorFix
+    }
+
+    if ($script:MainMode -eq "outdated") {
+        Show-OutdatedScoopPackages
     }
 
     if ($script:MainMode -eq "update") {
@@ -740,6 +747,18 @@ function Update-ScoopPackages {
     Install-ScoopPackages
 
     Write-PrintLine $leftMessage "Finished."
+}
+
+function Show-OutdatedScoopPackages {
+    # What `update' would upgrade, installed and latest version side by side.
+    # `scoop update' with no app refreshes Scoop and its buckets -- the index
+    # -- and installs nothing.  A version updated past can be gone back to
+    # with `scoop reset NAME@VERSION' until `scoop cleanup' removes it.
+    if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
+        return
+    }
+    scoop update
+    scoop status
 }
 
 function Install-Fonts {

@@ -15,6 +15,7 @@ bootstrap — dotfiles environment bootstrapper (macOS; Windows has bootstrap.ps
 Usage:
   ./bootstrap [bootstrap]      # Install what is missing, then link (a fresh machine, or any time)
   ./bootstrap link             # Create or refresh links only -- what a git pull needs
+  ./bootstrap outdated         # List what update would upgrade, and change nothing
   ./bootstrap update           # Upgrade every Homebrew package, then link
   ./bootstrap unlink           # Remove only links managed by this repo
   ./bootstrap doctor [--fix]   # Report (or remove) broken links
@@ -24,7 +25,8 @@ A fresh machine:
   git clone https://github.com/yoshzucker/dotfiles.git ~/dotfiles
   ~/dotfiles/bootstrap
 
-Nothing here upgrades a package except `update', which is asked for by name.
+Nothing here upgrades a package except `update', which is asked for by name;
+`outdated' says first what it would do, and `brew upgrade NAME' takes one.
 A real file in the way of a link is moved under
 ${XDG_DATA_HOME:-~/.local/share}/dotfiles/backups/ first.
 EOF
@@ -36,7 +38,7 @@ doctor_fix=0
 
 case "$mode" in
   -h|--help) usage; exit 0 ;;
-  bootstrap|link|update|unlink) ;;
+  bootstrap|link|outdated|update|unlink) ;;
   doctor)
     if [ "${1:-}" = "--fix" ]; then
       doctor_fix=1
@@ -457,6 +459,16 @@ brew_bundle() {
   print_line "$left_message" "Finished."
 }
 
+# What `update' would upgrade, current and new version side by side.  Only
+# Homebrew's own index is refreshed; nothing installed changes.  `--greedy'
+# includes the casks that update themselves, which `brew bundle --upgrade'
+# moves too.
+brew_outdated() {
+  command -v brew >/dev/null || return 0
+  brew update --quiet
+  brew outdated --greedy --verbose
+}
+
 install_fonts() {
   # Builds and installs "PlemolJP NF" (non-Console PlemolJP + Nerd icons;
   # Japanese prose 2-cell, drawing/UI 1-cell — see local/bin/build-plemoljp-nf).
@@ -520,6 +532,7 @@ case "$mode" in
     setup_links
     setup_dev_packages
     ;;
+  outdated) brew_outdated ;;
   update)
     brew_bundle upgrade
     setup_links
