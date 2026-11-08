@@ -150,7 +150,7 @@
 ;; `check-on-save' is two things, and only one of them is wanted here.  It is
 ;; the `before-save-hook' that marks a repository modified when a file inside
 ;; it is saved -- and it is also what makes straight read those marks back at
-;; startup, which is how `my/straight-pull-all' gets what it fast-forwards
+;; startup, which is how `my/straight-apply-lockfile' gets what it moves
 ;; rebuilt.  So it stays in the list, and the hook is taken off: no package is
 ;; edited on this machine, and the hook costs every save two `file-truename's,
 ;; twenty or thirty milliseconds on Windows, to find that the file is not in a

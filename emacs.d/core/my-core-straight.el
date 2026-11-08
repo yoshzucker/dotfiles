@@ -2,7 +2,8 @@
 
 ;;; Commentary:
 ;; Commands for the clones and builds straight keeps: fetching them all at
-;; once, fast-forwarding what is behind, and pruning what no recipe names.
+;; once, writing the lockfile before anything moves and moving to it after,
+;; and pruning what no recipe names.
 ;; Core rather than a module, so they are there before any module loads --
 ;; a package broken by its last update is fixed by updating it again.
 
@@ -10,16 +11,14 @@
 
 (require 'straight)
 
-;; Updating every package, without waiting for each in turn.
+;; Fetching every package, without waiting for each in turn.
 ;;
-;; `straight-pull-all' is `straight-fetch-all' followed by
-;; `straight-merge-all', and the first of those is the whole of the wait: one
-;; `git fetch' per repository, one after the next, each paying a network round
-;; trip.  Measured at a second apiece over a hundred and ninety repositories,
-;; and the same second whether the repository is four megabytes or forty --
-;; the cost is the handshake and not the history, which is also why a shallow
-;; clone would not help.  Three minutes of it, and the merging that follows
-;; never touches the network at all.
+;; `straight-fetch-all' runs one `git fetch' per repository, one after the
+;; next, each paying a network round trip.  Measured at a second apiece over
+;; a hundred and ninety repositories, and the same second whether the
+;; repository is four megabytes or forty -- the cost is the handshake and not
+;; the history, which is also why a shallow clone would not help.  Three
+;; minutes of it, where several at once take a quarter of one.
 
 (defun my/straight--recipes-by-repo ()
   "Return a table from local repository name to the recipes naming it.
@@ -81,9 +80,8 @@ unlocked is still offered.")
 Return a plist.  `:refused' names the repositories git would not fetch,
 newest first; `:abandoned' the ones killed for taking longer than
 `my/straight-fetch-timeout'; `:moved' the ones something actually
-arrived in.  The last is for the report and not for the merge, which
-asks what is behind instead -- see `my/straight--behind-repos'.  git
-says it for free: onto a pipe it prints when a ref moves and is silent
+arrived in, for the message that says how much did.  git says it for
+free: onto a pipe it prints when a ref moves and is silent
 when none did.
 
 Says how far it has got as it goes.  Sixteen seconds here is one machine
@@ -126,8 +124,8 @@ git processes behind to finish into a command that has gone."
          (failed nil) (moved nil) (abandoned nil)
          ;; Which repositories something arrived in.  `--quiet' is gone so
          ;; that git will say: onto a pipe it writes a line when a ref moves
-         ;; and nothing at all when none did, which is the question the merge
-         ;; half wants answered and costs no process to ask.  Asking it
+         ;; and nothing at all when none did, which is the question the message
+         ;; wants answered and costs no process to ask.  Asking it
          ;; instead with `git rev-parse --remotes' before and after was two
          ;; more processes per repository -- eight milliseconds each here and
          ;; a multiple of that on a machine where spawning is the expense,
@@ -259,37 +257,6 @@ git processes behind to finish into a command that has gone."
           (set-process-sentinel proc #'ignore)
           (delete-process proc))))))
 
-;; Merging a repository that is simply behind.
-;;
-;; `straight-merge-package' asks git thirty-seven questions to fast-forward
-;; one repository -- the merge is one of them, four more ask what origin
-;; calls its default branch and get the same answer four times, and the
-;; whole interrogation runs twice because the function that does the merge
-;; returns nil afterwards to force a re-check.  Measured at 0.30s here and a
-;; quarter of a second per process on Windows, so nine seconds a repository
-;; and most of five minutes for a pull that moved thirty-one of them.
-;;
-;; Nearly all of those questions have the same answer every time, because
-;; nearly every repository is in the same state: a clean worktree on the
-;; branch the remote calls default, with commits on the remote and none of
-;; its own.  `git status --porcelain=v2 --branch' says all four of those
-;; things in one process, and what git leaves out of it -- a merge or a
-;; rebase half-finished, submodules, which URL origin points at -- is files
-;; on disk, which cost nothing to read.
-;;
-;; So: two processes where the repository is plainly behind, and everything
-;; else handed to straight exactly as before.  The fall-through is the whole
-;; safety argument -- a repository that has diverged, has work in it, is on
-;; another branch or is not shaped like these assume still gets every
-;; question straight would have asked, and the same popup to answer it.
-
-(defconst my/straight--interrupted-files
-  '("MERGE_HEAD" "CHERRY_PICK_HEAD" "REVERT_HEAD" "BISECT_LOG"
-    "rebase-merge" "rebase-apply")
-  "Names under .git that mean git is part-way through something.
-straight asks about these with `git ls-files --unmerged' and a look at the
-git directory; they are files, so looking is free.")
-
 (defun my/straight--origin-default-branch (dir)
   "Return the branch origin calls default in the repository at DIR.
 
@@ -304,35 +271,6 @@ shaped like these -- and then the caller has no business guessing."
         (goto-char (point-min))
         (when (looking-at "ref: refs/remotes/origin/\\(.+\\)$")
           (string-trim (match-string 1)))))))
-
-(defun my/straight--origin-url (dir)
-  "Return the URL origin is set to in the repository at DIR.
-
-Out of .git/config rather than out of git, which makes this free and also
-fallible -- so it answers only where the file is plain.  Two sections for
-the same remote, or an `include' that could put the URL somewhere else,
-and this returns nil, which sends the repository to straight rather than
-letting a misread URL decide anything."
-  (let ((config (expand-file-name ".git/config" dir)))
-    (when (file-readable-p config)
-      (with-temp-buffer
-        (insert-file-contents config)
-        (goto-char (point-min))
-        (unless (re-search-forward "^\\[include" nil t)
-          (goto-char (point-min))
-          (when (re-search-forward "^\\[remote \"origin\"\\][ \t]*$" nil t)
-            (let ((body (point))
-                  (end (save-excursion
-                         (or (and (re-search-forward "^\\[" nil t)
-                                  (match-beginning 0))
-                             (point-max)))))
-              (unless (save-excursion
-                        (re-search-forward "^\\[remote \"origin\"\\][ \t]*$"
-                                           nil t))
-                (goto-char body)
-                (when (re-search-forward "^[ \t]*url[ \t]*=[ \t]*\\(.+\\)$"
-                                         end t)
-                  (string-trim (match-string 1)))))))))))
 
 (defun my/straight--ref (dir ref)
   "Return the commit REF names in the repository at DIR, or nil.
@@ -368,242 +306,6 @@ nil for a detached HEAD, which names a commit rather than a branch."
         (when (looking-at "ref: refs/heads/\\(.+\\)$")
           (string-trim (match-string 1)))))))
 
-(defun my/straight--level-p (dir branch)
-  "Non-nil when DIR is on BRANCH and BRANCH is where origin\='s is.
-
-The question that decides whether a repository is worth spending a
-process on, and it costs none to ask: three files say where HEAD is and
-what two refs point at.  So it can be asked of every repository there
-is, which is the point -- see `my/straight--behind-repos\='."
-  (and (equal (my/straight--head-branch dir) branch)
-       (let ((here (my/straight--ref dir (concat "refs/heads/" branch)))
-             (there (my/straight--ref dir (concat "refs/remotes/origin/" branch))))
-         (and here there (equal here there)))))
-
-(defun my/straight--behind-repos ()
-  "Return the local repositories that are not where their remote is.
-
-Every declared one is looked at, because looking is free.
-
-Which is the fix for asking the fetch instead.  A fetch says what it
-brought, and a repository whose merge then did not happen -- it asked
-something and the answer was to skip it, or Emacs was quit, or the merge
-was never reached -- is brought nothing the next time either, because the
-ref is already there.  The fetch would never mention it again and the
-repository would sit a version behind for good.  What is behind is a
-question that answers itself correctly however the last run ended."
-  (let (repos)
-    (maphash (lambda (repo _recipes)
-               (let* ((dir (straight--repos-dir repo))
-                      (branch (my/straight--origin-default-branch dir)))
-                 (unless (and branch (my/straight--level-p dir branch))
-                   (push repo repos))))
-             (my/straight--recipes-by-repo))
-    (sort repos #'string<)))
-
-(defun my/straight--ordinary-recipe-p (recipe checked-out url)
-  "Say whether RECIPE asks for nothing beyond CHECKED-OUT tracking origin at URL.
-
-Everything straight would go on to reconcile is a reason to say no here:
-a fork has a second remote to merge from, a `:branch' or `:remote' other
-than what is checked out means straight would move something, and a URL
-that has drifted from the recipe means straight would reset it before
-merging.  The URL comparison is straight's own, so a recipe that says ssh
-where the clone says https still counts as naming the same place."
-  (let ((branch (plist-get recipe :branch)))
-    (and (eq (or (plist-get recipe :type) straight-default-vc) 'git)
-         (null (plist-get recipe :fork))
-         (equal (or (plist-get recipe :remote)
-                    straight-vc-git-default-remote-name)
-                "origin")
-         (or (null branch) (equal branch checked-out))
-         (ignore-errors
-           (straight-vc-git--urls-compatible-p
-            url (straight-vc-git--encode-url (plist-get recipe :repo)
-                                             (plist-get recipe :host)
-                                             (plist-get recipe :protocol)))))))
-
-(defun my/straight--behind-count (branch)
-  "Return how far `default-directory' is behind BRANCH's remote, or nil.
-
-nil for anything that is not simply behind: work in the worktree, a
-commit the remote has not got, a HEAD somewhere other than BRANCH, or no
-tracking branch at all.  Zero is an answer and not a refusal -- the
-repository is where the remote is and there is nothing to merge.
-
-One process for the lot.  `--porcelain=v2 --branch' prefixes its headers
-with `#\\=' and gives every uncommitted file, tracked or not, a line
-without one, so the absence of such a line is the worktree being clean."
-  (straight--process-with-result
-      (straight--process-run "git" "status" "--porcelain=v2" "--branch")
-    (when success
-      (let ((head nil) (upstream nil) (behind nil) (clean t))
-        (dolist (line (split-string (or stdout "") "\n" t))
-          (cond
-           ((string-match "\\`# branch\\.head \\(.+\\)\\'" line)
-            (setq head (match-string 1 line)))
-           ((string-match "\\`# branch\\.upstream \\(.+\\)\\'" line)
-            (setq upstream (match-string 1 line)))
-           ((string-match "\\`# branch\\.ab \\+0 -\\([0-9]+\\)\\'" line)
-            (setq behind (string-to-number (match-string 1 line))))
-           ((string-prefix-p "#" line))
-           (t (setq clean nil))))
-        (and clean behind
-             (equal head branch)
-             (equal upstream (concat "origin/" branch))
-             behind)))))
-
-(defun my/straight--fast-forward (local-repo recipes)
-  "Fast-forward LOCAL-REPO if it is plainly behind origin, and say whether.
-
-Non-nil means the repository is where its remote is and nothing further
-need look at it.  nil means it is not the ordinary case, and the caller
-must hand it to straight, which will work out what it is and ask.
-
-RECIPES is every recipe naming LOCAL-REPO; all of them have to be
-ordinary, because they share the one checkout."
-  (let* ((dir (straight--repos-dir local-repo))
-         (branch (my/straight--origin-default-branch dir))
-         (url (and branch (my/straight--origin-url dir))))
-    (and branch url
-         (file-directory-p (expand-file-name ".git" dir))
-         ;; A recipe of mine is a symlink to a checkout I edit, and the
-         ;; questions straight asks about those are the ones worth asking.
-         (not (file-symlink-p (directory-file-name dir)))
-         (not (file-exists-p (expand-file-name ".gitmodules" dir)))
-         (not (seq-some (lambda (name)
-                          (file-exists-p
-                           (expand-file-name (concat ".git/" name) dir)))
-                        my/straight--interrupted-files))
-         recipes
-         (seq-every-p (lambda (recipe)
-                        (my/straight--ordinary-recipe-p recipe branch url))
-                      recipes)
-         (let* ((default-directory dir)
-                (behind (my/straight--behind-count branch)))
-           (cond
-            ((null behind) nil)
-            ((zerop behind) t)
-            (t (when (straight--process-run-p
-                      "git" "merge" "--ff-only" (concat "origin/" branch))
-                 ;; straight is not watching.  It rebuilds a package whose
-                 ;; repository changed, and on Windows it finds out only
-                 ;; from this marker: the walk that would notice at startup
-                 ;; costs half a minute there and is turned off, so a merge
-                 ;; nobody registers is a package that stays as it was
-                 ;; built however far the repository moves.  straight\='s own
-                 ;; merge writes it; so must this one.
-                 (straight-register-repo-modification local-repo)
-                 t)))))))
-
-(defun my/straight-pull-all (&optional from-upstream predicate)
-  "Pull all packages, fetching them all at once rather than one after another.
-
-A drop-in for `straight-pull-all', and the same two halves in the same
-order: everything is fetched, then everything is merged.  Only the fetching
-is done differently, by several git processes at once, which is what turns
-three minutes of round trips into a quarter of one.
-
-Nothing about what gets asked changes.  Every question the merge puts up --
-a dirty worktree, a branch that has diverged, a merge left half-done --
-comes from `straight-vc-git--ensure-local', which is local by design and
-runs on the merge side.  They are asked after the waiting instead of
-scattered through it, which is the only difference a reader will notice.
-
-When it is done, `my/straight-pull-buffer' says what each repository
-gained, what is still behind and what could not be reached.
-
-PREDICATE filters by package name as it does there.  Given one, this hands
-the whole job to `straight-pull-all': a subset is a handful of round trips,
-and there is nothing in a handful for parallelism to hide.  FROM-UPSTREAM
-hands it over too -- a fork has a second remote to merge from, which is
-none of the ordinary case below."
-  (interactive "P")
-  (if (or predicate from-upstream)
-      (straight-pull-all from-upstream predicate)
-    (let* (;; What the fetch could not reach.  Said again here because the
-           ;; fetch says it and is then talked over: the merge finishes a
-           ;; moment later and its message is the one left on screen.  And
-           ;; a repository that was not fetched looks, to everything after
-           ;; this, exactly like one with nothing to fetch -- it is where
-           ;; its remote was last known to be, so it is skipped, silently,
-           ;; and stays a version behind with nothing to show for it.
-           (unreachable (plist-get (my/straight-fetch-at-once) :refused))
-           (aside (if unreachable
-                      (format "; %d not reached: %s" (length unreachable)
-                              (string-join (reverse unreachable) ", "))
-                    ""))
-           ;; Only the repositories that are behind.  Merging one costs
-           ;; thirty-seven git processes -- the merge itself is one of them
-           ;; and the rest are questions about which branch, whose remote and
-           ;; what is an ancestor of what -- so asking that of a repository
-           ;; that is already where its remote is costs a third of a second
-           ;; for a certain answer of no.  Over a hundred and thirteen of
-           ;; them it is half a minute here and four times that on Windows.
-           (behind (my/straight--behind-repos))
-           ;; Where each of them was, so the report can say where it went.
-           (before (mapcar (lambda (repo)
-                             (cons repo (my/straight--head-commit
-                                         (straight--repos-dir repo))))
-                           behind))
-           (summary nil)
-           (stopped nil))
-      ;; The report is written however this ends, a question answered with
-      ;; `C-g' included, because an ending nobody can see is the trouble it
-      ;; is there for.  The echo area is no place for it: the summary is
-      ;; talked over by whatever is said next.
-      (unwind-protect
-          (condition-case err
-              (if (null behind)
-                  (message "%s" (setq summary (format "straight: nothing to merge%s"
-                                                      aside)))
-                (let* ((recipes (my/straight--recipes-by-repo))
-                       (total (length behind))
-                       (reporter (make-progress-reporter
-                                  (format "straight: merging %d repositories..." total)
-                                  0 total))
-                       (began (float-time))
-                       (done 0)
-                       (left nil))
-                  (dolist (repo behind)
-                    (unless (my/straight--fast-forward repo (gethash repo recipes))
-                      (push repo left))
-                    (progress-reporter-update reporter (cl-incf done)))
-                  (progress-reporter-done reporter)
-                  (message "%s"
-                           (setq summary
-                                 (format "straight: merged %d of %d repositories in %.0fs%s%s"
-                                         (- total (length left)) total
-                                         (- (float-time) began)
-                                         (if left
-                                             (format "; %d to look at: %s" (length left)
-                                                     (string-join (reverse left) ", "))
-                                           "")
-                                         aside)))
-                  ;; And those, the way they have always been done.  straight
-                  ;; narrates one repository at a time here rather than
-                  ;; counting, which is the right way round now: this is the
-                  ;; list that can stop and ask, and a name is what the
-                  ;; question will be about.
-                  ;;
-                  ;; `straight-merge-all' takes the predicate by package and
-                  ;; this list is by repository, which are not the same thing:
-                  ;; several packages can share one.
-                  (when left
-                    (straight-merge-all
-                     from-upstream
-                     (lambda (package)
-                       (when-let* ((recipe (gethash package straight--recipe-cache))
-                                   (local-repo (plist-get recipe :local-repo)))
-                         (member local-repo left)))))))
-            (t (setq stopped (error-message-string err))
-               (signal (car err) (cdr err))))
-        (my/straight--pull-report (or summary "straight: stopped before merging")
-                                  before unreachable stopped)))))
-
-(defconst my/straight-pull-buffer "*straight-pull*"
-  "The buffer `my/straight-pull-all' says what it did in.")
-
 (defun my/straight--head-commit (dir)
   "Return the commit HEAD is at in the repository at DIR, or nil.
 
@@ -621,54 +323,12 @@ the branch; a detached one holds the commit itself."
 (defun my/straight--commits-between (dir from to)
   "Return the one-line log of the commits DIR gained going FROM TO.
 
-Newest first, as git gives them.  Whatever is in TO and not in FROM, so a
-merge straight did by resetting rather than fast-forwarding still lists
-what arrived."
+Newest first, as git gives them: whatever is in TO and not in FROM."
   (let ((default-directory (file-name-as-directory dir)))
     (with-temp-buffer
       (when (eq 0 (call-process "git" nil t nil "log" "--oneline" "--no-decorate"
                                 (concat from ".." to)))
         (split-string (buffer-string) "\n" t)))))
-
-(defun my/straight--pull-report (summary before unreachable stopped)
-  "Say in `my/straight-pull-buffer' what a pull did, and show it.
-
-SUMMARY is the line the echo area was given.  BEFORE pairs each
-repository the merge looked at with the commit it was at beforehand;
-the ones that moved are listed with what they gained, and the ones still
-behind -- skipped at a question, or never reached -- are named.
-UNREACHABLE is what the fetch could not reach.  STOPPED is the error the
-merge ended on, or nil when it ran to the end."
-  (let (moved still-behind)
-    (pcase-dolist (`(,repo . ,from) before)
-      (let* ((dir (straight--repos-dir repo))
-             (to (my/straight--head-commit dir))
-             (branch (my/straight--origin-default-branch dir)))
-        (when (and from to (not (equal from to)))
-          (push (list repo from to (my/straight--commits-between dir from to))
-                moved))
-        (unless (and branch (my/straight--level-p dir branch))
-          (push repo still-behind))))
-    (with-current-buffer (get-buffer-create my/straight-pull-buffer)
-      (special-mode)
-      (let ((inhibit-read-only t))
-        (erase-buffer)
-        (insert (format-time-string "%Y-%m-%d %H:%M  ") summary "\n")
-        (when stopped
-          (insert "\nStopped: " stopped "\n"))
-        (pcase-dolist (`(,repo ,from ,to ,commits) (nreverse moved))
-          (insert (format "\n%s (%s..%s)\n" repo
-                          (substring from 0 7) (substring to 0 7)))
-          (dolist (commit commits)
-            (insert "  " commit "\n")))
-        (when still-behind
-          (insert "\nStill behind: "
-                  (string-join (nreverse still-behind) ", ") "\n"))
-        (when unreachable
-          (insert "\nNot reached: "
-                  (string-join (reverse unreachable) ", ") "\n"))
-        (goto-char (point-min)))
-      (display-buffer (current-buffer)))))
 
 (defun my/straight--repo-holds-work-p (path)
   "Say whether PATH holds anything that is not also on its remote.
@@ -1124,7 +784,7 @@ put back any line of the lockfile that should not move, then
     straight-normalize-package straight-normalize-all
     straight-push-package straight-push-all
     straight-freeze-versions
-    my/straight-pull-all my/straight-update-lockfile)
+    my/straight-update-lockfile)
   "Commands that move a repository off the lockfile, or rewrite it.")
 
 (defvar my/straight-follow-lockfile)
@@ -1147,7 +807,7 @@ put back any line of the lockfile that should not move, then
 (defun my/straight-apply-lockfile ()
   "Put every repository at the commit the lockfile names.
 
-Fetched all at once first, as `my/straight-pull-all' does, so that
+Fetched all at once first, so that
 `straight-thaw-versions' finds the commits already there instead of
 fetching for them one repository at a time.  The repositories that moved
 are registered as modified, which is how straight on Windows learns that a
