@@ -11,8 +11,7 @@
 ;; Heuristics to guess slash/backslash key representations
 (defcustom my/key-symbols
   '((backslash . ((darwin . "_") (default . "\\")))
-    (slash     . ((default . "_")))
-    (c-:       . ((default . "C-:"))))
+    (slash     . ((default . "_"))))
   "Mapping of symbolic keys to OS and display (GUI/TTY) specific representations.
 Each entry can have keys like (system-type . gui), (system-type . tty), system-type, tty or just 'default."
   :type '(alist :key-type symbol
@@ -38,12 +37,8 @@ Each entry can have keys like (system-type . gui), (system-type . tty), system-t
   "Automatically guessed slash key, overridable by user."
   :type 'string)
 
-(defcustom my/c-: (my/system-key 'c-:)
-  "Automatically guessed C-: key, overridable by user."
-  :type 'string)
-
 ;; Unbind certain global keys
-(dolist (key `(,my/c-: "M-:" "C-z"))
+(dolist (key '("C-:" "M-:" "C-z"))
   (global-unset-key (kbd key)))
 
 ;; Key translation

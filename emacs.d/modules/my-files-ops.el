@@ -374,24 +374,6 @@ This makes `ediff'/`ediff-files' (and every caller, including
 
 (advice-add 'ediff-files :around #'my/ediff-files-pandoc-advice)
 
-(defun my/embark-bind-file-open-actions ()
-  "Expose open-policy commands on `embark-file-map'.
-
-Bindings (also listed by `embark-completing-read-prompter'):
-  x  `my/open-system'        — OS default app, a PDF too (C-c C-o: the browser)
-  t  `my/open-as-text'       — pandoc text buffer
-  E  `my/open-file-in-emacs' — force in-Emacs (C-u RET equivalent)
-
-Default RET/f remain `find-file', which already honors
-`my/open-with-system-extensions' via `my/find-file-open-advice'."
-  (when (boundp 'embark-file-map)
-    (define-key embark-file-map (kbd "x") #'my/open-system)
-    (define-key embark-file-map (kbd "t") #'my/open-as-text)
-    (define-key embark-file-map (kbd "E") #'my/open-file-in-emacs)))
-
-(with-eval-after-load 'embark
-  (my/embark-bind-file-open-actions))
-
 (use-package dired
   :straight nil
   :defer t

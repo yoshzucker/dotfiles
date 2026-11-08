@@ -58,7 +58,6 @@
          "@" #'org-agenda-columns
          "[" #'org-agenda-filter
          "]" #'org-agenda-filter-by-tag
-         my/backslash #'evil-avy-goto-char-timer
          "C-f" #'evil-scroll-page-down
          "C-b" #'evil-scroll-page-up
          "C-w" #'evil-window-map)
@@ -575,11 +574,6 @@ org's existing key table stays the single source of truth."
   (dolist (key '("z" "g" "/" "n" "N" ":"))
     (define-key org-dayflow-mode-map (kbd key)
                 (lookup-key evil-motion-state-map (kbd key))))
-
-  (my/define-key
-   (:map org-dayflow-mode-map
-         :key
-         my/backslash #'evil-avy-goto-char-timer))
 
   (evil-set-initial-state 'org-dayflow-mode 'emacs)
   (add-hook 'org-dayflow-mode-hook

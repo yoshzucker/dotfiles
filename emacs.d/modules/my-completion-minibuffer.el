@@ -287,22 +287,5 @@ the alternative is to leave the prompt, remember the path, and type it.")
   :config
   (marginalia-mode))
 
-(use-package embark-consult
-  ;; Loads with embark, the only thing that has any use for it.
-  :after embark)
-
-(use-package embark
-  ;; Reached by one key, which is enough to load it.  Eagerly it cost about
-  ;; half a second of every startup and almost none of that was embark:
-  ;; embark.el requires ffap to recognise file and URL targets, ffap requires
-  ;; url-parse, and url-parse is most of the url library.  ffap alone measures
-  ;; 97ms on macOS against 8ms for dired, three times its size.
-  :defer t
-  :init
-  (my/define-key (:map minibuffer-local-map :key "C-." #'embark-act))
-  :config
-  (setq embark-prompter #'embark-completing-read-prompter
-        embark-indicators '(embark-minimal-indicator)))
-
 (provide 'my-completion-minibuffer)
 ;;; my-completion-minibuffer.el ends here

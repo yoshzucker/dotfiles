@@ -2,14 +2,9 @@
 
 ;;; Commentary:
 ;; This file configures support for small or auxiliary file formats
-;; such as Dockerfile, YAML, etc., that do not warrant a dedicated file.
+;; such as Markdown, that do not warrant a dedicated file.
 
 ;;; Code:
-
-(use-package yaml-mode
-  :mode "\\.ya?ml\\'"
-  :config
-  (setq yaml-indent-offset 2))
 
 (defun my/markdown-table-align-all ()
   "Align every GFM table in the current buffer."
@@ -32,9 +27,7 @@
 
 (use-package markdown-mode
   :mode (("\\.md\\'" . markdown-mode)
-         ("README\\.md\\'" . gfm-mode))
-  :init
-  (setq markdown-command "multimarkdown"))
+         ("README\\.md\\'" . gfm-mode)))
 
 (my/define-key
  (:map markdown-mode-map

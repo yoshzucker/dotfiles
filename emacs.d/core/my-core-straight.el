@@ -97,18 +97,7 @@ Whatever is still running is killed on the way out, so `C-g' leaves no
 git processes behind to finish into a command that has gone."
   (unless (executable-find "git")
     (user-error "No git on PATH"))
-  (let* (;; Fewer collections while it runs.  Collecting does not stop the
-         ;; fetching -- git is a separate process and goes on writing while
-         ;; Emacs is busy -- it stops Emacs noticing that a fetch finished
-         ;; and starting the next.  Measured at one collection of ten
-         ;; milliseconds across the whole of a hundred and ninety
-         ;; repositories, so it buys little, and costs nothing.
-         ;;
-         ;; Only until something lowers it again: `gcmh-mode\=' drops the
-         ;; threshold from its own idle timer, and a wait this long looks
-         ;; idle.  What that costs is collections, and they are silent.
-         (gc-cons-threshold (max gc-cons-threshold (* 256 1024 1024)))
-         ;; The repositories a recipe points at.  Walking the directory
+  (let* (;; The repositories a recipe points at.  Walking the directory
          ;; instead fetched
          ;; every clone that has ever been made here -- fifty-seven of a
          ;; hundred and ninety-one were for packages nothing declares any

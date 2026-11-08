@@ -28,7 +28,7 @@
   (my/define-key
    (:map global-map
          :key
-         (my/c-: "M-:") #'execute-extended-command
+         ("C-:" "M-:") #'execute-extended-command
          "C-w" #'evil-window-map)
    (:map evil-normal-state-map
          :key
@@ -246,37 +246,6 @@
   :defer t
   :config
   (setq evil-visualstar/persistent t))
-
-(use-package evil-iedit-state
-  ;; Entered through the package's own command, not through `iedit-mode'.
-  ;; What this package is for is the state around iedit -- `<E>', where the
-  ;; occurrences can be moved over and changed with normal-state keys -- and
-  ;; that state is put on by `evil-iedit-state/iedit-mode' and by nothing
-  ;; else: the package hangs no hook on iedit.  Calling iedit directly gets
-  ;; the editing without the state, which is the package not running.
-  ;;
-  ;; It autoloads nothing of its own, so the commands are named here.
-  :after evil
-  :defer t
-  :commands (evil-iedit-state/iedit-mode)
-  :init
-  (my/define-key
-   (:map evil-normal-state-map :key "g C-n" #'evil-iedit-state/iedit-mode)
-   (:map evil-visual-state-map :key "C-n" #'evil-iedit-state/iedit-mode)))
-
-(use-package avy
-  ;; One key, and `evil-avy-goto-char-timer' is evil-integration's rather than
-  ;; avy's -- so the binding stands without avy, and pressing it reaches
-  ;; `avy-goto-char-timer', which avy autoloads.
-  :after evil
-  :defer t
-  :init
-  (my/define-key
-   (:map evil-motion-state-map evil-normal-state-map evil-operator-state-map
-         :key
-         my/backslash #'evil-avy-goto-char-timer))
-  :config
-  (setq avy-timeout-seconds 0.25))
 
 (use-package hungry-delete
   :diminish hungry-delete-mode

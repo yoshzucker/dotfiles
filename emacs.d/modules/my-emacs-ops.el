@@ -9,7 +9,7 @@
 
 (setq delete-by-moving-to-trash t
       ring-bell-function 'ignore
-      ;; Collections are not announced, here or by `gcmh-verbose' below: a
+      ;; Collections are not announced: a
       ;; line in the echo area overwrites whatever was there, which is the
       ;; message that was worth reading.
       garbage-collection-messages nil)
@@ -71,65 +71,30 @@
         which-key-idle-secondary-delay 0.05)
   (which-key-mode 1))
 
-(use-package gcmh
-  :diminish gcmh-mode
-  :config
-  ;; What gcmh is worth, measured on this machine's own agenda: ten builds,
-  ;; five seconds, and the collections that happen inside them.
-  ;;
-  ;;   threshold   time   GCs   in GC
-  ;;      781k     5.2s    12    0.37s   7%
-  ;;       32M     5.1s     7    0.35s   7%
-  ;;      128M     5.2s     6    0.36s   7%
-  ;;      256M     5.1s     3    0.25s   5%
-  ;;      512M     5.0s     1    0.14s   3%
-  ;;        1G     4.8s     0    0.00s   0%
-  ;;
-  ;; The count falls all the way down and the time does not, because a
-  ;; collection costs what the *live* heap costs to walk -- fewer of them,
-  ;; each dearer.  What removes the cost is the threshold being higher than
-  ;; the command conses, so that none happens at all and the bill is settled
-  ;; later.  That is the whole of gcmh, and it is worth having.
-  (setq gcmh-verbose nil
-        ;; The default, written down: `auto' recomputes it as twenty times
-        ;; the last collection, which for a fast one is a third of a second.
-        gcmh-idle-delay 15
-        ;; Raised from Emacs's ancient 800k.  It buys no time -- see the
-        ;; table -- but it is the threshold in force whenever the high one
-        ;; has been let go of, and half as many collections there is half as
-        ;; much interruption.
-        gcmh-low-cons-threshold (* 32 1024 1024))
-
-  ;; And the reason it was being let go of mid-command.  `gcmh-idle-garbage-collect'
-  ;; is armed with `run-with-timer' from `post-command-hook', and a timer
-  ;; fires whenever Emacs waits -- for a process, for `sit-for' -- not only
-  ;; when the user has gone away.  So a command long enough to wait got
-  ;; collected underneath it and, worse, left on the *low* threshold for the
-  ;; rest of its run, because `post-command-hook' cannot fire until it
-  ;; returns.  The command then pays for every 32 megabytes it conses, which
-  ;; is exactly the case gcmh exists to prevent.
-  ;;
-  ;; So the collection waits for the command to finish.  Nothing is skipped:
-  ;; the timer is simply armed again, and the work is done between commands,
-  ;; which is where gcmh always meant to do it.
-  (defvar my/gcmh--command-running nil
-    "Non-nil between `pre-command-hook' and `post-command-hook'.")
-
-  (defun my/gcmh--command-began () (setq my/gcmh--command-running t))
-  (defun my/gcmh--command-ended () (setq my/gcmh--command-running nil))
-
-  (define-advice gcmh-idle-garbage-collect
-      (:around (orig) my/between-commands-only)
-    "Collect between commands, never in the middle of one."
-    (if my/gcmh--command-running
-        (gcmh-register-idle-gc)
-      (funcall orig)))
-
-  (my/add-hook
-   (:hook pre-command-hook  :func #'my/gcmh--command-began)
-   (:hook post-command-hook :func #'my/gcmh--command-ended))
-
-  (gcmh-mode 1))
+;; Collections wait for a pause.  The threshold early-init.el raises stays
+;; raised, so a command conses without being collected underneath it, and
+;; the collecting is done once Emacs has sat idle for fifteen seconds.
+;; What that is worth, measured on this machine's own agenda: ten builds,
+;; five seconds, and the collections that happen inside them.
+;;
+;;   threshold   time   GCs   in GC
+;;      781k     5.2s    12    0.37s   7%
+;;       32M     5.1s     7    0.35s   7%
+;;      128M     5.2s     6    0.36s   7%
+;;      256M     5.1s     3    0.25s   5%
+;;      512M     5.0s     1    0.14s   3%
+;;        1G     4.8s     0    0.00s   0%
+;;
+;; The count falls all the way down and the time does not, because a
+;; collection costs what the *live* heap costs to walk -- fewer of them,
+;; each dearer.  What removes the cost is the threshold being higher than
+;; the command conses, so that none happens at all and the bill is settled
+;; at the next pause.
+;;
+;; An idle timer also fires inside a command that waits -- on `sit-for', on
+;; a process -- and collects there.  That is one collection and no more:
+;; nothing lowers the threshold, so the rest of the command runs as it began.
+(run-with-idle-timer 15 t #'garbage-collect)
 
 (setq eval-expression-print-length nil
       eval-expression-print-level nil)
