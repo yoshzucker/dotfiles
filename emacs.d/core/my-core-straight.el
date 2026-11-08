@@ -74,8 +74,9 @@ repository in the refused list, with a name, which is something to go
 and fix.  BatchMode does not stop an agent from answering: a key already
 unlocked is still offered.")
 
-(defun my/straight-fetch-at-once ()
+(defun my/straight-fetch-at-once (&optional repos)
   "Run `git fetch' in every straight repository, several at a time.
+With REPOS, a list of repository names, in those alone.
 
 Return a plist.  `:refused' names the repositories git would not fetch,
 newest first; `:abandoned' the ones killed for taking longer than
@@ -104,7 +105,8 @@ git processes behind to finish into a command that has gone."
          (wanted (my/straight--recipes-by-repo))
          (queue (seq-filter
                  (lambda (dir)
-                   (and (gethash (file-name-nondirectory dir) wanted)
+                   (and (let ((name (file-name-nondirectory dir)))
+                          (if repos (member name repos) (gethash name wanted)))
                         (file-directory-p dir)
                         ;; A worktree keeps a file there rather than a
                         ;; directory, and a repository of mine is a symlink
@@ -807,28 +809,48 @@ put back any line of the lockfile that should not move, then
 (defun my/straight-apply-lockfile ()
   "Put every repository at the commit the lockfile names.
 
-Fetched all at once first, so that
-`straight-thaw-versions' finds the commits already there instead of
-fetching for them one repository at a time.  The repositories that moved
-are registered as modified, which is how straight on Windows learns that a
-package has to be built again: the walk that would notice at startup is
-turned off there.  They are rebuilt when Emacs next starts.
+Only the repositories that are not there already are handed to
+`straight-thaw-versions'.  Where HEAD is is read from the files git
+keeps, with no process; straight, given a repository, runs git over and
+over -- its remotes, its worktree, its branches -- before it checks
+anything out, and on Windows, where every process is expensive, doing
+that for a hundred repositories that are already in place was most of
+the wait.
+
+Of those, the ones that lack their commit are fetched first, all at once,
+so that straight finds the commits there instead of fetching for them one
+repository at a time.  The rest are not asked: a commit, once here, is
+what the lockfile names whatever the server now has.  The repositories
+that moved are registered as modified, which is how straight on Windows
+learns that a package has to be built again: the walk that would notice
+at startup is turned off there.  They are rebuilt when Emacs next starts.
 
 A working tree linked in from ~/Developer is left alone.  Checking out a
 commit there is `git reset --hard' on the branch being written, and the
 commits made after the lockfile was written would drop off it."
   (interactive)
-  (my/straight-fetch-at-once)
   (let* ((head (lambda (repo) (my/straight--head-commit (straight--repos-dir repo))))
-         (versions (seq-remove (lambda (cell)
-                                 (file-symlink-p
-                                  (directory-file-name (straight--repos-dir (car cell)))))
-                               (straight--lockfile-read-all)))
+         (versions (seq-filter
+                    (lambda (cell)
+                      (let ((dir (straight--repos-dir (car cell))))
+                        (and (file-directory-p dir)
+                             (not (file-symlink-p (directory-file-name dir)))
+                             (not (equal (funcall head (car cell)) (cdr cell))))))
+                    (straight--lockfile-read-all)))
+         (missing (seq-keep
+                   (lambda (cell)
+                     (unless (my/straight--git-output
+                              (straight--repos-dir (car cell))
+                              "cat-file" "-e" (concat (cdr cell) "^{commit}"))
+                       (car cell)))
+                   versions))
          (before (mapcar (lambda (cell) (cons (car cell) (funcall head (car cell))))
                          versions))
          (moved nil))
-    (cl-letf (((symbol-function 'straight--lockfile-read-all) (lambda () versions)))
-      (straight-thaw-versions))
+    (when versions
+      (when missing (my/straight-fetch-at-once missing))
+      (cl-letf (((symbol-function 'straight--lockfile-read-all) (lambda () versions)))
+        (straight-thaw-versions)))
     (dolist (cell before)
       (unless (equal (cdr cell) (funcall head (car cell)))
         (straight-register-repo-modification (car cell))

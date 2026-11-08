@@ -357,6 +357,52 @@ that output having been read before the answer is worked out."
         (should-not (plist-get result :moved))
         (should-not (plist-get result :refused))))))
 
+(ert-deftest straight-fetch-test-fetches-only-the-repos-named ()
+  "Given repository names, the fetch leaves every other repository alone."
+  (straight-fetch-test--with clone
+    (let* ((bin (expand-file-name "bin" straight-fetch-test--root))
+           (fake (expand-file-name "git" bin))
+           (seen (expand-file-name "seen" straight-fetch-test--root))
+           (straight--recipe-cache (make-hash-table :test #'equal))
+           (exec-path (cons bin exec-path)))
+      (puthash "pkg" (straight-fetch-test--recipe clone) straight--recipe-cache)
+      (make-directory bin t)
+      (with-temp-file fake (insert "#!/bin/sh\ntouch " seen "\n"))
+      (set-file-modes fake #o755)
+      (my/straight-fetch-at-once '("other"))
+      (should-not (file-exists-p seen))
+      (my/straight-fetch-at-once '("pkg"))
+      (should (file-exists-p seen)))))
+
+(ert-deftest straight-fetch-test-apply-touches-only-what-is-elsewhere ()
+  "Applying the lockfile leaves a repository at its commit alone, checks
+out without fetching one whose commit is here, and fetches only for a
+commit not yet here."
+  (straight-fetch-test--with clone
+    (let* ((at (straight-fetch-test--git clone "rev-parse" "HEAD"))
+           (here (straight-fetch-test--git clone "rev-parse" "origin/main"))
+           (asked :none)
+           (thawed :none)
+           (locked nil))
+      (cl-letf (((symbol-function 'my/straight-fetch-at-once)
+                 (lambda (&optional repos) (setq asked repos)))
+                ((symbol-function 'straight--lockfile-read-all) (lambda () locked))
+                ((symbol-function 'straight-thaw-versions)
+                 (lambda () (setq thawed (straight--lockfile-read-all))))
+                ((symbol-function 'straight-register-repo-modification) #'ignore)
+                ((symbol-function 'message) #'ignore))
+        (setq locked `(("pkg" . ,at)))
+        (my/straight-apply-lockfile)
+        (should (eq asked :none))
+        (should (eq thawed :none))
+        (setq locked `(("pkg" . ,here)))
+        (my/straight-apply-lockfile)
+        (should (eq asked :none))
+        (should (equal thawed locked))
+        (setq locked '(("pkg" . "0123456789abcdef0123456789abcdef01234567")))
+        (my/straight-apply-lockfile)
+        (should (equal asked '("pkg")))))))
+
 (ert-deftest straight-fetch-test-tells-git-not-to-ask ()
   "The environment the fetches run in leaves git nobody to ask."
   (should (member "GIT_TERMINAL_PROMPT=0" my/straight-fetch-environment))
