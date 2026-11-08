@@ -127,13 +127,17 @@
     ;;
     ;; MSYSTEM, because git-bash.exe sets it before starting mintty and a
     ;; bash.exe started bare does not: /etc/profile then takes the plain MSYS
-    ;; environment, with no /mingw64/bin on PATH and `MSYS' in the prompt.
+    ;; environment, with Git's own bin directory off PATH and `MSYS' in the
+    ;; prompt.  Named after the directory this Git ships, as git-bash.exe
+    ;; names it: ucrt64 in current releases, mingw64 in older ones.
     (setq ghostel-shell
           (list (expand-file-name "~/scoop/apps/git/current/usr/bin/bash.exe")
                 "-l")
           ghostel-environment
           (list "LANG=ja_JP.UTF-8"
-                "MSYSTEM=MINGW64"
+                (if (file-directory-p "~/scoop/apps/git/current/ucrt64")
+                    "MSYSTEM=UCRT64"
+                  "MSYSTEM=MINGW64")
                 (concat "TERMINFO="
                         (replace-regexp-in-string
                          "\\`\\([A-Za-z]\\):" "/\\1"
