@@ -124,11 +124,16 @@
     ;; LANG, because Windows hands Emacs `JPN', which is not a POSIX locale
     ;; name: Git Bash fails to set it, falls back to C, and stops reading the
     ;; stream as UTF-8.  mintty runs this same shell as ja_JP.UTF-8.
+    ;;
+    ;; MSYSTEM, because git-bash.exe sets it before starting mintty and a
+    ;; bash.exe started bare does not: /etc/profile then takes the plain MSYS
+    ;; environment, with no /mingw64/bin on PATH and `MSYS' in the prompt.
     (setq ghostel-shell
           (list (expand-file-name "~/scoop/apps/git/current/usr/bin/bash.exe")
                 "-l")
           ghostel-environment
           (list "LANG=ja_JP.UTF-8"
+                "MSYSTEM=MINGW64"
                 (concat "TERMINFO="
                         (replace-regexp-in-string
                          "\\`\\([A-Za-z]\\):" "/\\1"
