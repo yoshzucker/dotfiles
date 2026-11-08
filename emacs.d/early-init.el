@@ -46,8 +46,8 @@
 ;; the installer's copy is the one keeping itself up to date.
 ;;
 ;; Windows only because it is the only one that can diverge.  On the Mac
-;; `exec-path-from-shell' starts a login shell and takes its PATH whole
-;; (core/my-core-env.el), so Emacs is looking at the list the shell built.
+;; Emacs starts a login shell and takes its PATH whole (core/my-core-env.el),
+;; so Emacs is looking at the list the shell built.
 (when (eq system-type 'windows-nt)
   (let ((local (expand-file-name "~/.local/bin")))
     (when (file-directory-p local)

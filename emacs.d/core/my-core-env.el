@@ -29,20 +29,27 @@
 (when (file-exists-p custom-file)
   (load custom-file 'noerror))
 
-;; Load shell environment variables (for GUI Emacs)
-;;
-;; A login shell, not an interactive one.  The package's default asks for both,
-;; which runs the whole of ~/.zshrc to read a PATH that ~/.zshenv has already
-;; finished setting -- the same twenty-four entries either way, checked against
-;; each other.  What the interactive half adds is the prompt and the
-;; completion system, which nothing here reads.  Measured at 74 ms against
-;; 29 ms.
-(use-package exec-path-from-shell
-  :if (or (memq window-system '(mac ns x)) (daemonp))
-  :init
-  (setq exec-path-from-shell-arguments '("-l"))
-  :config
-  (exec-path-from-shell-initialize))
+;; The shell's PATH, for an Emacs started from the Dock rather than from a
+;; shell: the one list, built by ~/.zshenv and its modules, rather than a
+;; second copy of it written here.  A login shell and not an interactive
+;; one -- ~/.zshenv has finished PATH before ~/.zshrc would start, and the
+;; prompt and completion it would add are read by nothing here.  A few
+;; milliseconds, since ~/.zshenv reads none of the system's startup files.
+;; Not on Windows, where Emacs does not start a shell to learn a PATH.
+(defun my/path-from-login-shell ()
+  "Return PATH as a login shell sets it, or nil when the shell fails."
+  (with-temp-buffer
+    (and (eql 0 (ignore-errors
+                  (call-process shell-file-name nil '(t nil) nil
+                                "-l" "-c" "printf %s \"$PATH\"")))
+         (> (buffer-size) 0)
+         (buffer-string))))
+
+(unless (eq system-type 'windows-nt)
+  (when-let* (((or (display-graphic-p) (daemonp)))
+              (path (my/path-from-login-shell)))
+    (setenv "PATH" path)
+    (setq exec-path (append (parse-colon-path path) (list exec-directory)))))
 
 ;; Git for Windows' own tools on Windows: `diff' for ediff, which is how
 ;; claude-code-ide shows a change, and the find and grep that xref and

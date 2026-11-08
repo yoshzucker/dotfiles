@@ -20,7 +20,6 @@
  ("evil-lion" . "5a0bca151466960e090d1803c4c5ded88875f90a")
  ("evil-surround" . "e6548372e8359ee55e67d73ca418314086011f1a")
  ("evil-visualstar" . "2b804e317700896116e88ae751df4a36ac8c3934")
- ("exec-path-from-shell" . "4896a797252fbfdac32fb77508500ac7d220f717")
  ("gensho-theme" . "e0eac6864cb13b3d883590f3cedd518d24bbc82d")
  ("ghostel" . "a269cce7d1f583a64712a7d7ee2218e728b3e505")
  ("gnu-elpa-mirror" . "01092794cb0eaaf18ed44a50c6b84954feec581f")
