@@ -263,12 +263,16 @@
 
 ;; Backspace takes the whole run of whitespace behind point, newlines
 ;; included, and one character otherwise -- Emacs's own command under its
-;; `all' method.  Insert state leaves DEL to the global map, so the remap
-;; there reaches it.  cc-mode has a backspace of its own, which does the
-;; same once its hungry state is on.
+;; `all' method.  Insert state remaps DEL's command to its own, which calls
+;; `delete-backward-char' and so is never hungry; the remap goes in insert
+;; state's map, ahead of that one and of Org's, which remaps the same
+;; command.  A mode that binds DEL to `backward-delete-char-untabify'
+;; outright, as the Lisp modes do, needs nothing.  cc-mode has a backspace
+;; of its own, which does the same once its hungry state is on.
 (setq backward-delete-char-untabify-method 'all)
 (my/define-key
- (:map global-map
+ (:map evil-insert-state-map
+       :after evil
        :key "<remap> <delete-backward-char>" #'backward-delete-char-untabify))
 
 ;; Folding is evil's own: the `z' keys drive whichever of outline,
