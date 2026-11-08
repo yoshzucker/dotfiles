@@ -117,12 +117,9 @@ On the monitor, whatever the arithmetic comes to -- see
           (cdr prev-pos))))
 
 (defun my/frame-apply-size-and-position (size pos)
-  "Apply SIZE and POS to the current frame, depending on display type."
-  (if (display-graphic-p)
-      (progn
-        (set-frame-size (selected-frame) (car size) (cdr size))
-        (set-frame-position (selected-frame) (car pos) (cdr pos)))
-    (send-string-to-terminal (format "\033[8;%d;%dt" (cdr size) (car size)))))
+  "Apply SIZE and POS to the current frame."
+  (set-frame-size (selected-frame) (car size) (cdr size))
+  (set-frame-position (selected-frame) (car pos) (cdr pos)))
 
 ;; A window docked to the left or right takes its width out of the text, and
 ;; on a frame that is one column of text wide there is not enough to take.

@@ -74,8 +74,6 @@ every session, to mark the changes of a buffer that has no file."
   (my/add-hook
    (:hook magit-post-refresh-hook :func #'diff-hl-magit-post-refresh))
 
-  (unless (display-graphic-p)
-    (diff-hl-margin-mode 1))
   (diff-hl-flydiff-mode 1)
 
   (my/define-key

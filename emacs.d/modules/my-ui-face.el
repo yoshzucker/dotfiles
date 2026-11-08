@@ -25,11 +25,6 @@
   :options '(light dark)
   :group 'my/ui)
 
-(let ((term (not (display-graphic-p))))
-  (when term
-    (my/map-env my/theme-name "theme_name")
-    (my/map-env my/frame-background "theme_variant")))
-
 (defcustom my/font-default
   `(:family "PlemolJP NF"
             :weight normal

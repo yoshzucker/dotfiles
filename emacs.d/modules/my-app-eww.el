@@ -11,12 +11,6 @@
 (use-package eww
   :defer t
   :config
-  ;; Proportional fonts in a terminal make shr's column arithmetic wrong: the
-  ;; width it measures is not the width the terminal draws, and tables come
-  ;; out ragged.
-  (unless (display-graphic-p)
-    (setq shr-use-fonts nil))
-
   ;; A name per page.  eww reuses the buffer called `*eww*'; renamed, it finds
   ;; none and makes a new one -- which is what lets two HyperSpec entries be
   ;; open beside each other.

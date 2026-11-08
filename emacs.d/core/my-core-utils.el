@@ -9,18 +9,6 @@
 ;; here is shortened.  Nothing calls into it directly.
 (use-package diminish)
 
-;;;###autoload
-(defmacro my/map-env (emacs-var env-var &optional mapping)
-  "Set EMACS-VAR from ENV-VAR, optionally using MAPPING.
-If MAPPING is provided, it should be an alist mapping string values
-to symbols or other values. If not, the value is interned."
-  `(setq ,emacs-var
-         (let ((val (getenv ,env-var)))
-           (cond
-            ((and val ,mapping) (cdr (assoc val ,mapping)))
-            (val (intern val))
-            (t ,emacs-var)))))
-
 (defun my/plist-key-values (plist key)
   "Return all values for KEY from PLIST until the next keyword or end."
   (let ((result nil)

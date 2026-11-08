@@ -1,7 +1,7 @@
 ;;; my-ui-mouse.el --- Mouse support and context menu -*- lexical-binding: t; -*-
 
 ;;; Commentary:
-;; Mouse wheel / xterm mouse / pixel-scroll setup, plus the global
+;; Mouse wheel / pixel-scroll setup, plus the global
 ;; right-click context menu and its helpers.
 
 ;;; Code:
@@ -9,8 +9,6 @@
 ;; Mouse support
 (when (fboundp 'mouse-wheel-mode)
   (mouse-wheel-mode 1))
-(when (and (not (display-graphic-p)) (fboundp 'xterm-mouse-mode))
-  (xterm-mouse-mode 1))
 
 (pixel-scroll-precision-mode 1)
 (setq pixel-scroll-precision-use-momentum t
