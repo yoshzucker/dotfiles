@@ -981,5 +981,64 @@ into is untouched."
                       "The listing below is how things stood before that.\n\n")))
           (message "%s" (string-trim outcome))))))))
 
+;; A follower of the lockfile -- any machine without init.el's
+;; `my/straight-pull-marker' -- is moved by `my/straight-thaw-all' and by
+;; nothing else.  Every command that would take a repository off the
+;; lockfile -- or rewrite the lockfile from a machine that only reads it --
+;; refuses there, so a pull typed out of habit on a follower does nothing
+;; instead of bringing in what was never tried.
+(defconst my/straight-moving-commands
+  '(straight-pull-package straight-pull-package-and-deps straight-pull-all
+    straight-pull-recipe-repositories
+    straight-merge-package straight-merge-package-and-deps straight-merge-all
+    straight-normalize-package straight-normalize-all
+    straight-push-package straight-push-all
+    straight-freeze-versions
+    my/straight-pull-all)
+  "Commands that move a repository off the lockfile, or rewrite it.")
+
+(defvar my/straight-follow-lockfile)
+(defvar my/straight-pull-marker)
+
+(defun my/straight-refuse-on-follower (orig &rest args)
+  "Call ORIG with ARGS, unless this machine follows the lockfile."
+  (if my/straight-follow-lockfile
+      (user-error "Packages follow the lockfile here; `my/straight-thaw-all' moves them (%s would allow pulling)"
+                  (abbreviate-file-name my/straight-pull-marker))
+    (apply orig args)))
+
+(defun my/straight-guard-moving-commands ()
+  "Put `my/straight-refuse-on-follower' around every moving command."
+  (dolist (command my/straight-moving-commands)
+    (advice-add command :around #'my/straight-refuse-on-follower)))
+
+(my/straight-guard-moving-commands)
+
+(defun my/straight-thaw-all ()
+  "Put every repository at the commit the lockfile names.
+
+Fetched all at once first, as `my/straight-pull-all' does, so that
+`straight-thaw-versions' finds the commits already there instead of
+fetching for them one repository at a time.  The repositories that moved
+are registered as modified, which is how straight on Windows learns that a
+package has to be built again: the walk that would notice at startup is
+turned off there.  They are rebuilt when Emacs next starts."
+  (interactive)
+  (my/straight-fetch-at-once)
+  (let* ((head (lambda (repo) (my/straight--head-commit (straight--repos-dir repo))))
+         (before (mapcar (lambda (cell) (cons (car cell) (funcall head (car cell))))
+                         (straight--lockfile-read-all)))
+         (moved nil))
+    (straight-thaw-versions)
+    (dolist (cell before)
+      (unless (equal (cdr cell) (funcall head (car cell)))
+        (straight-register-repo-modification (car cell))
+        (push (car cell) moved)))
+    (message "straight: %s"
+             (if moved
+                 (format "%d moved to the lockfile (%s); restart Emacs to rebuild them"
+                         (length moved) (string-join (nreverse moved) ", "))
+               "everything is at the lockfile"))))
+
 (provide 'my-core-straight)
 ;;; my-core-straight.el ends here

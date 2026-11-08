@@ -62,18 +62,69 @@
                     straight-initial-recipe-repositories)))
 
 ;; Bootstrap straight.el
+;;
+;; straight itself is cloned with git and checked out at the commit the
+;; lockfile names -- straight/versions/default.el, which dotfiles keeps.
+;; The installer straight's README offers is not used: it downloads a
+;; second file from a branch that moves and evaluates it, so what ran on a
+;; new machine would be whatever that branch held on the day.
 (defvar bootstrap-version)
 (let ((bootstrap-file (expand-file-name "straight/repos/straight.el/bootstrap.el"
                                         user-emacs-directory))
       (bootstrap-version 6))
   (unless (file-exists-p bootstrap-file)
-    (with-current-buffer
-        (url-retrieve-synchronously
-         "https://raw.githubusercontent.com/radian-software/straight.el/develop/install.el"
-         'silent 'inhibit-cookies)
-      (goto-char (point-max))
-      (eval-print-last-sexp)))
+    (let* ((dir (file-name-directory bootstrap-file))
+           (lockfile (expand-file-name "straight/versions/default.el"
+                                       user-emacs-directory))
+           (commit (and (file-exists-p lockfile)
+                        (cdr (assoc "straight.el"
+                                    (with-temp-buffer
+                                      (insert-file-contents lockfile)
+                                      (read (current-buffer))))))))
+      (unless commit
+        (error "No commit for straight.el in %s" lockfile))
+      (unless (and (zerop (call-process
+                           "git" nil nil nil "clone" "--quiet"
+                           "https://github.com/radian-software/straight.el.git"
+                           dir))
+                   ;; Reset rather than checked out: straight keeps a
+                   ;; repository on its branch and moves the branch, and
+                   ;; asks what to do with a detached HEAD.
+                   (zerop (call-process "git" nil nil nil "-C" dir
+                                        "reset" "--quiet" "--hard" commit)))
+        (error "Could not clone straight.el at %s" commit))))
   (load bootstrap-file nil 'nomessage))
+
+;; Where package versions come from.  One machine pulls packages forward
+;; and freezes the lockfile; every other machine only follows it, so what
+;; runs there is what was tried first.  Following is the default: a
+;; machine may pull only where an empty file beside this one,
+;; `my/straight-pull-marker', exists -- which machine that is stays on the
+;; machine, out of the repository.  A new machine, or one rebuilt, follows
+;; until it is told otherwise.  On a follower nothing straight does may
+;; leave the lockfile: the commands that pull, merge, normalize, push or
+;; freeze refuse (my-core-straight.el), and a package the lockfile does not
+;; name is not cloned at all, rather than cloned at whatever its branch
+;; holds that day.  `my/straight-thaw-all' is how a follower moves.  Here
+;; and not in core, because the first clone is use-package's, a few lines
+;; down.
+(defconst my/straight-pull-marker
+  (expand-file-name "allow-straight-pull" user-emacs-directory)
+  "File whose presence lets this machine pull packages past the lockfile.")
+
+(defvar my/straight-follow-lockfile
+  (not (file-exists-p my/straight-pull-marker))
+  "Non-nil where packages stay at the commits the lockfile names.")
+
+(defun my/straight-clone-only-what-is-locked (recipe)
+  "On a follower, refuse to clone RECIPE unless the lockfile names its repository."
+  (when my/straight-follow-lockfile
+    (let ((repo (plist-get recipe :local-repo)))
+      (unless (assoc repo (straight--lockfile-read-all))
+        (user-error "%s is not in the lockfile; freeze it where %s exists"
+                    repo (file-name-nondirectory my/straight-pull-marker))))))
+
+(advice-add 'straight-vc-clone :before #'my/straight-clone-only-what-is-locked)
 
 ;; How straight decides a package needs rebuilding.  Must come before the first
 ;; `straight-use-package' below, and needs nothing earlier than that.

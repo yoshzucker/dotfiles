@@ -39,6 +39,59 @@
         (expand-file-name "ghostel/" user-emacs-directory)
         ghostel-module-auto-install 'download)
 
+  ;; What is downloaded is a native module, loaded into Emacs, and a ConPTY
+  ;; and OpenConsole on Windows -- programs, taken from a release page over
+  ;; HTTPS with nothing checked but the transport.  The version is the one
+  ;; the package names, so the lockfile already fixes which release; this
+  ;; fixes what that release may contain.  Each file is taken only when its
+  ;; SHA-256 is the one recorded here, from the digests GitHub shows for the
+  ;; release's assets; anything else is deleted and the download counts as
+  ;; failed.  A ghostel that wants a newer release stops here until its
+  ;; digests are added:
+  ;;
+  ;;   gh release view vX.Y.Z -R dakra/ghostel --json assets \
+  ;;     --jq '.assets[] | "\(.name) \(.digest)"'
+  (defconst my/ghostel-asset-sha256
+    '(("0.57.0"
+       ("ghostel-module-aarch64-macos.dylib"
+        . "77eb1a4425e2f69668fd7632a985732ee1292059b9c1f8ecf393b84876e53877")
+       ("ghostel-module-x86_64-windows.dll"
+        . "d80b310a3f487dbf569e24f8f67d20c138b6a2103311202f418dc61a3f8015de")
+       ("ghostel-conpty-x86_64-windows.dll"
+        . "c46dcd04f52b97f6a8cf53e8f547c85a821660bed18de2b3344afcd4a8389ad6")
+       ("ghostel-openconsole-x86_64-windows-x64.exe"
+        . "47828c3fe080212f69dfdb39ab3673170fcc7445924c76fe003cefd18247dd5d")
+       ("ghostel-openconsole-x86_64-windows-arm64.exe"
+        . "29cb3a9471c5b13bfb3ac812043e496199ba776ced1c5e14d30cb1234433a437")))
+    "SHA-256 of each ghostel release asset this configuration will take.")
+
+  (defun my/ghostel-verify-download (orig url dest)
+    "Call ORIG to fetch URL into DEST, and keep DEST only if its hash is known."
+    ;; Read from the URL asked for, which names the release and the asset;
+    ;; the one returned is wherever GitHub redirected to.  A `latest' URL
+    ;; names no release, so nothing it fetches is kept.
+    (when-let* ((final (funcall orig url dest)))
+      (let* ((path (url-filename (url-generic-parse-url url)))
+             (version (and (string-match "/download/v\\([^/]+\\)/" path)
+                           (match-string 1 path)))
+             (expected (cdr (assoc (file-name-nondirectory path)
+                                   (cdr (assoc version my/ghostel-asset-sha256)))))
+             (actual (with-temp-buffer
+                       (set-buffer-multibyte nil)
+                       (insert-file-contents-literally dest)
+                       (secure-hash 'sha256 (current-buffer)))))
+        (if (and expected (string= expected actual))
+            final
+          (delete-file dest)
+          (display-warning
+           'ghostel
+           (format "Refused %s: SHA-256 %s is not the one recorded in my-app-terminal.el"
+                   (file-name-nondirectory path) actual)
+           :error)
+          nil))))
+
+  (advice-add 'ghostel--download-file :around #'my/ghostel-verify-download)
+
   :config
   (when (eq system-type 'windows-nt)
     ;; `ghostel-shell' follows $SHELL, and Emacs on Windows points that at

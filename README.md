@@ -96,6 +96,17 @@ Run `./bootstrap update` (or the explicit package commands) to apply.
 - **Windows**: Scoop (extras bucket included). Symlink support requires **Developer Mode** enabled (Settings → Update & Security → For developers) or running PowerShell as Administrator. First run after Scoop install usually requires terminal restart.
 - **Emacs**: The `emacs.d/` tree in the repo is linked under `~/.emacs.d` by bootstrap.
 
+## Package Versions
+
+Every straight.el repository is pinned to a commit in `emacs.d/straight/versions/default.el`, the lockfile, which bootstrap links into `~/.emacs.d/straight/versions/`. One machine pulls packages forward and freezes the lockfile; every other machine only follows it.
+
+Following is the default. A machine may pull only where an empty file, `~/.emacs.d/allow-straight-pull`, exists — created by hand and never tracked, so which machine pulls stays on that machine, and a new or rebuilt one follows until told otherwise.
+
+- **Where pulling is allowed**: `M-x my/straight-pull-all`, try the result, then `M-x straight-freeze-versions` and commit the lockfile. My own packages have to be pushed before the push of dotfiles, or the lockfile names commits GitHub does not have yet.
+- **Followers**: after `git pull`, `M-x my/straight-thaw-all` puts every repository at the lockfile's commit; restart Emacs to rebuild what moved. Every command that would move a repository off the lockfile — `my/straight-pull-all` and straight's own pull, merge, normalize, push and freeze — refuses there, and a package the lockfile does not name is not cloned at all. A follower's start that stops on "not in the lockfile" means a package was added on the pulling machine without freezing.
+
+straight itself is cloned by `init.el` at the lockfile's commit, not by straight's installer, which evaluates a file from a branch that moves. ghostel's native module and its Windows ConPTY files are kept only when their SHA-256 matches the one recorded in `emacs.d/modules/my-app-terminal.el`; when ghostel starts asking for a newer release, the download stops until that release's digests are added there.
+
 ## My Own Packages
 
 Eight packages are written here rather than merely used. Each has its own repository and its own README, which describe the package and say nothing about this machine.
