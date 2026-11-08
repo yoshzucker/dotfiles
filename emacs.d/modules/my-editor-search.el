@@ -20,13 +20,23 @@
   ;; In `:init' so that the first `/' is already a migemo search.  Left in
   ;; `:config' it would take a search to install the advice that a search is
   ;; supposed to go through.
+  ;;
+  ;; `/' and `?' are evil's own search, and every pattern typed there -- the
+  ;; highlighting while it is typed as well -- is made by
+  ;; `evil-ex-make-search-pattern'.  A plain word becomes migemo's regexp;
+  ;; anything with a regexp character in it is searched as typed.  That also
+  ;; leaves `*' alone, which hands over the word quoted inside `\_<' and
+  ;; `\_>'.  C-s is isearch, and `migemo-init' sets that one up.
+  (defun my/evil-migemo-search-pattern (args)
+    "Turn the plain word that starts ARGS into migemo's regexp for it."
+    (let ((pattern (car args)))
+      (if (string-match-p "[][\\\\^$.*+?{}|()]" pattern)
+          args
+        (cons (migemo-get-pattern pattern) (cdr args)))))
+
   (with-eval-after-load 'evil-search
-    (setq evil-regexp-search nil)
-    (defun my/evil-migemo-search-function (arg)
-      (car (cl-sublis '((search-forward . migemo-forward)
-                        (search-backward . migemo-backward))
-                      (list arg))))
-    (advice-add 'evil-search-function :filter-return #'my/evil-migemo-search-function))
+    (advice-add 'evil-ex-make-search-pattern :filter-args
+                #'my/evil-migemo-search-pattern))
   :config
   (setq migemo-command "cmigemo"
         migemo-options '("--quiet" "--emacs")

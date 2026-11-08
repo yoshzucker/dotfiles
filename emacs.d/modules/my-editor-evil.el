@@ -21,7 +21,11 @@
 (use-package evil
   :init
   (setq evil-want-integration t         ; for evil-collection
-        evil-want-keybinding nil)       ; for evil-collection
+        evil-want-keybinding nil        ; for evil-collection
+        ;; `/' as evil's own search rather than isearch, because `gn' --
+        ;; and with it `cgn' and `.' over each match -- works only there.
+        ;; Read when evil loads, so it is set before.
+        evil-search-module 'evil-search)
   :config
   (evil-mode 1)
 
