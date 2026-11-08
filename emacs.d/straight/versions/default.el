@@ -25,7 +25,6 @@
  ("gnu-elpa-mirror" . "01092794cb0eaaf18ed44a50c6b84954feec581f")
  ("goto-chg" . "72f556524b88e9d30dc7fc5b0dc32078c166fda7")
  ("hsluv-emacs" . "c3bc5228e30d66e7dee9ff1a0694c2b976862fc0")
- ("hungry-delete" . "d919e555e5c13a2edf4570f3ceec84f0ade71657")
  ("llama" . "6850d0c91b629da14fdff2300c222289d1a0029a")
  ("magit" . "58a469820bc3dc388f0193e3024147fb55a6c98f")
  ("marginalia" . "381af583d2530796b9955ff2fe0cba3ad3119943")

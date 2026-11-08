@@ -261,10 +261,15 @@
   :config
   (setq evil-visualstar/persistent t))
 
-(use-package hungry-delete
-  :diminish hungry-delete-mode
-  :config
-  (global-hungry-delete-mode 1))
+;; Backspace takes the whole run of whitespace behind point, newlines
+;; included, and one character otherwise -- Emacs's own command under its
+;; `all' method.  Insert state leaves DEL to the global map, so the remap
+;; there reaches it.  cc-mode has a backspace of its own, which does the
+;; same once its hungry state is on.
+(setq backward-delete-char-untabify-method 'all)
+(my/define-key
+ (:map global-map
+       :key "<remap> <delete-backward-char>" #'backward-delete-char-untabify))
 
 ;; Folding is evil's own: the `z' keys drive whichever of outline,
 ;; hideshow and the rest the buffer has on, so hideshow on in code is all it

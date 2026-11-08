@@ -19,7 +19,8 @@
   (add-hook 'c-mode-common-hook
 	        (lambda ()
 	          (c-set-offset 'innamespace 0)
-	          (c-set-offset 'arglist-intro '+))))
+	          (c-set-offset 'arglist-intro '+)
+	          (c-toggle-hungry-state 1))))
 
 (provide 'my-lang-c)
 ;;; my-lang-c.el ends here
