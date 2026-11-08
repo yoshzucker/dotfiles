@@ -40,12 +40,26 @@
   ;; names on its input, and Emacs talks to a shell there in cp932.  Git's
   ;; xargs and rg read and write UTF-8, so Japanese file names arrive
   ;; mangled and the matching lines come back unreadable.
+  ;;
+  ;; The same coding system encodes the shell line itself, which Windows
+  ;; then reads as cp932: a Japanese pattern reached rg as mojibake and
+  ;; matched nothing.  So the pattern goes as ASCII alone, each other
+  ;; character written as rg's `\x{...}', which reads the same in any
+  ;; coding system.
+  (defun my/xref-ascii-regexp (regexp)
+    "Write every non-ASCII character of REGEXP as ripgrep's \\x{HEX}."
+    (replace-regexp-in-string
+     "[^[:ascii:]]"
+     (lambda (char) (format "\\x{%X}" (string-to-char char)))
+     regexp t t))
+
   (when (eq system-type 'windows-nt)
     (define-advice xref-matches-in-files (:around (orig &rest args) my/utf-8)
       "Talk to the search in UTF-8."
       (let ((coding-system-for-read 'utf-8-dos)
             (coding-system-for-write 'utf-8-unix))
-        (apply orig args))))
+        (apply orig args)))
+    (advice-add 'xref--regexp-to-extended :filter-return #'my/xref-ascii-regexp))
 
   (defun my/xref-find-apropos (pattern)
     "Find symbols matching PATTERN using xref and apropos."
