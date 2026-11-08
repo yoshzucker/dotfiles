@@ -49,14 +49,26 @@
   ;; failed.  A ghostel that wants a newer release stops here until its
   ;; digests are added:
   ;;
-  ;;   gh release view vX.Y.Z -R dakra/ghostel --json assets \
-  ;;     --jq '.assets[] | "\(.name) \(.digest)"'
+  ;;   curl -s https://api.github.com/repos/dakra/ghostel/releases/tags/vX.Y.Z |
+  ;;     python3 -c 'import json,sys
+  ;;   for a in json.load(sys.stdin)["assets"]: print(a["name"], a["digest"])'
   (defconst my/ghostel-asset-sha256
     '(("0.57.0"
        ("ghostel-module-aarch64-macos.dylib"
         . "77eb1a4425e2f69668fd7632a985732ee1292059b9c1f8ecf393b84876e53877")
        ("ghostel-module-x86_64-windows.dll"
         . "d80b310a3f487dbf569e24f8f67d20c138b6a2103311202f418dc61a3f8015de")
+       ("ghostel-conpty-x86_64-windows.dll"
+        . "c46dcd04f52b97f6a8cf53e8f547c85a821660bed18de2b3344afcd4a8389ad6")
+       ("ghostel-openconsole-x86_64-windows-x64.exe"
+        . "47828c3fe080212f69dfdb39ab3673170fcc7445924c76fe003cefd18247dd5d")
+       ("ghostel-openconsole-x86_64-windows-arm64.exe"
+        . "29cb3a9471c5b13bfb3ac812043e496199ba776ced1c5e14d30cb1234433a437"))
+      ("0.60.0"
+       ("ghostel-module-aarch64-macos.dylib"
+        . "efe14b3d1ef9c9072886ae2ab5cf7ba96d05414b768315bf6e68eaea2fe33916")
+       ("ghostel-module-x86_64-windows.dll"
+        . "acf66453d3a73a52bbbb8624b44c04300742dcf0d01fd406a9fd8e4fa3072a3f")
        ("ghostel-conpty-x86_64-windows.dll"
         . "c46dcd04f52b97f6a8cf53e8f547c85a821660bed18de2b3344afcd4a8389ad6")
        ("ghostel-openconsole-x86_64-windows-x64.exe"
