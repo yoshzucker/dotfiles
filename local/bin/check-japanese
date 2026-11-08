@@ -1,22 +1,39 @@
 #!/usr/bin/env bash
+#
+# Warn when a package's tracked files hold Japanese text.  The packages are
+# written in English for whoever installs them; a Japanese comment or string
+# is usually a note to myself that was meant to be translated.
+#
+# Silent in the configuration repository, which is mine alone and holds
+# Japanese on purpose -- Org vocabulary, IME labels, a calendar's busy word.
+#
+# Usage:  check-japanese [DIR]        (default: .)
 
 # Ensure grep handles Unicode characters properly
 export LC_ALL=en_US.UTF-8
 
+cd "${1:-.}" || exit 0
+
 echo "Running Japanese character check..."
 
-# Default search directory
-TARGET_DIR=${1:-.}
+# The same test check-package-scope makes for the configuration repository.
+if [ -f bootstrap ] && [ -d emacs.d ] && [ -d pkg ]; then
+  echo "✅ Configuration repository; nothing to check."
+  exit 0
+fi
 
-# Search all text files (ignore binaries) for Japanese characters
-MATCHES=$(find "$TARGET_DIR" -type f \
-  -exec grep -I -n -H -E '[一-龯ぁ-んァ-ヶ]' {} +)
+# Tracked text files only (binaries ignored), the set a commit publishes.
+if git rev-parse --git-dir >/dev/null 2>&1; then
+  MATCHES=$(git ls-files -z | xargs -0 grep -I -n -H -E '[一-龯ぁ-んァ-ヶ]' 2>/dev/null)
+else
+  MATCHES=$(find . -type f -not -path './.git/*' -exec grep -I -n -H -E '[一-龯ぁ-んァ-ヶ]' {} +)
+fi
 
 if [ -n "$MATCHES" ]; then
   echo "⚠️ WARNING: Japanese text found in the following files:"
   echo "$MATCHES"
-  exit 0  # Exit with 0 to indicate a warning, not an error
 else
   echo "✅ No Japanese text found. All clear."
-  exit 0
 fi
+# A warning, not an error: the judgement is the author's.
+exit 0

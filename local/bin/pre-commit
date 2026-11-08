@@ -28,9 +28,9 @@ working tree under ~/Developer.  By hand, in a repository:
 🚨 What this script does:
 - Runs 'leakseek' on the tracked files, with ~/.config/.leakseek.allow
 - Runs 'gitleaks detect' from the repo root
-- Checks for Japanese characters in source files
+- Warns about Japanese characters in a package's tracked files
 - Warns when a package repo describes one particular machine
-  (check-package-scope; a no-op in the dotfiles repo itself)
+  (both a no-op in the dotfiles repo itself)
 
 The commit *message* is a separate hook: see ~/.local/bin/commit-msg.
 - If any check fails, the commit is aborted
