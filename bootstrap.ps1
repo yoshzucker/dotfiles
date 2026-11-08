@@ -18,6 +18,9 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $MainMode = ""
 $DoctorFix = $false
+# Set when a step fails without stopping the rest, so the run still ends in
+# failure rather than in "Finished."
+$Failed = $false
 $LinkScanSkipDirectoryNames = @(
     "myenv",
     ".venv",
@@ -30,7 +33,6 @@ $LinkScanSkipDirectoryNames = @(
     "target",
     "build",
     "dist",
-    "straight",
     "var",
     "elpa",
     "eln",
@@ -49,15 +51,19 @@ function Show-Usage {
 bootstrap.ps1 - Windows dotfiles environment bootstrapper
 
 Usage:
-  .\bootstrap.ps1 [bootstrap]     # Full bootstrap / re-deploy (Scoop + links)
-  .\bootstrap.ps1 update          # Update Scoop packages + refresh links + clean broken links
-  .\bootstrap.ps1 link            # Create or refresh links only (idempotent, safe refresh)
-  .\bootstrap.ps1 unlink          # Remove only links managed by this repo (safe)
-  .\bootstrap.ps1 doctor [--fix]  # Diagnose + optionally remove broken links
+  .\bootstrap.ps1 [bootstrap]     # Install what is missing, then link (a fresh machine, or any time)
+  .\bootstrap.ps1 link            # Create or refresh links only -- what a git pull needs
+  .\bootstrap.ps1 update          # Upgrade every Scoop app, then link
+  .\bootstrap.ps1 unlink          # Remove only links and startup shortcuts managed by this repo
+  .\bootstrap.ps1 doctor [--fix]  # Report (or remove) broken links
   .\bootstrap.ps1 -h | --help     # Show this help
 
-All operations are non-interactive and safe to re-run on configured machines.
-Conflict backups are created only for real items that would be overwritten.
+A fresh machine:
+  git clone https://github.com/yoshzucker/dotfiles.git $HOME\dotfiles
+  & $HOME\dotfiles\bootstrap.ps1
+
+Nothing here upgrades a package except 'update', which is asked for by name.
+A real item in the way of a link is moved under %LOCALAPPDATA%\dotfiles\backups first.
 Requires Windows Developer Mode (or Admin) for symlink creation.
 "@
 }
@@ -247,6 +253,12 @@ function Test-LinkScanSkippedDirectory {
         return $true
     }
 
+    # straight's clones and builds, but not the rest of straight\: the
+    # lockfile is linked into straight\versions.
+    if ($Item.Name -in @("repos", "build") -and $Item.Parent -and $Item.Parent.Name -eq "straight") {
+        return $true
+    }
+
     # `env` is skipped only where it is a virtualenv.  The name is a word, and
     # one of the directories this repository deploys is called it --
     # config/shell/env, which holds the modules the shells source -- so
@@ -289,63 +301,17 @@ function Ensure-RealDirectory {
     New-Item -ItemType Directory -Path $Path -Force | Out-Null
 }
 
-function Link-DirectoryContents {
-    param(
-        [string]$SourceDir,
-        [string]$TargetDir
-    )
-
-    if (-not (Test-Path -LiteralPath $SourceDir -PathType Container)) {
-        return
-    }
-
-    Ensure-RealDirectory $TargetDir
-
-    Get-ChildItem -LiteralPath $SourceDir -Force | ForEach-Object {
-        $name = $_.Name
-        if ($name -in @(".", "..", ".DS_Store")) {
-            return
-        }
-
-        $dest = Join-Path $TargetDir $name
-        $sourceTarget = Get-LinkTargetPath $_.FullName
-        if ($_.LinkType -eq "SymbolicLink" -and $sourceTarget -and (Test-SamePath $sourceTarget $TargetDir)) {
-            Write-Host "Skipping circular link: $($_.FullName) -> $TargetDir"
-            return
-        }
-
-        $destItem = Get-PathItem $dest
-        if ($destItem -and (Test-SamePath $_.FullName $dest)) {
-            Write-Host "Skipping existing correct link: $dest"
-            return
-        }
-
-        if ($destItem -and $destItem.LinkType -eq "SymbolicLink") {
-            $destTarget = Get-LinkTargetPath $dest
-            if ($destTarget -and (Test-SamePath $destTarget $_.FullName)) {
-                return
-            }
-
-            Write-Host "Replacing link: $dest"
-            Remove-Item -LiteralPath $dest -Force
-        } elseif ($destItem) {
-            Backup-ConflictingFile $dest
-        }
-
-        try {
-            New-Item -ItemType SymbolicLink -Path $dest -Target $_.FullName -Force -ErrorAction Stop | Out-Null
-            Write-Host "Linked: $dest -> $($_.FullName)"
-        } catch {
-            Write-Host "Failed to create symlink: $dest -> $($_.FullName)" -ForegroundColor Yellow
-            Write-Host "Windows may require Developer Mode or Admin rights for symlinks." -ForegroundColor Yellow
-        }
-    }
-}
-
 function Link-Tree {
+    # Link each entry of SourceDir into TargetDir, which is made a real
+    # directory.  A directory in SourceDir becomes a real directory in
+    # TargetDir with its contents linked in turn, so a program can write
+    # beside the linked files; with -Whole, it is linked as one, for a
+    # directory that is a unit (a skill).  A link already right is left
+    # alone; a wrong one is replaced; a real item is backed up.
     param(
         [string]$SourceDir,
-        [string]$TargetDir
+        [string]$TargetDir,
+        [switch]$Whole
     )
 
     if (-not (Test-Path -LiteralPath $SourceDir -PathType Container)) {
@@ -355,35 +321,22 @@ function Link-Tree {
     Ensure-RealDirectory $TargetDir
 
     Get-ChildItem -LiteralPath $SourceDir -Force | ForEach-Object {
-        $name = $_.Name
-        if ($name -in @(".", "..", ".DS_Store")) {
+        if ($_.Name -eq ".DS_Store") {
             return
         }
+        $dest = Join-Path $TargetDir $_.Name
 
-        $dest = Join-Path $TargetDir $name
-        $sourceTarget = Get-LinkTargetPath $_.FullName
-        if ($_.LinkType -eq "SymbolicLink" -and $sourceTarget -and (Test-SamePath $sourceTarget $TargetDir)) {
-            Write-Host "Skipping circular link: $($_.FullName) -> $TargetDir"
-            return
-        }
-
-        $destItem = Get-PathItem $dest
-        if ($destItem -and (Test-SamePath $_.FullName $dest)) {
-            Write-Host "Skipping existing correct link: $dest"
-            return
-        }
-
-        if ($_.PSIsContainer -and $_.LinkType -ne "SymbolicLink") {
+        if ($_.PSIsContainer -and $_.LinkType -ne "SymbolicLink" -and -not $Whole) {
             Link-Tree $_.FullName $dest
             return
         }
 
+        $destItem = Get-PathItem $dest
         if ($destItem -and $destItem.LinkType -eq "SymbolicLink") {
             $destTarget = Get-LinkTargetPath $dest
             if ($destTarget -and (Test-SamePath $destTarget $_.FullName)) {
                 return
             }
-
             Write-Host "Replacing link: $dest"
             Remove-Item -LiteralPath $dest -Force
         } elseif ($destItem) {
@@ -396,6 +349,7 @@ function Link-Tree {
         } catch {
             Write-Host "Failed to create symlink: $dest -> $($_.FullName)" -ForegroundColor Yellow
             Write-Host "Windows may require Developer Mode or Admin rights for symlinks." -ForegroundColor Yellow
+            $script:Failed = $true
         }
     }
 }
@@ -445,6 +399,8 @@ function Is-ManagedLink {
 # =============================================================================
 
 function Get-SymlinkChildren {
+    # The links under BaseDir: its own entries, or with -Recurse all the way
+    # down, past the directories Test-LinkScanDescendableDirectory turns away.
     param(
         [string]$BaseDir,
         [switch]$Recurse
@@ -454,13 +410,9 @@ function Get-SymlinkChildren {
         return @()
     }
 
-    $params = @{
-        LiteralPath = $BaseDir
-        Force = $true
-        ErrorAction = "SilentlyContinue"
-    }
     if (-not $Recurse) {
-        return @(Get-ChildItem @params | Where-Object { $_.LinkType -eq "SymbolicLink" })
+        return @(Get-ChildItem -LiteralPath $BaseDir -Force -ErrorAction SilentlyContinue |
+                 Where-Object { $_.LinkType -eq "SymbolicLink" })
     }
 
     function Get-SymlinkChildrenRecursively {
@@ -481,90 +433,71 @@ function Get-SymlinkChildren {
     return @(Get-SymlinkChildrenRecursively $BaseDir)
 }
 
-function Remove-BrokenLinksRecursivelyUnder {
-    param([string]$BaseDir)
+function Invoke-LinkScan {
+    # Do Action to the links under BaseDir, its own entries or (-Recurse) all
+    # the way down:
+    #   ReportBroken   print each broken link
+    #   RemoveBroken   delete each broken link
+    #   RemoveManaged  delete each link into this repository
+    # With -Quiet, say nothing when there was nothing to do.
+    param(
+        [string]$BaseDir,
+        [ValidateSet("ReportBroken", "RemoveBroken", "RemoveManaged")]
+        [string]$Action,
+        [switch]$Recurse,
+        [switch]$Quiet
+    )
 
-    foreach ($link in (Get-SymlinkChildren $BaseDir -Recurse)) {
-        if (Is-BrokenLink $link.FullName) {
-            Write-Host "Removing broken link: $($link.FullName)"
-            Remove-Item -LiteralPath $link.FullName -Force
-            continue
+    $count = 0
+    foreach ($link in (Get-SymlinkChildren $BaseDir -Recurse:$Recurse)) {
+        # Not `switch': a `continue' inside one goes to its next input, not
+        # to the next link.
+        $path = $link.FullName
+        if ($Action -eq "RemoveManaged") {
+            if (-not (Is-ManagedLink $path)) { continue }
+            Write-Host "Removing managed link: $path -> $(Get-LinkTargetPath $path)"
+            Remove-Item -LiteralPath $path -Force
+        } else {
+            if (-not (Is-BrokenLink $path)) { continue }
+            if ($Action -eq "ReportBroken") {
+                Write-Host "Broken: $path"
+            } else {
+                Write-Host "Removing broken link: $path"
+                Remove-Item -LiteralPath $path -Force
+            }
         }
-
-        $target = Get-LinkTargetPath $link.FullName
-        $repo = Get-CanonicalPath $script:ScriptDir
-        if ($target -and $target.StartsWith($repo, [System.StringComparison]::OrdinalIgnoreCase) -and -not (Test-Path -LiteralPath $target)) {
-            Write-Host "Removing orphan link (source moved/removed): $($link.FullName) -> $target"
-            Remove-Item -LiteralPath $link.FullName -Force
-        }
+        $count++
+    }
+    if ($count -eq 0 -and -not $Quiet) {
+        Write-Host "  (none)"
     }
 }
 
-function Remove-ManagedLinksRecursivelyUnder {
-    param([string]$BaseDir)
-
-    $removed = 0
-    foreach ($link in (Get-SymlinkChildren $BaseDir -Recurse)) {
-        if (Is-ManagedLink $link.FullName) {
-            $target = Get-LinkTargetPath $link.FullName
-            Write-Host "Removing managed link: $($link.FullName) -> $target"
-            Remove-Item -LiteralPath $link.FullName -Force
-            $removed++
-        }
-    }
-
-    if ($removed -eq 0) {
-        Write-Host "  (no managed links found)"
-    }
+function Get-LinkPlaces {
+    # Every place links are made in, besides raw $HOME, which is read at its
+    # top level only.
+    return @(
+        (Join-Path $HOME ".config"),
+        (Join-Path $HOME ".local"),
+        (Join-Path $HOME ".emacs.d"),
+        (Join-Path $HOME ".claude\skills")
+    )
 }
 
-function Report-BrokenLinksRecursivelyUnder {
-    param([string]$BaseDir)
+function Invoke-LinkScanEverywhere {
+    param(
+        [string]$Action,
+        [switch]$Quiet
+    )
 
-    foreach ($link in (Get-SymlinkChildren $BaseDir -Recurse)) {
-        if (Is-BrokenLink $link.FullName) {
-            Write-Host "Broken: $($link.FullName)"
-            continue
+    if (-not $Quiet) { Write-Host "=== $HOME (top level only) ===" }
+    Invoke-LinkScan $HOME -Action $Action -Quiet:$Quiet
+    foreach ($dir in (Get-LinkPlaces)) {
+        if (-not $Quiet) {
+            Write-Host ""
+            Write-Host "=== $dir ==="
         }
-
-        $target = Get-LinkTargetPath $link.FullName
-        $repo = Get-CanonicalPath $script:ScriptDir
-        if ($target -and $target.StartsWith($repo, [System.StringComparison]::OrdinalIgnoreCase) -and -not (Test-Path -LiteralPath $target)) {
-            Write-Host "Orphan (managed by dotfiles but source gone): $($link.FullName) -> $target"
-        }
-    }
-}
-
-function Remove-BrokenLinksUnderTopLevel {
-    param([string]$BaseDir)
-
-    foreach ($link in (Get-SymlinkChildren $BaseDir)) {
-        if (Is-BrokenLink $link.FullName) {
-            Write-Host "Removing broken link: $($link.FullName)"
-            Remove-Item -LiteralPath $link.FullName -Force
-        }
-    }
-}
-
-function Remove-ManagedLinksUnderTopLevel {
-    param([string]$BaseDir)
-
-    foreach ($link in (Get-SymlinkChildren $BaseDir)) {
-        if (Is-ManagedLink $link.FullName) {
-            $target = Get-LinkTargetPath $link.FullName
-            Write-Host "Removing managed link: $($link.FullName) -> $target"
-            Remove-Item -LiteralPath $link.FullName -Force
-        }
-    }
-}
-
-function Report-BrokenLinksUnderTopLevel {
-    param([string]$BaseDir)
-
-    foreach ($link in (Get-SymlinkChildren $BaseDir)) {
-        if (Is-BrokenLink $link.FullName) {
-            Write-Host "Broken: $($link.FullName)"
-        }
+        Invoke-LinkScan $dir -Action $Action -Recurse -Quiet:$Quiet
     }
 }
 
@@ -660,23 +593,14 @@ function Setup-Links {
 
     $dotfilesRoot = $script:ScriptDir
 
-    Remove-BrokenLinksUnderTopLevel $HOME
-
-    foreach ($dir in @(
-        (Join-Path $HOME ".config"),
-        (Join-Path $HOME ".local"),
-        (Join-Path $HOME ".emacs.d")
-    )) {
-        Remove-BrokenLinksRecursivelyUnder $dir
-    }
+    # Links whose files were deleted from the repository go first, or a module
+    # removed here is still required by a dangling link and Emacs fails to start.
+    Invoke-LinkScanEverywhere RemoveBroken -Quiet
 
     Link-Tree (Join-Path $dotfilesRoot "home") $HOME
     Link-Tree (Join-Path $dotfilesRoot "config") (Join-Path $HOME ".config")
     Link-Tree (Join-Path $dotfilesRoot "emacs.d") (Join-Path $HOME ".emacs.d")
-
-    Ensure-RealDirectory (Join-Path $HOME ".local")
-    Ensure-RealDirectory (Join-Path $HOME ".local\bin")
-    Link-DirectoryContents (Join-Path $dotfilesRoot "local\bin") (Join-Path $HOME ".local\bin")
+    Link-Tree (Join-Path $dotfilesRoot "local\bin") (Join-Path $HOME ".local\bin")
 
     # This repository's own commits go through the hooks just linked into
     # ~/.local/bin, on every machine it is cloned to; Setup-DevPackages does
@@ -687,14 +611,8 @@ function Setup-Links {
     # Skills are the one part of ~/.claude worth tracking: plain files that never
     # get rewritten, and rules that have to be in front of every project -- the
     # packages in ~/Developer included, which this repo does not otherwise reach.
-    Ensure-RealDirectory (Join-Path $HOME ".claude")
-    Ensure-RealDirectory (Join-Path $HOME ".claude\skills")
-    Link-DirectoryContents (Join-Path $dotfilesRoot "claude\skills") (Join-Path $HOME ".claude\skills")
-
-    # The rest of ~/.claude is intentionally not managed: settings.json is
-    # Claude-owned and rewritten at runtime (model/theme/effortLevel), so
-    # symlinking it into the repo produces perpetual diff noise. Claude Code
-    # creates ~/.claude itself.
+    # The rest of ~/.claude is Claude Code's own, rewritten at runtime.
+    Link-Tree (Join-Path $dotfilesRoot "claude\skills") (Join-Path $HOME ".claude\skills") -Whole
 
     Write-PrintLine $leftMessage "Finished."
 }
@@ -703,23 +621,10 @@ function Unlink-Dotfiles {
     $leftMessage = "Unlinking dotfiles"
     Write-PrintLine $leftMessage "Started."
 
-    Write-Host "This will remove links that point back into this dotfiles repository."
-    Write-Host "Only links created by 'bootstrap link' (or equivalent) will be touched."
-    Write-Host "Real files and links created by other tools will be left alone."
-    Write-Host ""
-
-    Write-Host "=== $HOME (top level only) ==="
-    Remove-ManagedLinksUnderTopLevel $HOME
-
-    foreach ($dir in @(
-        (Join-Path $HOME ".config"),
-        (Join-Path $HOME ".local"),
-        (Join-Path $HOME ".emacs.d")
-    )) {
-        Write-Host ""
-        Write-Host "=== $dir ==="
-        Remove-ManagedLinksRecursivelyUnder $dir
-    }
+    # Removes the links whose targets are inside this repository, and the
+    # startup shortcuts that point into it.  Real files and anything made by
+    # something else are never touched.
+    Invoke-LinkScanEverywhere RemoveManaged
 
     Write-Host ""
     Write-Host "=== Startup shortcuts ==="
@@ -735,37 +640,10 @@ function Doctor {
     $leftMessage = "Running doctor"
     Write-PrintLine $leftMessage "Started."
 
-    Write-Host "Scanning for broken links under managed locations (safe, limited scope)..."
-    Write-Host ""
-    Write-Host "Note: Only direct children of $HOME + full contents of ~/.config, ~/.local, and ~/.emacs.d are considered."
-    Write-Host "      Deep recursion under raw HOME is intentionally avoided."
-    Write-Host "      Generated dependency directories and link target trees are skipped."
-    Write-Host ""
-
     if ($Fix) {
-        Write-Host "==> Fix mode enabled."
-        Write-Host ""
-    }
-
-    Write-Host "=== $HOME (top level only) ==="
-    if ($Fix) {
-        Remove-BrokenLinksUnderTopLevel $HOME
+        Invoke-LinkScanEverywhere RemoveBroken
     } else {
-        Report-BrokenLinksUnderTopLevel $HOME
-    }
-
-    foreach ($dir in @(
-        (Join-Path $HOME ".config"),
-        (Join-Path $HOME ".local"),
-        (Join-Path $HOME ".emacs.d")
-    )) {
-        Write-Host ""
-        Write-Host "=== $dir ==="
-        if ($Fix) {
-            Remove-BrokenLinksRecursivelyUnder $dir
-        } else {
-            Report-BrokenLinksRecursivelyUnder $dir
-        }
+        Invoke-LinkScanEverywhere ReportBroken
     }
 
     Write-Host ""
@@ -832,20 +710,12 @@ function Install-ScoopPackages {
         }
     }
 
+    # Installs what is missing and leaves what is there at its version.
     $scoopfile = Join-Path (Join-Path (Join-Path $script:ScriptDir "pkg") "scoop") "scoopfile.json"
-    if (Test-Path -LiteralPath $scoopfile) {
-        scoop import $scoopfile
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Warning: Some packages from the scoopfile may have failed." -ForegroundColor Yellow
-        }
-    } else {
-        Write-Host "No scoopfile found. Using fallback list."
-        $packages = @("git", "ripgrep", "emacs")
-        foreach ($pkg in $packages) {
-            if (-not (scoop list | Select-String "^$pkg\s")) {
-                scoop install $pkg
-            }
-        }
+    scoop import $scoopfile
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Some scoopfile entries failed; see above." -ForegroundColor Yellow
+        $script:Failed = $true
     }
 
     Write-PrintLine $leftMessage "Finished."
@@ -856,11 +726,17 @@ function Update-ScoopPackages {
         return
     }
 
+    # Every installed app to its latest.  Scoop installs a manifest's current
+    # version, not a recorded one, so there is no lockfile to keep: an upgrade
+    # is asked for by name, with `update', or not done.
     $leftMessage = "Updating Scoop packages (via scoopfile)"
     Write-PrintLine $leftMessage "Started."
 
-    scoop update
     scoop update *
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Some Scoop apps failed to update; see above." -ForegroundColor Yellow
+        $script:Failed = $true
+    }
     Install-ScoopPackages
 
     Write-PrintLine $leftMessage "Finished."
@@ -1284,3 +1160,6 @@ function Show-RestartNotice {
 
 Initialize-Arguments
 Main
+if ($script:Failed) {
+    exit 1
+}

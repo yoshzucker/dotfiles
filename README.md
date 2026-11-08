@@ -7,61 +7,54 @@ Modular, maintainable personal configuration files.
 **macOS**
 
 ```sh
-# Fresh install or re-deploy after git pull
-curl -fsSL https://raw.githubusercontent.com/yoshzucker/dotfiles/main/bootstrap | bash
-
-# Or after cloning locally
-cd dotfiles
-./bootstrap
+git clone https://github.com/yoshzucker/dotfiles.git ~/dotfiles
+~/dotfiles/bootstrap
 ```
 
 **Windows (PowerShell 5.0+)**
 
 ```powershell
-# Fresh or after pull (clone or download bootstrap.ps1 + repo)
-.\bootstrap.ps1
+git clone https://github.com/yoshzucker/dotfiles.git $HOME\dotfiles
+& $HOME\dotfiles\bootstrap.ps1
 ```
 
-The default (no arguments) performs a full bootstrap: ensures package manager + packages from declarative manifests + creates/refreshes managed symlinks.
+Without arguments, bootstrap installs what is missing — the package manager, the packages in `pkg/`, the font — and makes the links. It upgrades nothing. On the first Scoop install, Windows asks for a new terminal and a second run.
 
-See `./bootstrap --help` or `.\bootstrap.ps1 -h` for all options.
+After it finishes, start a new shell (`exec $SHELL -l` on macOS, a new terminal on Windows) for PATH and the environment.
 
-## Recommended Commands
+## Commands
 
-| Command                  | Description                                      | When to use                          |
-|--------------------------|--------------------------------------------------|--------------------------------------|
-| `./bootstrap` (or `bootstrap`) | Full bootstrap / re-deploy (packages + links)   | First time, after clone, or to ensure everything |
-| `./bootstrap update`     | Update packages from manifests + refresh links + clean broken symlinks | After `git pull` to get latest package versions |
-| `./bootstrap link`       | Refresh symlinks only (idempotent)               | Quick fix for links after manual changes |
-| `./bootstrap unlink`     | Remove *only* symlinks created by this repo      | Before uninstall or major cleanup (real files untouched) |
-| `./bootstrap doctor [--fix]` | Scan (and optionally delete) broken symlinks under $HOME, ~/.config, ~/.local, ~/.emacs.d | Diagnose or clean dangling links |
+| Command | What it does | When |
+|---|---|---|
+| `./bootstrap` | Install what is missing, then link | A fresh machine, or any time |
+| `./bootstrap link` | Make or refresh the links, and remove those whose file is gone | After `git pull` |
+| `./bootstrap update` | Upgrade every package in `pkg/` to its latest, then link | When an upgrade is wanted |
+| `./bootstrap unlink` | Remove *only* the links into this repository | Before uninstalling |
+| `./bootstrap doctor [--fix]` | Report (or remove) broken links | Diagnosing |
 
-All operations are **non-interactive** and **safe to re-run** any number of times.
-
-## Fresh Environment via curl (or equivalent)
-
-- macOS: the one-liner above works from a fresh system (requires curl).
-- Windows: download the repo (or just bootstrap.ps1 + pkg/ and the directories you want), run `.\bootstrap.ps1`. On first Scoop install it will guide you to reopen the terminal and re-run.
-
-After bootstrap completes, restart your shell (`exec $SHELL -l` on macOS, or new PowerShell on Windows) to pick up PATH and env changes.
+`.\bootstrap.ps1` takes the same commands. All are non-interactive and safe to re-run.
 
 ## After Pulling Changes
 
 ```sh
 git pull
-./bootstrap update     # Unix
-.\bootstrap.ps1 update # Windows
+./bootstrap link        # macOS
+.\bootstrap.ps1 link    # Windows
 ```
 
-This updates packages (brew/Scoop) to latest per manifests + refreshes all symlinks + removes any newly-broken ones.
+A pull changes configuration, not package versions. Emacs packages follow the lockfile (see [Package Versions](#package-versions)); Homebrew and Scoop packages stay where they are until `update` is run.
+
+Homebrew and Scoop have no lockfile to keep: each installs its current version of a package, not a recorded one. So an upgrade is a command asked for by name, and nothing else — not a pull, not a plain `bootstrap` — runs one.
 
 ## How Symlinks Work (Safety First)
 
 - `home/` → symlinked directly under `$HOME`
 - `config/` → symlinked under `~/.config` (XDG)
-- `local/bin/` → individual scripts symlinked into real directory `~/.local/bin` (the directory itself is never a symlink)
+- `local/bin/` → individual scripts symlinked into the real directory `~/.local/bin`
 - `emacs.d/` → symlinked under `~/.emacs.d`
-- `~/.claude/` → **not** managed by symlink. `settings.json` is Claude-owned and rewritten at runtime (model/theme/effortLevel), so tracking it only produces diff noise. Only `claude/skills/` is linked into `~/.claude/skills`; `.claude/` is gitignored everywhere.
+- `claude/skills/` → each skill linked into `~/.claude/skills`. The rest of `~/.claude` is Claude Code's own: `settings.json` is rewritten at runtime (model/theme/effortLevel), so tracking it only produces diff noise.
+
+A directory in the repository becomes a real directory at the target, with its files linked one by one, so a program can write beside them.
 
 **Conflict handling (XDG strict):**
 When a real file (not a symlink) exists at a target path, it is moved to:
@@ -69,12 +62,9 @@ When a real file (not a symlink) exists at a target path, it is moved to:
 Only real conflicting files are backed up. Existing symlinks (even if not ours) are replaced if they collide with our targets. No other data is ever touched.
 
 **unlink / doctor safety:**
-- `unlink` and pre-link cleanup only remove symlinks whose *target* (via realpath / resolved path) lies inside this repository directory.
-- Real files, directories, and symlinks pointing elsewhere are left completely alone.
-- `doctor --fix` removes broken (dangling) symlinks under the usual locations; this is intentionally broader for cleanup convenience.
-- Recursive link scans skip generated/dependency directories (`myenv`, virtualenv names, `node_modules`, build/cache dirs) and never descend into symlink target trees.
-
-This design guarantees that re-running after a `git pull` (or on a fresh machine) always converges to the exact same desired state without destroying user data.
+- `unlink` removes only symlinks whose target lies inside this repository.
+- `link` and `doctor --fix` remove broken symlinks — ours whose file was deleted here, and anybody's that point nowhere.
+- `$HOME` itself is read at its top level only; `~/.config`, `~/.local`, `~/.emacs.d` and `~/.claude/skills` all the way down, past generated directories (virtualenvs, `node_modules`, build and cache directories, straight's clones and builds, Emacs's state).
 
 ## Package Management (pkg/)
 
@@ -88,11 +78,9 @@ All package lists live under `pkg/` (intentionally **outside** `config/`, so the
 - `config/` stays pure user configuration (XDG-clean).
 - Written by hand. A dump (`brew bundle dump`, `scoop export`) would take in whatever happens to be installed and drop the Brewfile's comments on why each entry is there, so a package is added by editing the file.
 
-Run `./bootstrap update` (or the explicit package commands) to apply.
-
 ## Platform Notes
 
-- **macOS**: Homebrew + emacs-plus (provides Emacs.app). Post-install step places Emacs.app in /Applications.
+- **macOS**: Homebrew + emacs-plus (the `emacs-plus-app` cask installs Emacs.app into /Applications).
 - **Windows**: Scoop (extras bucket included). Symlink support requires **Developer Mode** enabled (Settings → Update & Security → For developers) or running PowerShell as Administrator. First run after Scoop install usually requires terminal restart.
 - **Emacs**: The `emacs.d/` tree in the repo is linked under `~/.emacs.d` by bootstrap.
 
