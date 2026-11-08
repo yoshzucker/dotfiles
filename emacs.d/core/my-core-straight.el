@@ -981,8 +981,138 @@ into is untouched."
                       "The listing below is how things stood before that.\n\n")))
           (message "%s" (string-trim outcome))))))))
 
+;; Moving forward, looked at first.  `my/straight-update-lockfile' fetches,
+;; and writes into the lockfile the commit each repository would move to --
+;; and moves nothing.  What would arrive is then read: the lockfile's diff,
+;; and the commits in `my/straight-update-lockfile-buffer', also left in
+;; `my/straight-update-lockfile-file' for whatever reads files rather than
+;; buffers.  A line put back keeps that package where it is.
+;; `my/straight-apply-lockfile' then moves every repository to exactly what
+;; was read, and nothing that arrived upstream since; the lockfile is
+;; committed once the packages have been tried.
+
+(defvar my/straight-lockfile-wait-days 7
+  "Days a commit has to have been upstream before the lockfile takes it.
+A release that was taken over is usually found and pulled within days, and
+a commit too new to be taken is taken the next time.  The age is the
+committer date, which whoever makes the commit sets: this keeps the
+ordinary new commit out, and is no defence against one dated to look old.")
+
+(defconst my/straight-update-lockfile-buffer "*straight-update-lockfile*"
+  "The buffer `my/straight-update-lockfile' says what it wrote in.")
+
+(defconst my/straight-update-lockfile-file
+  (locate-user-emacs-file "var/straight-update-lockfile.txt")
+  "Where `my/straight-update-lockfile' leaves the text of its report.")
+
+(defun my/straight--git-output (dir &rest args)
+  "Return what git prints for ARGS in DIR, trimmed, or nil when it fails."
+  (let ((default-directory (file-name-as-directory dir)))
+    (with-temp-buffer
+      (when (eq 0 (apply #'call-process "git" nil '(t nil) nil args))
+        (string-trim (buffer-string))))))
+
+(defun my/straight--candidate-commit (dir locked days)
+  "Return (COMMIT . WHY) for the repository at DIR, locked at LOCKED.
+
+COMMIT is what the lockfile should name: the newest commit on origin's
+default branch at least DAYS old, when that is ahead of LOCKED.  Otherwise
+LOCKED, and WHY says why it stays.  A working tree linked in from
+~/Developer is taken at its HEAD, whatever its age: it is a package written here, and its newest
+commit is wanted at once."
+  (cond
+   ((file-symlink-p (directory-file-name dir))
+    (cons (or (my/straight--head-commit dir) locked) nil))
+   (t
+    (let* ((branch (my/straight--origin-default-branch dir))
+           (newest (and branch
+                        (my/straight--git-output
+                         dir "rev-list" "-1"
+                         (format "--before=%d.days.ago" days)
+                         (concat "origin/" branch)))))
+      (cond
+       ((not branch) (cons locked "origin names no default branch"))
+       ((or (not newest) (string-empty-p newest))
+        (cons locked (format "nothing upstream is %d days old" days)))
+       ((equal newest locked) (cons locked nil))
+       ((not (my/straight--git-output dir "merge-base" "--is-ancestor"
+                                      locked newest))
+        (cons locked "the lockfile is not behind it"))
+       (t (cons newest nil)))))))
+
+(defun my/straight--write-lockfile (versions)
+  "Write VERSIONS, an alist of repository and commit, as straight's lockfile.
+The same text `straight-freeze-versions' writes, so the diff shows only
+the lines that moved."
+  (let ((file (straight--versions-file
+               (or (alist-get nil straight-profiles) "default.el"))))
+    (with-temp-file file
+      (insert (format "(%s)\n:epsilon\n"
+                      (mapconcat (apply-partially #'format "%S")
+                                 (cl-sort (copy-sequence versions)
+                                          #'string-lessp :key #'car)
+                                 "\n "))))))
+
+(defun my/straight-update-lockfile (&optional days)
+  "Fetch, and write into the lockfile what each repository would move to.
+
+Nothing moves.  Each repository is written at the newest commit on its
+origin's default branch that is at least DAYS old -- a prefix argument, or
+`my/straight-lockfile-wait-days' -- and a working tree linked from
+~/Developer at its HEAD.  What would arrive is listed in
+`my/straight-update-lockfile-buffer' and `my/straight-update-lockfile-file'.  Read it,
+put back any line of the lockfile that should not move, then
+`my/straight-apply-lockfile'."
+  (interactive "P")
+  (let ((days (if days (prefix-numeric-value days) my/straight-lockfile-wait-days))
+        candidates moved kept)
+    (my/straight-fetch-at-once)
+    (pcase-dolist (`(,repo . ,locked) (straight--lockfile-read-all))
+      (let* ((dir (straight--repos-dir repo))
+             (pick (if (file-directory-p dir)
+                       (my/straight--candidate-commit dir locked days)
+                     (cons locked "not cloned here"))))
+        (push (cons repo (car pick)) candidates)
+        (cond
+         ((not (equal (car pick) locked))
+          (push (list repo locked (car pick)
+                      (my/straight--commits-between dir locked (car pick)))
+                moved))
+         ((cdr pick) (push (cons repo (cdr pick)) kept)))))
+    (my/straight--write-lockfile candidates)
+    (setq moved (nreverse moved)
+          kept (nreverse kept))
+    (let ((report
+           (with-temp-buffer
+             (insert (format-time-string "%Y-%m-%d %H:%M  ")
+                     (format "%d to move, commits at least %d days old (own packages at HEAD)\n"
+                             (length moved) days))
+             (pcase-dolist (`(,repo ,from ,to ,commits) moved)
+               (insert (format "\n%s (%s..%s)\n" repo
+                               (substring from 0 7) (substring to 0 7)))
+               (dolist (commit commits)
+                 (insert "  " commit "\n")))
+             (when kept
+               (insert "\nKept where they are:\n")
+               (pcase-dolist (`(,repo . ,why) kept)
+                 (insert (format "  %s: %s\n" repo why))))
+             (insert "\nNothing has moved.  Read this and the lockfile's diff, put back"
+                     "\nany line that should stay, then M-x my/straight-apply-lockfile.\n")
+             (buffer-string))))
+      (make-directory (file-name-directory my/straight-update-lockfile-file) t)
+      (with-temp-file my/straight-update-lockfile-file (insert report))
+      (with-current-buffer (get-buffer-create my/straight-update-lockfile-buffer)
+        (special-mode)
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (insert report)
+          (goto-char (point-min)))
+        (display-buffer (current-buffer)))
+      (message "straight: %d updated in the lockfile; nothing has moved"
+               (length moved)))))
+
 ;; A follower of the lockfile -- any machine without init.el's
-;; `my/straight-pull-marker' -- is moved by `my/straight-thaw-all' and by
+;; `my/straight-pull-marker' -- is moved by `my/straight-apply-lockfile' and by
 ;; nothing else.  Every command that would take a repository off the
 ;; lockfile -- or rewrite the lockfile from a machine that only reads it --
 ;; refuses there, so a pull typed out of habit on a follower does nothing
@@ -994,7 +1124,7 @@ into is untouched."
     straight-normalize-package straight-normalize-all
     straight-push-package straight-push-all
     straight-freeze-versions
-    my/straight-pull-all)
+    my/straight-pull-all my/straight-update-lockfile)
   "Commands that move a repository off the lockfile, or rewrite it.")
 
 (defvar my/straight-follow-lockfile)
@@ -1003,7 +1133,7 @@ into is untouched."
 (defun my/straight-refuse-on-follower (orig &rest args)
   "Call ORIG with ARGS, unless this machine follows the lockfile."
   (if my/straight-follow-lockfile
-      (user-error "Packages follow the lockfile here; `my/straight-thaw-all' moves them (%s would allow pulling)"
+      (user-error "Packages follow the lockfile here; `my/straight-apply-lockfile' moves them (%s would allow pulling)"
                   (abbreviate-file-name my/straight-pull-marker))
     (apply orig args)))
 
@@ -1014,7 +1144,7 @@ into is untouched."
 
 (my/straight-guard-moving-commands)
 
-(defun my/straight-thaw-all ()
+(defun my/straight-apply-lockfile ()
   "Put every repository at the commit the lockfile names.
 
 Fetched all at once first, as `my/straight-pull-all' does, so that
@@ -1022,14 +1152,23 @@ Fetched all at once first, as `my/straight-pull-all' does, so that
 fetching for them one repository at a time.  The repositories that moved
 are registered as modified, which is how straight on Windows learns that a
 package has to be built again: the walk that would notice at startup is
-turned off there.  They are rebuilt when Emacs next starts."
+turned off there.  They are rebuilt when Emacs next starts.
+
+A working tree linked in from ~/Developer is left alone.  Checking out a
+commit there is `git reset --hard' on the branch being written, and the
+commits made after the lockfile was written would drop off it."
   (interactive)
   (my/straight-fetch-at-once)
   (let* ((head (lambda (repo) (my/straight--head-commit (straight--repos-dir repo))))
+         (versions (seq-remove (lambda (cell)
+                                 (file-symlink-p
+                                  (directory-file-name (straight--repos-dir (car cell)))))
+                               (straight--lockfile-read-all)))
          (before (mapcar (lambda (cell) (cons (car cell) (funcall head (car cell))))
-                         (straight--lockfile-read-all)))
+                         versions))
          (moved nil))
-    (straight-thaw-versions)
+    (cl-letf (((symbol-function 'straight--lockfile-read-all) (lambda () versions)))
+      (straight-thaw-versions))
     (dolist (cell before)
       (unless (equal (cdr cell) (funcall head (car cell)))
         (straight-register-repo-modification (car cell))

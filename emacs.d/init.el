@@ -105,7 +105,7 @@
 ;; leave the lockfile: the commands that pull, merge, normalize, push or
 ;; freeze refuse (my-core-straight.el), and a package the lockfile does not
 ;; name is not cloned at all, rather than cloned at whatever its branch
-;; holds that day.  `my/straight-thaw-all' is how a follower moves.  Here
+;; holds that day.  `my/straight-apply-lockfile' is how a follower moves.  Here
 ;; and not in core, because the first clone is use-package's, a few lines
 ;; down.
 (defconst my/straight-pull-marker
