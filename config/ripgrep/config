@@ -1,23 +1,11 @@
-# ripgrep — read via RIPGREP_CONFIG_PATH (set in env/common.sh).
-# Smart case + hidden files, but skip the usual noise directories.
-# Colors stay close to the gensho mono ramp (match is the only accent).
+# ripgrep — read via RIPGREP_CONFIG_PATH (set in env/common.sh), by rg at the
+# shell and by Emacs's `:rg' (xref) alike.
+#
+# Hidden files are searched -- dotfiles are half of what is looked for here --
+# except git's own directory.  A repository's .gitignore keeps out the rest.
+# Long lines are shown whole: an Org paragraph is one line, and a match in it
+# cut to "[Omitted long line]" is a match that cannot be read.
 
 --smart-case
 --hidden
-
 --glob=!.git/*
---glob=!node_modules/*
---glob=!.venv/*
---glob=!__pycache__/*
---glob=!.cache/*
---glob=!dist/*
---glob=!build/*
---glob=!target/*
-
---max-columns=200
---max-columns-preview
-
---colors=path:fg:cyan
---colors=line:none
---colors=match:fg:yellow
---colors=match:style:bold
