@@ -39,7 +39,7 @@
  ("org-dock" . "a31dcf0003e43d398d6338fee5f6be228ef921c6")
  ("org-foresight" . "6f22968b9a7dc35ada2df687ff44f834bcf8bf81")
  ("org-item-tags" . "89fdae751f8c01418c167f82c150fb11cac70492")
- ("org-moor" . "b1346e4618f9a8403b4f483c4ec7c2f873da4174")
+ ("org-moor" . "25633d5b1763be73e6aa8e6eded0f39ba28ba563")
  ("org-roam" . "903bd4ec56d29247990d005ed9052c201e18b812")
  ("org-timeblock" . "e61e5734b49f933ed178029f804a0499f3308e1e")
  ("org-truss" . "c9c20b435e750ac0bb091af6fc38108f33473912")
