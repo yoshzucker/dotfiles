@@ -81,7 +81,7 @@ affects ordering."
               (run-with-timer
                0.5 nil
                (lambda ()
-                 (when-let ((buf (get-buffer "*GNU Emacs*")))
+                 (when-let* ((buf (get-buffer "*GNU Emacs*")))
                    (with-current-buffer buf
                      (setq buffer-read-only nil)
                      ;; Clear any unwanted face remapping like :stipple

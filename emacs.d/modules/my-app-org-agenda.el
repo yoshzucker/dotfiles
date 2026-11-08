@@ -530,7 +530,7 @@ org's existing key table stays the single source of truth."
     (define-key org-foresight-plan-review-mode-map (kbd key)
                 (lookup-key evil-motion-state-map (kbd key))))
   (dolist (key '("C-f" "C-b" "C-d" "C-e" "C-y"))
-    (when-let ((cmd (lookup-key evil-motion-state-map (kbd key))))
+    (when-let* ((cmd (lookup-key evil-motion-state-map (kbd key))))
       (define-key org-foresight-plan-review-mode-map (kbd key) cmd)))
   (my/define-key
    (:map org-foresight-plan-review-mode-map

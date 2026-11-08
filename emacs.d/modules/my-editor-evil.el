@@ -123,7 +123,7 @@
     (pcase-let ((`(,beg ,past-end)
                  (evil-select-inner-object 'evil-defun beg end type count)))
       (goto-char past-end)
-      (if-let ((lst-space-addr (re-search-forward "[^[:space:]\n]" nil t)))
+      (if-let* ((lst-space-addr (re-search-forward "[^[:space:]\n]" nil t)))
           `(,beg ,(1- lst-space-addr))
         `(,beg ,(point-max)))))
 
