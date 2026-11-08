@@ -12,22 +12,16 @@
 (defcustom my/key-symbols
   '((backslash . ((darwin . "_") (default . "\\")))
     (slash     . ((default . "_"))))
-  "Mapping of symbolic keys to OS and display (GUI/TTY) specific representations.
-Each entry can have keys like (system-type . gui), (system-type . tty), system-type, tty or just 'default."
+  "Mapping of symbolic keys to OS-specific representations.
+Each entry is keyed by a `system-type' symbol or by `default'."
   :type '(alist :key-type symbol
-                :value-type
-                (alist :key-type (choice symbol (cons symbol symbol))
-                       :value-type string)))
+                :value-type (alist :key-type symbol :value-type string)))
 
 (defun my/system-key (key)
-  "Return appropriate key representation for KEY symbol based on system type and display environment."
-  (let ((sys system-type)
-        (env (if (display-graphic-p) 'gui 'tty))
-        (key-table (alist-get key my/key-symbols)))
-    (or (cdr (assoc (cons sys env) key-table))
-        (cdr (assoc sys key-table))
-        (cdr (assoc env key-table))
-        (cdr (assoc 'default key-table)))))
+  "Return the representation of KEY symbol for this `system-type'."
+  (let ((key-table (alist-get key my/key-symbols)))
+    (or (cdr (assq system-type key-table))
+        (cdr (assq 'default key-table)))))
 
 (defcustom my/backslash (my/system-key 'backslash)
   "Automatically guessed backslash key, overridable by user."
