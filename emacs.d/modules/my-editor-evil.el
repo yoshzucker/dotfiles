@@ -93,10 +93,20 @@
            (px (* n (my/line-px))))
       (pixel-scroll-precision-scroll-up px)))
 
+  ;; `:rg foo' searches the project for foo at once, as `:grep foo' does in
+  ;; a Vim whose grepprg is rg; a bare `:rg' asks.  The pattern is an Emacs
+  ;; regexp, which xref turns into rg's.
+  (evil-define-command my/evil-project-find-regexp (regexp)
+    "Search the project for REGEXP, asking for it when none is given."
+    (interactive "<a>")
+    (if (and regexp (not (string-empty-p regexp)))
+        (project-find-regexp regexp)
+      (call-interactively #'project-find-regexp)))
+
   (dolist (pair '(("bk[ill]" . kill-current-buffer)
                   ("ls"      . ibuffer)
                   ("etags"   . create-etags)
-                  ("rg"      . project-find-regexp)
+                  ("rg"      . my/evil-project-find-regexp)
                   ("fd"      . find-name-dired)))
     (evil-ex-define-cmd (car pair) (cdr pair)))
 
