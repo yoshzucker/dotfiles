@@ -25,20 +25,20 @@ repository, which is allowed to be about one person.
 | "Open with the OS default application, or `pkg-open-function` if set" | `(setq pkg-open-function #'my/open-file)` |
 | "Directories to look in when a path has gone" | `("~/Documents/project/" "~/Downloads/")` |
 | Why a login item, not a subprocess | Which of my machines runs it all day |
-| "From a launcher, a hotkey, or anything that runs a command" | "From FlowLauncher" |
-| The integration a feature actually needs to name (Outlook, Calendar.app, org-mode) | A service that merely happens to be on my desk (a scanner's software, a launcher) |
+| "From a launcher, a hotkey, or anything that runs a command" | "From the launcher I keep in the menu bar" |
+| The integration a feature actually needs to name (PostgreSQL, the system clipboard, org-mode) | A product that merely happens to be on my desk (a note-taking app, a launcher) |
 
-The last row is the one worth slowing down on. Naming Outlook in a calendar
-importer is a functional fact: the package drives Outlook. Naming a document
-scanner in a *file-claiming* package is not — the package has never heard of
-it, and there are a million such products. If the code does not reference it,
+The last row is the one worth slowing down on. Naming PostgreSQL in a
+migration tool is a functional fact: the package drives PostgreSQL. Naming a
+note-taking app in a *file-renaming* package is not — the package has never
+heard of it, and there are a million such products. If the code does not reference it,
 the docs should not either.
 
 ## The specific ways it gets in
 
 1. **A configuration's function name in package code.**
-   `(when (fboundp 'my/open-system) (my/open-system path))`, or a docstring
-   that says "the thing `my/org-clock-obeys-the-row' exists to stop". Both
+   `(when (fboundp 'my/open-externally) (my/open-externally path))`, or a
+   docstring that says "the thing `my/fix-the-clock' exists to stop". Both
    are dead weight for everybody else, and the first one silently disables
    the package's own documented setting.
    → Take a function variable or run a hook. Let the configuration fill it.
@@ -48,7 +48,7 @@ the docs should not either.
    go in the configuration.
 
 3. **The author's workflow as the package's structure.**
-   Headings like "Windows (production) / macOS (development)". The package
+   Headings like "Linux (production) / laptop (development)". The package
    does not have a production. Worse, it claims a testing standard that was
    never met.
    → Say what differs *technically* per OS. Say nothing about which one you
@@ -65,7 +65,7 @@ the docs should not either.
    → Commit the fixture. Extract the *shapes* it covers, never the content.
 
 6. **Cross-references to your other repositories as war stories.**
-   "the same hole org-calsync hit" — a sibling package is fine to link to as
+   "the same hole my other package hit" — a sibling package is fine to link to as
    a sibling; its incident history is not documentation.
 
 7. **A colleague's name as sample data.**
@@ -102,5 +102,5 @@ the stranger's question in mind before committing.
 
 Environment-specific knowledge is often genuinely useful — which install
 step this machine needs, which key is bound where, what is honestly untested.
-Move it, do not delete it. In this setup that is `dotfiles/doc/`, next to the
-configuration that acts on it.
+Move it, do not delete it. Its place is the configuration repository's own
+documentation, next to the configuration that acts on it.
