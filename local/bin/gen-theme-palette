@@ -5,8 +5,8 @@
 #   gen-theme-palette [THEME]        # default: gensho
 #
 # Nothing outside Emacs can compute the colors a theme derives from HSLuv, so
-# they are harvested once and committed as data.  Three kinds of file come
-# out, each for whoever reads it:
+# they are harvested once and committed as data.  Two kinds of file come
+# out, one for each terminal:
 #
 #   config/ghostty/themes/<theme>-{light,dark}
 #   config/mintty/themes/<theme>-{light,dark}
@@ -14,17 +14,9 @@
 #       <theme>-export-palette 'hex-list, and the background, foreground and
 #       cursor, from the ramp (mono1, mono7, mono6).  The terminal paints
 #       itself from these, whatever shell runs inside it.
-#   config/tmux/theme-<theme>-{light,dark}.conf
-#       THEME_MONO0..7, THEME_DIM0 and the hues as tmux's hidden variables,
-#       for the status line and the panes, which use levels of the ramp the
-#       sixteen slots do not hold -- the background as a foreground, dim0.
-#       From <theme>-palette.  The zsh prompt needs none of this: every level
-#       it uses has a slot, so it names the slot and follows the terminal.
 #
-# The same hex appears in more than one file where a level also holds a slot.
-# That is duplicated data in generated files, which costs nothing; deriving one
-# from another would instead duplicate the slot assignment as hand-written
-# code, and that is the part that goes stale when the assignment moves.
+# The zsh prompt needs no file: every level it uses has a slot, so it names
+# the slot and follows the terminal.
 #
 # Re-run after changing a theme's palette or its ANSI slot assignment.
 
@@ -104,21 +96,6 @@ for variant in light dark; do
     printf 'BackgroundColour=%s\n' "$(rgb "$(color "$variant" sem mono1)")"
     printf 'ForegroundColour=%s\n' "$(rgb "$(color "$variant" sem mono7)")"
     printf 'CursorColour=%s\n'     "$(rgb "$(color "$variant" sem mono6)")"
-  } > "$out"
-  echo "wrote $out"
-done
-
-# tmux: one hidden variable per level, which tmux.conf reads as $THEME_*
-# while it is parsed.  dim1 is read by nobody, so it is not written; add it
-# to the list if a consumer ever wants a second dim level.
-keys="mono0 mono1 mono2 mono3 mono4 mono5 mono6 mono7 dim0 red orange yellow green cyan blue purple magenta"
-for variant in light dark; do
-  out="$REPO/config/tmux/theme-$THEME-$variant.conf"
-  {
-    header '#' "theme-$THEME-$variant.conf"
-    for key in $keys; do
-      printf '%%hidden THEME_%s="#%s"\n' "$(printf '%s' "$key" | tr '[:lower:]' '[:upper:]')" "$(color "$variant" sem "$key")"
-    done
   } > "$out"
   echo "wrote $out"
 done

@@ -12,7 +12,7 @@
 # processes -- path_helper and `locale' in the Mac's /etc/zprofile and
 # /etc/zshrc -- and the login profile rebuilds PATH with the system
 # directories in front of everything set here, which leaves a login shell
-# and a shell inside tmux running different `git's.  What those files
+# and a shell started from Emacs running different `git's.  What those files
 # contribute that is still wanted is set by env/macos.sh and zsh/zsh.sh
 # instead, with builtins only.
 unsetopt global_rcs

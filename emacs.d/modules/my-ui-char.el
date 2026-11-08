@@ -11,7 +11,7 @@
 ;;   not hand-edit those tables.  Width rules live in the builder, not here.
 ;;
 ;; - TTY: the emulator counts via wcwidth ambiguous-narrow (Ghostty /
-;;   mintty Charwidth=ambig-narrow / tmux), font independent.  A rebuild
+;;   mintty Charwidth=ambig-narrow), font independent.  A rebuild
 ;;   of PlemolJP NF does not require changing the TTY map.
 
 ;;; Code:

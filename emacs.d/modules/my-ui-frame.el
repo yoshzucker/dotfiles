@@ -122,11 +122,7 @@ On the monitor, whatever the arithmetic comes to -- see
       (progn
         (set-frame-size (selected-frame) (car size) (cdr size))
         (set-frame-position (selected-frame) (car pos) (cdr pos)))
-    (let* ((cmd (format "\033[8;%d;%dt" (cdr size) (car size)))
-           (wrapped (if (getenv "TMUX")
-                        (concat "\ePtmux;\e" cmd "\e\\")
-                      cmd)))
-      (send-string-to-terminal wrapped))))
+    (send-string-to-terminal (format "\033[8;%d;%dt" (cdr size) (car size)))))
 
 ;; A window docked to the left or right takes its width out of the text, and
 ;; on a frame that is one column of text wide there is not enough to take.

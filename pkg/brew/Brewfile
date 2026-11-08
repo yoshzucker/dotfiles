@@ -19,7 +19,6 @@ tap "d12frosted/emacs-plus"
 # --- Core utilities ----------------------------------------------------------
 brew "ripgrep"
 brew "cmigemo"
-brew "tmux"                     # terminal multiplexer (pre-warmed daemon in .zshrc)
 brew "poppler"                  # org-moor (pdftotext)
 brew "pandoc"
 

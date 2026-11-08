@@ -1,8 +1,7 @@
 # mintty config (Git Bash)
 
 # Looks
-# Colors from config/mintty/themes, which gen-theme-palette writes.  The
-# variant has to be the one config/tmux/tmux.conf sources.
+# Colors from config/mintty/themes, which gen-theme-palette writes.
 ThemeFile=gensho-light
 Transparency=off
 CursorType=block
@@ -13,7 +12,7 @@ CursorBlinks=no
 # half width. Charwidth=ambig-narrow makes mintty count every East-Asian
 # *ambiguous* codepoint as 1 cell -- crucially this includes the Private Use
 # Area (Nerd Font icons + powerline slants are PUA, which UAX#11 classes as
-# ambiguous). ambig-wide would give those 2 cells and desync tmux/CLI (which
+# ambiguous). ambig-wide would give those 2 cells and desync CLI tools (which
 # assume wcwidth narrow), bloating powerline slants. GUI Emacs is separate and
 # still uses the full-width "PlemolJP NF".
 Font=PlemolJP Console NF
@@ -46,10 +45,8 @@ Rows=25
 
 Scrollbar=none
 ScrollMod=off
-# When running tmux the wheel is handed to tmux, so mintty's own scrollback is
-# bypassed; the settings below only apply to bare mintty (e.g. right after
-# login, before attaching tmux). Match the tmux wheel feel (1 line/notch);
-# mintty's default is taken from the Windows mouse setting (~3). ScrollbackLines
+# One line per notch, so the text can be followed while it moves; mintty's
+# default is taken from the Windows mouse setting (~3). ScrollbackLines
 # is capped by MaxScrollbackLines, so raise both together.
 LinesPerMouseWheelNotch=1
 ScrollbackLines=50000

@@ -101,9 +101,9 @@ bindkey -s $'\e[9;5u'   '\t'  # kitty fallback
 bindkey -s $'\e[1;5n'   '\t'  # mintty: XTermModifyOtherKeys=1
 
 # Delete, Home and End, as the terminals here send them: xterm's form from
-# Ghostty and mintty, the VT220 form from tmux.  The Mac's /etc/zshrc bound
+# Ghostty and mintty, and the VT220 form as well.  The Mac's /etc/zshrc bound
 # these from terminfo, which names the application-mode sequences that are
-# only sent after smkx -- so only tmux's ever matched.
+# only sent after smkx -- so they never matched.
 bindkey '^[[3~' delete-char
 bindkey '^[[H'  beginning-of-line
 bindkey '^[[1~' beginning-of-line

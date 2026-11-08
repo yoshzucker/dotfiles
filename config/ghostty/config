@@ -1,4 +1,4 @@
-# === Ghostty （for Emacs + tmux user） ===
+# === Ghostty ===
 
 # --- Font ---
 font-family = "PlemolJP Console NF"
@@ -9,9 +9,8 @@ font-size = 13
 macos-option-as-alt = true
 
 # --- Appearance ---
-# Colors from config/ghostty/themes, which gen-theme-palette writes.  The
-# variant has to be the one config/tmux/tmux.conf sources; the zsh prompt
-# names this theme's slots and follows it.
+# Colors from config/ghostty/themes, which gen-theme-palette writes.  The zsh
+# prompt names this theme's slots and follows it.
 theme = gensho-light
 window-padding-x = 6
 window-padding-y = 6
@@ -19,12 +18,11 @@ window-padding-y = 6
 # background-opacity = 1.0
 
 # --- Others ---
-# Unit is BYTES (not lines). When running tmux, tmux's history-limit governs the
-# scrollback, so this only matters for bare ghostty. 10MB ≈ tens of thousands of lines.
+# Unit is BYTES (not lines). 10MB ≈ tens of thousands of lines.
 scrollback-limit = 10000000
 
 # Wheel scroll amount. Default is discrete(mouse)=3 / precision(trackpad)=1, so a
-# mouse wheel scrolls 3 lines per notch. Pin to 1 to match the tmux wheel feel
-# (tmux uses -N 1) → 1 line per notch with a discrete mouse too.
+# mouse wheel scrolls 3 lines per notch. Pin to 1 → 1 line per notch with a
+# discrete mouse too, so the text can be followed while it moves.
 mouse-scroll-multiplier = 1
 copy-on-select = true

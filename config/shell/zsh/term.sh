@@ -3,30 +3,11 @@
 #   ^W e  cycle frame size   (my/cycle-frame-size  in my-ui-frame.el)
 #   ^W m  toggle maximize    (toggle-frame-maximized in my-ui-frame.el)
 #
-# Outside tmux: ZLE bindings below handle ^We / ^Wm directly.
-# Inside  tmux: C-w is captured by tmux's bind -n C-w and switches to the
-#               prefix key table; matching `bind e` / `bind m` in tmux.conf
-#               write the sequences to #{client_tty} instead.
-#
 # Note: terminal resize/maximize have no ANSI OSC standard. xterm XTWINOPS
 # (CSI … t) is the de facto equivalent, supported by ghostty (macOS) and
 # mintty (Windows).
 
 [ -n "$ZSH_VERSION" ] || return 0
-
-# Send a CSI sequence to the outer terminal.
-# Outside tmux: printf directly (stdout = outer terminal in ZLE context).
-# Inside  tmux: wrap in DCS passthrough so tmux forwards to the outer terminal.
-#   tmux's bind e/m inject raw bytes via send-keys -H, which triggers these
-#   ZLE widgets from within the tmux pane; DCS carries the sequence outward.
-_term_send() {
-  if [[ -n $TMUX ]]; then
-    # ESC P tmux ; ESC <seq> ESC backslash — doubles the leading ESC in $1.
-    printf '\033Ptmux;\033%s\033\\' "$1"
-  else
-    printf '%s' "$1"
-  fi
-}
 
 # ----- size cycling (^W e) -----
 
@@ -42,15 +23,14 @@ _cycle_term_size() {
   # zsh arrays are 1-indexed; _term_size_idx is 0-based, so offset by 1.
   local i=$(( _term_size_idx + 1 ))
   # CSI 8 ; rows ; cols t — xterm XTWINOPS: resize window in character cells.
-  _term_send $'\e[8;'"${rows[i]};${cols[i]}t"
+  printf '%s' $'\e[8;'"${rows[i]};${cols[i]}t"
 }
 
 # ^W is a prefix and nothing else, as C-w is in Emacs (evil-window-map, in
-# every state) and in tmux (the prefix table).  Bound to backward-kill-word
-# as well, it would make zsh wait KEYTIMEOUT -- 400 ms -- after every ^W to
-# see whether an `e' or `m' followed; unbound, there is no timeout and the
-# second key acts at once.  Words are deleted with Alt-Backspace, as M-DEL
-# does in Emacs.
+# every state).  Bound to backward-kill-word as well, it would make zsh wait
+# KEYTIMEOUT -- 400 ms -- after every ^W to see whether an `e' or `m'
+# followed; unbound, there is no timeout and the second key acts at once.
+# Words are deleted with Alt-Backspace, as M-DEL does in Emacs.
 bindkey -r '^W'
 
 zle -N _cycle_term_size
@@ -63,10 +43,10 @@ typeset -gi _term_maximized=0
 _toggle_term_maximize() {
   if (( _term_maximized )); then
     _term_maximized=0
-    _term_send $'\e[9;0t'   # CSI 9;0 t — restore window
+    printf '%s' $'\e[9;0t'   # CSI 9;0 t — restore window
   else
     _term_maximized=1
-    _term_send $'\e[9;1t'   # CSI 9;1 t — maximize window
+    printf '%s' $'\e[9;1t'   # CSI 9;1 t — maximize window
   fi
 }
 

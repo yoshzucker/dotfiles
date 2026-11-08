@@ -4,9 +4,9 @@
 # own does not.  Read by zsh and by bash alike.
 #
 # The colors themselves are not set by any shell.  Ghostty and mintty read
-# theme files of their own (config/ghostty/themes, config/mintty/themes), the
-# zsh prompt names the terminal's slots, and tmux reads a theme file of its
-# own (config/tmux), all written by `gen-theme-palette gensho'.
+# theme files of their own (config/ghostty/themes, config/mintty/themes),
+# written by `gen-theme-palette gensho', and the zsh prompt names the
+# terminal's slots.
 
 # Truecolor — terminal-wide, not theme-specific.
 export COLORTERM=truecolor
@@ -27,10 +27,10 @@ if [ ! -f "$HOME/.terminfo/x/xterm-24bits" ] && \
 fi
 # xterm-24bits is just xterm-256color + Tc; only needed where Tc is missing
 # (e.g. mintty default xterm-256color terminfo on Windows). Skip on terminals
-# whose own terminfo already advertises Tc (Ghostty, *-direct, tmux-256color),
+# whose own terminfo already advertises Tc (Ghostty, *-direct),
 # otherwise we'd force emacs onto a less accurate entry on macOS.
 case "$TERM" in
-  xterm-ghostty|*-direct|tmux-256color|tmux-direct) ;;
+  xterm-ghostty|*-direct) ;;
   *) alias emacs='TERM=xterm-24bits emacs' ;;
 esac
 
