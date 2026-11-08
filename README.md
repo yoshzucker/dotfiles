@@ -109,9 +109,9 @@ straight itself is cloned by `init.el` at the lockfile's commit, not by straight
 
 ## My Own Packages
 
-Eight packages are written here rather than merely used. Each has its own repository and its own README, which describe the package and say nothing about this machine.
+Ten packages are written here rather than merely used. Each has its own repository and its own README, which describe the package and say nothing about this machine.
 
-- **Org**: org-foresight, org-convect, org-calsync, org-dayflow, org-truss
+- **Org**: org-foresight, org-convect, org-calsync, org-dayflow, org-truss, org-moor, org-item-tags
 - **Themes**: gensho-theme, rustcity-theme
 - **Emacs UI**: sill — one mode line at the foot of the frame instead of one per window
 

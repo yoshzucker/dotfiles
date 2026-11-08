@@ -14,6 +14,7 @@ and the parts that are not Emacs configuration live here.
 | [org-dayflow](https://github.com/yoshzucker/org-dayflow) | The day-by-day timeline view |
 | [org-truss](https://github.com/yoshzucker/org-truss) | Whether an argument stands, and how a document is arranged around it |
 | [org-moor](https://github.com/yoshzucker/org-moor) | What arrives in pieces, taken in, written up, and found again |
+| [org-item-tags](https://github.com/yoshzucker/org-item-tags) | Tags on the items of a plain list, as a heading has them |
 
 ## Loading them from the working tree
 
@@ -23,8 +24,10 @@ restarting Emacs is enough to see the change. Without it the loaded copy is
 straight's own clone and every experiment costs a commit, a push and a pull.
 
 A machine that only *uses* these packages should skip that and let straight
-clone from GitHub as usual — which is what happens automatically when
-`~/Developer/<package>` is absent.
+clone from GitHub, at the commit the lockfile names — which is what happens
+automatically when `~/Developer/<package>` is absent.  Where the working tree
+is linked, freezing records its HEAD, so a package is pushed before the
+dotfiles commit that carries the lockfile.
 
 ## Where the data sits
 
@@ -35,11 +38,7 @@ crosses between them and what does not.
 
 ## org-moor
 
-Not on GitHub yet: until it is, `~/Developer/org-moor` has to be linked into
-straight (`setup_dev_packages`), or straight tries to clone a repository that
-does not exist.
-
-Copies go to `memex/source/`, the package default, so they travel with memex
+Copies go to `memex/sources/`, the package default, so they travel with memex
 and are never browsed by hand.  `:rg` in memex searches them with the notes:
 a source is found by the machine-readable copy org-moor keeps beside it.
 
@@ -50,20 +49,25 @@ emacsclientw itself (Scoop's shim followed to the real program).
 
 No `org-protocol://` handler is registered and org-protocol is never
 loaded: a web page cannot hand Emacs anything.  A page is taken with the
-hotkey, or with `C-c m w`.
+hotkey, or with `C-c m w`, and the browser saves its copy.
 
 | Where | Key / command | What |
 |---|---|---|
-| Anywhere in Emacs | `C-c m q` | quote the clipboard, titled; `C-u` picks the heading |
+| Anywhere in Emacs | `C-c m c` | take the clipboard |
+| | `C-c m q` | quote the clipboard into the heading |
 | | `C-c m f` | take a file (in Dired, the one at point): moved from Downloads and the desktop, copied from anywhere else; `C-u` picks the heading, `C-u C-u` also turns move and copy round |
-| | `C-c m w` | take a web page |
+| | `C-c m w` | take a web page; the browser saves its copy |
 | | `C-c m j` | back to anything taken, newest first |
-| | `C-c m d` | in Dired, take the file at point first; then draft what the heading's source means; in the draft `C-c C-c` writes, `C-c C-k` discards, `C-c C-a` asks Claude Code to rewrite it |
 | | `C-c m s` | sweep: Downloads and the desktop as one Dired buffer, newest first |
-| | `C-c m p` / `C-c m P` | put the file at point in a directory under project/ or reference/ (picked or made); `P` also takes it, as a copy |
-| | `C-c m n` | reading a copy: add this page and the selection to the source's draft |
-| | `C-c m o` | open the source's copy; `C-u` its origin |
+| | `C-c m p` / `C-c m P` | put the file at point in a directory under project/ or reference/ (picked or made); `P` also takes it |
+| | `C-c m n` | read the source beside its heading |
+| | `C-c m i` | note this place in the source |
+| | `C-c m o` / `C-c m O` | open the source's copy / its origin |
+| | `C-c m y` | copy the origin to the clipboard |
+| | `C-c m M` | open the machine-readable copy |
+| | `C-c m t` | retitle the source |
 | | `C-c m x` | prune: copies largest first, `d` mark, `x` let go (heading, notes and origin stay) |
+| | `C-c m a` / `C-c m k` | the sources still waiting for a copy / keep a copy for those that have none |
 | Anywhere (macOS) | `control+option+m` | take the document in front (Karabiner rule `org-moor-front`, enable it in Karabiner's settings) |
 | Anywhere (Windows) | `Ctrl+Alt+M` | the same, from `etc/ahk/remap-windows-keys.ahk` |
 
