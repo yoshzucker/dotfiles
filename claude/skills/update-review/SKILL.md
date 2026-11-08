@@ -56,6 +56,21 @@ packages at their HEAD. No package moves. (The user can run
   `git log --stat FROM..TO`, then `git diff FROM..TO`
 
 **Homebrew** (macOS): `./bootstrap outdated` in the dotfiles checkout.
+Three things it does not make obvious:
+
+- Casks listed under "update themselves" are updated by the app, not by
+  Homebrew, which only remembers the version it installed. The app may
+  already be current; read its own version before calling it old, and
+  leave its upgrade to the app.
+- A formula another package depends on moves with that package, not on its
+  own. `brew uses --installed NAME` (and, for a cask, its `depends_on`)
+  says who needs it. Notably `gcc` and `libgccjit` are what Emacs's native
+  compilation was built against: recommend them only together with an
+  upgrade of Emacs itself.
+- A cask from a tap Homebrew has not been told to trust is skipped without
+  a word. If an installed package from a third-party tap is missing from
+  the list, say so.
+
 **Scoop** (Windows): `.\bootstrap.ps1 outdated` in PowerShell. Each
 refreshes the package index and lists installed and newer versions; nothing
 is installed. For an entry, `brew info NAME` or `scoop info NAME` gives the

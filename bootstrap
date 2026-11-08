@@ -460,13 +460,27 @@ brew_bundle() {
 }
 
 # What `update' would upgrade, current and new version side by side.  Only
-# Homebrew's own index is refreshed; nothing installed changes.  `--greedy'
-# includes the casks that update themselves, which `brew bundle --upgrade'
-# moves too.
+# Homebrew's own index is refreshed; nothing installed changes.
+#
+# The casks that update themselves -- Karabiner, Ghostty, Maccy and the
+# like -- are listed apart.  Homebrew remembers the version it installed and
+# never hears of the app's own updates, so such a cask can look old while
+# the app is current; `update' leaves them to their own updaters, as
+# Homebrew advises, and so should a reader of this list.
 brew_outdated() {
   command -v brew >/dev/null || return 0
   brew update --quiet
-  brew outdated --greedy --verbose
+  local plain greedy
+  plain="$(brew outdated --verbose)"
+  greedy="$(brew outdated --cask --greedy-auto-updates --verbose)"
+  printf '%s\n' "$plain"
+  local self
+  self="$(grep -vxF -f <(printf '%s\n' "$plain") <<<"$greedy" || true)"
+  if [ -n "$self" ]; then
+    echo
+    echo "Update themselves (Homebrew's record may be behind the app; check the app):"
+    printf '%s\n' "$self" | sed 's/^/  /'
+  fi
 }
 
 install_fonts() {
