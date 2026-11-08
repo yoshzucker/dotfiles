@@ -11,15 +11,6 @@ case "$OSTYPE" in
   msys*|cygwin*) open() { start "$@"; } ;;
 esac
 
-# ----- cheatsheet (`?` / `cheat`) -----
-# Shows the in-repo dotfiles cheatsheet (always-available textual reference).
-cheat() {
-  local f="$HOME/.config/cheat/dotfiles.md"
-  [ -f "$f" ] || { echo "no cheatsheet at $f" >&2; return 1; }
-  cat "$f"
-}
-alias '?'='cheat'
-
 # ----- emacs / git / misc -----
 alias emacsc='emacsclient -t -a '''
 alias killemacs="emacsclient -e '(client-save-kill-emacs)'"

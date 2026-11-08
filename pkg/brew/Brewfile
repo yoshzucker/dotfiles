@@ -26,7 +26,6 @@ brew "pandoc"
 # --- Dev tools ---------------------------------------------------------------
 brew "git"
 brew "gitleaks"
-brew "gh"                       # GitHub from the command line, for Claude Code
 # The CLI emacs.d/modules/my-app-agent.el drives.  A cask rather than a
 # formula because that is how it ships.  It does not update itself from here:
 # `./bootstrap update' does, through `brew bundle --upgrade'.

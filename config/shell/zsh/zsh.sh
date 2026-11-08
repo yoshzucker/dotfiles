@@ -22,7 +22,6 @@ setopt combining_chars
 disable log
 
 # ----- Completion System -----
-[ -d ~/.grok/completions/zsh ] && fpath=(~/.grok/completions/zsh $fpath)
 zmodload zsh/complist
 zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'l:|=* r:|=*'
 zstyle ':completion:*' menu select=2  # 1 match → insert; 2+ → menu

@@ -10,4 +10,4 @@ source ~/.config/shell/zsh/term.sh    # terminal window size cycling (C-w e)
 # --- .zshrc ends here ----------------------------------------------------
 # Do NOT append CLI installer blocks below this line. PATH belongs in
 # ~/.config/shell/env/common.sh; completion fpath entries belong in
-# ~/.config/shell/zsh/zsh.sh next to the existing grok fpath line.
+# ~/.config/shell/zsh/zsh.sh.
