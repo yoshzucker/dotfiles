@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# gen-theme-palette -- write the terminal and shell palettes for an Emacs theme.
+# gen-theme-palette -- write the palettes other programs take from an Emacs theme.
 #
 #   gen-theme-palette [THEME]        # default: gensho
 #
 # Nothing outside Emacs can compute the colors a theme derives from HSLuv, so
-# they are harvested once and committed as data.  Two kinds of file come
-# out, one for each terminal:
+# they are harvested once and committed as data.  Three kinds of file come
+# out:
 #
 #   config/ghostty/themes/<theme>-{light,dark}
 #   config/mintty/themes/<theme>-{light,dark}
@@ -14,6 +14,15 @@
 #       <theme>-export-palette 'hex-list, and the background, foreground and
 #       cursor, from the ramp (mono1, mono7, mono6).  The terminal paints
 #       itself from these, whatever shell runs inside it.
+#
+#   config/everything/themes/<theme>-{light,dark}.ini
+#       Everything's result-list colors, as the keys of its Everything.ini.
+#       The list is read the way the theme reads a completion list: the
+#       surface at mono1, the current item at mono0 as vertico-current is,
+#       an unfocused selection at mono2, and the matched text in cyan as
+#       orderless-match-face-0 is.  Only the list takes colors; the search
+#       box, status bar and menus stay Windows's.  bootstrap.ps1 writes the
+#       keys into the live Everything.ini.
 #
 # The zsh prompt needs no file: every level it uses has a slot, so it names
 # the slot and follows the terminal.
@@ -67,7 +76,8 @@ header() {
   printf '%s Regenerate with: gen-theme-palette %s\n' "$1" "$THEME"
 }
 
-mkdir -p "$REPO/config/ghostty/themes" "$REPO/config/mintty/themes"
+mkdir -p "$REPO/config/ghostty/themes" "$REPO/config/mintty/themes" \
+         "$REPO/config/everything/themes"
 
 for variant in light dark; do
   # Ghostty: palette = N=#rrggbb, plus the three singular colors.
@@ -96,6 +106,41 @@ for variant in light dark; do
     printf 'BackgroundColour=%s\n' "$(rgb "$(color "$variant" sem mono1)")"
     printf 'ForegroundColour=%s\n' "$(rgb "$(color "$variant" sem mono7)")"
     printf 'CursorColour=%s\n'     "$(rgb "$(color "$variant" sem mono6)")"
+  } > "$out"
+  echo "wrote $out"
+
+  # Everything: every item state as #RRGGBB.  A key left empty falls back to
+  # Windows's light default, so each state is given both colors.  Each state
+  # also has a `_highlighted' form, the same item with the search term in it;
+  # the normal state's is plain `highlighted'.
+  out="$REPO/config/everything/themes/$THEME-$variant.ini"
+  fg="#$(color "$variant" sem mono7)"
+  match="#$(color "$variant" sem cyan)"
+  surface="#$(color "$variant" sem mono1)"
+  current="#$(color "$variant" sem mono0)"
+  other="#$(color "$variant" sem mono2)"
+  state() {
+    local hl="${1}_highlighted"
+    [ "$1" = normal ] && hl=highlighted
+    printf '%s_foreground_color=%s\n' "$1" "$fg"
+    printf '%s_background_color=%s\n' "$1" "$2"
+    printf '%s_foreground_color=%s\n' "$hl" "$match"
+    printf '%s_background_color=%s\n' "$hl" "$2"
+  }
+  {
+    header ';' "$THEME-$variant"
+    printf '[Everything]\n'
+    state normal                       "$surface"
+    state alternate_row                "$surface"
+    state current_sort                 "$surface"
+    state current_sort_alternate_row   "$surface"
+    state selected                     "$current"
+    state mouseover                    "$current"
+    state mouseover_current_sort       "$current"
+    state selected_inactive            "$other"
+    state drop_target                  "$other"
+    printf 'preview_background_color=%s\n' "$surface"
+    printf 'thumbnail_mouseover_border_color=#%s\n' "$(color "$variant" sem mono6)"
   } > "$out"
   echo "wrote $out"
 done

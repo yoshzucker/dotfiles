@@ -52,7 +52,7 @@ bootstrap.ps1 - Windows dotfiles environment bootstrapper
 
 Usage:
   .\bootstrap.ps1 [bootstrap]     # Install what is missing, then link (a fresh machine, or any time)
-  .\bootstrap.ps1 link            # Create or refresh links only -- what a git pull needs
+  .\bootstrap.ps1 link            # Create or refresh links and Everything's colors -- what a git pull needs
   .\bootstrap.ps1 outdated        # List what update would upgrade, and change nothing
   .\bootstrap.ps1 update          # Upgrade every Scoop app, then link
   .\bootstrap.ps1 unlink          # Remove only links and startup shortcuts managed by this repo
@@ -135,6 +135,7 @@ function Main {
     if ($script:MainMode -eq "link") {
         Setup-Links
         Setup-DevPackages
+        Set-EverythingColors
     }
 
     if ($script:MainMode -eq "unlink") {
@@ -156,6 +157,7 @@ function Main {
         Install-Fonts
         Setup-Links
         Setup-DevPackages
+        Set-EverythingColors
         Install-Cmigemo
         Setup-StartupShortcuts
         Show-RestartNotice
@@ -1146,6 +1148,114 @@ function Remove-StartupShortcuts {
     }
 }
 
+function Set-EverythingColors {
+    # Write the result-list colors gen-theme-palette made into the
+    # Everything.ini Everything reads.  The file is Everything's own: it holds
+    # every other setting too and is rewritten whenever Everything exits, so
+    # it cannot be a link.  Only the keys the theme file names are replaced
+    # or added, and only while Everything is not running, or it would write
+    # its old colors back on exit.  Scoop's Everything keeps its ini beside
+    # the exe, unless app_data=1 moves it to %APPDATA%\Everything.
+    $theme = "gensho-light"
+    $leftMessage = "Setting Everything colors ($theme)"
+    Write-PrintLine $leftMessage "Started."
+
+    $themeFile = Join-Path $script:ScriptDir "config\everything\themes\$theme.ini"
+    $ini = $null
+    if (Get-Command scoop -ErrorAction SilentlyContinue) {
+        $prefix = scoop prefix everything 2>$null
+        if ($LASTEXITCODE -eq 0 -and $prefix) {
+            $ini = Join-Path $prefix "Everything.ini"
+        }
+    }
+    if (-not $ini -or -not (Test-Path -LiteralPath $ini -PathType Leaf)) {
+        Write-Host "  (Everything is not installed through Scoop, or has no Everything.ini yet)"
+        Write-PrintLine $leftMessage "Finished."
+        return
+    }
+    if (Select-String -LiteralPath $ini -Pattern '^app_data=1$' -Quiet) {
+        $ini = Join-Path $env:APPDATA "Everything\Everything.ini"
+        if (-not (Test-Path -LiteralPath $ini -PathType Leaf)) {
+            Write-Host "  (no Everything.ini at $ini yet)"
+            Write-PrintLine $leftMessage "Finished."
+            return
+        }
+    }
+
+    # The service is Everything.exe as well, run with -svc; it does not
+    # write the window's colors and is left running.  It runs as SYSTEM,
+    # whose command line a user cannot read, so a process whose command line
+    # is hidden is taken to be the service.
+    $running = @(Get-CimInstance Win32_Process -Filter "Name = 'Everything.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -and $_.CommandLine -notmatch '\s-svc\b' })
+    if ($running.Count -gt 0) {
+        Write-Host "Everything is running; exit it (File > Exit) and run this again to set its colors." -ForegroundColor Yellow
+        Write-PrintLine $leftMessage "Finished."
+        return
+    }
+
+    $wanted = [ordered]@{}
+    foreach ($line in (Get-Content -LiteralPath $themeFile -Encoding UTF8)) {
+        if ($line -match '^([a-z_]+)=(.*)$') {
+            $wanted[$Matches[1]] = $Matches[2]
+        }
+    }
+
+    $bytes = [System.IO.File]::ReadAllBytes($ini)
+    $bom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF
+    $text = (New-Object System.Text.UTF8Encoding($false)).GetString($bytes)
+    if ($bom) { $text = $text.Substring(1) }
+    $newline = if ($text.Contains("`r`n")) { "`r`n" } else { "`n" }
+    $lines = New-Object System.Collections.Generic.List[string]
+    foreach ($line in ($text -split "\r?\n")) { $lines.Add($line) }
+    while ($lines.Count -gt 0 -and $lines[$lines.Count - 1] -eq "") {
+        $lines.RemoveAt($lines.Count - 1)
+    }
+
+    $changed = 0
+    $seen = @{}
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^([a-z_]+)=(.*)$' -and $wanted.Contains($Matches[1])) {
+            $key = $Matches[1]
+            $seen[$key] = $true
+            if ($Matches[2] -ne $wanted[$key]) {
+                $lines[$i] = "$key=$($wanted[$key])"
+                $changed++
+            }
+        }
+    }
+
+    # Keys the ini does not have yet go at the end of its [Everything]
+    # section, before whatever section follows it.
+    $at = $lines.Count
+    $section = $lines.IndexOf("[Everything]")
+    if ($section -ge 0) {
+        for ($i = $section + 1; $i -lt $lines.Count; $i++) {
+            if ($lines[$i].StartsWith("[")) { $at = $i; break }
+        }
+    } else {
+        $lines.Insert(0, "[Everything]")
+        $at = $lines.Count
+    }
+    foreach ($key in $wanted.Keys) {
+        if (-not $seen.ContainsKey($key)) {
+            $lines.Insert($at, "$key=$($wanted[$key])")
+            $at++
+            $changed++
+        }
+    }
+
+    if ($changed -eq 0) {
+        Write-Host "  (already set: $ini)"
+    } else {
+        $out = ($lines -join $newline) + $newline
+        [System.IO.File]::WriteAllText($ini, $out, (New-Object System.Text.UTF8Encoding($bom)))
+        Write-Host "Set $changed color(s) in $ini"
+    }
+
+    Write-PrintLine $leftMessage "Finished."
+}
+
 function Perform-FullBootstrap {
     $leftMessage = "Full bootstrap"
     Write-PrintLine $leftMessage "Started."
@@ -1156,6 +1266,7 @@ function Perform-FullBootstrap {
     Install-Fonts
     Setup-Links
     Setup-DevPackages
+    Set-EverythingColors
     Install-Cmigemo
     Setup-StartupShortcuts
 
