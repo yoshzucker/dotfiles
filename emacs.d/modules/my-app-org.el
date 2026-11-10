@@ -1674,7 +1674,31 @@ block already shows what is out with them, as a live query."
   (setq org-moor-move-directories (list "~/Downloads/" "~/Desktop/")
         org-moor-directory-roots (list "~/Documents/project/"
                                        "~/Documents/reference/")
-        org-moor-files-function #'my/org-moor-files))
+        org-moor-files-function #'my/org-moor-files)
+
+  ;; The list of replicas awaited and the prune list are tabulated lists,
+  ;; which evil-collection puts in normal state, where RET is `evil-ret'
+  ;; and d, u, x, t and o edit or move.  They sit in motion state, as
+  ;; org-dock's list does, with their keys given back and listing again
+  ;; on `gr'.
+  (evil-set-initial-state 'org-moor-awaiting-mode 'motion)
+  (evil-set-initial-state 'org-moor-prune-mode 'motion)
+  (my/define-key
+   (:map org-moor-awaiting-mode-map
+         :state motion
+         :key
+         "RET" #'org-moor-awaiting-open
+         "gr" #'revert-buffer)
+   (:map org-moor-prune-mode-map
+         :state motion
+         :key
+         "RET" #'org-moor-prune-visit
+         "d" #'org-moor-prune-mark
+         "u" #'org-moor-prune-unmark
+         "x" #'org-moor-prune-execute
+         "t" #'org-moor-prune-set-title
+         "o" #'org-moor-prune-set-origin
+         "gr" #'revert-buffer)))
 
 (defun my/org-moor-files ()
   "Org files `org-moor-jump' looks in: memex without archive/, and the agenda.
