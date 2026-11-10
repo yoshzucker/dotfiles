@@ -1642,6 +1642,28 @@ block already shows what is out with them, as a live query."
          "a" "copies to save"
          "q" "quote clipboard"
          "M" "open machine readable"))
+
+  ;; The hotkey for the document in front (Ctrl+Alt+M, control+option+m)
+  ;; runs the package's front script, which hands emacsclient an
+  ;; `org-protocol://moor?...' URL.  Nothing registers the scheme with the
+  ;; system, and there is no bookmarklet: no web page can open it, only
+  ;; what can reach this server, which could already run anything here.
+  ;; Without org-protocol loaded the URL is visited as a file name, so it
+  ;; is loaded by the first emacsclient call that carries one -- loading it
+  ;; at startup would bring Org with it -- and the call is then made again,
+  ;; through the advice org-protocol has just put on `server-visit-files'.
+  ;; The handler is registered the moment it loads.
+  (with-eval-after-load 'org-protocol
+    (org-moor-protocol-setup))
+  (defun my/org-protocol-on-demand (fn files &rest args)
+    "Load org-protocol for the first FILES that need it, then visit them."
+    (if (and (not (featurep 'org-protocol))
+             (seq-some (lambda (f) (string-match-p "org-protocol:/" (car f)))
+                       files))
+        (progn (require 'org-protocol)
+               (apply #'server-visit-files files args))
+      (apply fn files args)))
+  (advice-add 'server-visit-files :around #'my/org-protocol-on-demand)
   :config
   ;; Moved from where things pile up -- taking a file there is tidying it,
   ;; and a copy left behind is the backlog this is for -- and copied from

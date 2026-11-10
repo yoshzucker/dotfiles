@@ -47,9 +47,12 @@ exits; nothing new stays running.  On macOS the first use asks to let
 Karabiner control the app in front; allow it.  On Windows the script calls
 emacsclientw itself (Scoop's shim followed to the real program).
 
-No `org-protocol://` handler is registered and org-protocol is never
-loaded: a web page cannot hand Emacs anything.  A page is taken with the
-hotkey, or with `C-c m w`, and the browser saves its copy.
+The script hands emacsclient an `org-protocol://moor?...` URL, and Emacs
+loads org-protocol when the first one arrives.  The scheme is registered
+with neither OS and there is no bookmarklet, so a web page cannot hand
+Emacs anything: only what can already reach the Emacs server can.  A page
+is taken with the hotkey, or with `C-c m w`, and the browser saves its
+copy.
 
 | Where | Key / command | What |
 |---|---|---|
