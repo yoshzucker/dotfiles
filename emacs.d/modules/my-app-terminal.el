@@ -105,6 +105,16 @@
   (advice-add 'ghostel--download-file :around #'my/ghostel-verify-download)
 
   :config
+  ;; Nothing a program prints may call into Emacs.  ghostel takes one escape
+  ;; sequence, OSC 52 of kind `e', as a request to call a function listed
+  ;; here, and lists `find-file' and `dired' by default -- whether or not
+  ;; OSC 52 is let at the clipboard.  The sequence is only output, so a file
+  ;; that is cat'ed, a page that is curl'ed or a remote host can send it as
+  ;; well as the shell's `ghostel cmd'.  And `find-file' here hands an .app,
+  ;; .exe or .lnk to the system to open -- see `my/open-with-system-extensions'
+  ;; in my-files-ops.el -- so the file named would run.
+  (setq ghostel-eval-cmds nil)
+
   (when (eq system-type 'windows-nt)
     ;; `ghostel-shell' follows $SHELL, and Emacs on Windows points that at
     ;; its own cmdproxy.exe -- the helper it uses to quote arguments when it

@@ -1,4 +1,4 @@
-;;; my-app-terminal-test.el --- Tests for the check on ghostel's downloads  -*- lexical-binding: t; -*-
+;;; my-app-terminal-test.el --- Tests for the guards on ghostel  -*- lexical-binding: t; -*-
 
 ;;; Commentary:
 
@@ -67,6 +67,30 @@
                        "https://github.com/dakra/ghostel/releases/latest/download/asset.dll"
                        dest)))
       (delete-directory dir t))))
+
+;; my-app-terminal.el empties `ghostel-eval-cmds' so that nothing printed in
+;; the terminal can call into Emacs.  Renamed upstream, the setting would
+;; land on a name nothing reads and the default list would be back.  ghostel
+;; itself loads a native module, so only its handler is taken out of it.
+(defvar ghostel-eval-cmds)
+
+(ert-deftest my-app-terminal-test-eval-follows-the-list ()
+  "An OSC 52;e request calls a function when it is listed, and only then."
+  (skip-unless my-app-terminal-test--available)
+  (should (= (my-test-load (locate-library "ghostel.el" t)
+                           "\\`(defun ghostel--osc52-eval ")
+             1))
+  (let (called)
+    (cl-letf (((symbol-function 'find-file)
+               (lambda (&rest args) (setq called args))))
+      (let ((ghostel-eval-cmds '(("find-file" find-file))))
+        (ghostel--osc52-eval "\"find-file\" \"/tmp/x\"")
+        (should (equal called '("/tmp/x"))))
+      (setq called nil)
+      (let ((ghostel-eval-cmds nil)
+            (inhibit-message t))
+        (ghostel--osc52-eval "\"find-file\" \"/tmp/x\"")
+        (should-not called)))))
 
 (provide 'my-app-terminal-test)
 ;;; my-app-terminal-test.el ends here
