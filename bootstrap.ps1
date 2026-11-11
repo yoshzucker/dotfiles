@@ -679,7 +679,7 @@ function Install-Scoop {
 
     Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
     try {
-        Invoke-RestMethod -UseBasicParsing get.scoop.sh | Invoke-Expression
+        Invoke-RestMethod -UseBasicParsing https://get.scoop.sh | Invoke-Expression
     } catch {
         Write-Host "Failed to install Scoop. Please install it manually from https://scoop.sh" -ForegroundColor Yellow
         exit 1
