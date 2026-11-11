@@ -27,7 +27,7 @@ working tree under ~/Developer.  By hand, in a repository:
 
 🚨 What this script does:
 - Runs 'leakseek' on the tracked files, with ~/.config/.leakseek.allow
-- Runs 'gitleaks detect' from the repo root
+- Runs 'gitleaks git --pre-commit --staged' on what is about to be committed
 - Warns about Japanese characters in a package's tracked files
 - Warns when a package repo describes one particular machine
   (both a no-op in the dotfiles repo itself)
@@ -53,8 +53,10 @@ if ! git ls-files -z | xargs -0 leakseek; then
   exit 1
 fi
 
-echo "🔒 Running gitleaks..."
-if ! gitleaks detect --no-banner --redact --source .; then
+# The staged changes, which are what this commit adds.  'gitleaks detect'
+# reads the commits already made, so whatever it finds is in already.
+echo "🔒 Running gitleaks on the staged changes..."
+if ! gitleaks git --pre-commit --staged --no-banner --redact .; then
   echo "❌ gitleaks found potential leaks. Commit aborted."
   exit 1
 fi
