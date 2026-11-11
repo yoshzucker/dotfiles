@@ -6,14 +6,14 @@
 
 (use-package animate
   :demand t
-  :custom
+  :config
   ;; The whole art swoops in as ONE parallel pass (see `my/insert-art'), so
   ;; `animate-total-added-delay' is the total swoop time for the entire art,
   ;; and `animate-n-steps' is its smoothness (frames). Per-step compute is
   ;; negligible, so more steps is cheap. Tune these to taste.
-  (animate-total-added-delay 0.6)
-  (animate-n-steps 20)
-  :config
+  (setq animate-total-added-delay 0.6
+        animate-n-steps 20)
+
   (defvar my/computer-art
     '("                                                     "
       "                                                     "
