@@ -41,24 +41,36 @@
   ;; it like any other.
   (my/define-key
    (:map global-map :key "C-c x" #'claude-code-ide-menu))
-  :custom
+
+  ;; No executeCode.  Unless told otherwise the package offers Claude a tool
+  ;; that evaluates whatever Elisp it is handed, in this Emacs -- outside
+  ;; Claude Code's permission rules and its sandbox, with everything Emacs
+  ;; can reach.  A Claude that has read instructions planted in a page or an
+  ;; invitation would have that to hand.  Nothing here wants it: Claude
+  ;; writes files with Edit and Write and runs the project's tools through
+  ;; the shell, where the permission rules see it.
+  ;;
+  ;; In `:init', so it is already nil when the package first reads it,
+  ;; which it does while loading.
+  (setq claude-code-ide-enable-execute-code nil)
+  :config
   ;; ghostel rather than the default vterm.  vterm needs a native module that
   ;; does not build on Windows at all, and ghostel is the backend the package
   ;; itself recommends for rendering the TUI.
-  (claude-code-ide-terminal-backend 'ghostel)
+  (setq claude-code-ide-terminal-backend 'ghostel)
 
   ;; ESC always reaches Claude, as its interrupt key, rather than entering
   ;; normal state; C-[ does that instead -- see evil-ghostel in
   ;; my-app-terminal.el -- and `C-c <escape>' where C-[ cannot be told
   ;; from ESC, in a terminal.
-  (claude-code-ide-ghostel-evil-escape 'terminal)
+  (setq claude-code-ide-ghostel-evil-escape 'terminal)
 
   ;; As wide as the text is, rather than the default hundred, which is more
   ;; than a frame of this configuration is wide to begin with.  The window
   ;; is docked to the right, so the frame takes its two-column shape to make
   ;; room -- see `my/frame--adjust-for-docking' in my-ui-frame.el -- and
   ;; this number is then how that width is divided: one column of text each.
-  (claude-code-ide-window-width 81)
+  (setq claude-code-ide-window-width 81)
 
   ;; What Emacs is to the session, said once, here, rather than in every
   ;; project's CLAUDE.md -- the package appends this to the system prompt of
@@ -86,19 +98,19 @@
   ;; escaped them, and returns only the words after the last one.  The
   ;; program name is among the words thrown away, so what fails is the exec,
   ;; reporting the tail of this sentence as a program it cannot find.
-  (claude-code-ide-system-prompt
-   (concat
-    "Emacs is attached as the editor. "
-    "It shows the user each change you make to a file as an ediff, "
-    "which they read, and can edit, before it is applied, but only when "
-    "the change is made with the Edit or Write tool. So write every change "
-    "to a file with those tools, never through the shell: not with sed, "
-    "perl or awk, not with a script, a heredoc or a redirect, not by "
-    "copying another file over it, however many changes there are or "
-    "however mechanical they look. A change made that way lands unseen. "
-    "Running the project's own tools that write files, a formatter or a "
-    "build, is another matter and is fine."))
-  :config
+  (setq claude-code-ide-system-prompt
+        (concat
+         "Emacs is attached as the editor. "
+         "It shows the user each change you make to a file as an ediff, "
+         "which they read, and can edit, before it is applied, but only when "
+         "the change is made with the Edit or Write tool. So write every change "
+         "to a file with those tools, never through the shell: not with sed, "
+         "perl or awk, not with a script, a heredoc or a redirect, not by "
+         "copying another file over it, however many changes there are or "
+         "however mechanical they look. A change made that way lands unseen. "
+         "Running the project's own tools that write files, a formatter or a "
+         "build, is another matter and is fine."))
+
   ;; The CLI is exec'd directly rather than through a shell, so on Windows it
   ;; is the native `claude' and both sides speak the same path form.  Nothing
   ;; to arrange for that; it is only worth knowing when a path looks wrong.

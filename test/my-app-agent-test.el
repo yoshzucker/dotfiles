@@ -62,5 +62,18 @@
       (should-not closed)
       (should handed))))
 
+;; my-app-agent.el turns executeCode off by setting a variable of the
+;; package's, and a variable renamed upstream fails the same quiet way: the
+;; setting lands on a name nothing reads, and the tool is offered again.
+(defvar claude-code-ide-enable-execute-code)
+
+(ert-deftest my-app-agent-test-execute-code-follows-the-variable ()
+  "executeCode is offered when the variable is non-nil, and only then."
+  (skip-unless my-app-agent-test--available)
+  (let ((claude-code-ide-enable-execute-code t))
+    (should (assoc "executeCode" (claude-code-ide-mcp--build-tool-list))))
+  (let ((claude-code-ide-enable-execute-code nil))
+    (should-not (assoc "executeCode" (claude-code-ide-mcp--build-tool-list)))))
+
 (provide 'my-app-agent-test)
 ;;; my-app-agent-test.el ends here
