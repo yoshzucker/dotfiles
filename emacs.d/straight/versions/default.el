@@ -35,7 +35,7 @@
  ("orderless" . "e271a8ec938929b726331236cf56d1c44571122e")
  ("org-calsync" . "a4bbbd4c6727a4427b57ac4d2da7657103c38711")
  ("org-convect" . "af4843688aface7ca2e6a573f82f19efcd89c92c")
- ("org-dayflow" . "e4ca2b2bcf838bffe7adecdf634281e2b93c6761")
+ ("org-dayflow" . "5cfe19713f3017ba86bb19e111d8122c7099c2d1")
  ("org-dock" . "a31dcf0003e43d398d6338fee5f6be228ef921c6")
  ("org-foresight" . "6f22968b9a7dc35ada2df687ff44f834bcf8bf81")
  ("org-item-tags" . "89fdae751f8c01418c167f82c150fb11cac70492")
