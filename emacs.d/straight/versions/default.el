@@ -44,7 +44,7 @@
  ("org-timeblock" . "e61e5734b49f933ed178029f804a0499f3308e1e")
  ("org-truss" . "c9c20b435e750ac0bb091af6fc38108f33473912")
  ("rainbow-mode" . "8af64da0a3d6d27ae7265e3d74b212a19763a406")
- ("rustcity-theme" . "9c5ebd8881137c5b0dffbe25d51508fefd4716e8")
+ ("rustcity-theme" . "19516f1c43f22a851879ad992e2ab54f248ac2f6")
  ("seq" . "da86da9bf111f68fb81efd466d76d53af5aebc00")
  ("sill" . "bdbb81a16efb02a06ecdcf51af8835efafad3066")
  ("sly" . "70350623eecd1f41837c9e57cbb6d5c06678a60d")
