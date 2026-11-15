@@ -555,6 +555,10 @@ org's existing key table stays the single source of truth."
   ;; a working calendar is more rows of meetings than there is work.  The
   ;; name is the package's to say, so it is asked for rather than written.
   (setq org-dayflow-exclude-files '(org-calsync-file))
+  ;; No shade on the weekend columns: a lighter ground under a title is a
+  ;; title read at less contrast, two days in seven.  The date row still
+  ;; tells the weekend, by the colour the theme gives its dates.
+  (setq org-dayflow-column-bands nil)
   ;; Personal category coloring for the timeline.  Category names live ONLY here
   ;; (never in the org-dayflow package); adjust to match your calendar sources.
   ;; These are the categories org-calsync writes: what a thing is, never where
