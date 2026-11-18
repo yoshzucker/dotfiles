@@ -1446,10 +1446,11 @@ in advance."
                     "#+title: ${title}\n")
            :unnarrowed t)))
 
-  ;; Daily notes live under daily/ but share the single central attachment store
-  ;; (see `org-attach-id-dir'), so promoting a daily entry to a standalone note
-  ;; keeps its `attachment:' links valid.
-  (setq org-roam-dailies-directory "daily/")
+  ;; Daily notes are private: fragments, feelings, what someone said.  They
+  ;; live under daily/ there but share the single central attachment store
+  ;; (see `org-attach-id-dir'), so promoting a daily entry to a standalone
+  ;; note keeps its `attachment:' links valid.
+  (setq org-roam-dailies-directory (concat my/org-private-directory "/daily/"))
 
   ;; The pressure-free half of the time axis.  journal.org feeds the agenda and
   ;; the clock reports, so an entry there is a commitment; here nothing is, which
@@ -1764,7 +1765,13 @@ the sources' records, not notes.  Nor the private notes."
            :key
            "K" #'org-convect-plan)))
   :config
-  (setq org-convect-files (list (concat org-directory "horizons.org")))
+  ;; The ladder is private, and not only for the choice points written under
+  ;; its values: what I am for is not something to show.  org-convect reads
+  ;; its own list of files rather than the agenda's, so the review and the
+  ;; area prompt reach it there all the same.
+  (setq org-convect-files
+        (list (expand-file-name
+               (concat my/org-private-directory "/horizons.org") org-directory)))
 
   ;; The guidance is kept in both languages.  Reading it is the slow part of
   ;; writing a rung, and reading it in the language I think in is what makes
