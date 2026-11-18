@@ -269,20 +269,7 @@ org's existing key table stays the single source of truth."
            ;; Here rather than on a key of its own: it is another view of the
            ;; same files, and the dispatcher is where views are chosen.  The
            ;; package's own `org-dayflow' would ask for a period a second time.
-           (lambda (_match) (org-dayflow-display)) "")
-          ("p" "People — work with someone in it"
-           ;; Everything a person is part of, whichever way round: WAIT and
-           ;; DELEG are with them, anything else with a `:PEOPLE:' needs them.
-           ;; One property says who, and the state says which -- so this is one
-           ;; list, not two that would have to be read together.
-           ;;
-           ;; DELEG is a done-type keyword, so the `tags' type is used (it lists
-           ;; done entries, unlike `todo'); sorted by SCHEDULED (the follow-up
-           ;; date) so overdue check-ins float to the top.
-           ((tags "TODO=\"WAIT\"|TODO=\"DELEG\"|PEOPLE={.}"
-                  ((org-agenda-overriding-header "Waiting on · handed over · needs someone")
-                   (org-agenda-sorting-strategy '(scheduled-up priority-down)))))
-           ((org-foresight-report-style nil))))))
+           (lambda (_match) (org-dayflow-display)) "")))
 
 (add-hook 'org-agenda-mode-hook (lambda () (setq truncate-lines t)))
 

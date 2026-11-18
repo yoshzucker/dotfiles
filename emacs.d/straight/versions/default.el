@@ -37,7 +37,7 @@
  ("org-convect" . "af4843688aface7ca2e6a573f82f19efcd89c92c")
  ("org-dayflow" . "265717672fdfe267d68a7c6d62599908b400522f")
  ("org-dock" . "a31dcf0003e43d398d6338fee5f6be228ef921c6")
- ("org-foresight" . "6f22968b9a7dc35ada2df687ff44f834bcf8bf81")
+ ("org-foresight" . "c28ebbeb0a6062e96dad3d40ac5e5b63ee3d5b1b")
  ("org-item-tags" . "89fdae751f8c01418c167f82c150fb11cac70492")
  ("org-moor" . "ecdeb0916421a4bf08064672b15c42111c9d1b9b")
  ("org-roam" . "903bd4ec56d29247990d005ed9052c201e18b812")

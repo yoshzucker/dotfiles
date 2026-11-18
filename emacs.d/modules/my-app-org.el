@@ -40,14 +40,14 @@
 ;;   more about the clocked task        that task              C-c c c
 ;;   more about the entry at point      that entry             C-c C-z
 ;;   more about a distant node          that node's Log        C-c c n
-;;   more about a person                that person's Log      C-c c p
+;;   more about a private node          that node's Log        C-c c p
 ;;   a new subject                      a new node             C-c n f / C-c n c
 ;;   a choice point (ACT)               the value it is about  C-c c a
 ;;
 ;; Records with a shape.  Some of what is recorded here is not prose but a
-;; *kind of thing* -- a person, a mood, a choice point -- and those are written
-;; to a form rather than freely.  A shaped record is three decisions, and they
-;; are worth making together:
+;; *kind of thing* -- a choice point -- and those are written to a form rather
+;; than freely.  A shaped record is three decisions, and they are worth making
+;; together:
 ;;
 ;;   where it goes    a named place, so it is never "somewhere in the notes"
 ;;   what it holds    fixed fields, asked in order by the capture
@@ -67,12 +67,12 @@
 ;;
 ;;; Code:
 
-;; Shared by the capture templates below, the org-roam person template and
+;; Shared by the capture templates below, the org-roam templates and
 ;; `my/org-roam-node-log-target'.  Defined at top level so every use-package
 ;; block can see them regardless of load order.
 
 ;; Every node accumulates its notes under one heading of this name -- daily
-;; notes, person nodes and subject nodes alike -- so there is a single word to
+;; notes, private nodes and subject nodes alike -- so there is a single word to
 ;; remember.  It is also a structural requirement: an `item' capture whose
 ;; target is not a heading searches the *whole buffer* for a list to join (see
 ;; `org-capture-place-item'), which would let a note land under an unrelated
@@ -94,6 +94,30 @@
 ;; The daily file is already the date, by name and by title; a date heading
 ;; inside it would only repeat that.
 (defconst my/org-daily-head "#+title: %<%Y-%m-%d>\n")
+
+;; What is private is a place, not a kind.  A kind is a filetag (`:person:',
+;; `:meeting:') and only narrows a choice; whether a note may appear on a
+;; shared screen does not follow from its kind -- a regular meeting may, a
+;; note on someone may not.  A directory is what every listing already
+;; understands, down to dired and rg, so private notes are kept out of
+;; whatever lists or searches the notes in passing, and reached through the
+;; entry points that ask for them.  Their file names carry no slug either,
+;; so a directory listing names nobody.
+(defconst my/org-private-directory "private"
+  "Directory directly under `org-directory' that holds private notes.")
+
+(defun my/org-private-regexp ()
+  "Regexp matching any path inside the private directory of `org-directory'.
+Anchored on the name of `org-directory' rather than on its full path, so an
+abbreviated, expanded or true name of the same file all match."
+  (concat "/" (regexp-quote (file-name-nondirectory
+                             (directory-file-name org-directory)))
+          "/" (regexp-quote my/org-private-directory) "/"))
+
+(defun my/org-private-file-p (file)
+  "Non-nil when FILE is inside `my/org-private-directory'."
+  (and file org-directory
+       (string-match-p (my/org-private-regexp) file)))
 
 (use-package org
   ;; The Org Emacs ships, a release, rather than a clone of Org's development
@@ -132,7 +156,8 @@
   ;; Corpus heading nav: jump to any heading under `org-directory'.
   (defun my/consult-org-headings-all (&optional archivep)
     "Consult all headings under `org-directory` (archives directory excluded).
-With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_archive files."
+With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_archive files.
+Private notes are never offered (see `my/org-private-directory')."
     (interactive "P")
     (unless (and org-directory (file-directory-p org-directory))
       (user-error "Please set a valid `org-directory`"))
@@ -146,8 +171,9 @@ With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_arc
                    ext
                    nil
                    (lambda (d)
-                     (not (string-match-p "/\\(?:archive\\|sources\\)/"
-                                          (file-name-as-directory d)))))))
+                     (let ((d (file-name-as-directory d)))
+                       (not (or (string-match-p "/\\(?:archive\\|sources\\)/" d)
+                                (my/org-private-file-p d))))))))
       (consult-org-heading nil files)))
 
   ;; The keys that reach Org from outside it.  Bound before it loads, to the
@@ -180,6 +206,31 @@ With-current-buffer prefix argument INCLUDE-ARCHIVE (C-u), also include .org_arc
   ;; already-bound value.
   (setq org-directory (file-name-as-directory "~/Documents/memex/"))
 
+  ;; Private notes out of the searches that are not Org's.  `:rg' is
+  ;; `project-find-regexp', and memex is a project by its `.project' (see
+  ;; my-files-vc.el) with no repository behind it, so the files rg is handed
+  ;; are the ones `project-ignores' leaves -- and that reads
+  ;; `project-vc-ignores' from the directory's local variables.  A directory
+  ;; class sets it from here, so nothing has to be kept inside memex itself.
+  (dir-locals-set-class-variables
+   'my/org-memex
+   `((nil . ((project-vc-ignores
+              . (,(concat "./" my/org-private-directory "/")))))))
+  (dir-locals-set-directory-class org-directory 'my/org-memex)
+
+  ;; A preview shows a file while its name is only a candidate -- in
+  ;; `consult-buffer' and `consult-recent-file' among others -- which is a
+  ;; private note on screen without ever having chosen it.  Files are kept
+  ;; from being opened for it; buffers already open, from being shown.
+  (with-eval-after-load 'consult
+    (add-to-list 'consult-preview-excluded-files (my/org-private-regexp))
+    ;; A `buffer-match-p' condition, not a list of them: composed with `or'
+    ;; so whatever it already held still counts.
+    (setq consult-preview-excluded-buffers
+          `(or ,consult-preview-excluded-buffers
+               ,(lambda (buffer &rest _)
+                  (my/org-private-file-p (buffer-file-name buffer))))))
+
   ;; Agenda-file discovery also lives in `:init' so it is available at startup.
   ;; These helpers depend only on `org-directory', not on org itself.
   (defvar my/org-agenda-exclude-regexps
@@ -194,10 +245,13 @@ The surrounding slashes in \"/archive/\" anchor it to a whole directory
 component, so a file merely named `archive.org' is still included.")
 
   (defun my/org-agenda-file-excluded-p (file)
-    "Non-nil when FILE matches any regexp in `my/org-agenda-exclude-regexps'."
+    "Non-nil when FILE matches any regexp in `my/org-agenda-exclude-regexps'.
+Private notes are excluded as well: what they hold would otherwise appear
+on any agenda opened in front of others."
     (let ((path (expand-file-name file)))
-      (seq-some (lambda (re) (string-match-p re path))
-                my/org-agenda-exclude-regexps)))
+      (or (seq-some (lambda (re) (string-match-p re path))
+                    my/org-agenda-exclude-regexps)
+          (my/org-private-file-p path))))
 
   (defun my/find-org-recursive (&rest dirs)
     "Recursively find all .org files in DIRS."
@@ -412,7 +466,7 @@ agenda file set does not depend on whether rg is installed -- rg's own
   ;; So DELEG does not mean "delegated", it means *handed over for good*: the
   ;; case where the work left my accountability with it.  Work given to a
   ;; report is WAIT, because the result returns and I am still answerable for
-  ;; it -- and it stays under its own name, with `:PEOPLE:' saying who has it
+  ;; it -- and it stays under its own name, with the heading saying who has it
   ;; and SCHEDULED saying when to ask.  A separate "receive X's report" task is
   ;; the same fact written twice.
   ;;
@@ -862,14 +916,17 @@ whose value at any moment belongs to the last log entry Org wrote (see
           ("c" "note on clocked task" item (clock)
            ,(concat my/org-note-prefix "Annotation %a\n  %?")
            :jump-to-captured t)
-          ;; Note onto a node chosen by name.  "o" is the same template with the
-          ;; candidate list narrowed to people -- the only difference is the
-          ;; filter, so a note reads the same wherever it lands.  Anything that
-          ;; later deserves to be looked up on its own (a 1on1 worth scheduling
+          ;; Note onto a node chosen by name.  "p" is the same template over
+          ;; the private nodes instead of the rest -- the only difference is
+          ;; which nodes are offered, so a note reads the same wherever it
+          ;; lands.  A kind of node (a person, a meeting) is narrowed to by
+          ;; typing its tag, which the candidates show.  Anything that later
+          ;; deserves to be looked up on its own (a 1on1 worth scheduling
           ;; follow-ups against) gets promoted to a headline then, not now.
           ("n" "note on a node" item (function my/org-roam-node-log-target)
            ,my/org-node-note-template)
-          ("p" "note on a person" item (function my/org-roam-person-log-target)
+          ("p" "note on a private node" item
+           (function my/org-roam-private-log-target)
            ,my/org-node-note-template)
           ;; ACT.  A choice point: what showed up, what it pulled me into, and
           ;; what the value asked for instead.  Only what can be enumerated is
@@ -901,82 +958,38 @@ whose value at any moment belongs to the last log entry Org wrote (see
                     "- towards :: \n"))))
 
   ;; Handing work over.  There is no capture template for it: cycling into
-  ;; WAIT or DELEG is the act, wherever it happens, and this asks the two
-  ;; questions that go with it.  There used to be a template as well, which
-  ;; only meant the same property could be written two ways -- and the people
-  ;; board matches it as an exact string, so two ways is one way too many.
+  ;; WAIT is the act, wherever it happens, and this asks the one question
+  ;; that goes with it.  Who has the work is written in the heading itself
+  ;; ("田中: 見積もりの返事"), where the agenda and a text search both see it.
   ;;
   ;; It belongs to Org rather than to the agenda -- `org-after-todo-state-change-hook'
   ;; fires wherever the state is cycled -- and living beside the agenda meant it
   ;; did not exist until the agenda had been opened at least once.
-  (defun my/org-roam-person-names ()
-    "Titles of all `:person:'-tagged org-roam nodes.
-Used as completion candidates when handing work over.  Free text is still
-accepted at the prompt, so handing something to someone without a person node
-also works."
-    (when (require 'org-roam nil t)
-      (seq-uniq
-       (seq-keep (lambda (n)
-                   ;; File-level nodes only: the `:person:' filetag is inherited
-                   ;; by sub-headings, so without this the headings inside a
-                   ;; person node (Log, Together, ...) leak in as names.
-                   (and (= 0 (org-roam-node-level n))
-                        (member "person" (org-roam-node-tags n))
-                        (org-roam-node-title n)))
-                 (org-roam-node-list)))))
+  (defun my/org-wait-ask-followup ()
+    "Ask when to check back on work that has just become WAIT.
 
-  (defun my/org-handover-on-state-change ()
-    "Record who has the work when it stops being mine, and when to ask.
+Runs from `org-after-todo-state-change-hook\='.  Only WAIT asks: it is
+coming back to me, so it needs a day to ask about it.  DELEG asks nothing --
+it is not coming back, and a follow-up date on work I am no longer
+answerable for is a reminder to chase something that is not mine.
 
-Runs from `org-after-todo-state-change-hook\='.  Which questions get asked
-follows from what the two states mean (see `org-todo-keywords\='):
-
-  WAIT   who has it, *and* when to ask -- it is coming back to me
-  DELEG  who has it.  Nothing else: it is not coming back, and a follow-up
-         date on work I am no longer answerable for is a reminder to chase
-         something that is not mine
-
-`:PEOPLE:\=' rather than a property named for delegation: the same word names
-whoever a piece of work involves, and the state says which way round it is --
-WAIT and DELEG are with them, a NEXT with `:PEOPLE:\=' needs them.  One word
-means the person\='s own note can show both in one block.  Written as a
-multi-valued property, so a name with a space in it survives.
-
-The prompt completes over `:person:\=' node titles, so names stay consistent
-with those nodes and the per-person block keeps matching, but accepts free
-text too -- work is not only handed to reports.  The follow-up SCHEDULE is set
-with logging suppressed so it does not interleave with the pending
-state-change entry.  No-op when non-interactive, so scripted state changes (and
-capture, which writes the state as text without a state change) are
-unaffected."
-    (when (and (member org-state '("WAIT" "DELEG")) (not noninteractive))
-      (let ((who (completing-read
-                  (if (equal org-state "WAIT") "Who has it: " "Handed to: ")
-                  (my/org-roam-person-names)
-                  nil nil nil nil
-                  (org-entry-get nil "PEOPLE")))
-            (followup (and (equal org-state "WAIT")
-                           ;; Org tells the caller a time was typed through
-                           ;; these, and only when they are bound where the
-                           ;; call is: their `defvar' in org.el makes them
-                           ;; special in org.el alone.  Unbound here, "5pm"
-                           ;; parses and is then dropped on the way out, and
-                           ;; the prompt looks like it did not understand.
-                           (let (org-time-was-given org-end-time-was-given)
-                             (org-read-date nil nil nil "When to ask")))))
-        (unless (string-empty-p who)
-          ;; Written plainly, not with the multivalued property API, which
-          ;; escapes spaces as `%20'.  The "e" capture template writes this
-          ;; property as ordinary text and the people board matches it as an
-          ;; exact string, so an escaping writer would split any name with a
-          ;; space into two populations that never see each other.  One person
-          ;; holds a piece of work, so the multivalued reading buys nothing.
-          (org-entry-put nil "PEOPLE" who))
-        (when (and followup (not (string-empty-p followup)))
+The answer becomes SCHEDULED, set with logging suppressed so it does not
+interleave with the pending state-change entry.  No-op when
+non-interactive, so scripted state changes (and capture, which writes the
+state as text without a state change) are unaffected."
+    (when (and (equal org-state "WAIT") (not noninteractive))
+      ;; Org tells the caller a time was typed through these, and only when
+      ;; they are bound where the call is: their `defvar' in org.el makes
+      ;; them special in org.el alone.  Unbound here, "5pm" parses and is
+      ;; then dropped on the way out, and the prompt looks like it did not
+      ;; understand.
+      (let ((followup (let (org-time-was-given org-end-time-was-given)
+                        (org-read-date nil nil nil "When to ask"))))
+        (unless (string-empty-p followup)
           (let ((org-log-reschedule nil))
             (org-schedule nil followup))))))
 
-  (add-hook 'org-after-todo-state-change-hook #'my/org-handover-on-state-change)
+  (add-hook 'org-after-todo-state-change-hook #'my/org-wait-ask-followup)
   
   ;; Which link types Org teaches itself, which is also which programs it
   ;; loads to do it.  The default list is eleven handlers and it is the
@@ -1288,23 +1301,47 @@ answering yes deletes it without putting anything back."
   :defer t
   :init
   (setq org-roam-v2-ack t)
+
+  (defun my/org-roam-private-node-p (node)
+    "Non-nil when NODE lives in `my/org-private-directory'."
+    (my/org-private-file-p (org-roam-node-file node)))
+
+  ;; Finding and linking nodes leave the private ones out unless asked with
+  ;; `C-u': the candidate list is the names of everything, and it is the
+  ;; list most likely to be open in front of others.  Defined here rather
+  ;; than in `:config' because the keys below are bound before org-roam
+  ;; loads, and reach it through the commands it autoloads.
+  (defun my/org-roam-node-find (&optional private)
+    "`org-roam-node-find' over the nodes outside `my/org-private-directory'.
+With PRIVATE (\\[universal-argument]), over every node."
+    (interactive "P")
+    (org-roam-node-find
+     nil nil (unless private (lambda (n) (not (my/org-roam-private-node-p n))))))
+
+  (defun my/org-roam-node-insert (&optional private)
+    "`org-roam-node-insert' over the nodes outside `my/org-private-directory'.
+With PRIVATE (\\[universal-argument]), over every node."
+    (interactive "P")
+    (org-roam-node-insert
+     (unless private (lambda (n) (not (my/org-roam-private-node-p n))))))
+
   (my/define-key
    (:map global-map
          :prefix "C-c"
          :key
-         "f" #'org-roam-node-find
+         "f" #'my/org-roam-node-find
          "j" #'org-roam-dailies-goto-today
          "z" #'org-roam-dailies-capture-today)
    (:map global-map
          :prefix "C-c n"
          :key
          "l" #'org-roam-buffer-toggle
-         "f" #'org-roam-node-find
+         "f" #'my/org-roam-node-find
          "g" #'org-id-get-create
          "c" #'org-roam-capture
          "j" #'org-roam-dailies-goto-today
          "z" #'org-roam-dailies-capture-today
-         "i" #'org-roam-node-insert
+         "i" #'my/org-roam-node-insert
          "t" #'org-roam-tag-add
          "A" #'org-roam-alias-add
          "R" #'org-roam-ref-add)
@@ -1338,59 +1375,20 @@ answering yes deletes it without putting anything back."
 
   (org-roam-db-autosync-mode)
 
-  ;; People/delegation management via generic Org mechanisms (a custom dynamic
-  ;; block + capture templates + tags), not bespoke commands.
-  (defun org-dblock-write:people (params)
-    "Dynamic block listing everything :who is part of, whichever way round.
-
-`:PEOPLE:' names who a piece of work involves and the TODO state says the
-relation: WAIT and DELEG are with them, anything else needs them.  So one
-block answers both halves of a person -- what they owe and what they are
-holding up -- where two blocks would have had to be read together.
-
-It searches `org-agenda-files', so a `person' node shows everything anywhere.
-Header: `#+BEGIN: people :who \"名前\"'.  Refresh with C-c C-c on the block or
-`org-update-all-dblocks'."
-    (let* ((who (or (plist-get params :who) ""))
-           (entries
-            ;; Every heading that names WHO, with its state and when it is
-            ;; scheduled; the two halves are told apart below.
-            (org-map-entries
-             (lambda ()
-               (list (org-get-todo-state)
-                     (org-entry-is-done-p)
-                     (org-get-heading t t t t)
-                     (org-entry-get nil "SCHEDULED")))
-             (format "PEOPLE=%S" who)
-             'agenda))
-           (render
-            (lambda (keep)
-              (mapcar (pcase-lambda (`(,state ,_ ,heading ,scheduled))
-                        (format "- %s%s%s" (if state (concat state " ") "") heading
-                                (if scheduled (format "  %s" scheduled) "")))
-                      ;; Soonest first, the unscheduled after them all.
-                      (sort (seq-filter keep entries)
-                            (lambda (a b)
-                              (let ((a (nth 3 a)) (b (nth 3 b)))
-                                (cond ((null a) nil)
-                                      ((null b) t)
-                                      (t (< (org-time-string-to-seconds a)
-                                            (org-time-string-to-seconds b))))))))))
-           (with-them (funcall render (lambda (e) (member (car e) '("WAIT" "DELEG")))))
-           (needs-them (funcall render (lambda (e) (not (or (member (car e) '("WAIT" "DELEG"))
-                                                           (nth 1 e)))))))
-      (insert "With them:\n"
-              (if with-them (string-join with-them "\n") "- (none)")
-              "\n\nNeeds them:\n"
-              (if needs-them (string-join needs-them "\n") "- (none)"))))
-
-  (defun my/org-roam-node-log-target (&optional filter prompt)
-    "Capture target: the `my/org-log-heading' subtree of a node read from PROMPT.
-FILTER narrows the candidates the way `org-roam-node-read' expects; without one,
-every node is offered.  Creates the heading when the node does not have it yet,
-so any node can receive notes without being prepared for them in advance."
+  (defun my/org-roam-node-log-target (&optional private)
+    "Capture target: the `my/org-log-heading' subtree of a node chosen by name.
+The nodes offered are those outside `my/org-private-directory', or with
+PRIVATE only those inside it.  Creates the heading when the node does not
+have it yet, so any node can receive notes without being prepared for them
+in advance."
     (require 'org-roam)
-    (let* ((node (org-roam-node-read nil filter nil t (or prompt "Log on: ")))
+    (let* ((node (org-roam-node-read
+                  nil
+                  (if private
+                      #'my/org-roam-private-node-p
+                    (lambda (n) (not (my/org-roam-private-node-p n))))
+                  nil t
+                  (if private "Log on (private): " "Log on: ")))
            (file (org-roam-node-file node)))
       (unless (and file (file-exists-p file))
         (user-error "No node selected"))
@@ -1408,42 +1406,34 @@ so any node can receive notes without being prepared for them in advance."
         (insert "* " my/org-log-heading))
       (goto-char (line-beginning-position))))
 
-  (defun my/org-roam-person-log-target ()
-    "Capture target: the log heading of a node tagged `person'.
-`my/org-roam-node-log-target' with the candidates narrowed to direct reports --
-a 1on1, a hallway chat, an observation, feedback, at any granularity, all
-consolidated in that person's node.  Tasks are NOT refiled here; the `delegated'
-block already shows what is out with them, as a live query."
-    (my/org-roam-node-log-target
-     (lambda (n) (member "person" (org-roam-node-tags n)))
-     "Log on person: "))
+  (defun my/org-roam-private-log-target ()
+    "Capture target: `my/org-roam-node-log-target' over the private nodes."
+    (my/org-roam-node-log-target t))
 
   ;; These templates create *nodes*; they are what `org-roam-capture' and
   ;; `org-roam-node-find' offer when a title does not resolve to an existing
   ;; node.  Appending to a node that already exists is a separate act, handled
-  ;; by the org-capture "g"/"o" templates -- org-roam's `:target' has no
+  ;; by the org-capture "n"/"p" templates -- org-roam's `:target' has no
   ;; `function' type, and choosing an existing entry to add to is org-capture's
-  ;; job.  The two axes pair up: [d]efault/[p]erson create, "g"/"o" append.
+  ;; job.  The two pair up: [d]efault/[p]rivate create, "n"/"p" append.
   ;;
-  ;; No tag prompt on the default template: forcing a tag at creation time is
-  ;; friction paid on every note, and an empty answer leaves a bare
-  ;; `#+filetags:' line behind.  Tags are added later, once a note has enough
-  ;; shape to deserve one, with `org-roam-tag-add' (C-c n t).
+  ;; No tag prompt: forcing a tag at creation time is friction paid on every
+  ;; note, and an empty answer leaves a bare `#+filetags:' line behind.  Tags
+  ;; are added later, once a note has enough shape to deserve one, with
+  ;; `org-roam-tag-add' (C-c n t) -- and a tag is all a kind of node is.
   ;;
-  ;; Of what the person template lays out, only the `people' block is
-  ;; person-specific -- it queries :PEOPLE:, and only an agent can be one.  Role/Since, Objectives and the log heading
-  ;; are generic, and `:person:' is just the label the candidate filter reads.
-  ;; Another category of node (a place, a system) needs no new machinery: create
-  ;; it with [d] and append to it with "g".
+  ;; A private node's file is named by the time alone: its title is the name
+  ;; of a person or a pastime, and the slug would put that in every listing
+  ;; of the directory.
   (setq org-roam-capture-templates
         `(("d" "default" plain "%?"
            :target (file+head "%<%Y-%m-%d-%H-%M-%S>-${slug}.org"
                               "#+title: ${title}\n")
            :unnarrowed t)
-          ("p" "person" plain "%?"
+          ("p" "private" plain "%?"
            :target (file+head
-                    "%<%Y-%m-%d-%H-%M-%S>-${slug}.org"
-                    ,(concat "#+title: ${title}\n#+filetags: :person:\n\n- Role ::\n- Since ::\n\n* Objectives / 期待\n\n* Together\n#+BEGIN: people :who \"${title}\"\n#+END:\n\n* " my/org-log-heading "\n"))
+                    ,(concat my/org-private-directory "/%<%Y-%m-%d-%H-%M-%S>.org")
+                    "#+title: ${title}\n")
            :unnarrowed t)))
 
   ;; Daily notes live under daily/ but share the single central attachment store
@@ -1704,14 +1694,16 @@ block already shows what is out with them, as a live query."
   "Org files `org-moor-jump' looks in: memex without archive/, and the agenda.
 The same tree `my/consult-org-headings-all' offers, so the two never
 disagree about what exists.  Not memex/sources/ either: its Org files are
-the sources' records, not notes."
+the sources' records, not notes.  Nor the private notes."
   (delete-dups
    (append (org-agenda-files t)
            (and org-directory (file-directory-p org-directory)
                 (directory-files-recursively
                  org-directory "\\.org\\'" nil
-                 (lambda (d) (not (string-match-p "/\\(?:archive\\|sources\\)/"
-                                                  (file-name-as-directory d)))))))))
+                 (lambda (d)
+                   (let ((d (file-name-as-directory d)))
+                     (not (or (string-match-p "/\\(?:archive\\|sources\\)/" d)
+                              (my/org-private-file-p d))))))))))
 
 ;;;; The horizons above the project
 ;; org-foresight holds the two lowest altitudes -- projects and next actions --
