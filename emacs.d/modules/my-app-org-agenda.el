@@ -269,7 +269,7 @@ org's existing key table stays the single source of truth."
            ;; Here rather than on a key of its own: it is another view of the
            ;; same files, and the dispatcher is where views are chosen.  The
            ;; package's own `org-dayflow' would ask for a period a second time.
-           (lambda (_match) (org-dayflow-display)) "")))
+           (lambda (_match) (org-dayflow-display)) ""))))
 
 (add-hook 'org-agenda-mode-hook (lambda () (setq truncate-lines t)))
 
