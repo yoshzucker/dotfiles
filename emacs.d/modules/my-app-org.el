@@ -206,17 +206,38 @@ Private notes are never offered (see `my/org-private-directory')."
   ;; already-bound value.
   (setq org-directory (file-name-as-directory "~/Documents/memex/"))
 
-  ;; Private notes out of the searches that are not Org's.  `:rg' is
+  ;; memex's directory-local variables, all in one class: a directory has a
+  ;; single class, and naming it for a second one replaces the first.  Set
+  ;; from here, so nothing has to be kept inside memex itself.  A directory
+  ;; class matches a file by the name it is visited by, so memex is named
+  ;; both as written and as its true name.
+  ;;
+  ;; `org-attach-id-dir': an absolute central ID-keyed store, for memex
+  ;; alone.  With the default relative "data/", each note directory gets its
+  ;; own store, so moving a subtree between the root and a subdirectory
+  ;; breaks `attachment:' links.  A single absolute store makes attachments
+  ;; resolve by ID regardless of note location.  Elsewhere -- a document's
+  ;; own directory, a truss file's -- Org's default keeps attachments beside
+  ;; the file, so the directory moves whole.
+  ;;
+  ;; `project-vc-ignores': private notes out of `:rg'.  That is
   ;; `project-find-regexp', and memex is a project by its `.project' (see
   ;; my-files-vc.el) with no repository behind it, so the files rg is handed
-  ;; are the ones `project-ignores' leaves -- and that reads
-  ;; `project-vc-ignores' from the directory's local variables.  A directory
-  ;; class sets it from here, so nothing has to be kept inside memex itself.
+  ;; are the ones `project-ignores' leaves -- which reads this variable from
+  ;; the directory's local variables.
+  ;;
+  ;; Declared safe here as well as in org-attach: the class is in place from
+  ;; startup, and a memex buffer that reads it before org-attach has loaded
+  ;; -- a dired listing, say -- would otherwise ask whether to allow it.
+  (put 'org-attach-id-dir 'safe-local-variable #'stringp)
   (dir-locals-set-class-variables
-   'my/org-memex
-   `((nil . ((project-vc-ignores
+   'memex
+   `((nil . ((org-attach-id-dir . ,(expand-file-name "data/" org-directory))
+             (project-vc-ignores
               . (,(concat "./" my/org-private-directory "/")))))))
-  (dir-locals-set-directory-class org-directory 'my/org-memex)
+  (dolist (dir (delete-dups (list (expand-file-name org-directory)
+                                  (file-truename org-directory))))
+    (dir-locals-set-directory-class dir 'memex))
 
   ;; A preview shows a file while its name is only a candidate -- in
   ;; `consult-buffer' and `consult-recent-file' among others -- which is a
@@ -1082,19 +1103,8 @@ state as text without a state change) are unaffected."
   :straight nil
   :after org
   :config
-  ;; Absolute central ID-keyed store, for memex alone.  With the default
-  ;; relative "data/", each note directory gets its own store, so moving a
-  ;; subtree between the root and daily/ breaks `attachment:' links.  A single
-  ;; absolute store makes attachments resolve by ID regardless of note
-  ;; location.  Elsewhere -- a document's own directory, a truss file's --
-  ;; Org's default keeps attachments beside the file, so the directory moves
-  ;; whole.  A directory class matches a file by the name it is visited by,
-  ;; so memex is named both as written and as its true name.
-  (dir-locals-set-class-variables
-   'memex `((nil . ((org-attach-id-dir . ,(expand-file-name "data/" org-directory))))))
-  (dolist (dir (delete-dups (list (expand-file-name org-directory)
-                                  (file-truename org-directory))))
-    (dir-locals-set-directory-class dir 'memex))
+  ;; memex's central store is its directory-local `org-attach-id-dir', set
+  ;; with memex's other directory-local variables in `org''s `:init'.
 
   ;; Expose screenshot capture as an entry in the `org-attach' dispatcher
   ;; (C-c C-a) rather than a standalone key.  `my/org-attach-screenshot' is a
