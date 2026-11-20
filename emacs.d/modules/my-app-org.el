@@ -391,6 +391,33 @@ agenda file set does not depend on whether rg is installed -- rg's own
                                  ("DELEG" . org-done)
                                  ("CANCEL" . org-done)))
 
+  ;; A link in a heading keeps the heading's colour and only its underline
+  ;; marks it as a link; in the body it keeps `org-link''s colour.
+  ;; `org-activate-links' prepends the link face over the level face, so this
+  ;; keyword, run after it, prepends the level face back over the link's
+  ;; visible part (the one carrying `htmlize-link').  The level faces set no
+  ;; underline, so the link's shows through.
+  (defun my/org-fontify-heading-links (limit)
+    "Give the links in headings up to LIMIT their heading's level face."
+    (while (re-search-forward "^\\(\\**\\)\\(\\* \\)\\(.*\\)" limit t)
+      (let ((face (org-get-level-face 2))
+            (pos (match-beginning 3))
+            (end (match-end 3)))
+        (while (< pos end)
+          (let ((next (next-single-property-change pos 'htmlize-link nil end)))
+            (when (get-text-property pos 'htmlize-link)
+              (add-face-text-property pos next face))
+            (setq pos next)))))
+    nil)
+  (defun my/org-add-heading-links-keyword ()
+    "Run `my/org-fontify-heading-links' after Org's own keywords."
+    (setq org-font-lock-extra-keywords
+          (append org-font-lock-extra-keywords
+                  '((my/org-fontify-heading-links)))))
+  (my/add-hook
+   (:hook org-font-lock-set-keywords-hook
+          :func #'my/org-add-heading-links-keyword))
+
   ;; Blocks start folded (`org-hide-block-startup'), so a long quote or src
   ;; block does not stretch the outline.  But opening a heading with C-i is
   ;; asking to read its body, and the blocks are part of that body -- the
