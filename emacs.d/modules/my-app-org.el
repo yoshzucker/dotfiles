@@ -220,8 +220,8 @@ Private notes are never offered (see `my/org-private-directory')."
   ;; own directory, a truss file's -- Org's default keeps attachments beside
   ;; the file, so the directory moves whole.
   ;;
-  ;; `project-vc-ignores': private notes out of `:rg'.  That is
-  ;; `project-find-regexp', and memex is a project by its `.project' (see
+  ;; `project-vc-ignores': private notes and the archive out of `:rg'.  That
+  ;; is `project-find-regexp', and memex is a project by its `.project' (see
   ;; my-files-vc.el) with no repository behind it, so the files rg is handed
   ;; are the ones `project-ignores' leaves -- which reads this variable from
   ;; the directory's local variables.
@@ -234,7 +234,8 @@ Private notes are never offered (see `my/org-private-directory')."
    'memex
    `((nil . ((org-attach-id-dir . ,(expand-file-name "data/" org-directory))
              (project-vc-ignores
-              . (,(concat "./" my/org-private-directory "/")))))))
+              . (,(concat "./" my/org-private-directory "/")
+                 "./archive/"))))))
   (dolist (dir (delete-dups (list (expand-file-name org-directory)
                                   (file-truename org-directory))))
     (dir-locals-set-directory-class dir 'memex))
@@ -1374,8 +1375,9 @@ With PRIVATE (\\[universal-argument]), over every node."
   ;; and out of the synced notes dir; only the .org files (and data/) sync.
   (setq org-roam-directory (file-truename org-directory)
         ;; memex/sources/ holds the records of org-moor's sources, which are
-        ;; Org files and no notes.  Matched against the path from memex.
-        org-roam-file-exclude-regexp (list "/[Aa]rchive/" "\\`sources/")
+        ;; Org files and no notes.  Both are matched against the path from
+        ;; memex, which has no leading slash to anchor on.
+        org-roam-file-exclude-regexp (list "\\`[Aa]rchive/" "\\`sources/")
         org-roam-completion-everywhere t)
 
   ;; Show tags alongside the title in `org-roam-node-find', so nodes are
